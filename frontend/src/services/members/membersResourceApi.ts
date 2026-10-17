@@ -2,7 +2,7 @@
  * Members Module API — members resource group (task 5, pure move).
  *
  * The bulk of the Members seam: member CRUD + export, membership
- * create/transition, the saved analytics-sets (incl. the dedicated delivery
+ * create, the saved analytics-sets (incl. the dedicated delivery
  * route, deliver-now, and ad-hoc mail send), the send-run status/history
  * surface, schedules, and the per-user preferred list.
  *
@@ -150,9 +150,8 @@ function flattenMember(raw: unknown): Member {
     membership_type: membership?.membership_type,
     member_number: membership?.member_number,
     // Surface the primary membership id (when the module returns one on the
-    // nested `membership` object) so the single-transition action can target it
-    // (POST /members/{id}/memberships/{membership_id}/transition). A top-level
-    // `membership_id` on the record still wins if present.
+    // nested `membership` object). A top-level `membership_id` on the record
+    // still wins if present.
     membership_id: rec.membership_id ?? membership?.membership_id,
     region,
   } as Member;
@@ -236,30 +235,6 @@ export async function createMembership<T = unknown>(memberId: string, body: unkn
   return unwrapData<T>(
     await postJson<unknown>(`/members/${encodeURIComponent(memberId)}/memberships`, body)
   );
-}
-
-/**
- * POST /members/{member_id}/memberships/{membership_id}/transition —
- * transition a single membership's state.
- */
-export async function transitionMembership<T = unknown>(
-  memberId: string,
-  membershipId: string,
-  body: unknown
-): Promise<T> {
-  return unwrapData<T>(
-    await postJson<unknown>(
-      `/members/${encodeURIComponent(memberId)}/memberships/${encodeURIComponent(
-        membershipId
-      )}/transition`,
-      body
-    )
-  );
-}
-
-/** POST /memberships/transition — bulk transition over multiple memberships. */
-export async function bulkTransition<T = unknown>(body: unknown): Promise<T> {
-  return unwrapData<T>(await postJson<unknown>('/memberships/transition', body));
 }
 
 // ============================================================================

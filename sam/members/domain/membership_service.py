@@ -69,10 +69,7 @@ from sam.members.domain._membership_errors import (
     MemberValidationError,
     ScheduleNotFound,
     ScopeDenied,
-    TransitionDenied,
-    TransitionResult,
 )
-from sam.members.domain._membership_lifecycle import LifecycleMixin
 from sam.members.domain._membership_reads import ReadsMixin
 from sam.members.domain._membership_schedules import SchedulesMixin
 from sam.members.domain._membership_writes import WritesMixin
@@ -80,10 +77,6 @@ from sam.members.domain.field_resolver import (
     FieldResolver,
     StaticOverlayProvider,
     TenantOverlayProvider,
-)
-from sam.members.domain.lifecycle_config import (
-    LifecycleConfigProvider,
-    StaticLifecycleConfigProvider,
 )
 from sam.members.domain.scope_dimensions import (
     ScopeConfigProvider,
@@ -105,7 +98,6 @@ from sam.members.domain.consent_notice import (
     StaticConsentNoticeProvider,
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
-from sam.members.domain.transition_hooks import TransitionHookRegistry
 from sam.members.repository.members_repository import (
     MembersRepository,
 )
@@ -126,33 +118,26 @@ __all__ = [
     "MembershipTypeNotFound",
     "ScheduleNotFound",
     "ScopeDenied",
-    "TransitionDenied",
-    "TransitionResult",
 ]
 
 
 class MembershipService(
     ReadsMixin,
-    LifecycleMixin,
     WritesMixin,
     CatalogMixin,
     AnalyticsSetsMixin,
     SchedulesMixin,
 ):
-    """The generic membership engine — READ surface (design C2) + lifecycle state machine.
+    """The generic membership engine — READ surface (design C2).
 
     Storage-agnostic + tenant-agnostic. Holds a :class:`MembersRepository` (injected), and
     for every read: (1) asks the repository for the tenant's data (keyed by ``tenant_id`` —
     Property 1), then (2) applies domain-layer scope filtering by ``allowed_scopes`` (design
     C4, Property 4) and, for single-record reads, the self-service ownership rule.
 
-    For the WRITE path's workflow it also owns the **lifecycle state machine**
-    (:meth:`transition_membership`, task 5.0): it resolves the tenant's declarative
-    :class:`LifecycleConfig`, checks a requested transition against the graph, evaluates the
-    declarative guards, and — only on success — dispatches the ``on_transition`` hook and
-    returns the state-updated record. The generic core has no ``if tenant == ...`` — every
-    difference is config (the graph), a declarative rule (the guards), or a registered hook
-    (the side-effect); Property 5.
+    Status is a plain tenant-driven field: a status change is an ordinary member edit (no
+    transition graph, guards, or state machine). The generic core has no ``if tenant == ...``
+    — every difference is config, a declarative rule, or a registered hook; Property 5.
 
     Args:
         repository: The tenant-scoped persistence contract (the only DynamoDB touch-point).
@@ -161,23 +146,10 @@ class MembershipService(
             tenant-agnostic — it builds a :class:`FieldResolver` over whatever provider is
             handed in. Defaults to an empty :class:`StaticOverlayProvider` (every tenant
             resolves to exactly the fixed base — the fail-safe, empty-by-default overlay).
-        lifecycle_provider: Supplies each tenant's :class:`LifecycleConfig`, resolved by
-            ``tenant_id`` (design C2). Defaults to an empty
-            :class:`StaticLifecycleConfigProvider` — a tenant with no configured lifecycle has
-            no state machine, so a transition request for it is denied (never a silent allow).
-        transition_hooks: The tenant-keyed ``on_transition`` hook registry (design C5). The
-            engine dispatches through it after a transition is permitted; an unregistered
-            tenant resolves to the safe no-op default. Defaults to an empty registry (task 5.1
-            populates h-dcn's hook). Prefer passing ``tenant_hooks`` (the unified registry) so
-            the WRITE path (task 5.2) can also reach ``validate_member``; if only
-            ``transition_hooks`` is supplied, the write-path hooks fall back to their safe
-            generic defaults.
         tenant_hooks: The unified :class:`~sam.members.domain.tenant_hooks.TenantHookRegistry`
-            (design C5, all named extension points). When supplied, the WRITE path resolves
-            ``validate_member`` through it AND the engine dispatches
-            ``on_transition`` through its ``transition_registry()`` view — so one registry
-            wires every hook. ``transition_hooks`` (the 5.0 seam) is honoured for backwards
-            compatibility when ``tenant_hooks`` is omitted.
+            (design C5, the named extension points). When supplied, the WRITE path resolves
+            ``validate_member`` through it. Defaults to an empty registry (task 5.1 populates
+            h-dcn's hook); an unregistered tenant resolves to the safe generic default.
         mail_gate_provider: Supplies each tenant's mail-enabled gate flag (pivot-output-
             actions R0/R1, design §6.3), resolved by ``tenant_id``. ``get_field_config``
             surfaces it as ``mail_enabled`` so the SPA offers the mail output actions
@@ -213,8 +185,6 @@ class MembershipService(
         self,
         repository: MembersRepository,
         overlay_provider: TenantOverlayProvider | None = None,
-        lifecycle_provider: LifecycleConfigProvider | None = None,
-        transition_hooks: TransitionHookRegistry | None = None,
         tenant_hooks: TenantHookRegistry | None = None,
         scope_config_provider: ScopeConfigProvider | None = None,
         mail_gate_provider: MailGateProvider | None = None,
@@ -291,24 +261,10 @@ class MembershipService(
             if consent_notice_provider is not None
             else StaticConsentNoticeProvider()
         )
-        self._lifecycle_provider: LifecycleConfigProvider = (
-            lifecycle_provider
-            if lifecycle_provider is not None
-            else StaticLifecycleConfigProvider()
-        )
         # The unified Rung-3 registry (design C5). The WRITE path (task 5.2) resolves
         # validate_member through it; an unregistered tenant resolves to the safe generic
         # default (Property 5). Defaults to an empty registry.
         self._tenant_hooks = (
             tenant_hooks if tenant_hooks is not None else TenantHookRegistry()
         )
-        # The on_transition seam the 5.0 engine consumes. When a unified registry is supplied
-        # its transition view wins (one registry wires everything); otherwise honour an
-        # explicitly-passed 5.0-style TransitionHookRegistry, else an empty one.
-        if tenant_hooks is not None:
-            self._transition_hooks = tenant_hooks.transition_registry()
-        elif transition_hooks is not None:
-            self._transition_hooks = transition_hooks
-        else:
-            self._transition_hooks = TransitionHookRegistry()
 

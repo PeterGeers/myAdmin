@@ -2,6 +2,16 @@
 
 ## S5b — Members runnable in the myAdmin SPA, fed by the governance projection — Design
 
+> **Superseded note (`retire-members-status-lifecycle-engine`).** The membership **lifecycle
+> engine** was retired after this design was written. Everything here describing status
+> changes as **transitions** is **superseded**: the `transitionMembership` / `bulkTransition`
+> API wrappers, the single/bulk transition routes (`.../transition`, `/memberships/transition`),
+> the transition modals, and the "lifecycle legality" domain property no longer exist. `status`
+> is now a plain tenant-driven **OPEN** enum (authored like `gender`); a status change is an
+> ordinary member **field edit** via the edit modal. The row-selection checkbox column remains
+> but no longer feeds a bulk-transition action. All other design content (projection channel,
+> readers, filters, scope) stands.
+
 - Requirements: `./requirements.md`
 - Parent (REUSE — domain/repository/route map unchanged):
   `.kiro/specs/multi-tenant/s5-members-first-migration/`.

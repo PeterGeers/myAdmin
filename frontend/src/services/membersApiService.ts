@@ -57,8 +57,6 @@ export {
   deleteMember,
   exportMembers,
   createMembership,
-  transitionMembership,
-  bulkTransition,
   deliveryFromBackend,
   deliveryToBackend,
   listAnalyticsSets,

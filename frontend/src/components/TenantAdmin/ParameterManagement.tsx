@@ -31,16 +31,35 @@ import { useTableConfig } from '../../hooks/useTableConfig';
 interface Props { tenant: string; }
 
 /**
- * Namespace excluded from the raw generic parameter editor.
+ * The `members.*` keys the typed `MembersConfig` editor exclusively owns, and so
+ * are hidden from the raw generic editor.
  *
- * The `members.*` namespace is authored exclusively through the typed
- * `MembersConfig` editor (one authoring door — Phase 3 §5, retire the dual
- * editing surface; `38-sam-module-field-config.md` rule 5). Rows in this
- * namespace are filtered out here so there is no path in the SPA to edit a
- * `members.*` parameter row outside the typed editor (R5.1, R5.3, R5.4).
- * EVERY other namespace is served unchanged (R5.2).
+ * The redesigned Members tab authors the tenant's groups/FIELD DEFINITIONS. Those
+ * live in two keys: the `field_overlay` object AND `scope_dimensions` (a scope
+ * dimension is part of a field's definition in that editor — R2.2). Both are the
+ * typed editor's single authoring door (Phase 3 §5 / Property 8;
+ * `38-sam-module-field-config.md` rule 5), so BOTH are hidden here — there is no
+ * raw path to hand-edit them outside the typed editor (R5.1, R5.3, R5.4).
+ *
+ * Every OTHER `members.*` key (e.g. `mail_enabled` / `mail_domain` /
+ * `mail_local_part` / `mail_certified` / `default_page_size`) is NOT authored by
+ * the Members tab — its intended door is this `/api/tenant-admin/parameters`
+ * surface (per the schema/projection-builder docs) — so it IS served to the raw
+ * editor; it would otherwise have no authoring door at all. Those keys are
+ * validated on save by the backend `validate_members_param`, so raw editing them
+ * stays safe. The previous blanket `members`-namespace exclusion wrongly orphaned
+ * the mail params and is retired.
  */
-const EXCLUDED_NAMESPACE = 'members';
+const TYPED_EDITOR_NS = 'members';
+const TYPED_EDITOR_KEYS: ReadonlySet<string> = new Set([
+  'field_overlay',
+  'scope_dimensions',
+]);
+
+/** True for a row the typed MembersConfig editor owns (hidden from the raw editor). */
+function isTypedEditorOwned(p: { namespace: string; key: string }): boolean {
+  return p.namespace === TYPED_EDITOR_NS && TYPED_EDITOR_KEYS.has(p.key);
+}
 
 /**
  * Extended parameter with a display-friendly value string for filtering.
@@ -114,17 +133,16 @@ export default function ParameterManagement({ tenant }: Props) {
 
   // Build flat parameter array with pre-computed display value.
   // The `members.*` namespace is excluded so the typed MembersConfig editor is
-  // the single authoring surface for it (Phase 3 §5 — one door). Every other
-  // namespace is served unchanged.
+  // the single authoring surface for the overlay object (Phase 3 §5 — one door).
+  // Every other members.* key (mail_*, default_page_size) IS served here.
   const allParams: ParameterRow[] = useMemo(() => {
-    const namespaces = Object.keys(params)
-      .filter(ns => ns !== EXCLUDED_NAMESPACE)
-      .sort();
+    const namespaces = Object.keys(params).sort();
     return namespaces.flatMap(ns =>
       (params[ns] || [])
-        // Guard on each row's own namespace too, so a `members.*` row can never
-        // leak into the raw editor regardless of how it is grouped (R5.1/R5.4).
-        .filter(p => p.namespace !== EXCLUDED_NAMESPACE)
+        // Hide ONLY the typed-editor-owned row (`members.field_overlay`), per row,
+        // so every other `members.*` key (mail_*, default_page_size) still has an
+        // authoring door in the raw editor (R5.1/R5.4).
+        .filter(p => !isTypedEditorOwned(p))
         .map(p => ({
           ...p,
           displayValue: toDisplayValue(p),

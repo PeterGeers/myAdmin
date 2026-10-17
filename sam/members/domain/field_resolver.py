@@ -27,10 +27,12 @@ Overlay authority (mirrors ``FieldConfigMixin``, kept safe by design):
 - **override presentation-only** aspects of a *fixed* field (its label, whether it is visible,
   its ordering, and — for an *optional* fixed field — whether it is required in this tenant),
 - but it may **NEVER** weaken a platform invariant: it cannot drop/rename a fixed field, make a
-  platform-``required`` fixed field optional, change a fixed field's ``type``, collide with a
-  fixed field's key, or touch the closed ``membership.status`` enum. Those are the base
-  registry's ``ALWAYS_REQUIRED``-style guarantees. Violations raise :class:`OverlayError`
-  (fail fast — a config bug, not user input).
+  platform-``required`` fixed field optional, change a fixed field's ``type``, or collide with a
+  fixed field's key. Those are the base registry's ``ALWAYS_REQUIRED``-style guarantees.
+  Violations raise :class:`OverlayError` (fail fast — a config bug, not user input).
+  (``membership.status`` is an OPEN enum, exactly like ``gender``: the overlay authors its value
+  list and a tenant-authored value wins end-to-end — it is NOT a closed platform set the overlay
+  is forbidden to touch.)
 
 What this module is NOT:
 - It does not persist anything (that is the repository, task 1.4 / Step 4).

@@ -1,0 +1,208 @@
+{
+  "pbtResults": {
+    "1. Write the bug-condition exploration test (BEFORE any retirement)": {
+      "status": "passed",
+      "failingExample": "Bug-condition exploration test FAILED on unfixed code exactly as intended — this confirms the bug. Counterexamples surfaced (all 4 facets failed):\n\nFalsifying example (Hypothesis, Property 1 — facet A/B):\n  test_tenant_authored_status_value_survives_projection_and_validates(extra_value='___')\n  → The tenant value DOES survive resolve into config#fields status.choices\n    ('application','pending','active','suspended','lapsed','left','died','___'),\n    but validate_fixed_fields (the authoritative create/update gate) REJECTS a member\n    with membership.status='died':\n    FieldValidationError: membership.status: must be one of: application, pending, active, suspended, lapsed, left\n  → COUNTEREXAMPLE (2.3): the tenant value survived projection but can never be set on a member.\n\nConcrete case (2.3): membership.status='died' rejected — 'must be one of: application, pending, active, suspended, lapsed, left'.\n\nClosed-enum (2.5): membership.status.choices = ('application','pending','active','suspended','lapsed','left') — a CLOSED set; gender's choices is None (open). The fix opens status like gender.\n\nTransition engine (2.4): HDCN_LIFECYCLE_CONFIG.transition(ACTIVE, APPLICATION) is None → the engine DENIES the status change active -> application (no declared edge). Status change is gatekept by the state machine instead of being an ordinary any-to-any field edit.",
+      "lastRunTimestamp": 1792242782505
+    },
+    "2. Write preservation property tests (BEFORE any retirement — observation-first)": {
+      "status": "passed",
+      "lastRunTimestamp": 1792243080473
+    },
+    "3.7 Verify the bug-condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1792247738553
+    }
+  },
+  "executionHistory": {
+    "1. Write the bug-condition exploration test (BEFORE any retirement)": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242555715
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242563494
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242803198
+      }
+    ],
+    "2. Write preservation property tests (BEFORE any retirement — observation-first)": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242555885
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242814794
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792243106084
+      }
+    ],
+    "3.1 Remove the frontend transition surface (leaf consumers — design D)": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242556016
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792243111862
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792243761725
+      }
+    ],
+    "3.2 Remove the two transition routes + dispatch + app wiring (design A)": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242556131
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792243768309
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792243996322
+      }
+    ],
+    "3.3 Delete the engine/domain modules + carve the hook registry (design B)": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242556311
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792244002056
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792244748571
+      }
+    ],
+    "3.4 Open the status field + remove `MembershipStatus` (design C)": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242556463
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792244753829
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792244953626
+      }
+    ],
+    "3.5 Update/Delete all paired tests (design F — change-with-tests)": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242556591
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792244958617
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792246790531
+      }
+    ],
+    "3.6 Reconcile every docstring + spec (design G)": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242556714
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792246796002
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792247701789
+      }
+    ],
+    "3.7 Verify the bug-condition exploration test now passes": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242556844
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792247708356
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792247768692
+      }
+    ],
+    "3.8 Verify preservation tests still pass": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242556966
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792247709253
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792247769547
+      }
+    ],
+    "4. Checkpoint — Ensure all tests pass": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792242557108
+      },
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792247774158
+      }
+    ],
+    "3. Retire the lifecycle engine and open the status field": [
+      {
+        "executionId": "2b36e079-8784-4816-a2cf-2f95c40e98a3",
+        "chatSessionId": "sess_717d1556-f25b-4a6b-8720-e8e7417c6ad2",
+        "timestamp": 1792247769654
+      }
+    ]
+  }
+}

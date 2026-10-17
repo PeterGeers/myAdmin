@@ -86,10 +86,10 @@ def test_api_contract_covers_the_hdcn_behaviour_groups(report):
     # Member CRUD
     assert {"create_member", "list_members", "get_member", "update_member",
             "delete_member", "export_members"} <= covered
-    # Membership lifecycle
+    # Membership lifecycle (transition_membership + bulk_transition_memberships retired —
+    # retire-members-status-lifecycle-engine; status is a plain field edit via update_membership)
     assert {"create_membership", "list_memberships", "get_membership",
-            "update_membership", "delete_membership", "transition_membership",
-            "bulk_transition_memberships"} <= covered
+            "update_membership", "delete_membership"} <= covered
     # Delegates
     assert {"manage_delegates", "send_delegate_invitation"} <= covered
     # Payments
@@ -124,15 +124,17 @@ def test_data_dimension_covers_config_dropdown_and_backfill(report):
     assert all(c.outcome is Outcome.PASS for c in data_checks)
 
 
-def test_workflow_dimension_walks_full_lifecycle(report):
+def test_workflow_dimension_status_is_a_plain_field_edit(report):
+    # retire-members-status-lifecycle-engine (§A/§F): the dimension-4 walk no longer exercises a
+    # transition graph/guards. It proves status is a plain OPEN-enum field edit via
+    # update_membership — a formerly-forbidden "backwards" change (active→application) and a
+    # tenant-authored value ("died") both succeed as ordinary any→any edits.
     wf = report.by_dimension(Dimension.WORKFLOW)
     behaviours = {c.hdcn_behaviour for c in wf}
-    # The full happy-path chain plus the two guard/denial checks.
-    assert any("application→pending (approved)" in b for b in behaviours)
-    assert any("pending→active" in b for b in behaviours)
-    assert any("lapsed→left" in b for b in behaviours)
-    assert any("denied without approval flag" in b for b in behaviours)
-    assert any("undeclared transition edge is denied" in b for b in behaviours)
+    assert any("plain field edit" in b for b in behaviours)
+    assert any("open enum" in b for b in behaviours)
+    # The walk no longer asserts any transition-graph / guard behaviour.
+    assert not any("transition edge" in b or "approval flag" in b for b in behaviours)
     assert all(c.outcome is Outcome.PASS for c in wf)
 
 

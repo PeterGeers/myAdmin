@@ -38,7 +38,7 @@ export interface Member {
   name?: string;
   /** Contact email (fixed base field). */
   email?: string;
-  /** Lifecycle status of the member/primary membership. */
+  /** Membership status — a plain, tenant-driven open enum field. */
   status?: string;
   /** Membership type key (see `MembershipType.key`). */
   membership_type?: string;
@@ -46,8 +46,7 @@ export interface Member {
   member_number?: string;
   /**
    * The primary membership id (surfaced from the module's nested `membership`
-   * record when present). The single lifecycle-transition action targets this
-   * id: `POST /members/{member_id}/memberships/{membership_id}/transition`.
+   * record when present).
    */
   membership_id?: string;
   /** The scope dimension the member belongs to (e.g. region "Noord"). */
@@ -542,14 +541,6 @@ export interface FieldConfig {
   /** Configured scope dimensions (e.g. region with its allowed values). */
   dimensions?: ScopeDimension[];
   /**
-   * The tenant's membership lifecycle, as described by the MODULE (design C2 —
-   * a declarative state machine, never hardcoded in the SPA). Optional: a tenant
-   * with no configured lifecycle has no state machine, so no transitions are
-   * offered (deny-by-default at the UI). The module remains authoritative — it
-   * re-validates every transition and answers 409 with reasons on a denial.
-   */
-  lifecycle?: LifecycleConfigShape;
-  /**
    * The tenant-level default rows-per-page for the Members table (Members config
    * redesign Phase 2, step (a) — the `page_size` re-home). A single scalar that
    * replaced the per-context `view_context.page_size` (view contexts were retired
@@ -581,35 +572,6 @@ export interface FieldConfig {
    * Absent on an older module build (treated as "status unavailable").
    */
   config_status?: Record<string, string | number | null>;
-}
-
-/**
- * A declarative membership-lifecycle description, as returned by the module.
- *
- * The SPA reads the ALLOWED TRANSITION TARGETS for a member's current state from
- * `allowed_transitions[<currentState>]` (or, equivalently, `transitions`), NEVER
- * from a hardcoded status list. When the module does not describe a lifecycle,
- * no targets are offered. Two interchangeable shapes are accepted so the page is
- * robust to the module's projection:
- *   - `allowed_transitions`: a map `{ <fromState>: [<toState>, ...] }`.
- *   - `transitions`: a flat edge list `[{ from, to }, ...]`.
- */
-export interface LifecycleConfigShape {
-  /** The states this tenant uses (informational; order kept). */
-  allowed_states?: string[];
-  /** The initial state a new member starts in (informational). */
-  initial_state?: string;
-  /** Map of `fromState -> reachable toStates` (preferred). */
-  allowed_transitions?: Record<string, string[]>;
-  /** Flat edge list `[{ from, to }]` (alternative to `allowed_transitions`). */
-  transitions?: { from: string; to: string }[];
-  /**
-   * States (or `<from>-><to>` edges) that require a guard-context approval flag
-   * (h-dcn's `context.approved`). When a chosen target is listed here the
-   * transition modal surfaces an approval toggle threaded through as
-   * `context.approved`. Optional — absent means no approval facts are needed.
-   */
-  requires_approval?: string[];
 }
 
 /** A configured scope dimension (mirrors the projected `config#scope` shape). */

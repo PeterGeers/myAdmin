@@ -11,8 +11,6 @@ from sam.members.domain._membership_errors import (
     MemberNotFound,
     MemberValidationError,
     ScopeDenied,
-    TransitionDenied,
-    TransitionResult,
     _as_field_error,
 )
 from sam.members.domain import field_formats
@@ -48,7 +46,6 @@ from sam.members.domain.fixed_fields import (
     MEMBER_NUMBER_FIELD_KEY,
     FieldType,
     FieldValidationError,
-    MembershipStatus,
     roles_for_option,
     validate_fixed_fields,
     validate_member_number_format,
@@ -70,10 +67,12 @@ class WritesMixin:
     # ── Write path (design C1 write / C2 / C5 / C6 — task 5.2) ────────────────────────
     #
     # Orchestration only: validate (fixed fields + tenant validate_member hook) → derive the
-    # member number via the hook on create (threading the atomic counter value in) → for a
-    # transition call the lifecycle engine above → persist via the repository (the SOLE
-    # DynamoDB touch-point + owner of uniqueness/atomicity). No ``if tenant``, no boto3, no
-    # HTTP here (Property 5). Scope + verify-before-trust are enforced BEFORE any persist.
+    # member number via the hook on create (threading the atomic counter value in) → persist via
+    # the repository (the SOLE DynamoDB touch-point + owner of uniqueness/atomicity). No ``if
+    # tenant``, no boto3, no HTTP here (Property 5). Scope + verify-before-trust are enforced
+    # BEFORE any persist. (The lifecycle engine was retired — see spec
+    # ``retire-members-status-lifecycle-engine``; status is now a plain tenant-driven field edited
+    # like any other field, so there is no transition branch here.)
 
     def _validate_member_record(
         self,
@@ -742,8 +741,9 @@ class WritesMixin:
         """Create a member for the tenant (design C1 write / C2 / C5 / C6, R1.4/R3.3).
 
         Orchestration: sanitize the payload (never trust a body ``tenant_id`` — Property 2) →
-        stamp the authoritative ``tenant_id`` → set the initial lifecycle state from the
-        tenant's :class:`LifecycleConfig` when the body carries none → validate (fixed fields +
+        stamp the authoritative ``tenant_id`` → default ``membership.status`` to the plain
+        literal ``"application"`` when the body carries none (R3.1; the lifecycle engine was
+        retired, so status is an ordinary tenant-driven field) → validate (fixed fields +
         tenant ``validate_member``) → authorize the write against the caller's scope → persist
         via ``save_member`` (a single ``PutItem``).
 
@@ -763,10 +763,11 @@ class WritesMixin:
 
         membership = dict(record.get("membership") or {})
 
-        # Initial lifecycle state from the tenant's config when the body sets none.
-        config = self._lifecycle_provider.get_lifecycle_config(tenant_id)
-        if not membership.get("status") and config is not None:
-            membership["status"] = config.initial_state.value
+        # Default the initial status to the plain literal "application" when the body sets none
+        # (R3.1). The lifecycle engine was retired — status is now an ordinary tenant-driven
+        # field, so there is no initial_state to read from a LifecycleConfig.
+        if not membership.get("status"):
+            membership["status"] = "application"
 
         # s5k: NO member-number auto-generation. `member_number` is a plain OPTIONAL string that
         # the caller/import supplies (numeric like `M00012`, alphanumeric like `ABCDEFG`, or
@@ -929,18 +930,19 @@ class WritesMixin:
         membership = dict(record.get("membership") or {})
         for privileged in self._APPLICATION_PRIVILEGED_MEMBERSHIP_KEYS:
             membership.pop(privileged, None)
-        membership["status"] = MembershipStatus.APPLICATION.value  # forced, never client-trusted
+        membership["status"] = "application"  # forced default, never client-trusted (R3.1)
 
         # Server-stamped spine fields so the `status=application` record is catalog/spine-valid
         # WITHOUT asking the applicant for staff-owned data (R3.5 — the record must pass the same
         # create spine). `joined_date` is a platform-REQUIRED fixed field, but a prospective member
-        # has not "joined" — membership begins at the approval transition
-        # (application → pending → active), not at submission. So the application date (server UTC
-        # today) is stamped as the provisional joined_date: it keeps the record valid and reflects
-        # when the person applied, and staff set the real join date on approval. This does NOT
-        # relax a platform invariant (the field stays required and present) — it is the same
-        # server-authoritative stamp the initial-status default is, mirroring `create_member`'s
-        # lifecycle stamp. Only stamped when ABSENT so a resend's prior value survives.
+        # has not "joined" — membership begins once staff approve the applicant and move them to
+        # an active status, not at submission. So the application date (server UTC today) is
+        # stamped as the provisional joined_date: it keeps the record valid and reflects when the
+        # person applied, and staff set the real join date on approval. This does NOT relax a
+        # platform invariant (the field stays required and present) — it is the same
+        # server-authoritative stamp the default `status="application"` is, mirroring
+        # `create_member`'s initial-status default. Only stamped when ABSENT so a resend's prior
+        # value survives.
         if not membership.get("joined_date"):
             membership["joined_date"] = datetime.now(timezone.utc).date().isoformat()
         record["membership"] = membership
@@ -1371,89 +1373,6 @@ class WritesMixin:
         self._repo.delete_membership(tenant_id, member_id, membership_id)
         return {"deleted": True, "member_id": member_id, "membership_id": membership_id}
 
-    def transition_member(
-        self,
-        tenant_id: str,
-        member_id: str,
-        to_state: MembershipStatus,
-        allowed_scopes: Mapping[str, Sequence[str]],
-        *,
-        context: Mapping[str, Any] | None = None,
-        requester_sub: str | None = None,
-    ) -> TransitionResult:
-        """Apply + PERSIST a lifecycle transition to a member (design C2 / C5, R1.4).
-
-        The full WRITE-path transition (distinct from the pure computation
-        :meth:`transition_membership`): load the member within the tenant (Property 1),
-        authorize the write against its scope (:class:`ScopeDenied` → 403), compute the
-        transition via the lifecycle engine (guards + ``on_transition`` hook fire ONLY on a
-        permitted move; a denial raises :class:`TransitionDenied` → 409/422 and never mutates
-        or fires the hook), then persist the state-updated record via ``save_member``. Returns
-        the :class:`TransitionResult` (now persisted).
-        """
-        member = self._repo.get_member(tenant_id, member_id)
-        if member is None:
-            raise MemberNotFound(tenant_id, member_id)
-        self._authorize_write(
-            tenant_id,
-            member,
-            allowed_scopes,
-            requester_sub=requester_sub,
-            self_service=False,
-        )
-        result = self.transition_membership(
-            tenant_id, member, to_state, context=context
-        )
-        self._repo.save_member(tenant_id, result.member)
-        return result
-
-    def bulk_transition_members(
-        self,
-        tenant_id: str,
-        member_ids: Sequence[str],
-        to_state: MembershipStatus,
-        allowed_scopes: Mapping[str, Sequence[str]],
-        *,
-        context: Mapping[str, Any] | None = None,
-        requester_sub: str | None = None,
-    ) -> dict[str, Any]:
-        """Apply one transition to many members, reporting a per-item outcome (admin capability).
-
-        Applies :meth:`transition_member` to each id independently and records a per-item
-        result (``ok`` / the from→to states, or the failure reason) so a partial batch surfaces
-        exactly which items moved and which were denied/not-found — never an all-or-nothing
-        silent failure. Each item's guards/scope/hook are enforced individually.
-        """
-        results: list[dict[str, Any]] = []
-        for member_id in member_ids:
-            try:
-                outcome = self.transition_member(
-                    tenant_id,
-                    member_id,
-                    to_state,
-                    allowed_scopes,
-                    context=context,
-                    requester_sub=requester_sub,
-                )
-                results.append(
-                    {
-                        "member_id": member_id,
-                        "ok": True,
-                        "from": outcome.from_state.value,
-                        "to": outcome.to_state.value,
-                    }
-                )
-            except (TransitionDenied, MemberNotFound, ScopeDenied) as exc:
-                results.append(
-                    {"member_id": member_id, "ok": False, "error": str(exc)}
-                )
-        return {
-            "to_state": to_state.value,
-            "results": results,
-            "succeeded": sum(1 for r in results if r["ok"]),
-            "failed": sum(1 for r in results if not r["ok"]),
-        }
-
     # ── Delegates (design C1 write — task 5.2; self-service) ──────────────────────────
 
     def manage_delegates(
@@ -1678,14 +1597,6 @@ class WritesMixin:
             "default_page_size": self._default_page_size_provider.get_default_page_size(
                 tenant_id
             ),
-            # The tenant's membership lifecycle, as DECLARED BY THE MODULE (design C2, R5.7).
-            # The single + bulk transition modals read their candidate target states from this
-            # block ONLY — never a hardcoded status list. A tenant with no configured lifecycle
-            # yields `None` here, so the SPA offers NO transition targets (deny-by-default at
-            # the UI); the module stays authoritative regardless (it re-validates every
-            # transition and answers 409 with reasons on a denial). Presentation-only: the SPA
-            # renders the candidate list off this; enforcement stays here.
-            "lifecycle": self._serialize_lifecycle(tenant_id),
             # The tenant's mail-enabled gate flag (pivot-output-actions R0/R1 task 1.3, design
             # §6.3). Sourced from the injected MailGateProvider — in production the projection
             # reader's `config#mail` row (the per-tenant "mail-enabled / SES-certified"
@@ -1919,52 +1830,6 @@ class WritesMixin:
             return list(application_subset_choices(field))
 
         return None
-
-    def _serialize_lifecycle(self, tenant_id: str) -> dict[str, Any] | None:
-        """Project the tenant's :class:`LifecycleConfig` into the SPA's `lifecycle` shape (C2).
-
-        Sourced from the injected :class:`LifecycleConfigProvider` (the module's declarative
-        state machine), keyed by the verified ``tenant_id``. Returns ``None`` when the tenant
-        has no configured lifecycle — the SPA then offers no transition targets (deny-by-default
-        at the UI, R5.7). Deliberately limited: this exposes only the declarative transition
-        graph the module already models — no editor, no extra states, no workflow features.
-
-        The shape mirrors the frontend `LifecycleConfigShape`:
-          - ``allowed_states``: the tenant's state vocabulary (order kept);
-          - ``initial_state``: the state a new member starts in;
-          - ``allowed_transitions``: ``{ fromState: [toState, ...] }`` (the preferred edge map
-            the modals read for a member's current state / the bulk union);
-          - ``requires_approval``: the ``fromState->toState`` edges whose declarative guards
-            read ``context.approved`` (so the SPA renders the approval checkbox). Derived from
-            the guard data — never a hardcoded edge list.
-
-        Presentation-only: the module re-validates every transition server-side (409 with
-        reasons on a denial), so this candidate description is a convenience, never the
-        authority.
-        """
-        config = self._lifecycle_provider.get_lifecycle_config(tenant_id)
-        if config is None:
-            return None
-
-        allowed_transitions: dict[str, list[str]] = {}
-        requires_approval: list[str] = []
-        for rule in config.transitions:
-            frm = rule.from_state.value
-            to = rule.to_state.value
-            allowed_transitions.setdefault(frm, []).append(to)
-            # An edge whose declarative guards read the `context.approved` fact needs the
-            # approval checkbox in the modal — derived from the guard data, not hardcoded.
-            if any(
-                guard.field == "context.approved" for guard in rule.guards
-            ):
-                requires_approval.append(f"{frm}->{to}")
-
-        return {
-            "allowed_states": [s.value for s in config.allowed_states],
-            "initial_state": config.initial_state.value,
-            "allowed_transitions": allowed_transitions,
-            "requires_approval": requires_approval,
-        }
 
     def _serialize_scope_dimensions(self, tenant_id: str) -> list[dict[str, Any]]:
         """Project the tenant's ENABLED scope dimensions into the frontend `dimensions` shape.

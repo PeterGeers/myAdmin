@@ -29,10 +29,18 @@ from sam.members.domain.error_codes import (
     FieldError,
 )
 from sam.members.domain.fixed_fields import (
+    FieldGroup,
+    FieldType,
     FieldValidationError,
-    MembershipStatus,
+    FixedField,
+    _validate_value,
     validate_fixed_fields,
 )
+
+# retire-members-status-lifecycle-engine (§C): the closed `MembershipStatus` enum was deleted;
+# `membership.status` is now a plain OPEN enum. A member's status is authored as a plain string
+# ("active" is the platform create-time-ish default value) and ANY non-blank string validates.
+_STATUS_ACTIVE = "active"
 
 
 def _valid_member() -> dict:
@@ -53,7 +61,7 @@ def _valid_member() -> dict:
         },
         "membership": {
             "member_number": "H-0001",
-            "status": MembershipStatus.ACTIVE.value,
+            "status": _STATUS_ACTIVE,
             "membership_type": "erelid",
             "joined_date": "2020-01-01",
         },
@@ -106,16 +114,47 @@ def test_wrong_type_string_carries_must_be_a_string_code():
     assert exc.value.errors["personal.last_name"].code == VALIDATION_MUST_BE_A_STRING
 
 
-def test_invalid_status_enum_carries_must_be_one_of_code_with_allowed_params():
+def test_status_open_enum_accepts_any_non_blank_value():
+    # retire-members-status-lifecycle-engine (§C): `membership.status` is now an OPEN enum
+    # (`choices=None`, like `gender`). A tenant-authored value the old closed set rejected
+    # (e.g. "vip") now VALIDATES — the closed-set "must be one of" gate on status is GONE.
+    # (Resolved tenant choices enforce membership downstream; the base only requires a
+    # non-blank string.) This aligns with the task-1 exploration test's intended behavior.
     m = _valid_member()
     m["membership"]["status"] = "vip"
+    validate_fixed_fields(m)  # must NOT raise
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_status_open_enum_still_rejects_a_blank_value(blank):
+    # Open enum still requires a NON-BLANK string (status is a required field), carrying the
+    # must-be-a-string code — the open-enum path, not the deleted closed-set gate.
+    m = _valid_member()
+    m["membership"]["status"] = blank
     with pytest.raises(FieldValidationError) as exc:
         validate_fixed_fields(m)
-    fe = exc.value.errors["membership.status"]
+    assert exc.value.errors["membership.status"].code == VALIDATION_MUST_BE_A_STRING
+
+
+def test_closed_enum_value_carries_must_be_one_of_code_with_allowed_params():
+    # The `errors.validation.mustBeOneOf` code + its `allowed` params are STILL emitted for a
+    # genuinely CLOSED enum field (a value outside `choices`). After the retirement no FIXED
+    # field is closed, so this is pinned directly on the validator with a closed-choice field —
+    # exactly the path a tenant OVERLAY enum with a declared `choices` list still takes
+    # (the non-status enum-membership invariant preserved, design §3.5).
+    closed = FixedField(
+        key="club_section",
+        group=FieldGroup.MEMBERSHIP,
+        type=FieldType.ENUM,
+        choices=("noord", "zuid"),
+        label={"en": "Section", "nl": "Afdeling"},
+    )
+    fe = _validate_value(closed, "west")
+    assert fe is not None
     assert fe.code == VALIDATION_MUST_BE_ONE_OF
     # params.allowed carries the machine list for interpolation; detail keeps the English join.
     assert fe.params is not None and "allowed" in fe.params
-    assert MembershipStatus.ACTIVE.value in fe.params["allowed"]
+    assert fe.params["allowed"] == ["noord", "zuid"]
     assert "must be one of" in fe.detail
 
 

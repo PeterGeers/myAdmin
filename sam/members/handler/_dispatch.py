@@ -22,10 +22,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from sam.members.domain.execute_and_deliver import AdHocMailBody
-from sam.members.domain.fixed_fields import MembershipStatus
-from sam.members.domain.membership_service import (
-    MemberValidationError,
-)
 from sam.members.handler._http import AcceptedResult, ParsedRequest
 from sam.members.handler.routes import CAP_MEMBERS_ADMIN, RouteSpec
 from sam.shared.auth_utils import has_capability
@@ -454,41 +450,8 @@ def _write_body(request: ParsedRequest) -> Mapping[str, Any]:
     return body if isinstance(body, Mapping) else {}
 
 
-def _parse_to_state(body: Mapping[str, Any]) -> MembershipStatus:
-    """Read the requested target lifecycle state from a transition request body → enum.
-
-    The transition routes carry ``{"to_state": "active", ...}`` (or ``"to"``). An absent or
-    unrecognised state is a client error the edge maps to a 422 (:class:`MemberValidationError`)
-    — the domain never guesses a target state.
-    """
-    raw = None
-    if isinstance(body, Mapping):
-        raw = body.get("to_state") or body.get("to")
-    try:
-        return MembershipStatus(raw)
-    except (ValueError, TypeError):
-        raise MemberValidationError(
-            {"to_state": f"a valid target lifecycle state is required (got {raw!r})"}
-        )
-
-
-def _transition_context(body: Mapping[str, Any]) -> Mapping[str, Any]:
-    """The declarative transition context (guard facts) from a transition request body.
-
-    The lifecycle guards may read ``context.*`` facts threaded in at call time (e.g. h-dcn's
-    ``context.approved`` approval flag). We pass through the body's ``context`` object when
-    present, else an empty mapping — the guards treat missing facts as absent (deny where a
-    guard requires the fact).
-    """
-    if isinstance(body, Mapping):
-        ctx = body.get("context")
-        if isinstance(ctx, Mapping):
-            return ctx
-    return {}
-
-
 # The READ routes task 3.2 implements, dispatched by their stable route ``name``; the WRITE
-# routes (create/update/delete/transition/delegates) are wired by task 5.2/5.3. Anything not
+# routes (create/update/delete/delegates) are wired by task 5.2/5.3. Anything not
 # wired falls through to :class:`RouteNotImplemented`.
 def dispatch_route(
     service: MembershipService,
@@ -863,41 +826,6 @@ def dispatch_route(
             requester_sub=ctx.sub,
         )
 
-    if name == "transition_membership":
-        member_id = _require_path_param(ctx, "member_id")
-        body = _write_body(request)
-        to_state = _parse_to_state(body)
-        result = service.transition_member(
-            tenant_id,
-            member_id,
-            to_state,
-            scopes,
-            context=_transition_context(body),
-            requester_sub=ctx.sub,
-        )
-        return {
-            "member": result.member,
-            "from": result.from_state.value,
-            "to": result.to_state.value,
-        }
-
-    if name == "bulk_transition_memberships":
-        body = _write_body(request)
-        to_state = _parse_to_state(body)
-        member_ids = body.get("member_ids") if isinstance(body, Mapping) else None
-        if not isinstance(member_ids, (list, tuple)) or not member_ids:
-            raise MemberValidationError(
-                {"member_ids": "a non-empty member_ids list is required"}
-            )
-        return service.bulk_transition_members(
-            tenant_id,
-            [str(m) for m in member_ids],
-            to_state,
-            scopes,
-            context=_transition_context(body),
-            requester_sub=ctx.sub,
-        )
-
     # ── Group DELEGATE (writes — task 5.2; self-service) ──────────────────────────────
     if name == "manage_delegates":
         member_id = _require_path_param(ctx, "member_id")
@@ -982,10 +910,8 @@ def dispatch_route(
 __all__ = [
     "MailRunNotFound",
     "RouteNotImplemented",
-    "_parse_to_state",
     "_query_flag",
     "_require_path_param",
-    "_transition_context",
     "_write_body",
     "dispatch_route",
     "get_execute_and_deliver_service",

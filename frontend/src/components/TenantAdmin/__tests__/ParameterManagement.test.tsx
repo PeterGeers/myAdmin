@@ -157,16 +157,27 @@ const mockParams = {
 };
 
 /**
- * Mix of `members.*` rows (which the raw editor must EXCLUDE — authored only in
- * the typed MembersConfig editor) and non-members rows (which must still show).
+ * Mix of `members.*` rows and non-members rows exercising the SELECTIVE
+ * exclusion contract:
+ *   - `field_overlay` + `scope_dimensions` are the typed-editor-owned FIELD
+ *     DEFINITION keys — the raw editor must HIDE them (one authoring door).
+ *   - the mail params (`mail_enabled` / `mail_domain` / `mail_certified`) and
+ *     `default_page_size` are NOT authored by the typed editor — the raw editor
+ *     is their authoring door, so they must SHOW.
+ *   - non-members namespaces (storage / fin) must still show.
  */
 const mockParamsWithMembers = {
   success: true,
   tenant: 'T1',
   parameters: {
     members: [
+      // Typed-editor-owned → hidden
       { id: 100, namespace: 'members', key: 'field_overlay', value: { fields: [] }, value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false },
       { id: 101, namespace: 'members', key: 'scope_dimensions', value: { dimensions: [] }, value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false },
+      // No typed door → must show in the raw editor
+      { id: 102, namespace: 'members', key: 'mail_enabled', value: true, value_type: 'boolean' as const, scope_origin: 'tenant' as const, is_secret: false },
+      { id: 103, namespace: 'members', key: 'mail_domain', value: 'h-dcn.nl', value_type: 'string' as const, scope_origin: 'tenant' as const, is_secret: false },
+      { id: 104, namespace: 'members', key: 'mail_certified', value: true, value_type: 'boolean' as const, scope_origin: 'tenant' as const, is_secret: false },
     ],
     storage: [
       { id: 1, namespace: 'storage', key: 'provider', value: 'google_drive', value_type: 'string' as const, scope_origin: 'tenant' as const, is_secret: false },
@@ -284,26 +295,42 @@ describe('ParameterManagement', () => {
   });
 
   // ========================================================================
-  // One Authoring Door — members.* namespace excluded (R5.1-R5.4, R8.5)
+  // One Authoring Door — SELECTIVE members.* exclusion (R5.1-R5.4, R8.5)
   //
   // The typed MembersConfig editor is the single authoring surface for the
-  // `members.*` namespace. The raw generic editor must EXCLUDE those rows while
-  // continuing to serve every OTHER namespace unchanged.
+  // tenant's FIELD DEFINITIONS — the `field_overlay` object AND `scope_dimensions`
+  // (a scope dimension is part of a field's definition there). The raw generic
+  // editor must HIDE exactly those two keys, while SERVING every other members.*
+  // key (the mail params + default_page_size, which have no typed door) and every
+  // other namespace unchanged.
   // ========================================================================
 
-  describe('Excludes members.* namespace (one authoring door)', () => {
-    test('does not render members.* parameter rows', async () => {
+  describe('Selective members.* exclusion (one authoring door)', () => {
+    test('hides the typed-editor-owned keys (field_overlay + scope_dimensions)', async () => {
       vi.mocked(getParameters).mockResolvedValue(mockParamsWithMembers);
       render(<ParameterManagement tenant="T1" />);
       await waitFor(() => {
         expect(screen.queryByText('Loading parameters...')).not.toBeInTheDocument();
-        // A non-members row confirms the table finished loading.
         expect(screen.getByText('provider')).toBeInTheDocument();
       });
 
-      // members.* keys must NOT be editable in the raw editor
+      // The typed editor owns these — they must NOT appear in the raw editor.
       expect(screen.queryByText('field_overlay')).not.toBeInTheDocument();
       expect(screen.queryByText('scope_dimensions')).not.toBeInTheDocument();
+    });
+
+    test('SHOWS the members.* keys with no typed door (mail params)', async () => {
+      vi.mocked(getParameters).mockResolvedValue(mockParamsWithMembers);
+      render(<ParameterManagement tenant="T1" />);
+      await waitFor(() => {
+        expect(screen.queryByText('Loading parameters...')).not.toBeInTheDocument();
+        expect(screen.getByText('provider')).toBeInTheDocument();
+      });
+
+      // These have no typed editor — the raw editor is their authoring door.
+      expect(screen.getByText('mail_enabled')).toBeInTheDocument();
+      expect(screen.getByText('mail_domain')).toBeInTheDocument();
+      expect(screen.getByText('mail_certified')).toBeInTheDocument();
     });
 
     test('still renders every other namespace', async () => {
@@ -319,7 +346,7 @@ describe('ParameterManagement', () => {
       expect(screen.getByText('currency')).toBeInTheDocument();
     });
 
-    test('no members.* row is clickable to open the edit modal', async () => {
+    test('a mail param row is clickable to open the edit modal; a typed-owned key is not present', async () => {
       vi.mocked(getParameters).mockResolvedValue(mockParamsWithMembers);
       render(<ParameterManagement tenant="T1" />);
       await waitFor(() => {
@@ -327,18 +354,26 @@ describe('ParameterManagement', () => {
         expect(screen.getByText('provider')).toBeInTheDocument();
       });
 
-      // There is no `members.*` row to click, so the edit modal can never open
-      // for a members parameter outside the typed editor (R5.4).
+      // The typed-owned key is absent — no raw edit path to it (R5.4).
       expect(screen.queryByText('field_overlay')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('modal')).not.toBeInTheDocument();
+      // A mail param row IS present and opens the edit modal when clicked.
+      fireEvent.click(screen.getByText('mail_domain'));
+      await waitFor(() => {
+        // The modal header carries the full "<ns>.<key>" — unambiguous proof the
+        // raw edit modal opened for the mail param (the table cell is just 'mail_domain').
+        expect(
+          screen.getByText('tenantAdmin.parameters.editParameter - members.mail_domain')
+        ).toBeInTheDocument();
+      });
     });
 
-    test('shows empty state when ONLY members.* rows exist', async () => {
+    test('shows empty state when ONLY typed-editor-owned members.* rows exist', async () => {
       vi.mocked(getParameters).mockResolvedValue({
         success: true, tenant: 'T1',
         parameters: {
           members: [
             { id: 100, namespace: 'members', key: 'field_overlay', value: {}, value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false },
+            { id: 101, namespace: 'members', key: 'scope_dimensions', value: {}, value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false },
           ],
         },
       });
@@ -347,6 +382,7 @@ describe('ParameterManagement', () => {
         expect(screen.getByText('tenantAdmin.parameters.noParameters')).toBeInTheDocument();
       });
       expect(screen.queryByText('field_overlay')).not.toBeInTheDocument();
+      expect(screen.queryByText('scope_dimensions')).not.toBeInTheDocument();
     });
   });
 
