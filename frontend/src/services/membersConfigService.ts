@@ -26,8 +26,8 @@ import { getFieldConfig } from './membersApiService';
 
 export const MEMBERS_NAMESPACE = 'members';
 
-/** The three authorable member config keys, in editor order. */
-export const MEMBERS_PARAM_KEYS = ['field_overlay', 'scope_dimensions', 'view_contexts'] as const;
+/** The authorable member config keys, in editor order. */
+export const MEMBERS_PARAM_KEYS = ['field_overlay', 'scope_dimensions'] as const;
 export type MembersParamKey = (typeof MEMBERS_PARAM_KEYS)[number];
 
 /**
@@ -39,7 +39,6 @@ export type MembersParamKey = (typeof MEMBERS_PARAM_KEYS)[number];
 export const MEMBERS_PARAM_TO_CONFIG_ID: Record<MembersParamKey, string> = {
   field_overlay: 'fields',
   scope_dimensions: 'scope',
-  view_contexts: 'views',
 };
 
 /**

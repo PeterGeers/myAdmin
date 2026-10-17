@@ -641,6 +641,40 @@ class ParameterService:
 
         return seeded
 
+    def invalidate_namespace(self, namespace: str, tenant: str | None = None) -> None:
+        """Drop cached values for a whole ``namespace`` (optionally one tenant).
+
+        The governance projection sync (:class:`services.projection_sync.ProjectionSync`)
+        is a long-lived, process-wide singleton: its ``ParameterService`` is built once
+        and REUSED across every on-change sync for the life of the Flask process. Because
+        :meth:`get_param` memoises resolved values in :attr:`_cache`, a value read during
+        one sync run stays cached, so a LATER sync run can serialize STALE content even
+        though a tenant admin has since edited the param through a DIFFERENT service
+        instance (the save route's own ``ParameterService``, whose write-through
+        invalidation never reaches this one). Meanwhile :meth:`get_param_revision` is
+        UNCACHED and reads the fresh ``updated_at`` — so the projected row's ``version``
+        advances while its CONTENT lags: the version/content desync (the "wedge").
+
+        This seam lets the sync start each run from a coherent (non-stale) source: before
+        building a tenant's ``config#*`` rows it drops this service's cached ``members.*``
+        values for that tenant, so the builders re-read the CURRENT value and the built
+        content always matches the (equally current) version. READ-ONLY cache maintenance —
+        no MySQL I/O — so the sync's one-directional guarantee is untouched.
+
+        Args:
+            namespace: The parameter namespace to evict (e.g. ``"members"``).
+            tenant: When given, evict only that tenant's cached values in the
+                namespace (the ``("tenant", tenant, namespace, …)`` cache keys);
+                when ``None``, evict every scope's entries in the namespace.
+        """
+        keys_to_remove = [
+            k
+            for k in self._cache
+            if k[2] == namespace and (tenant is None or (k[0] == "tenant" and k[1] == tenant))
+        ]
+        for k in keys_to_remove:
+            del self._cache[k]
+
     def _invalidate_cache(self, namespace: str, key: str) -> None:
         """Remove all cache entries matching this namespace+key across all scopes."""
         keys_to_remove = [k for k in self._cache if k[2] == namespace and k[3] == key]

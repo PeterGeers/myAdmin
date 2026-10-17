@@ -137,13 +137,19 @@ def _validate_required_attributes(item: ProjectionItem) -> None:
     - ``module#<name>``  -> requires a boolean ``is_active`` attribute.
     - ``role#<email>#<role>`` -> requires non-blank ``email`` and ``role``
       attributes matching the key.
+    - ``config#<id>`` -> requires the sub-config's own well-formed attribute set
+      (see :func:`_validate_config_attributes`): a structurally incomplete or
+      malformed ``config#fields`` / ``config#scope`` / ``config#mail`` row is
+      REJECTED here rather than written or silently skipped (R1.4) — a build that
+      cannot produce a valid row is a LOUD failure surfaced to the caller
+      (``_project_tenant_change``), never a silent stale-leave.
     - ``tenant`` -> no additional required attributes (existence + tenant-level
       fields; those are optional passthrough).
 
     Only well-formedness of *required* fields is enforced; extra tenant-level
     attributes are allowed through untouched.
     """
-    record_type, _id_parts = schema.split_sort_key(item.sort_key)
+    record_type, id_parts = schema.split_sort_key(item.sort_key)
     attributes: Mapping[str, Any] = item.attributes or {}
 
     if record_type == schema.RECORD_TYPE_MODULE:
@@ -166,6 +172,97 @@ def _validate_required_attributes(item: ProjectionItem) -> None:
                     f"({_identity(item)})"
                 )
 
+    elif record_type == schema.RECORD_TYPE_CONFIG:
+        _validate_config_attributes(item, id_parts, attributes)
+
+
+# The required attribute SHAPE of each ``config#<id>`` sub-config — the exact
+# structure the builders in ``_projection_config_builders.py`` always produce and
+# the SAM read side consumes. A build that cannot produce this shape is malformed
+# and must be REJECTED (R1.4), not written or silently skipped. Each entry maps an
+# attribute name to the Python type(s) it must be:
+#
+#   * ``config#scope``  -> ``dimensions`` is a list.
+#   * ``config#fields`` -> ``fields``/``overrides`` are mappings; ``functional_groups``
+#     is a list. (``default_page_size`` is optional — int or None — so it is NOT a
+#     structural requirement.)
+#   * ``config#mail``   -> the fail-closed gate flags are bools; ``mail_local_part``
+#     is a str. (``mail_domain``/``consent_notice`` are optional passthrough.)
+_CONFIG_REQUIRED_ATTRS: dict[str, dict[str, tuple[type, ...]]] = {
+    schema.CONFIG_ID_SCOPE: {"dimensions": (list,)},
+    schema.CONFIG_ID_FIELDS: {
+        "fields": (Mapping,),
+        "overrides": (Mapping,),
+        "functional_groups": (list,),
+    },
+    schema.CONFIG_ID_MAIL: {
+        "mail_enabled": (bool,),
+        "mail_local_part": (str,),
+        "mail_certified": (bool,),
+    },
+}
+
+
+def _validate_config_attributes(
+    item: ProjectionItem,
+    id_parts: tuple[str, ...],
+    attributes: Mapping[str, Any],
+) -> None:
+    """Raise if a ``config#<id>`` row is structurally incomplete or malformed (R1.4).
+
+    A ``config#*`` row must carry its sub-config's own well-formed attribute set
+    (:data:`_CONFIG_REQUIRED_ATTRS`): a ``config#fields`` missing ``fields`` /
+    ``overrides`` / ``functional_groups`` (or carrying them with the wrong shape),
+    a ``config#scope`` without a ``dimensions`` list, or a ``config#mail`` missing a
+    fail-closed gate flag is REJECTED here — raised BEFORE any ``put_item``, so the
+    whole tenant batch aborts atomically (no partial write, R5.5) and the failure
+    surfaces LOUDLY through ``_project_tenant_change`` rather than leaving a stale
+    row in place.
+
+    An UNKNOWN ``config#<id>`` sub-config (not one of ``scope``/``fields``/``mail``)
+    is itself malformed — the builders only ever emit the three known ids, so a
+    stray id is a structural defect, not a passthrough.
+
+    ``bool`` is validated explicitly (``isinstance(True, int)`` is ``True`` in
+    Python), so ``issubclass``/``isinstance`` ordering is handled by listing ``bool``
+    as its own required type — a stray int/str in a boolean gate is rejected.
+    """
+    sub_id = id_parts[0] if id_parts else None
+    required = _CONFIG_REQUIRED_ATTRS.get(sub_id) if sub_id is not None else None
+    if required is None:
+        raise ProjectionValidationError(
+            f"config projection item has an unknown sub-config id {sub_id!r} "
+            f"({_identity(item)}); only "
+            f"{sorted(_CONFIG_REQUIRED_ATTRS)!r} are projected (R1.4)"
+        )
+
+    for attr_name, allowed_types in required.items():
+        if attr_name not in attributes:
+            raise ProjectionValidationError(
+                f"config#{sub_id} projection item is missing required "
+                f"{attr_name!r} ({_identity(item)}); a structurally incomplete "
+                "config row must not be written (R1.4)"
+            )
+        value = attributes[attr_name]
+        # Reject a bool where a non-bool type is required and vice-versa: in Python
+        # ``isinstance(True, int)`` is True, so a plain isinstance check would let a
+        # bool masquerade as an int. Here the only numeric gate is on ``bool`` itself
+        # (explicitly allowed), so a non-bool value for a bool attr is rejected by the
+        # isinstance check below; a bool value for a non-bool attr is rejected because
+        # ``bool`` is not among its allowed types.
+        if bool in allowed_types:
+            if not isinstance(value, bool):
+                raise ProjectionValidationError(
+                    f"config#{sub_id} projection item {attr_name!r} must be a bool, "
+                    f"got {type(value).__name__} ({_identity(item)})"
+                )
+        elif isinstance(value, bool) or not isinstance(value, allowed_types):
+            type_names = " or ".join(t.__name__ for t in allowed_types)
+            raise ProjectionValidationError(
+                f"config#{sub_id} projection item {attr_name!r} must be a "
+                f"{type_names}, got {type(value).__name__} ({_identity(item)})"
+            )
+
 
 def validate_item(item: ProjectionItem) -> ProjectionItem:
     """Validate one projection item at write time, or raise (R5.5).
@@ -180,7 +277,12 @@ def validate_item(item: ProjectionItem) -> ProjectionItem:
     4. **Version** — ``version`` is present (not ``None``). The builder always
        attaches a deterministic version, so a ``None`` here means a malformed item.
     5. **Required attributes** — the record type's required fields are
-       well-formed (see :func:`_validate_required_attributes`).
+       well-formed (see :func:`_validate_required_attributes`). For a
+       ``config#<id>`` row this includes the sub-config's own structural shape
+       (``config#fields`` fields/overrides/functional_groups,
+       ``config#scope`` dimensions, ``config#mail`` fail-closed gate flags), so a
+       structurally incomplete/malformed config build is rejected LOUDLY before any
+       write (R1.4) rather than wedging a stale row.
 
     On success the item is returned unchanged so callers can write
     ``validated = validate_item(item)`` inline. On any failure a

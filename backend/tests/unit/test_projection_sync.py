@@ -68,11 +68,15 @@ class FakeTable:
     real boto3 Table has, so the tests exercise the real reconcile, not a mock of
     it:
 
-    - ``put_item`` enforces the conditional-version guarantee a real table would:
-      a put with the sync's ``attribute_not_exists(#v) OR #v < :incoming``
-      condition is rejected (raising a botocore-shaped
-      ConditionalCheckFailedException) when the stored version is already >= the
-      incoming version.
+    - ``put_item`` RETAINS the ability to enforce a conditional-version guarantee
+      (raising a botocore-shaped ConditionalCheckFailedException when a
+      ``ConditionExpression`` is supplied and the stored version is already >= the
+      incoming version). As of task 3.2 (design.md A3 option (a)) the sync NO LONGER
+      sends a ``ConditionExpression`` — the single-process serial drain makes the
+      write last-writer-wins and the Python content/version gate (``_conditional_put``)
+      is the sole write decision — so this branch is a defensive capability the sync
+      does not exercise; the fake still models it so a benign conditional failure is
+      handled correctly if a real table ever carries a table-level condition.
     - ``query`` supports the sync's tenant-scoped, ``begins_with(sk, …)`` key
       condition (``#pk = :pk AND begins_with(#sk, :sk_prefix)``), returning only
       the matching partition's rows — so a query cannot address another tenant.
@@ -1631,6 +1635,157 @@ def test_sync_param_edit_alone_projects_the_change(sam_module):
     assert result.written >= 1
 
 
+# --- Build from a coherent (uncached) source (R1.1, design.md A2 / task 2.1) --
+#
+# ROOT CAUSE (design.md A2): the sync's ParameterService is a process-wide
+# singleton reused across every run. ``get_param`` memoises resolved values, so a
+# value cached by an EARLIER run can serialize STALE content while the UNCACHED
+# ``get_param_revision`` stamps a FRESH version — the version/content desync that
+# wedges a row. FIX (task 2.1): ``sync_administration`` drops this service's cached
+# ``members.*`` values for the tenant BEFORE building, so the builders re-read the
+# CURRENT source value and the built content always matches its version. This
+# PREVENTS NEW desyncs; healing an ALREADY-wedged row is task 3's content-gate.
+
+
+class CachingFakeParameterService:
+    """A ``ParameterService`` stand-in that FAITHFULLY models the stale-cache wedge.
+
+    Unlike the plain :class:`FakeParameterService` (which reads its backing dict
+    directly, so it can never go stale), this fake reproduces the exact mechanism
+    the design names: ``get_param`` memoises the FIRST value it resolves per
+    ``(tenant, namespace, key)`` and keeps serving that cached value even after the
+    underlying source is edited — until the ``members`` namespace is invalidated for
+    the tenant via :meth:`invalidate_namespace` (the seam task 2.1's
+    ``sync_administration`` calls). ``get_param_revision`` is UNCACHED (reads the
+    live revision every time), mirroring the real service — so without the
+    invalidation a built row's VERSION can advance while its CONTENT lags.
+    """
+
+    def __init__(self, params=None, revisions=None):
+        self._params = params or {}
+        self._revisions = revisions or {}
+        self._cache: dict[tuple, object] = {}
+        self.calls: list[dict] = []
+        self.invalidations: list[dict] = []
+
+    def set_source(self, namespace, key, tenant, value):
+        """Edit the UNDERLYING source (does NOT touch the cache — models an edit via
+        a different service instance, exactly like the save route)."""
+        self._params[(namespace, key, tenant)] = value
+
+    def set_revision(self, namespace, key, tenant, revision):
+        self._revisions[(namespace, key, tenant)] = revision
+
+    def get_param(self, namespace, key, tenant=None, role=None, user=None):
+        self.calls.append({"namespace": namespace, "key": key, "tenant": tenant})
+        cache_key = ("tenant", tenant, namespace, key)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        value = self._params.get((namespace, key, tenant))
+        if value is not None:
+            self._cache[cache_key] = value
+        return value
+
+    def get_param_revision(self, namespace, key, tenant=None, role=None, user=None):
+        # UNCACHED — always the live revision (mirrors the real service).
+        return self._revisions.get((namespace, key, tenant))
+
+    def invalidate_namespace(self, namespace, tenant=None):
+        self.invalidations.append({"namespace": namespace, "tenant": tenant})
+        keys_to_remove = [
+            k
+            for k in self._cache
+            if k[2] == namespace and (tenant is None or (k[0] == "tenant" and k[1] == tenant))
+        ]
+        for k in keys_to_remove:
+            del self._cache[k]
+
+
+def test_sync_administration_invalidates_members_cache_before_building(sam_module):
+    """R1.1/A2: ``sync_administration`` evicts the tenant's cached ``members.*`` before
+    building, so it reads a NON-STALE source.
+
+    Proven directly: the param service exposes the invalidation seam; after a sync run
+    the sync recorded an eviction of the ``members`` namespace scoped to THIS tenant.
+    """
+    table = FakeTable()
+    params = CachingFakeParameterService(
+        params={("members", "field_overlay", "TenantA"): {"fields": {}}},
+        revisions={("members", "field_overlay", "TenantA"): "2026-01-01T00:00:00"},
+    )
+    source = FakeSource({"TenantA": _tenant_source("TenantA", sam_module)})
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+
+    sync.sync_administration("TenantA")
+
+    assert {"namespace": "members", "tenant": "TenantA"} in params.invalidations
+
+
+def test_sync_administration_builds_from_fresh_source_not_stale_cache(sam_module):
+    """R1.1/A2 (the heart of task 2.1): a value cached by an earlier sync run must NOT
+    leak STALE content into a later run's built row — the sync reads the CURRENT source.
+
+    Scenario (the exact version/content desync the design describes):
+      1. First sync: the overlay authors the 6-value ``membership.status``; the sync
+         caches that content and projects it at revision V1.
+      2. A tenant admin edits the overlay to the 7-value set (incl. ``died``) via a
+         DIFFERENT service instance — the sync's cache is NOT touched by that write, but
+         the uncached revision advances to V2.
+      3. Second sync: WITHOUT the fix the sync would re-serialize the CACHED 6-value
+         content while stamping the FRESH V2 version (the wedge). WITH task 2.1 it evicts
+         the cache first and re-reads the 7-value source, so the built row's content
+         (7 values) matches its version (V2) — coherent, no desync.
+
+    This asserts the BUILT content is fresh (the thing task 2.1 fixes). It is NOT the
+    already-wedged-row heal (a pre-seeded stale STORED row at an equal version) — that is
+    task 3's content-gate and remains the one expected failure until then.
+    """
+    status_six = ["active", "inactive", "pending", "suspended", "honorary", "lapsed"]
+    status_seven = [*status_six, "died"]
+
+    def _overlay(values):
+        return {
+            "fixed_overrides": {
+                "membership.status": {
+                    "label": {"nl": "Status", "en": "Status"},
+                    "choices": list(values),
+                }
+            }
+        }
+
+    tenant_id = "TenantA"
+    fields_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields")
+    table = FakeTable()
+    params = CachingFakeParameterService(
+        params={("members", "field_overlay", tenant_id): _overlay(status_six)},
+        revisions={("members", "field_overlay", tenant_id): "2026-01-01T00:00:00"},
+    )
+    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+
+    # First sync: caches + projects the 6-value content at V1.
+    sync.sync_administration(tenant_id)
+    stored = table.store[(tenant_id, fields_sk)]
+    assert stored["overrides"]["membership.status"]["choices"] == status_six
+
+    # Tenant admin edits the overlay (7-value, incl. `died`) via a different service
+    # instance: the sync's cache is NOT invalidated by that write, only the source +
+    # the uncached revision advance to V2.
+    params.set_source("members", "field_overlay", tenant_id, _overlay(status_seven))
+    params.set_revision("members", "field_overlay", tenant_id, "2026-10-12T12:00:00")
+
+    # Second sync: with task 2.1 the sync evicts the stale cache and re-reads V2's
+    # 7-value source — the built row's CONTENT matches its (fresh) VERSION.
+    sync.sync_administration(tenant_id)
+    stored = table.store[(tenant_id, fields_sk)]
+    assert stored["overrides"]["membership.status"]["choices"] == status_seven, (
+        "A2 VIOLATED: the sync re-serialized STALE cached content (6-value status) "
+        "while the source + version advanced to the 7-value set — the version/content "
+        "desync the non-stale read must prevent."
+    )
+    assert stored[schema.VERSION_ATTR] == "2026-10-12T12:00:00"
+
+
 # --- C2 scopegrant#<email>#<dimension> builder (S5b design.md C2, R2.1/R2.2) ---
 
 
@@ -3005,3 +3160,143 @@ def test_build_scopegrant_rows_grant_comes_from_scope_not_role_for_same_user(sam
     assert schema.build_sort_key(
         schema.RECORD_TYPE_ROLE, "alice@h-dcn.example", "SamTest_Read"
     ) in written
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# Task 5.2 — config#views PROJECTION residue removal (R2.1, R2.6).
+#
+# Feature: members-config-projection-and-cleanup, design § B1/B2.
+#
+# config#views (the retired Members `view_contexts` column-layouts) is NO LONGER emitted:
+# the builder was removed, so a fresh sync never produces the row. BUT config#* rows are
+# UPSERT-ONLY — the diff-and-delete reconcile is confined to the scopegrant#… SK space and
+# never sweeps a config#* row (see test_sync_reconcile_never_deletes_non_scopegrant_rows
+# above). So a stored config#views row written BEFORE retirement is ORPHANED and would
+# persist forever. ProjectionSync.delete_config_views_residue is the explicit, tenant-
+# scoped, dry-run-able cleanup for it. These tests use the in-memory FakeTable.
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+def _config_views_sk():
+    return schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_VIEWS)
+
+
+def _seed_config_views_residue(table, administration, *, version=1):
+    """Write a pre-retirement config#views residue row directly into the fake table."""
+    sk = _config_views_sk()
+    table.store[(administration, sk)] = {
+        schema.PARTITION_KEY_ATTR: administration,
+        schema.SORT_KEY_ATTR: sk,
+        schema.VERSION_ATTR: version,
+        "contexts": [{"name": "default", "columns": ["name", "email"]}],
+    }
+
+
+def test_sync_does_not_recreate_config_views_once_builder_removed(sam_module):
+    """R2.6: no builder emits config#views, so a sync NEVER (re-)creates the row.
+
+    Confirms the "removed builder" half of the and/or: a full sync of a SAM tenant writes
+    config#scope / config#fields / config#mail but NO config#views — so once the residue
+    is deleted it is not re-created by a subsequent sync.
+    """
+    table = FakeTable()
+    params = FakeParameterService(
+        {
+            ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
+            ("members", "field_overlay", "h-dcn"): _hdcn_field_overlay(),
+        }
+    )
+    source = FakeSource(
+        {"h-dcn": _tenant_source("h-dcn", sam_module,
+                                 roles=[{"email": "a@b.example",
+                                         "role": "SamTest_Read"}])}
+    )
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+
+    sync.sync_administration("h-dcn")
+    written = _items_in(table, "h-dcn")
+
+    # The surviving config rows are emitted...
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") in written
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") in written
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
+    # ...but config#views is never produced (the builder is gone — R2.6).
+    assert _config_views_sk() not in written
+
+
+def test_delete_config_views_residue_dry_run_makes_no_change(sam_module):
+    """Dry run (DEFAULT) COUNTS the residue and makes NO write (R2.1)."""
+    table = FakeTable()
+    _seed_config_views_residue(table, "h-dcn")
+    sync = ProjectionSync(FakeSource({}), table=table)
+
+    summary = sync.delete_config_views_residue(["h-dcn"])  # dry_run defaults True
+
+    assert summary == {"scanned": 1, "deleted": 0}
+    # The row is still present and nothing was deleted.
+    assert _config_views_sk() in _items_in(table, "h-dcn")
+    assert table.delete_calls == []
+
+
+def test_delete_config_views_residue_apply_deletes_only_views_row(sam_module):
+    """--apply deletes ONLY the config#views row — other config#* rows survive (R2.1)."""
+    table = FakeTable()
+    _seed_config_views_residue(table, "h-dcn")
+    # Surviving config rows that MUST NOT be touched.
+    fields_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields")
+    scope_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope")
+    table.store[("h-dcn", fields_sk)] = {
+        schema.PARTITION_KEY_ATTR: "h-dcn", schema.SORT_KEY_ATTR: fields_sk,
+        schema.VERSION_ATTR: 1, "overrides": {},
+    }
+    table.store[("h-dcn", scope_sk)] = {
+        schema.PARTITION_KEY_ATTR: "h-dcn", schema.SORT_KEY_ATTR: scope_sk,
+        schema.VERSION_ATTR: 1, "dimensions": [],
+    }
+    sync = ProjectionSync(FakeSource({}), table=table)
+
+    summary = sync.delete_config_views_residue(["h-dcn"], dry_run=False)
+
+    assert summary == {"scanned": 1, "deleted": 1}
+    written = _items_in(table, "h-dcn")
+    assert _config_views_sk() not in written          # residue gone
+    assert fields_sk in written                        # survivors untouched
+    assert scope_sk in written
+    # The single delete targeted exactly the config#views key.
+    assert table.delete_calls == [schema.build_key("h-dcn", _config_views_sk())]
+
+
+def test_delete_config_views_residue_is_idempotent_noop_on_rerun(sam_module):
+    """A re-run after a successful apply finds nothing and deletes 0 (R2.1 idempotent)."""
+    table = FakeTable()
+    _seed_config_views_residue(table, "h-dcn")
+    sync = ProjectionSync(FakeSource({}), table=table)
+
+    first = sync.delete_config_views_residue(["h-dcn"], dry_run=False)
+    second = sync.delete_config_views_residue(["h-dcn"], dry_run=False)
+
+    assert first == {"scanned": 1, "deleted": 1}
+    assert second == {"scanned": 0, "deleted": 0}      # no-op second time
+
+
+def test_delete_config_views_residue_is_tenant_scoped(sam_module):
+    """Tenant-scoped (Property 1/2): a residue delete for one tenant never touches another.
+
+    A tenant WITHOUT residue contributes nothing, and the delete issued for the tenant WITH
+    residue addresses only its own partition — another tenant's config#views (if any) is
+    left to its own explicit run.
+    """
+    table = FakeTable()
+    _seed_config_views_residue(table, "h-dcn")
+    _seed_config_views_residue(table, "other-tenant")
+    sync = ProjectionSync(FakeSource({}), table=table)
+
+    summary = sync.delete_config_views_residue(["h-dcn"], dry_run=False)
+
+    assert summary == {"scanned": 1, "deleted": 1}
+    # Only h-dcn's residue was removed; other-tenant's row is untouched.
+    assert _config_views_sk() not in _items_in(table, "h-dcn")
+    assert _config_views_sk() in _items_in(table, "other-tenant")
+    assert all(
+        key[schema.PARTITION_KEY_ATTR] == "h-dcn" for key in table.delete_calls
+    )
