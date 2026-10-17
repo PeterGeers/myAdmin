@@ -92,6 +92,15 @@ export interface MembersFieldModalProps {
   availableRoles?: string[];
   lang: 'nl' | 'en';
   /**
+   * Optional pointer for a `reference`-type field (R3.1): invoked when the admin clicks the
+   * "manage values" link to reach the membership-type catalog manager. The catalog manager is a
+   * SIBLING sub-tab in the TenantAdmin Members area, not a routable URL, so switching to it is the
+   * parent's concern — passing this lets a parent wire the tab-switch. Left optional/unwired is
+   * fine: the reference note still renders the instructional pointer (naming the
+   * "Lidmaatschapstypes" tab), so the field editor is never a dead end even without a handler.
+   */
+  onManageCatalog?: () => void;
+  /**
    * Optional provenance-driven action slot (task 4.7). When provided, rendered in the modal footer
    * (left side) — e.g. delete / reset / hide + move-to-group. Kept as a slot so task 4.6 owns only
    * the attribute surface and 4.7 supplies the gated actions.
@@ -303,6 +312,7 @@ export const MembersFieldModal: React.FC<MembersFieldModalProps> = ({
   availableRoles = [],
   lang,
   actionsSlot,
+  onManageCatalog,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
 
@@ -577,6 +587,50 @@ export const MembersFieldModal: React.FC<MembersFieldModalProps> = ({
                   availableRoles={availableRoles}
                   lang={lang}
                 />
+              </FormControl>
+            )}
+
+            {/* Reference pointer (only for reference type) — R3.1/R3.3. A `reference` field's
+                values are NOT an inline list on the field; they live in the tenant's
+                membership-type catalog (Lidmaatschap Beheer). So INSTEAD of an (empty) enum-values
+                editor we show a read-only note explaining that, plus a pointer to the catalog
+                manager. The manager is a SIBLING sub-tab ("Lidmaatschapstypes") in the same
+                TenantAdmin Members area — not a routable URL — so the pointer is an instructional
+                button that names exactly where to go. An optional `onManageCatalog` callback lets a
+                parent wire the actual tab-switch; when unwired the button is a clear, disabled-free
+                pointer so the "no dead end" requirement (R3.1) is still met. The `enum` path above
+                is untouched (R3.3). Presentation attributes (label / visibility / order / group)
+                above remain fully editable for a reference field (R3.2). */}
+            {form.type === 'reference' && (
+              <FormControl>
+                <FormLabel color="gray.300">{t('Waarden', 'Values')}</FormLabel>
+                <Box
+                  bg="gray.700"
+                  borderWidth="1px"
+                  borderColor="gray.600"
+                  borderRadius="md"
+                  p={3}
+                  data-testid="members-field-modal-reference-note"
+                >
+                  <Text fontSize="sm" color="gray.300" mb={2}>
+                    {t(
+                      'De waarden van dit veld worden beheerd in de catalogus met lidmaatschapstypes, niet hier.',
+                      'This field\u2019s values are managed in the membership-type catalog, not here.',
+                    )}
+                  </Text>
+                  <Button
+                    size="sm"
+                    variant="link"
+                    colorScheme="orange"
+                    onClick={() => onManageCatalog?.()}
+                    data-testid="members-field-modal-reference-link"
+                  >
+                    {t(
+                      'Beheer waarden onder het tabblad \u201ELidmaatschapstypes\u201D',
+                      'Manage values under the \u201CMembership types\u201D tab',
+                    )}
+                  </Button>
+                </Box>
               </FormControl>
             )}
 

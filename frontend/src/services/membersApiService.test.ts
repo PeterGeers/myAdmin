@@ -19,6 +19,9 @@ import {
   exportMembers,
   getFieldConfig,
   listMembershipTypes,
+  createMembershipType,
+  updateMembershipType,
+  deactivateMembershipType,
   createMembership,
   getColumnPreferences,
   saveColumnPreferences,
@@ -317,6 +320,50 @@ describe('membersApiService — wrapper method/path/headers (task 16.4)', () => 
     expect(url).toBe(`${BASE}/membership-types?active_only=true`);
   });
 
+  // ---- membership-type WRITE wrappers (task 1.3, R2.5/R4.1) ----------------
+  // Paired tests for the task-1.1 service wrappers: each write function hits the
+  // right method + path, sends the exact JSON body, url-encodes the `{type_code}`
+  // path segment, and unwraps the `{ data }` envelope — mirroring the read-side
+  // `listMembershipTypes` wrapper above. Error propagation is covered in the
+  // handleResponse describe block below.
+
+  it('createMembershipType → POST /membership-types with the JSON body', async () => {
+    const body = { type_code: 'erelid', label: { nl: 'Erelid', en: 'Honorary' }, order: 10 };
+    await createMembershipType(body);
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('POST');
+    expect(url).toBe(`${BASE}/membership-types`);
+    expect(init.body).toBe(JSON.stringify(body));
+  });
+
+  it('createMembershipType unwraps the {data} envelope to the created entry', async () => {
+    const entry = { type_code: 'erelid', label: { nl: 'Erelid', en: 'Honorary' }, order: 10, active: true };
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({ body: { data: entry } }),
+    );
+    await expect(
+      createMembershipType({ type_code: 'erelid', label: { nl: 'Erelid', en: 'Honorary' }, order: 10 }),
+    ).resolves.toEqual(entry);
+  });
+
+  it('updateMembershipType → PUT /membership-types/{type_code} (segment url-encoded) with the JSON body', async () => {
+    const body = { label: { nl: 'Erelid', en: 'Honorary' }, active: false };
+    // A code that needs url-encoding (space) proves the segment is encoded.
+    await updateMembershipType('ere lid', body);
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('PUT');
+    expect(url).toBe(`${BASE}/membership-types/ere%20lid`);
+    expect(init.body).toBe(JSON.stringify(body));
+  });
+
+  it('deactivateMembershipType → DELETE /membership-types/{type_code} (segment url-encoded), no body', async () => {
+    await deactivateMembershipType('ere lid');
+    const [url, init] = fetchCall();
+    expect(init.method).toBe('DELETE');
+    expect(url).toBe(`${BASE}/membership-types/ere%20lid`);
+    expect(init.body).toBeUndefined();
+  });
+
   it('createMembership → POST /members/{id}/memberships with the body', async () => {
     const body = { membership_type: 'regulier' };
     await createMembership('M-1', body);
@@ -406,6 +453,108 @@ describe('membersApiService — 401 refresh + retry-once (task 16.4)', () => {
     );
 
     await expect(getFieldConfig()).rejects.toThrow('Internal failure');
+  });
+});
+
+// ============================================================================
+// Task 1.3 — membership-type WRITE wrapper error propagation (R2.5, R4.1)
+//
+// Paired tests for the task-1.1 write wrappers. A non-2xx response must REJECT
+// (not resolve an error envelope) and surface the structured server error — the
+// create 409 (duplicate `type_code`, R2.1) and the update 404 (absent entry,
+// R2.2). We mirror both the sibling "surfaces a non-401 error via handleResponse"
+// test (`rejects.toThrow(<server message>)`) and the deliver-route test's
+// structured-ApiError assertions (`toBeInstanceOf(ApiError)` with `status`/`code`).
+// ============================================================================
+
+describe('membersApiService — membership-type write errors (task 1.3)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv('VITE_MEMBERS_API_BASE_URL', BASE);
+    mockGetTokens.mockResolvedValue({ idToken: 'tok', accessToken: 'acc' } as never);
+    global.fetch = vi.fn();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  // Validates: Requirements 2.5, 4.1
+  it('createMembershipType rejects a 409 (duplicate type_code) and surfaces the server error', async () => {
+    const { ApiError } = await import('../shared/api/ApiError');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        ok: false,
+        status: 409,
+        body: { error: 'duplicate type_code', code: 'errors.membershipType.duplicate' },
+      }),
+    );
+
+    await expect(
+      createMembershipType({ type_code: 'erelid', label: { nl: 'Erelid', en: 'Honorary' }, order: 10 }),
+    ).rejects.toThrow('duplicate type_code');
+
+    // The same 409 is a structured ApiError carrying the status + machine code.
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        ok: false,
+        status: 409,
+        body: { error: 'duplicate type_code', code: 'errors.membershipType.duplicate' },
+      }),
+    );
+    await createMembershipType({
+      type_code: 'erelid',
+      label: { nl: 'Erelid', en: 'Honorary' },
+      order: 10,
+    }).catch((err) => {
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as InstanceType<typeof ApiError>).status).toBe(409);
+      expect((err as InstanceType<typeof ApiError>).code).toBe('errors.membershipType.duplicate');
+    });
+  });
+
+  // Validates: Requirements 2.5, 4.1
+  it('updateMembershipType rejects a 404 (absent entry) and surfaces the server error', async () => {
+    const { ApiError } = await import('../shared/api/ApiError');
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        ok: false,
+        status: 404,
+        body: { error: 'membership type not found', code: 'errors.membershipType.notFound' },
+      }),
+    );
+
+    await expect(
+      updateMembershipType('onbekend', { label: { nl: 'X', en: 'X' } }),
+    ).rejects.toThrow('membership type not found');
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        ok: false,
+        status: 404,
+        body: { error: 'membership type not found', code: 'errors.membershipType.notFound' },
+      }),
+    );
+    await updateMembershipType('onbekend', { label: { nl: 'X', en: 'X' } }).catch((err) => {
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as InstanceType<typeof ApiError>).status).toBe(404);
+      expect((err as InstanceType<typeof ApiError>).code).toBe('errors.membershipType.notFound');
+    });
+  });
+
+  // Validates: Requirements 2.5, 4.1
+  it('deactivateMembershipType rejects a 404 (absent entry) and surfaces the server error', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      createMockResponse({
+        ok: false,
+        status: 404,
+        body: { error: 'membership type not found' },
+      }),
+    );
+    await expect(deactivateMembershipType('onbekend')).rejects.toThrow('membership type not found');
   });
 });
 
