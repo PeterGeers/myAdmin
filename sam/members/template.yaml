@@ -17,6 +17,18 @@ Transform: AWS::Serverless-2016-10-31
 #   * The `sam-members` and `governance_projection` DynamoDB tables are NOT
 #     resources in this template — they are managed-outside-CFN / retained
 #     (23-aws-accounts.md). The template only REFERENCES their names via env vars.
+#     Because the table is NOT a CFN resource here, its key schema AND its Global
+#     Secondary Indexes are defined in the provisioner
+#     (`scripts/onboarding/members/_generic/provision-members-tables.py`, sourced
+#     verbatim from `sam/members/repository/table_design.py`) — that is the single
+#     source of truth for the table shape, not a `GlobalSecondaryIndexes:` block
+#     here. The `sam-members` table carries ONE GSI, the name+DOB duplicate-flag
+#     index (D25, application-app task 2.5): `name_dob_index`
+#     (HASH `tenant_id`, RANGE `name_dob_key`, projection ALL, PAY_PER_REQUEST) —
+#     a cheap tenant-scoped indexed read backing the public-intake possible-duplicate
+#     flag (R3a.5–R3a.8). The function IAM below already covers it: every
+#     `sam-members` grant includes `.../table/${MembersTableName}/index/*`, so
+#     `dynamodb:Query` on the GSI needs no extra statement.
 #   * There is NO `MEMBERS_PILOT_ROUTING` env var. The pilot-routing gate is
 #     dropped entirely (S5b): access is capability (token) + scope grant
 #     (projection).
@@ -354,6 +366,81 @@ Parameters:
     ConstraintDescription: >-
       Must be `members-schedules` (prod) or `members-schedules-test` (TEST) — the per-env
       scheduler schedule-group name following the existing naming discipline.
+
+  # --- Public application-intake form: CORS allow-list + slug→tenant projection (D27, task 1.3) ---
+  # These two feed the SEPARATE public API's Lambda (`MembersPublicFunction` →
+  # `handler/public_app.py`), the SAM members plane's first UNAUTHENTICATED surface (D27). They are
+  # the route/CORS wiring half of the public edge; the least-privilege IAM + API Gateway throttle/
+  # usage plan for that function are task 7.1 (NOT here).
+  #
+  # PublicFormAllowedOrigins (R10.3/R10.4): the comma-separated allow-list of the public form's
+  #   browser origin(s) the edge echoes into `Access-Control-Allow-Origin` (read at runtime by
+  #   `public_app._allowed_origins` from the `PUBLIC_FORM_ALLOWED_ORIGINS` env var below). A public
+  #   POST must NOT be callable cross-origin from any site, so there is NO `*` fallback: an unset /
+  #   blank value is FAIL-CLOSED (the edge sets no CORS origin header, so a browser blocks the read)
+  #   — unlike the authenticated `MembersApi` whose token-gated CORS answers `*`. Per env via
+  #   samconfig (the real form hostname(s)); empty default keeps a bare `sam deploy` from silently
+  #   opening the form to every origin.
+  PublicFormAllowedOrigins:
+    Type: String
+    Description: >-
+      Comma-separated browser origin allow-list for the PUBLIC application form's CORS
+      (R10.3/R10.4), surfaced as the `PUBLIC_FORM_ALLOWED_ORIGINS` env var the public edge reads.
+      No `*` — an empty value is fail-closed (no cross-origin client permitted). Per env via
+      samconfig (e.g. `https://aanmelden.jabaki.nl`). Empty default = fail-closed, never a wildcard.
+    Default: ""
+
+  # PublicTenantSlugMap (D19, R2): the thin SAM-plane PROJECTION of the landing-page slug mechanism
+  #   — comma-separated `<slug>:<tenant_id>` pairs the public edge's `EnvTenantSlugReader` resolves
+  #   slug→tenant_id from (verify-before-trust: a slug SELECTS an allow-listed tenant, never grants
+  #   one). This is the smallest honest projection of the landing mapping (`<slug>.jabaki.nl` + the
+  #   CloudFront KVS `myadmin-domain-slug-mapping`, `infrastructure/landing-pages.tf`) that keeps the
+  #   Flask⇄SAM boundary clean and the route wiring testable; a richer DynamoDB/KVS-backed reader is
+  #   a change behind the `tenant_slug_reader` seam (Phase 7/10 seeding), not here. Empty default =
+  #   an empty allow-list (every slug → non-probeable 404), never a guessed tenant.
+  PublicTenantSlugMap:
+    Type: String
+    Description: >-
+      Thin slug→tenant_id projection for the public intake edge (D19/R2), surfaced as the
+      `PUBLIC_TENANT_SLUG_MAP` env var. Comma-separated `<slug>:<tenant_id>` pairs (e.g.
+      `hdcn:h-dcn`). Empty default = empty allow-list (every slug is a non-probeable 404), never a
+      guessed tenant. Per env via samconfig.
+    Default: ""
+
+  # --- Public API throttle + usage plan (R10.1, D17, task 7.1) ----------------
+  # The public application-intake API (`MembersPublicApi`) is the plane's ONLY unauthenticated
+  # surface, so a scripted flood is a real risk — and D17 deliberately provisions NO WAF
+  # (rate-based rule / CAPTCHA is the one material recurring cost, deferred until real abuse
+  # appears). The proportionate control at a member-application form's low, human-paced volume
+  # (R10.4) is API Gateway's native throttle + a usage plan, declared HERE:
+  #   * The STAGE throttle (MethodSettings on the public API) caps the steady request RATE and
+  #     the BURST allowance across ALL callers — the first line against a flood.
+  #   * A USAGE PLAN bound to the public API's stage carries the SAME rate/burst as a managed,
+  #     inspectable throttle object (the place a per-key quota / rate-based rule would later
+  #     attach if D17's "easy add-on" is taken) — no API key is required on the public routes
+  #     (an applicant has none), so the plan throttles the stage, it does not gate on a key.
+  # Both knobs are per-env config (steering 36/43): TEST can run tighter than PROD and the
+  # values are re-tunable without a code change. Low integer defaults (fail-safe): a bare deploy
+  # is bounded, never unlimited. These bound ABUSE, not legitimate human submissions.
+  PublicApiThrottleRateLimit:
+    Type: Number
+    Description: >-
+      Steady-state request rate (requests/second) the public application-intake API's stage
+      throttle allows across all callers (R10.1). Per env via samconfig; a low default bounds a
+      bare deploy (never unlimited). The usage plan below carries the same rate.
+    Default: 10
+    MinValue: 1
+    MaxValue: 10000
+
+  PublicApiThrottleBurstLimit:
+    Type: Number
+    Description: >-
+      Burst allowance (concurrent request bucket) the public application-intake API's stage
+      throttle allows (R10.1). Per env via samconfig; a low default bounds a bare deploy. The
+      usage plan below carries the same burst.
+    Default: 20
+    MinValue: 1
+    MaxValue: 5000
 
 # Stage -> APP_ENV: the deploy stage is the single environment knob; APP_ENV is
 # DERIVED from it so the two cannot drift. `local` and `test` both resolve to the
@@ -1239,6 +1326,198 @@ Resources:
         AllowHeaders: "'Content-Type,Authorization,X-Tenant,X-Language'"
         AllowOrigin: "'*'"
 
+  # --- The SEPARATE public application-intake API (D27, task 1.3) -------------
+  # The SAM members plane's FIRST unauthenticated HTTP surface — a deliberate, fenced exception to
+  # ADR 0007's "deny without a verified token" invariant. Decided (D27): its OWN
+  # `AWS::Serverless::Api` with NO `DefaultAuthorizer` (own stage, own invoke URL, own throttle/
+  # usage plan — the throttle/usage plan is task 7.1), routed to a DEDICATED public Lambda
+  # (`MembersPublicFunction` → `handler/public_app.py`) that NEVER calls
+  # `_authenticate_and_authorize`. The authenticated `MembersApi` + `MembersFunction` above are
+  # UNTOUCHED — cleanest blast-radius isolation for an unauthenticated surface (the rejected
+  # alternative was an `Auth: {Authorizer: NONE}` route on the existing API).
+  #
+  # Unlike `MembersApi`, there is NO `Auth` block at all → no authorizer, no `DefaultAuthorizer`.
+  #
+  # CORS (R10.3/R10.4): a public POST must not be callable cross-origin from any site, so CORS is
+  # restricted to the known form origin(s). The authoritative, per-request CORS decision is made in
+  # `public_app._apply_cors_origin` against the `PUBLIC_FORM_ALLOWED_ORIGINS` allow-list (echo the
+  # caller's Origin only when allow-listed; fail-closed otherwise — NEVER `*`). This API-level
+  # `Cors` block only governs the SAM-auto-generated OPTIONS preflight responder; it is pinned to
+  # the SAME first allow-listed origin (not `*`) so the preflight and the real response agree and
+  # the public surface never advertises a wildcard. (Deferred to 7.1: throttle + usage plan.)
+  MembersPublicApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Stage
+      # --- Stage throttle (R10.1, D17, task 7.1) — the first line against a flood -------------
+      # No WAF (D17/R10.4): the proportionate abuse control for this low, human-paced public
+      # surface is API Gateway's native stage throttle. `MethodSettings` with the wildcard
+      # `HttpMethod: "*"` / `ResourcePath: "/*"` applies the rate + burst cap to EVERY method on
+      # EVERY path of the public stage (both public routes), bounding the steady request rate and
+      # the burst bucket across ALL callers. Values are per-env config (PublicApiThrottle*),
+      # low-by-default so a bare deploy is bounded, re-tunable without code (steering 36/43).
+      MethodSettings:
+        - HttpMethod: "*"
+          ResourcePath: "/*"
+          ThrottlingRateLimit: !Ref PublicApiThrottleRateLimit
+          ThrottlingBurstLimit: !Ref PublicApiThrottleBurstLimit
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type'"
+        # The preflight responder's origin — the FIRST configured form origin (the handler makes
+        # the authoritative per-origin decision on real requests). `<<unset>>` when the param is
+        # blank so a fail-closed deploy never emits a wildcard preflight. Quoted per the SAM `Cors`
+        # string convention.
+        AllowOrigin: !Sub
+          - "'${Origin}'"
+          - Origin: !Select [0, !Split [",", !Ref PublicFormAllowedOrigins]]
+
+  # --- Public API usage plan (R10.1, D17, task 7.1) ---------------------------
+  # The USAGE PLAN half of R10.1: a managed, inspectable throttle object bound to the public
+  # API's stage, carrying the SAME rate/burst as the stage throttle above. It is the place a
+  # per-key quota or a rate-based rule would later attach IF D17's "easy add-on" is taken — but
+  # NO API key is required on the public routes (an applicant carries none), so the plan
+  # throttles the STAGE, it does not gate on a key. `ApiStages` binds it to exactly this public
+  # API's stage (never the authenticated MembersApi). `DependsOn` the stage so the plan is
+  # created after the stage exists (SAM names the implicit stage `<ApiLogicalId>.Stage`).
+  MembersPublicApiUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn: MembersPublicApiStage
+    Properties:
+      UsagePlanName: !Sub "members-public-${Stage}"
+      Description: >-
+        Usage plan bounding the public application-intake API's stage (R10.1, D17) — same
+        rate/burst as the stage throttle; no API key required on the public routes.
+      ApiStages:
+        - ApiId: !Ref MembersPublicApi
+          Stage: !Ref Stage
+      Throttle:
+        RateLimit: !Ref PublicApiThrottleRateLimit
+        BurstLimit: !Ref PublicApiThrottleBurstLimit
+
+  # --- The public-intake Lambda: the token-less edge (D27, task 1.3) ---------
+  # Routed FROM `MembersPublicApi` (no authorizer) to `handler/public_app.py` — parse → abuse
+  # guards (honeypot / payload cap / CORS) → resolve-tenant-from-slug (allow-list, D19/R2) →
+  # delegate. It reuses the SAME vendored `MembersLayer` (one layer for the module — it shares the
+  # `_http` envelope, the `tenant_directory` resolver, and the `tenant_slug_reader`), and the empty-
+  # package-over-layer pattern (`CodeUri: function/`) like every other function here.
+  #
+  # IAM (task 7.1): this function's LEAST-PRIVILEGE policy — exactly THREE scoped grants, no more.
+  # It mirrors the authenticated MembersFunction's exact-ARN discipline (steering 23: exact ARNs,
+  # NO wildcard table, NO cross-account), but is narrower — the public edge only CREATES/UPDATES an
+  # application record, reads the projection to decide readiness + resolve recipients for the
+  # enqueued job, and ENQUEUES the two notification jobs; it does NOT send via SES (the worker
+  # does), does NOT touch S3 / the scheduler, and does NOT pass any role:
+  #   (a) members-table WRITE — the create_application spine (PutItem for the new record + the
+  #       appsession# conditional put; UpdateItem for a same-session resubmit; Query on the
+  #       name+dob GSI for the duplicate flag + the appsession read; GetItem) on EXACTLY the
+  #       `${MembersTableName}` ARN + its `/index/*` (the name_dob_index GSI). No DeleteItem /
+  #       BatchWriteItem — the public path never deletes or batch-writes (D23: delete is an
+  #       authenticated all-scope Members_CRUD action, not a public one).
+  #   (b) governance projection READ — config#mail (readiness gate D15/R5.4), config#fields /
+  #       scope (the public field-config read R5), role#/scopegrant# (recipient resolution for
+  #       the enqueued staff job) — Query + GetItem only on `${GovernanceProjectionTableName}`
+  #       (READ-ONLY: one-way projection, ADR 0005; the public edge never writes it).
+  #   (c) mail-send queue ENQUEUE — `sqs:SendMessage` ONLY (never Receive/Delete — that is the
+  #       worker), scoped to EXACTLY the `MailSendQueue` ARN (never the DLQ), same as the
+  #       authenticated edge's MembersEnqueueMailSend producer grant.
+  # TENANCY (same as MembersFunction): no `dynamodb:LeadingKeys` / PrincipalTag — isolation is
+  # STRUCTURAL-ONLY, resting on the repository always pinning the `tenant_id` partition key
+  # (Property 1), covered by the tenant-invariant test (task 7.3).
+  MembersPublicFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "members-public-${Stage}"
+      CodeUri: function/
+      Handler: sam.members.handler.public_app.handler
+      Layers:
+        - !Ref MembersLayer
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            # (b) governance projection READ — READ-ONLY (Query + GetItem), exact table ARN.
+            # The public edge reads config#mail (readiness D15/R5.4), config#fields/scope (the
+            # public field-config R5), and role#/scopegrant# (recipient resolution for the staff
+            # job it enqueues). No write — one-way projection (ADR 0005). `!Sub` on the table-name
+            # param so a TEST public fn (resolved to `test_*`) can never touch the PROD projection.
+            - Sid: PublicReadGovernanceProjection
+              Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:GetItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${GovernanceProjectionTableName}"
+            # (a) members-table WRITE — the create_application spine. PutItem (the new record +
+            # the appsession# conditional `attribute_not_exists` marker), UpdateItem (same-session
+            # resubmit), Query (the name+dob GSI duplicate flag + the appsession session→member
+            # read), GetItem/BatchGetItem (record reads). Scoped to the EXACT `${MembersTableName}`
+            # ARN + `/index/*` (the name_dob_index GSI). Deliberately NO DeleteItem / NO
+            # BatchWriteItem — the public path never deletes (D23) or batch-writes. No wildcard
+            # table, no cross-account (steering 23).
+            - Sid: PublicWriteMembersTable
+              Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:GetItem
+                - dynamodb:BatchGetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}"
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${MembersTableName}/index/*"
+            # (c) mail-send queue ENQUEUE — SendMessage ONLY (never Receive/Delete — the worker
+            # consumes), scoped to EXACTLY the MailSendQueue ARN (never the DLQ). The public edge
+            # is a PRODUCER of the two offloaded notification jobs (D5), same as the authenticated
+            # edge's MembersEnqueueMailSend grant. `!GetAtt` the queue ARN — no wildcard.
+            - Sid: PublicEnqueueMailSend
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource:
+                - !GetAtt MailSendQueue.Arn
+      Environment:
+        Variables:
+          # APP_ENV derived from Stage (same single-knob discipline as the other functions) so the
+          # public edge can never drift from the authenticated edge within a stack.
+          APP_ENV: !FindInMap [StageToAppEnv, !Ref Stage, AppEnv]
+          # Fail-fast table/region config — carried so the Phase-2/4 service layer (wired behind
+          # the delegation seam later) reads the SAME tables as the authenticated edge. The
+          # task-1.3 wiring itself touches no DynamoDB; these are inert until the service lands.
+          MEMBERS_TABLE: !Ref MembersTableName
+          GOVERNANCE_PROJECTION_TABLE: !Ref GovernanceProjectionTableName
+          AWS_ENDPOINT_URL_DYNAMODB: !Ref DynamoDbEndpointUrl
+          # MAIL_SEND_QUEUE_URL (task 7.1): the public edge is a PRODUCER of the two offloaded
+          #   application-notification jobs (D5) — it enqueues to the SAME `members-mail-send[-test]`
+          #   queue the authenticated edge uses, resolved fail-fast at runtime
+          #   (`resolve_mail_send_queue_url` → require_env). The `PublicEnqueueMailSend`
+          #   `sqs:SendMessage` grant above is scoped to this SAME queue's ARN, so the env var and
+          #   the grant cannot disagree. (Producer only — no consume; that is the worker.)
+          MAIL_SEND_QUEUE_URL: !Ref MailSendQueue
+          # --- The public-edge route/CORS wiring (D27, task 1.3) ---
+          # PUBLIC_FORM_ALLOWED_ORIGINS: the CORS allow-list `public_app._allowed_origins` reads
+          #   per request — fail-closed (no `*`) when blank.
+          # PUBLIC_TENANT_SLUG_MAP: the thin slug→tenant_id projection (D19) the edge's
+          #   `EnvTenantSlugReader` resolves against — empty = every slug is a non-probeable 404.
+          PUBLIC_FORM_ALLOWED_ORIGINS: !Ref PublicFormAllowedOrigins
+          PUBLIC_TENANT_SLUG_MAP: !Ref PublicTenantSlugMap
+      Events:
+        # The TWO public routes (design §3), registered on the SEPARATE public API ONLY — never on
+        # `MembersApi`. Each is an explicit method+path (NOT a catch-all `{proxy+}`) so the public
+        # surface is exactly these two routes and nothing else. `{tenant_slug}` is the path slug the
+        # edge resolves against the allow-list (verify-before-trust, R2).
+        PublicFieldConfig:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MembersPublicApi
+            Path: /public/members/{tenant_slug}/field-config
+            Method: GET
+        PublicApplications:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MembersPublicApi
+            Path: /public/members/{tenant_slug}/applications
+            Method: POST
+
 Outputs:
   MembersFunctionArn:
     Description: ARN of the Members Lambda.
@@ -1266,6 +1545,19 @@ Outputs:
       Base URL of the Members API (feeds the SPA's MEMBERS_API_BASE_URL). Locally
       `sam local start-api` serves on http://127.0.0.1:3000 regardless of this output.
     Value: !Sub "https://${MembersApi}.execute-api.${Region}.amazonaws.com/${Stage}"
+
+  MembersPublicApiBaseUrl:
+    Description: >-
+      Base URL of the SEPARATE public application-intake API (D27, task 1.3) — the unauthenticated
+      edge the public form calls (`GET …/field-config`, `POST …/applications`). Distinct invoke URL
+      from the authenticated MembersApi; feeds the public form's API base.
+    Value: !Sub "https://${MembersPublicApi}.execute-api.${Region}.amazonaws.com/${Stage}"
+
+  MembersPublicFunctionArn:
+    Description: >-
+      ARN of the public-intake Lambda (D27, task 1.3) — the token-less edge (handler/public_app.py)
+      routed from MembersPublicApi; its least-privilege IAM is added by task 7.1.
+    Value: !GetAtt MembersPublicFunction.Arn
 
   MailSendQueueUrl:
     Description: >-

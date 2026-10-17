@@ -1,0 +1,762 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 New public Lambda entrypoint `handler/public_app.py` on a SEPARATE public API (D27) — parse, abuse guards (honeypot, payload cap, CORS — R10.2/R10.3), delegate; does NOT call `_authenticate_and_authorize`. Reuses `_http._response`/`_error`/`_field_errors_array` (R1a).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176736079
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176750433
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177168384
+      }
+    ],
+    "1.2 `domain/tenant_directory.py` — allow-list slug→`tenant_id` resolver; unknown/forged slug → non-probeable 404 (R2.1–R2.3, R1a.4). (Depends 0.1.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176736201
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176752184
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177170125
+      }
+    ],
+    "1.3 Wire the two public routes (`GET …/field-config`, `POST …/applications`) onto the separate public API (D27, no `DefaultAuthorizer`) → `public_app`; CORS restricted to the form origin(s) (R10.4). (template.yaml IAM/throttle in 7.1.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176736292
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177182716
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177866940
+      }
+    ],
+    "1.4 Tests (`sam/tests/`): public route reachable with no token; unknown slug → 404 indistinguishable from no-endpoint; honeypot/oversized/malformed → 400; CORS headers on success + error. (R14.1b, R14.8, R14.12 partial.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176736416
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177874891
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792178367730
+      }
+    ],
+    "2.1 `RECORD_TYPE_APP_SESSION` + `app_session_sk(session_key)` in `table_design.py`; conditional `attribute_not_exists` put + session→member_id mapping read in `members_repository.py` (mirrors `mailsent#`). (R3a.1–R3a.3.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176736503
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177876777
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792178365884
+      }
+    ],
+    "2.2 `create_application(tenant_id, body, session_key, locale, consent)` beside `create_member` — reuses the spine, forces `status=application`, strips privileged fields, accepts only application-selected fields, un-flattens to nested shape (R3, R4.7/R4.8, R3.5). First submit creates, same-session resubmit UPDATES (R3a.2).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176736579
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792178619064
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792179333124
+      }
+    ],
+    "2.3 `membership_type` on application: implement the 0.3 decision (tenant-default stamp or deferred reference check), keeping `_validate_membership_type_reference` authoritative (R11). (Depends 0.3.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176736656
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792179342462
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792179639352
+      }
+    ],
+    "2.4 Required-ness enforcement: all required (platform + application-required) fields server-enforced; email required+valid; IBAN mod-97 when incasso shown; errors collected → 422 `errors[]` (R6, R6.6). (Validator wiring lands in Phase 3.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176736790
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792180930247
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792183415032
+      }
+    ],
+    "2.5 Duplicate flag: **name+DOB** match via the GSI on `(tenant_id, name+dob)` (D25) → `DUP` keyword note appended to `overlay.additional_info`; never blocks; response unchanged (R3a.5–R3a.8). Add the GSI to `table_design.py` + `template.yaml`. (Depends 0.7.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176736872
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792179643848
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792180257173
+      }
+    ],
+    "2.6 Consent stamp: persist `consent{version, accepted_at(server UTC), locale}` of the TENANT's versioned notice (D26); reject submit without affirmative consent (F4/R12.1–R12.1c). (Depends 0.8.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176736952
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792180258861
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792180922641
+      }
+    ],
+    "2.7 Tests: session update-not-insert + concurrent single-record; forced status + sanitize; required-ness (incl. `tussenvoegsel` optional); duplicate flag neutral 202; consent recorded + client timestamp ignored. (R14.1c, R14.13, R14.15, R14.19.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737029
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792183427550
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792183582973
+      }
+    ],
+    "3.1 Add `application_visible` / `application_required` / `application_choices` / `format` (`FieldFormat{checker,params}`) to `FixedField`/`OverlayField`/`ResolvedField` in `_field_models.py` (mirror `member_number_format`). (R4.2, R4a, R4b, R7.1.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737115
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176754103
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177172738
+      }
+    ],
+    "3.2 `domain/field_formats.py` — the registry `dict[token→checker]` with `EMAIL` (regex, reuse existing pattern) + `IBAN` (mod-97) as first entries; platform-defined token set (R7.6/R7.7).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737195
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176755513
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177174438
+      }
+    ],
+    "3.3 `projection_config_reader.py` — `_build_format(spec)` (degrade on unknown/malformed, R7.3) + read the three new attrs in `_build_overlay_field`/`_build_override`.": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737305
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177184077
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177865057
+      }
+    ],
+    "3.4 Generic validation step in `_validate_member_record`: for each resolved field with a `format`, if present and `show_when` holds, run `REGISTRY[checker]` and merge `FieldError` (R7.4/R7.5). Wire into 2.4.": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737383
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177878871
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792178361186
+      }
+    ],
+    "3.5 Enum application-subset: filter choices to `application_choices` on the public schema + validate submitted value against the subset (R4a.2/R4a.3); fail-loud on a subset entry not in field choices (R4a.4).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737463
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177185568
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177863208
+      }
+    ],
+    "3.6 Tests: registry EMAIL/IBAN valid+invalid, unknown-token degrade, `show_when` gating; subset exposes/accepts only subset, non-subset rejected; application-required vs optional vs platform-required-cannot-relax. (R14.6, R14.7, R14.15.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737544
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792178374718
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792178611727
+      }
+    ],
+    "4.1 `ApplicationService.get_public_field_config(tenant_id)` — resolve field set via `FieldResolver`, filter to application-selected, attach required/subset/format/show_when/label/group/order; **200** schema (R5.1–R5.3).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737620
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792180931683
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792183417350
+      }
+    ],
+    "4.2 Readiness gate: read `config#mail`; not `mail_certified` / no `mail_domain` → neutral 409 `code=errors.application.notAvailable` (D15/R5.4). Submit endpoint re-checks (R9.4 defense-in-depth → refuse, no record).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737741
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792183588665
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792184167825
+      }
+    ],
+    "4.3 Tests: schema carries application attrs + subset + format; readiness refuses on uncertified tenant (form) AND on direct submit (no record); neutral error (no mail-config leak); passes for send-ready. (R14.16 partial, R14.17.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737825
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792184918706
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792185626726
+      }
+    ],
+    "5.1 Accept + validate `locale` (`nl`/`en`, default+fallback `nl`); persist on the record; drive applicant-facing copy (R6b.1–R6b.4).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176737907
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792178620434
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792179334538
+      }
+    ],
+    "5.2 Tests: en/nl render, invalid→nl fallback, locale persisted. (R14.14 partial.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738015
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792180933060
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792183420626
+      }
+    ],
+    "6.1 `repository/role_recipients_reader.py` — all-scope `Members_CRUD` via `role#…` + `scopegrant#…#<dimension>==[\"*\"]`; scope-matched copy for the applicant's selected scope value (D9a); `TenantAdmin` fallback; empty → signal for `NO_NOTIFY` (R8.2–R8.5, scope-generic). (Depends 0.6.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738090
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792180935423
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792183422500
+      }
+    ],
+    "6.2 `domain/application_notification.py` — enqueue TWO jobs (staff + applicant) via `MailSendQueuePort.enqueue`; `tenant_id` authoritative on the envelope (D5/D10).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738179
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792180936567
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792183419244
+      }
+    ],
+    "6.3 Worker branch (`mail_send_worker.py`) — resolve recipients (6.1); compose `From` via `MailSenderResolver` (D4); Reply-To = configured app-Reply-To else first all-scope `Members_CRUD` else `TenantAdmin` (D8/R9a, order from 0.6); render bilingual templates (staff=deep-link + neutral `DUP` marker, no PII, R8.6/R8.6a; applicant=own data, applicant locale, R8a); SES send best-effort + DLQ (R8.8).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738263
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792183590889
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792184170027
+      }
+    ],
+    "6.4 `NO_NOTIFY` keyword note on `overlay.additional_info` + platform-operator alert when no recipients (R8.5); send-log per 0.4.": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738346
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792184174181
+      }
+    ],
+    "6.5 Tests: all-scope filter (scope-limited excluded), scope copy, `TenantAdmin` fallback, no-scope-dim tenant → all; offloaded best-effort (SES fail doesn't roll back record); sender resolution; Reply-To chain; staff deep-link no-PII + DUP marker; applicant copy; `NO_NOTIFY` note. (R14.3, R14.4, R14.9, R14.10, R14.11, R14.14.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738432
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792184921053
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792185624827
+      }
+    ],
+    "7.1 `template.yaml`: public API (no WAF — D17/R10.4), API Gateway throttle + usage plan (R10.1); least-privilege IAM for the public fn (members-table write, projection read, queue enqueue — exact ARNs, no wildcard/cross-account, R10.5); 2nd queue consumer / job kind + its SES + `config#mail` read grants.": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738527
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792184914903
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792185622382
+      }
+    ],
+    "7.2 Applications-inbox = existing member overview filtered to `status=application` (NO new grid); `DUP`/`NO_NOTIFY` keyword-filterable on `overlay.additional_info` via Table Filter Framework v2 (R8b.4/R8b.5, F3).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738603
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792185640447
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792188027048
+      }
+    ],
+    "7.3 Tests: tenant-invariant test covers the public write path (R2.5, Property 1); inbox-as-authoritative-channel — a record whose email send failed is still in the `status=application` filter (R14.5, R14.18).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738718
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792188041882
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792188301831
+      }
+    ],
+    "8.1 Extend `_projection_config_builders.py` (`_OVERLAY_FIELD_DEFAULTS`, `_FIXED_OVERRIDE_FIELDS`, `_map_overlay_field`/`_map_fixed_override`) to carry `application_visible`/`application_required`/`application_choices`/`format` onto `config#fields` 1:1 (R4c.1/R4c.2). (Depends 0.2.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738812
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176757431
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177176304
+      }
+    ],
+    "8.2 Project the **scope-copy toggle** (D9a) AND the **tenant consent notice** (bilingual text + stable version id, D26) onto `config#mail` / a sibling `config#` row (R4c). (The application-Reply-To param is DROPPED — D24.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738884
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177880047
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792178363563
+      }
+    ],
+    "8.3 `members_config_validation.py` / `projection_validator.py`: fail-loud at Save — subset ⊆ field choices; `format.checker` platform-known; application-required cannot relax platform-required (R4c.3).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176738972
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177187101
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177861774
+      }
+    ],
+    "8.4 Tests (`backend/tests/`): builder carries the four attrs; validator rejects invalid subset + unknown checker; un-authored tenant projects back-compatible defaults (R14.20). Paired in the same change (steering 30/34).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739048
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792177881617
+      },
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792178369815
+      }
+    ],
+    "9.1 Config-driven renderer: fetch public field-config, render per field via Chakra `FormControl`/`FormLabel`/`FormErrorMessage`, grouped by `functional_group`, labels in applicant locale; flatten↔un-flatten (R4, R10a.4).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739159
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792184916801
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792185629834
+      }
+    ],
+    "9.2 Generate the Yup schema FROM the field-config (required/subset/format/show_when); NOT hand-maintained (R10a.2).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739235
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792184928054
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792185628462
+      }
+    ],
+    "9.3 Map server 422 `errors[]` into Formik by dotted `field` key (server authoritative); ARIA live-region error summary; locale selector (default nl); consent checkbox (R10a.3/R10a.5, R6b, R12.1).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739313
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792185641987
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792188023746
+      }
+    ],
+    "9.4 Handle the readiness-gate 409 (\"not available\") + 404 as bilingual messages (R5.4/R1a).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739391
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792185643393
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792188025532
+      }
+    ],
+    "9.5 Tests (`frontend/`, per `33-frontend-testing`): Yup generated-from-config parity; 422→Formik by dotted key; axe gate over the public form (label assoc, aria-invalid, live-region). (R14.16.)": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739468
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792188308778
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792221973417
+      }
+    ],
+    "10.1 Extend `35-sam-module-architecture-sam.md` with the public/unauthenticated intake edge pattern + controls (R13.1).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739556
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792188310098
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792221970401
+      }
+    ],
+    "10.2 New ADR (companion to 0007) for the fenced public-intake exception (R13.2).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739663
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792188311531
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792221968532
+      }
+    ],
+    "10.3 Reference the per-tenant verified-sender dependency to the SNS-SES spec (R13.3); end-user docs: applicant form + staff review (R13.4).": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739751
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792188312888
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792221971747
+      }
+    ],
+    "10.4 **CI/CD wiring (steering 43).** Add the new **public `AWS::Serverless::Api`** (D27) +": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739844
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792221991947
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792222493160
+      }
+    ],
+    "10.5 **Quality gates (steering 43).** Ensure the change passes the per-PR gates (CodeQL +": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176739922
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792221993915
+      },
+      {
+        "executionId": "47d3a2e7-48a1-4be0-b323-90f0ec6370ae",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792222494152
+      }
+    ],
+    "10.6 **Branch→env deploy (steering 43).** Land on `test` → TEST stack (`test-sam-members`,": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176740007
+      }
+    ],
+    "10.7 **Promote `test` → `main` (production release, steering 43 runbook).** One PR `test→main`;": [
+      {
+        "executionId": "e142443d-f659-4e8e-841c-1b9cc8d5a807",
+        "chatSessionId": "sess_bdc207ec-b5af-4139-a0d4-c4a5ad8ea8c5",
+        "timestamp": 1792176740091
+      }
+    ]
+  }
+}

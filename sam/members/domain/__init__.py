@@ -6,6 +6,14 @@ builds no HTTP responses, writes no DynamoDB queries. This is where the reused h
 business logic (fixed/variable fields, membership workflow, scope access) lands.
 """
 
+from .applicant_locale import (
+    DEFAULT_LOCALE,
+    LOCALE_RECORD_KEY,
+    SUPPORTED_LOCALES,
+    locale_of_record,
+    locale_record_patch,
+    normalize_locale,
+)
 from .field_resolver import (
     OVERLAY_GROUP,
     FieldConfig,
@@ -27,7 +35,10 @@ from .membership_type_catalog import (
 
 __all__ = [
     "CATALOG_LOCALES",
+    "DEFAULT_LOCALE",
+    "LOCALE_RECORD_KEY",
     "OVERLAY_GROUP",
+    "SUPPORTED_LOCALES",
     "FieldConfig",
     "FieldOrigin",
     "FieldResolver",
@@ -35,6 +46,9 @@ __all__ = [
     "MembershipTypeEntry",
     "MembershipTypeValidationError",
     "OverlayError",
+    "locale_of_record",
+    "locale_record_patch",
+    "normalize_locale",
     "OverlayField",
     "ResolvedField",
     "StaticOverlayProvider",

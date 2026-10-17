@@ -96,6 +96,28 @@ parameter_overrides = [
   # exactly this group's ARN pattern. Template parameter has NO default (fail-fast), so it MUST
   # be supplied. EventBridge Scheduler is a nonprofit-deploy service (506221081911 / eu-west-1).
   "SchedulerGroupName=members-schedules",
+  # --- Public application-intake form: CORS allow-list + slug→tenant projection (D27, task 1.3) ---
+  # PublicFormAllowedOrigins (R10.3/R10.4): the PROD public-form origin(s) the unauthenticated edge
+  #   echoes into Access-Control-Allow-Origin. NO `*` — a public POST must not be callable from any
+  #   site; an empty value would be fail-closed (form unreachable cross-origin), so the real PROD
+  #   form hostname is supplied here. (`aanmelden.jabaki.nl` is the intake-form origin; adjust when
+  #   the real hostname is finalized — Phase 9/10.)
+  "PublicFormAllowedOrigins=https://aanmelden.jabaki.nl",
+  # PublicTenantSlugMap (D19, R2): the thin slug→tenant_id projection of the landing-page slug
+  #   mechanism the public edge resolves against (verify-before-trust — a slug SELECTS an
+  #   allow-listed tenant, never grants one). `hdcn:h-dcn` is the first/only certified tenant today;
+  #   a richer DynamoDB/KVS-backed reader is a change behind the tenant_slug_reader seam (Phase
+  #   7/10 seeding from the landing mapping), not a samconfig change.
+  "PublicTenantSlugMap=hdcn:h-dcn",
+  # --- Public API throttle + usage plan (R10.1, D17, task 7.1) — the PROD rate/burst ---
+  # The abuse-hardening half of the public edge: API Gateway's native stage throttle + a usage
+  # plan bound to the public API's stage (NO WAF — D17/R10.4). At a member-application form's
+  # low, human-paced volume these bound a scripted flood without the WAF's recurring cost.
+  # PROD values (10/s steady, 20 burst) pin the template defaults in config (steering 36/43);
+  # re-tunable per env without code if real abuse appears (D17's "easy add-on" is the WAF, not a
+  # redeploy). TEST runs tighter (below) since it shares the account's API Gateway budget.
+  "PublicApiThrottleRateLimit=10",
+  "PublicApiThrottleBurstLimit=20",
   # SECRET — NOT here (steering 43 "no secrets in CI"): `OpenRouterApiKey` (the Members
   # AI-improve key, R2 task 2.4) is a NoEcho template parameter with NO default + an
   # `sk-or-v1-` AllowedPattern. It is supplied at DEPLOY time only, appended by the OIDC
@@ -179,6 +201,21 @@ parameter_overrides = [
   # suffix). The runtime schedules task 5.2 creates for TEST land in this group; the Members
   # function's `scheduler:*` grant is scoped to it. NO template default (fail-fast).
   "SchedulerGroupName=members-schedules-test",
+  # --- Public application-intake form: CORS allow-list + slug→tenant projection (D27, task 1.3) ---
+  # TEST siblings of the prod public-edge wiring. A distinct TEST form origin so the TEST public API
+  # is only callable from the TEST form (fail-closed on anything else — never `*`). The slug map
+  # points the SAME `hdcn` slug at the `h-dcn` tenant (the TEST projection is its own table/data but
+  # the slug→tenant contract is identical); a richer reader is a seam change, not a samconfig one.
+  "PublicFormAllowedOrigins=https://aanmelden-test.jabaki.nl",
+  "PublicTenantSlugMap=hdcn:h-dcn",
+  # --- Public API throttle + usage plan (R10.1, D17, task 7.1) — the TEST rate/burst ---
+  # TEST siblings of the prod public-edge throttle, run TIGHTER (5/s steady, 10 burst) than prod:
+  # TEST shares the nonprofit-deploy account's API Gateway throttle budget with prod, and a TEST
+  # load/smoke run must not eat prod's headroom. Still comfortably above a human applicant's pace.
+  # Re-tunable per env (steering 43). No WAF (D17/R10.4) — the throttle + honeypot + payload cap +
+  # CORS are the proportionate controls.
+  "PublicApiThrottleRateLimit=5",
+  "PublicApiThrottleBurstLimit=10",
   # SECRET — NOT here (steering 43): `OpenRouterApiKey` (R2 task 2.4) is supplied at deploy
   # time by the OIDC workflow via `--parameter-overrides "OpenRouterApiKey=${OPENROUTER_API_KEY}"`
   # from the TEST environment's secret store — never committed, never in CI config.

@@ -386,6 +386,61 @@ ATTRIBUTE_VOCABULARY: tuple[AttributeSpec, ...] = (
             "alternate name a tenant gives a field, not the field's rendered display label."
         ),
     ),
+    # ── Public member-application attributes (application-app spec: D20; R4.2/R4a/R4b/R7.1) ──
+    # The four sibling attributes a tenant authors per field for the PUBLIC application form,
+    # carried 1:1 onto the config#fields row like the carries above (Flask authors → SAM reads).
+    # They apply to FIXED (via a fixed-field override — e.g. put membership_type on the form) and
+    # VARIABLE (overlay) fields, never to CALCULATED (derived read-only fields are never form
+    # inputs). All default to the "off the public form, back-compatible" neutral.
+    AttributeSpec(
+        key="application_visible",
+        value_type="bool",
+        required=False,
+        applies_to=(AttributeApplies.FIXED, AttributeApplies.VARIABLE),
+        tenant_authorable=True,
+        note=(
+            "Default false. Whether the field appears on the PUBLIC application form (R4.2/R4.3) "
+            "— distinct from the overview's `visible`. Back-office membership fields are off the "
+            "form by default; a tenant opts a field in. Authored in Flask, read-only on SAM."
+        ),
+    ),
+    AttributeSpec(
+        key="application_required",
+        value_type="bool",
+        required=False,
+        applies_to=(AttributeApplies.FIXED, AttributeApplies.VARIABLE),
+        tenant_authorable=True,
+        note=(
+            "Default false. A FORM-ONLY required overlay (R4b): it may TIGHTEN an optional field "
+            "to required on the public form, but can never relax a platform-`required` field, and "
+            "email/name/DOB stay required regardless. A field hidden by `show_when` is exempt."
+        ),
+    ),
+    AttributeSpec(
+        key="application_choices",
+        value_type="list",
+        required=False,
+        applies_to=(AttributeApplies.FIXED, AttributeApplies.VARIABLE),
+        tenant_authorable=True,
+        note=(
+            "The enum application SUBSET (R4a): the subset of an enum field's choices offered on "
+            "the public form; None → the full choice set (back-compatible default). Must be a "
+            "strict subset of the field's resolved choices (validated fail-fast at author time)."
+        ),
+    ),
+    AttributeSpec(
+        key="format",
+        value_type="object",
+        required=False,
+        applies_to=(AttributeApplies.FIXED, AttributeApplies.VARIABLE),
+        tenant_authorable=True,
+        note=(
+            "A declarative FieldFormat {checker, params} validator (R7.1/D16): the `checker` is a "
+            "platform-defined registry token (e.g. EMAIL / IBAN) a tenant picks — it never authors "
+            "code (R7.7). None → no extra checker beyond type/required. Gated by the field's "
+            "existing `show_when`; mirrors the member_number_format carry."
+        ),
+    ),
 )
 
 

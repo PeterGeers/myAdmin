@@ -165,10 +165,27 @@ class TestKeySchema:
             {"AttributeName": td.PARTITION_KEY_ATTR, "KeyType": "HASH"},
             {"AttributeName": td.SORT_KEY_ATTR, "KeyType": "RANGE"},
         ]
+        # Base PK/SK + the name+DOB GSI range-key attribute (D25, task 2.5).
         assert spec["AttributeDefinitions"] == [
             {"AttributeName": td.PARTITION_KEY_ATTR, "AttributeType": "S"},
             {"AttributeName": td.SORT_KEY_ATTR, "AttributeType": "S"},
+            {"AttributeName": td.NAME_DOB_KEY_ATTR, "AttributeType": "S"},
         ]
+
+    def test_apply_creates_the_name_dob_duplicate_flag_gsi(self, fake_resource):
+        # D25 (task 2.5): the table is created WITH the name+DOB duplicate-flag GSI, keyed on
+        # (tenant_id HASH, name_dob_key RANGE) so the dup lookup stays tenant-scoped (Property 1).
+        provision_mod.provision("eu-west-1", apply=True, reset=False)
+        spec = fake_resource.created[0]
+        gsis = spec["GlobalSecondaryIndexes"]
+        assert len(gsis) == 1
+        gsi = gsis[0]
+        assert gsi["IndexName"] == td.NAME_DOB_GSI_INDEX_NAME
+        assert gsi["KeySchema"] == [
+            {"AttributeName": td.PARTITION_KEY_ATTR, "KeyType": "HASH"},
+            {"AttributeName": td.NAME_DOB_KEY_ATTR, "KeyType": "RANGE"},
+        ]
+        assert gsi["Projection"] == {"ProjectionType": "ALL"}
 
     def test_created_table_name_comes_from_env_not_hardcoded(self, env, monkeypatch):
         monkeypatch.setenv(td.MEMBERS_TABLE_ENV_VAR, "sam-members")  # prod name

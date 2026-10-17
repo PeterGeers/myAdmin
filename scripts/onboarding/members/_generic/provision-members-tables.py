@@ -111,11 +111,29 @@ def _key_schema() -> list[dict]:
 
 
 def _attribute_definitions() -> list[dict]:
-    """Attribute definitions — PK ``tenant_id`` (S), SK ``sk`` (S). From ``table_design``."""
+    """Attribute definitions — base PK/SK + the name+DOB GSI range key. From ``table_design``.
+
+    The base keys are PK ``tenant_id`` (S) + SK ``sk`` (S); the duplicate-flag GSI (D25) adds
+    its range key ``name_dob_key`` (S). The GSI's hash key is the base ``tenant_id``, already
+    declared — only the NEW key attribute is appended (DynamoDB requires every GSI key attr to
+    appear in AttributeDefinitions). All verbatim from ``table_design`` so the script and the
+    repository can never diverge on the key shape.
+    """
     return [
         {"AttributeName": td.PARTITION_KEY_ATTR, "AttributeType": "S"},
         {"AttributeName": td.SORT_KEY_ATTR, "AttributeType": "S"},
+        td.name_dob_gsi_attribute_definition(),
     ]
+
+
+def _global_secondary_indexes() -> list[dict]:
+    """The GSIs to create with the table — the name+DOB duplicate-flag index (D25).
+
+    Taken verbatim from ``table_design`` so the provisioner matches the repository's GSI name
+    and key schema. Tenant-scoped (hash key = ``tenant_id``, Property 1); PAY_PER_REQUEST so the
+    GSI inherits on-demand billing (no provisioned-throughput block).
+    """
+    return [td.name_dob_gsi_definition()]
 
 
 def _table_exists(client, name: str) -> bool:
@@ -133,6 +151,7 @@ def _create_table(dynamodb, client, name: str) -> None:
         TableName=name,
         KeySchema=_key_schema(),
         AttributeDefinitions=_attribute_definitions(),
+        GlobalSecondaryIndexes=_global_secondary_indexes(),  # name+DOB dup-flag GSI (D25)
         BillingMode="PAY_PER_REQUEST",  # on-demand (aws-accounts.md)
     )
     client.get_waiter("table_exists").wait(TableName=name)
@@ -152,6 +171,8 @@ def _print_plan(table_name: str, region: str, *, apply: bool, reset: bool, local
     print(f"  endpoint    : {'local emulator' if local else 'real AWS'}")
     print(f"  billing     : PAY_PER_REQUEST (on-demand)")
     print(f"  key schema  : PK {td.PARTITION_KEY_ATTR} (S), SK {td.SORT_KEY_ATTR} (S)")
+    print(f"  GSI         : {td.NAME_DOB_GSI_INDEX_NAME} "
+          f"(HASH {td.PARTITION_KEY_ATTR}, RANGE {td.NAME_DOB_KEY_ATTR}) — dup-flag (D25)")
     print(f"  mode        : {'APPLY' if apply else 'DRY-RUN (creates nothing)'}")
     print(f"  reset       : {reset}")
     print("  scope       : ONE table (members/memberships/delegates/payments/counters/")
