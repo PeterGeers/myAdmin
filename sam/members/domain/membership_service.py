@@ -100,6 +100,10 @@ from sam.members.domain.mail_gate import (
     MailGateProvider,
     StaticMailGateProvider,
 )
+from sam.members.domain.consent_notice import (
+    ConsentNoticeProvider,
+    StaticConsentNoticeProvider,
+)
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.domain.transition_hooks import TransitionHookRegistry
 from sam.members.repository.members_repository import (
@@ -186,6 +190,15 @@ class MembershipService(
             ``userPreference ?? default_page_size ?? platformDefault``. Defaults to the empty
             :class:`~sam.members.domain.default_page_size.StaticDefaultPageSizeProvider`
             (every tenant resolves to ``None`` — the SPA falls back to the platform default).
+        consent_notice_provider: Supplies each tenant's CURRENT consent-notice version
+            (Member Application Form D26/R12.1a/R12.1c, task 2.6), resolved by ``tenant_id``.
+            :meth:`create_application` stamps THIS server-resolved version onto the application
+            record's ``consent`` block (never the client-supplied ``notice_version``), so a
+            later notice revision never retroactively changes an existing record (R12.1a).
+            Defaults to the empty
+            :class:`~sam.members.domain.consent_notice.StaticConsentNoticeProvider` (every
+            tenant resolves to ``None`` — no versioned notice to pin; the applicant's affirmative
+            consent is still required and recorded).
         scheduler_port: The EventBridge-Scheduler management port the schedule CRUD surface
             (:class:`~sam.members.domain._membership_schedules.SchedulesMixin`) uses to
             materialize / update / delete the ONE EventBridge schedule behind each stored
@@ -207,6 +220,7 @@ class MembershipService(
         mail_gate_provider: MailGateProvider | None = None,
         config_status_provider: ConfigStatusProvider | None = None,
         default_page_size_provider: DefaultPageSizeProvider | None = None,
+        consent_notice_provider: ConsentNoticeProvider | None = None,
         scheduler_port: "SchedulerApiPort | None" = None,
     ):
         self._repo = repository
@@ -263,6 +277,19 @@ class MembershipService(
             default_page_size_provider
             if default_page_size_provider is not None
             else StaticDefaultPageSizeProvider()
+        )
+        # The consent-notice seam (Member Application Form D26/R12.1a/R12.1c, task 2.6). Mirrors
+        # the mail-gate provider injection: the service depends only on the ConsentNoticeProvider
+        # Protocol, never on where the per-tenant versioned notice lives. `create_application`
+        # resolves the tenant's CURRENT notice version through it to stamp the consent record
+        # SERVER-SIDE (never the client-supplied notice_version, R12.1a). Defaults to the empty
+        # StaticConsentNoticeProvider — a service built without a provider resolves every tenant to
+        # `None` (no versioned notice to pin), matching the reader's empty-is-valid behaviour; the
+        # applicant's affirmative consent is still required and recorded regardless (R12.1c).
+        self._consent_notice_provider: ConsentNoticeProvider = (
+            consent_notice_provider
+            if consent_notice_provider is not None
+            else StaticConsentNoticeProvider()
         )
         self._lifecycle_provider: LifecycleConfigProvider = (
             lifecycle_provider

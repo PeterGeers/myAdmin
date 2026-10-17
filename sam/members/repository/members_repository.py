@@ -34,6 +34,8 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Protocol, runtime_checkable
 
+from botocore.exceptions import ClientError
+
 from sam.members.domain.analytics_set import AnalyticsSetEntry
 from sam.members.domain.column_preferences import ColumnPreferences
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
@@ -55,6 +57,16 @@ __all__ = [
 #: delete (:meth:`DynamoDbMembersRepository.delete_mail_run`) is also supported. (Distinct from the
 #: dedupe marker's 14d — a different, short-lived purpose.)
 MAIL_RUN_TTL_SECONDS = 90 * 24 * 60 * 60
+
+# --- Public-application session de-dup constant (R3a, application-app task 2.1) --------
+
+#: How long a public-application session de-dup marker (``appsession#<session_key>``) is retained
+#: (seconds) via DynamoDB TTL. A session key de-dups a single fill-in session's submits (first
+#: creates, resends update that record); once the applicant has gone away the mapping is no longer
+#: needed, so 30 days generously covers an interrupted-and-resumed session while keeping the table
+#: from accumulating markers forever. TTL is best-effort auto-cleanup, not a correctness guarantee
+#: — the member record it maps to is the source of truth and is NOT TTL'd.
+APP_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
 #: The send-run status lifecycle (R9.1): written ``queued`` at enqueue, advanced to ``sending`` /
 #: ``completed`` by the worker as it drains the run's jobs.
@@ -121,6 +133,48 @@ class MembersRepository(Protocol):
 
     def delete_member(self, tenant_id: str, member_id: str) -> None:
         """Delete the member ``member_id`` for ``tenant_id``."""
+        ...
+
+    # ── Public-application session de-dup (R3a, application-app task 2.1) ───────────────
+
+    def claim_application_session(
+        self, tenant_id: str, session_key: str, member_id: str
+    ) -> bool:
+        """Claim a public-application session for ``member_id`` iff unclaimed (R3a.3).
+
+        Does a CONDITIONAL ``attribute_not_exists`` put of an ``appsession#<session_key>`` marker
+        (the ``mailsent#<job_id>`` idempotency pattern) so only the FIRST submit of a session
+        maps the session to its server-minted ``member_id``. Returns ``True`` iff THIS call
+        created the marker (so the caller should create the member); ``False`` when the marker
+        already existed (a resend — the caller should read the mapped member_id via
+        :meth:`get_application_session_member` and UPDATE that record). Tenant-pinned (Property 1).
+        """
+        ...
+
+    def get_application_session_member(
+        self, tenant_id: str, session_key: str
+    ) -> str | None:
+        """Return the ``member_id`` a session mapped to, or ``None`` if the session is unclaimed.
+
+        A single ``get_item`` on ``appsession#<session_key>`` within the tenant partition
+        (isolation is structural — the partition key is pinned to ``tenant_id``). Used by a
+        resend to resolve the record to UPDATE rather than insert a second one (R3a.2).
+        """
+        ...
+
+    # ── Duplicate-flag name+DOB lookup (R3a.5–R3a.8, D25) ───────────────────────────────
+
+    def query_by_name_dob(
+        self, tenant_id: str, name_dob_key: str
+    ) -> Sequence[Member]:
+        """Return members of ``tenant_id`` whose normalized name+DOB equals ``name_dob_key``.
+
+        A cheap INDEXED read over the ``name_dob_index`` GSI (D25), NOT a partition scan
+        (R3a.8). The GSI's hash key is ``tenant_id`` so the query stays inside the tenant
+        partition (Property 1) and ``name_dob_key`` is its range key. Returns every matching
+        member item (usually zero or one; more than one means pre-existing duplicates). Used
+        FLAG-ONLY by the public create path — it never blocks a write (R3a.5/R3a.7).
+        """
         ...
 
     # ── Membership lifecycle ───────────────────────────────────────────────────────────
@@ -381,6 +435,15 @@ class _StubMembersRepository:
         raise NotImplementedError(self._PENDING)
 
     def delete_member(self, tenant_id: str, member_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def claim_application_session(self, tenant_id: str, session_key: str, member_id: str):
+        raise NotImplementedError(self._PENDING)
+
+    def get_application_session_member(self, tenant_id: str, session_key: str):
+        raise NotImplementedError(self._PENDING)
+
+    def query_by_name_dob(self, tenant_id: str, name_dob_key: str):
         raise NotImplementedError(self._PENDING)
 
     def get_membership(self, tenant_id: str, member_id: str, membership_id: str):
@@ -649,6 +712,120 @@ class DynamoDbMembersRepository:
         """
         self._require_tenant(tenant_id)
         self.table.delete_item(Key=td.build_key(tenant_id, td.member_sk(member_id)))
+
+    # ── Public-application session de-dup (R3a, application-app task 2.1) ───────────────
+    #
+    # The public form mints a stable ``session_key`` on first render and sends it on every
+    # submit of that fill-in session (R3a.1). The FIRST submit CLAIMS the session — a CONDITIONAL
+    # ``attribute_not_exists`` put of an ``appsession#<session_key>`` marker mapping the session
+    # to the server-minted ``member_id`` — exactly the idempotency pattern the mail worker's
+    # ``mailsent#<job_id>`` marker uses. A near-simultaneous double submit (impatient click /
+    # retry) therefore races to a SINGLE create: the first put wins the condition, the rest fail
+    # it and resolve the mapped member to UPDATE (R3a.2/R3a.3). Every op pins ``tenant_id`` and
+    # uses only the server-validated session key (R3a.4) — a marker can only match within its own
+    # tenant (Property 1). Metadata only — never form field values / applicant PII.
+
+    def claim_application_session(
+        self, tenant_id: str, session_key: str, member_id: str
+    ) -> bool:
+        """Claim an application session for ``member_id`` iff unclaimed; True iff THIS call claimed.
+
+        A CONDITIONAL ``PutItem`` with ``attribute_not_exists(<sort key>)`` so only the FIRST
+        submit of a ``session_key`` creates the ``appsession#<session_key>`` marker (``True`` →
+        created / this call owns the create); a concurrent/later resend fails the condition
+        (``False`` → already claimed → the caller reads the mapped member and updates it). This
+        is the conditional-write that resolves a double-submit race to a single record (R3a.3).
+        """
+        self._require_tenant(tenant_id)
+        if not session_key or not member_id:
+            raise ValueError(
+                "application-session claim requires a non-empty session_key and member_id"
+            )
+        now = datetime.now(timezone.utc)
+        item: dict[str, Any] = {
+            td.PARTITION_KEY_ATTR: tenant_id,
+            td.SORT_KEY_ATTR: td.app_session_sk(session_key),
+            "session_key": session_key,
+            "member_id": member_id,
+            "created_at": now.isoformat(),
+            "ttl": int(now.timestamp()) + APP_SESSION_TTL_SECONDS,
+        }
+        try:
+            self.table.put_item(
+                Item=td.floats_to_decimal(item),
+                ConditionExpression=f"attribute_not_exists({td.SORT_KEY_ATTR})",
+            )
+            return True
+        except ClientError as exc:
+            code = ""
+            response = getattr(exc, "response", None)
+            if isinstance(response, Mapping):
+                error = response.get("Error")
+                if isinstance(error, Mapping):
+                    code = str(error.get("Code", ""))
+            if code == "ConditionalCheckFailedException":
+                return False  # session already claimed → resend → caller updates that record
+            raise
+
+    def get_application_session_member(
+        self, tenant_id: str, session_key: str
+    ) -> str | None:
+        """Return the ``member_id`` a session mapped to, or ``None`` if the session is unclaimed.
+
+        A single ``get_item`` on ``appsession#<session_key>`` within the tenant partition
+        (isolation is structural — the partition key is pinned to ``tenant_id``; Property 1). A
+        resend uses this to resolve the record to UPDATE instead of inserting a second one
+        (R3a.2).
+        """
+        self._require_tenant(tenant_id)
+        if not session_key:
+            return None
+        response = self.table.get_item(
+            Key=td.build_key(tenant_id, td.app_session_sk(session_key))
+        )
+        item = response.get("Item")
+        if item is None:
+            return None
+        member_id = item.get("member_id")
+        return str(member_id) if member_id else None
+
+    # ── Duplicate-flag name+DOB lookup (R3a.5–R3a.8, D25) ───────────────────────────────
+
+    def query_by_name_dob(
+        self, tenant_id: str, name_dob_key: str
+    ) -> Sequence[Member]:
+        """Query the ``name_dob_index`` GSI for members matching a normalized name+DOB key.
+
+        A cheap INDEXED read (D25), NOT a partition scan (R3a.8). The GSI hashes on
+        ``tenant_id`` and ranges on ``name_dob_key``, so the query pins the tenant (Property 1)
+        and matches the exact composite. Returns the matching member items (``ALL`` projection,
+        so the caller reads their fields straight off the index). Paginates via
+        ``LastEvaluatedKey``. An empty ``name_dob_key`` (an un-indexable record) yields ``[]``
+        without a query — it can never match.
+        """
+        from boto3.dynamodb.conditions import Key
+
+        self._require_tenant(tenant_id)
+        if not name_dob_key:
+            return []
+
+        condition = Key(td.PARTITION_KEY_ATTR).eq(tenant_id) & Key(
+            td.NAME_DOB_KEY_ATTR
+        ).eq(name_dob_key)
+
+        items: list[dict] = []
+        kwargs: dict = {
+            "IndexName": td.NAME_DOB_GSI_INDEX_NAME,
+            "KeyConditionExpression": condition,
+        }
+        while True:
+            response = self.table.query(**kwargs)
+            items.extend(response.get("Items", []) or [])
+            last = response.get("LastEvaluatedKey")
+            if not last:
+                break
+            kwargs["ExclusiveStartKey"] = last
+        return items
 
     # ── Membership lifecycle ───────────────────────────────────────────────────────────
 

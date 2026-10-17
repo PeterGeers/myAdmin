@@ -97,6 +97,29 @@ _MAIL_CERTIFIED_PARAM_KEY = "mail_certified"
 #: so builder and reader agree on the composed-From local-part.
 _MAIL_LOCAL_PART_DEFAULT = "noreply"
 
+#: Member Application Form (application-app D9a/R8.3a, task 8.2) — the OPTIONAL,
+#: tenant-config-gated "scope-matched copy" toggle, authored as the boolean
+#: ``members.application_scope_copy`` param and projected onto the SAME ``config#mail``
+#: row the sender config rides (design §7). When True AND the applicant selected a scope
+#: value on the form, the staff notification SHALL ALSO copy the ``Members_CRUD`` users
+#: scoped to that value (ADDING to the all-scope recipients, never replacing — D9a). The
+#: application Reply-To param is DROPPED (D24 — Reply-To is the all-scope ``Members_CRUD``
+#: set, not configured). Fail-closed: only an explicit boolean ``True`` enables the copy;
+#: any other/absent value projects ``False`` (the D9 all-scope-only default).
+_APPLICATION_SCOPE_COPY_PARAM_KEY = "application_scope_copy"
+
+#: Member Application Form (application-app D26/R12.1a/R12.1c, task 8.2) — the per-tenant,
+#: bilingual, VERSIONED consent/privacy notice, authored as the
+#: ``members.application_consent_notice`` param and projected onto the SAME ``config#mail``
+#: row. Each tenant authors its OWN notice text ``{nl, en}`` with a STABLE ``version`` id per
+#: revision (D26): the public field-config read (R5) serves the current text + version to the
+#: form, and a stored consent references the exact version accepted (a later revision never
+#: retroactively changes an existing record's recorded version). Projected ONLY when
+#: well-formed (a non-blank ``version`` AND at least one non-blank locale text); otherwise the
+#: attribute is OMITTED so an un-authored tenant projects a back-compatible row (the platform
+#: MAY seed a default notice elsewhere — R12.1c / steering 38).
+_APPLICATION_CONSENT_NOTICE_PARAM_KEY = "application_consent_notice"
+
 #: The fields a single projected dimension entry carries — the exact shape
 #: ``ScopeDimension`` consumes (design.md "New governance projection rows",
 #: ``config#scope``). Each is mapped from the authored parameter dict with a
@@ -482,6 +505,17 @@ _OVERLAY_FIELD_DEFAULTS: dict[str, Any] = {
     # Property 2) — this attribute is the READ representation, config#scope stays authoritative
     # for the resolver.
     "scope": None,
+    # Member Application Form (application-app R4c.1/R4c.2, D20): the four per-field
+    # APPLICATION attributes authored in the Flask tenant-admin field config and carried 1:1
+    # onto config#fields so the SAM read side (R4/R4a/R4b/R5) can project the public form. Back-
+    # compatible defaults for a tenant that authored none (R4c.5): `application_visible` off →
+    # the field is NOT on the public form; `application_required` off → optional (never relaxes
+    # a platform-required field — that is the SAM resolver's authority); `application_choices`
+    # None → the full enum set (no subset); `format` None → no extra FieldFormat checker.
+    "application_visible": False,
+    "application_required": False,
+    "application_choices": None,
+    "format": None,
 }
 
 #: The fields a single projected fixed-field override entry carries — the exact
@@ -501,6 +535,16 @@ _OVERLAY_FIELD_DEFAULTS: dict[str, Any] = {
 #: — carrying an authored attribute never WEAKENS a platform invariant; the resolver's
 #: rejection semantics stay authoritative (R5.3). ``member_number_format`` is DELIBERATELY
 #: NOT carried here — deferred to the follow-up spec (R5.2).
+#:
+#: Member Application Form (application-app R4c.1/R4c.2, D20): the four per-field APPLICATION
+#: attributes — ``application_visible`` / ``application_required`` / ``application_choices`` /
+#: ``format`` — are ALSO carried on a fixed-field override, 1:1 the same way as on an overlay
+#: field (:data:`_OVERLAY_FIELD_DEFAULTS`), so a tenant can select a FIXED field (e.g.
+#: ``membership.membership_type``) onto the public form with its own subset / requiredness /
+#: FieldFormat. Additive like the rest of the override: an unauthored attribute is simply
+#: absent (``FixedFieldOverride`` reads a missing attribute as "leave the fixed base as-is",
+#: the back-compatible default R4c.5), never a forced ``False``/``None`` that would mask the
+#: fixed base.
 _FIXED_OVERRIDE_FIELDS = (
     "label",
     "visible",
@@ -510,6 +554,10 @@ _FIXED_OVERRIDE_FIELDS = (
     "options",
     "choices",
     "scope",
+    "application_visible",
+    "application_required",
+    "application_choices",
+    "format",
 )
 
 #: The fields a single projected functional-group catalog entry carries — the exact
@@ -527,11 +575,16 @@ def _map_overlay_field(name: str, raw: Mapping[str, Any]) -> dict[str, Any]:
 
     Pure mapping of a single tenant-authored overlay field into the exact field
     set ``OverlayField`` consumes (``key``, ``type``, ``required``, ``label``,
-    ``choices``, ``visible``, ``order``). Unknown extra keys are dropped (the row
-    carries only the shape the domain reads); absent fields fall back to a safe
-    default so a partially authored field still yields a well-formed entry rather
-    than raising. ``key`` defaults to the map key ``name`` when not explicitly
-    authored (``OverlayField`` treats ``of.key or name`` the same way).
+    ``choices``, ``visible``, ``order``) plus the carried display/scope attributes
+    and the four per-field APPLICATION attributes (``application_visible``,
+    ``application_required``, ``application_choices``, ``format`` — R4c.1/R4c.2,
+    D20). Unknown extra keys are dropped (the row carries only the shape the domain
+    reads); absent fields fall back to a safe default so a partially authored field
+    still yields a well-formed entry rather than raising — the application attributes
+    default to their back-compatible values (``_OVERLAY_FIELD_DEFAULTS``: not on the
+    public form, not application-required, full choice set, no FieldFormat). ``key``
+    defaults to the map key ``name`` when not explicitly authored (``OverlayField``
+    treats ``of.key or name`` the same way).
     """
     overlay_field: dict[str, Any] = {}
     for field_name, default in _OVERLAY_FIELD_DEFAULTS.items():
@@ -549,11 +602,16 @@ def _map_fixed_override(raw: Mapping[str, Any]) -> dict[str, Any]:
 
     Presentation-only + additive: only the aspects the tenant actually authored
     (``label``/``visible``/``required``/``order``/``functional_group`` plus the enum
-    vocabulary ``options``/``choices`` and ``scope``) are carried onto the row; an
-    unauthored aspect is simply absent (``FixedFieldOverride`` reads a missing attribute
-    as "leave the fixed base as-is"). ``functional_group`` (R4.9) reassigns the field's
-    display group — it MUST be carried through so an authored fixed/calculated-field group
-    reassignment reaches the resolved field. Unknown extra keys are dropped.
+    vocabulary ``options``/``choices``, ``scope``, and the four per-field APPLICATION
+    attributes ``application_visible``/``application_required``/``application_choices``/
+    ``format`` — R4c.1/R4c.2, D20) are carried onto the row; an unauthored aspect is
+    simply absent (``FixedFieldOverride`` reads a missing attribute as "leave the fixed
+    base as-is" — the back-compatible default, R4c.5). ``functional_group`` (R4.9)
+    reassigns the field's display group — it MUST be carried through so an authored
+    fixed/calculated-field group reassignment reaches the resolved field. Carrying the
+    application attributes lets a tenant select a FIXED field onto the public form with
+    its own subset / requiredness / FieldFormat, the same way an overlay field does
+    (:func:`_map_overlay_field`). Unknown extra keys are dropped.
 
     I-9 fix (R5.1): ``options``/``choices`` (the enum vocabulary) and ``scope`` are carried
     so a tenant's fixed-field enum relabel or scope-axis binding survives projection instead
@@ -753,6 +811,63 @@ def _resolve_default_page_size(raw: Any) -> int | None:
 # --- R0 config#mail builder (pivot-output-actions R0, design §6.3, task 0.4) --
 
 
+def _resolve_application_consent_notice(raw: Any) -> dict[str, Any] | None:
+    """Shape an authored ``members.application_consent_notice`` value for ``config#mail``.
+
+    The per-tenant, bilingual, VERSIONED consent notice (application-app D26/R12.1a/R12.1c,
+    task 8.2). Returns the projected shape ``{"version": <str>, "text": {<locale>: <str>, …}}``
+    when the authored value is well-formed, else ``None`` so the ``config#mail`` row OMITS the
+    attribute (an un-authored / malformed notice is simply absent — a back-compatible row for a
+    tenant not using the application form; the platform MAY seed a default elsewhere, R12.1c).
+
+    Well-formed (projected) requires BOTH:
+
+    - a STABLE ``version`` id — a non-blank string (the stable per-revision id a stored consent
+      references so a later revision never retroactively changes an existing record, R12.1a);
+      a non-string version is coerced to its ``str`` only when it is a non-blank scalar id
+      (int/str), never fabricated;
+    - at least ONE non-blank locale text under ``text`` (the bilingual ``{nl, en}`` body, R12.1c).
+
+    Degrades gracefully on projected config data (never raises): a non-mapping value, a blank /
+    absent version, or an empty/blank ``text`` all collapse to ``None``. Only non-blank string
+    locale texts survive into the projected ``text`` map (a blank/non-string entry is dropped),
+    so the served notice body is always ``{str: str}``. The authoring-plane validator (task 8.3
+    companion) rejects a malformed notice at Save; this is the symmetric read-side guard so a
+    stray stored value never projects a broken notice.
+    """
+    if not isinstance(raw, Mapping):
+        return None
+
+    raw_version = raw.get("version")
+    if isinstance(raw_version, bool):
+        return None
+    if isinstance(raw_version, str):
+        version = raw_version.strip()
+    elif isinstance(raw_version, int):
+        version = str(raw_version)
+    else:
+        version = ""
+    if not version:
+        return None
+
+    raw_text = raw.get("text")
+    if not isinstance(raw_text, Mapping):
+        return None
+    text: dict[str, str] = {}
+    for locale, body in raw_text.items():
+        if (
+            isinstance(locale, str)
+            and locale.strip()
+            and isinstance(body, str)
+            and body.strip()
+        ):
+            text[locale] = body
+    if not text:
+        return None
+
+    return {"version": version, "text": text}
+
+
 def build_config_mail_row(
     tenant: Mapping[str, Any],
     parameter_service: Any,
@@ -782,6 +897,16 @@ def build_config_mail_row(
       reader compose the SAME From.
     - ``mail_certified`` (bool) — the onboarding-recorded SES-verified flag ("Option
       B"); the pre-send check reads it and fails CLOSED when absent/False (R5.2).
+
+    Two Member Application Form attributes ride this SAME row (application-app task 8.2;
+    the application Reply-To param is DROPPED — D24):
+
+    - ``application_scope_copy`` (bool, D9a) — the OPTIONAL tenant-gated "scope-matched
+      copy" toggle; fail-closed ``False`` (only an explicit ``True`` enables the copy), so
+      an un-authored tenant keeps the D9 all-scope-only recipients.
+    - ``consent_notice`` ({version, text:{nl,en}}, D26) — the per-tenant, VERSIONED,
+      bilingual consent/privacy notice; OMITTED when un-authored/malformed (a tenant not
+      using the application form projects a back-compatible row).
 
     One-directional discipline (Property 1): this builder issues **zero** MySQL
     writes and does **not** write the projection itself — it only READS via
@@ -839,12 +964,28 @@ def build_config_mail_row(
         _MAIL_CERTIFIED_PARAM_KEY,
         tenant=tenant_id,
     )
+    raw_scope_copy = parameter_service.get_param(
+        _MEMBERS_PARAM_NAMESPACE,
+        _APPLICATION_SCOPE_COPY_PARAM_KEY,
+        tenant=tenant_id,
+    )
+    raw_consent_notice = parameter_service.get_param(
+        _MEMBERS_PARAM_NAMESPACE,
+        _APPLICATION_CONSENT_NOTICE_PARAM_KEY,
+        tenant=tenant_id,
+    )
 
     # Fail-closed: only an explicit boolean ``True`` opens a gate. Any other value —
     # absent (None), a stray string, a number — collapses to False, so a
     # malformed/absent gate can never silently permit sending (R0/R5.2/Property 4).
     mail_enabled = raw_flag is True
     mail_certified = raw_certified is True
+
+    # D9a scope-copy toggle: fail-closed like the gate flags — only an explicit boolean
+    # ``True`` enables the optional scope-matched copy; any other/absent value projects
+    # ``False`` (the D9 all-scope-only default), so a malformed value never silently
+    # fans the notification out to scope-limited recipients.
+    application_scope_copy = raw_scope_copy is True
 
     # Local-part: optional with a generic default. A non-string/blank value falls back
     # to ``noreply`` so a From is always composable from a usable domain.
@@ -857,6 +998,10 @@ def build_config_mail_row(
         "mail_enabled": mail_enabled,
         "mail_local_part": mail_local_part,
         "mail_certified": mail_certified,
+        # Member Application Form (D9a): the scope-copy toggle always rides the row as a
+        # fail-closed boolean (present-but-False is distinct from "not projected"), the
+        # SAME discipline as the mail gate flags.
+        "application_scope_copy": application_scope_copy,
     }
 
     # Domain: NO safe default (a guessed host = a foreign-sender leak, R4.2). Project
@@ -865,14 +1010,24 @@ def build_config_mail_row(
     if isinstance(raw_domain, str) and raw_domain:
         attributes["mail_domain"] = raw_domain
 
+    # Member Application Form (D26): the versioned bilingual consent notice is projected
+    # ONLY when well-formed (non-blank version + at least one locale text); otherwise it
+    # is OMITTED so a tenant that authored none projects a back-compatible row (the public
+    # field-config read then serves no tenant notice, falling back to a platform seed if any).
+    consent_notice = _resolve_application_consent_notice(raw_consent_notice)
+    if consent_notice is not None:
+        attributes["consent_notice"] = consent_notice
+
     return ProjectionItem(
         tenant_id=tenant_id,
         sort_key=schema.build_sort_key(
             schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_MAIL
         ),
-        # config#mail is driven by FOUR params — an edit to ANY must bump the row,
-        # so the version is the max of their per-param revisions (version-bump trap
-        # fix), falling back to the tenant row only when none is authored.
+        # config#mail is driven by SIX params — the four mail params PLUS the two Member
+        # Application Form params (the D9a scope-copy toggle + the D26 consent notice) that
+        # now ride this row — so an edit to ANY must bump the row (version-bump trap fix):
+        # the version is the max of their per-param revisions, falling back to the tenant row
+        # only when none is authored.
         version=_config_row_version(
             tenant,
             parameter_service,
@@ -882,6 +1037,8 @@ def build_config_mail_row(
                 _MAIL_DOMAIN_PARAM_KEY,
                 _MAIL_LOCAL_PART_PARAM_KEY,
                 _MAIL_CERTIFIED_PARAM_KEY,
+                _APPLICATION_SCOPE_COPY_PARAM_KEY,
+                _APPLICATION_CONSENT_NOTICE_PARAM_KEY,
             ),
         ),
         attributes=attributes,
@@ -889,6 +1046,8 @@ def build_config_mail_row(
 
 
 __all__ = [
+    "_APPLICATION_CONSENT_NOTICE_PARAM_KEY",
+    "_APPLICATION_SCOPE_COPY_PARAM_KEY",
     "_DEFAULT_PAGE_SIZE_PARAM_KEY",
     "_DIMENSION_DEFAULTS",
     "_FIELD_OVERLAY_PARAM_KEY",
@@ -910,6 +1069,7 @@ __all__ = [
     "_map_functional_group",
     "_map_overlay_field",
     "_map_scope_dimension",
+    "_resolve_application_consent_notice",
     "_resolve_default_page_size",
     "_scope_config_version",
     "_scope_dimension_from_field",

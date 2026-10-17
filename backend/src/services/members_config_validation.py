@@ -44,9 +44,12 @@ __all__ = [
     "CALCULATED_FIELD_KEYS",
     "FIXED_FIELD_KEYS",
     "OVERLAY_GROUP",
+    "PLATFORM_FORMAT_TOKENS",
     "MembersConfigError",
     "fold_field_overlay_labels",
     "fold_members_param",
+    "validate_application_consent_notice",
+    "validate_application_scope_copy",
     "validate_default_page_size",
     "validate_field_overlay",
     "validate_mail_certified",
@@ -146,6 +149,20 @@ _REQUIRED_FIXED_KEYS: frozenset[str] = frozenset(
         "membership.joined_date",
     }
 )
+
+# ── The platform-known FieldFormat checker tokens — transcribed from the SAM registry ──
+# Member Application Form (application-app R4c.3 / R7.7, task 8.3). A field may carry an
+# optional ``format {checker, params}`` attribute naming a PLATFORM-DEFINED checker token.
+# The authoritative token set is defined on the SAM plane by
+# ``sam/members/domain/field_formats.known_tokens()`` (currently ``{"EMAIL", "IBAN"}``).
+# The two planes are intentionally NOT import-coupled (see the module docstring), so — exactly
+# like ``CALCULATED_FIELD_KEYS`` mirrors the SAM calculated-field registry — this is a direct
+# TRANSCRIPTION pinned as a literal here, with a drift-guard test
+# (``test_platform_format_tokens_match_sam_source_of_truth``) that fails if the two diverge.
+# A tenant may only ATTACH a known token; it cannot author a checker. An unknown token is
+# rejected fail-loud at Save (R4c.3) rather than projecting a broken row the reader must
+# silently degrade (R7.3).
+PLATFORM_FORMAT_TOKENS: frozenset[str] = frozenset({"EMAIL", "IBAN"})
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────────────
@@ -251,6 +268,90 @@ def _validate_field_scope(
         reasons[dotted] = "scope.required_for must be a list of strings"
 
 
+def _field_choice_values(spec: Mapping[str, Any]) -> set[str] | None:
+    """The field's resolved CHOICE vocabulary, or ``None`` when it declares none.
+
+    Reuses :func:`_field_enum_values` (the single ``options``/``choices`` reader the scope
+    check already uses) and returns the choices as a set for subset membership checks. Returns
+    ``None`` when the field is not an enum / declares no usable vocabulary — the caller treats
+    an ``application_choices`` subset on such a field as a save error (you cannot subset a
+    field that has no choices).
+    """
+    values = _field_enum_values(spec)
+    return set(values) if values else None
+
+
+def _validate_application_attrs(
+    dotted: str,
+    spec: Mapping[str, Any],
+    reasons: dict[str, str],
+    *,
+    platform_required: bool,
+) -> None:
+    """Validate a field's APPLICATION attributes at Save (application-app R4c.3, fail-loud).
+
+    The three write-time invariants this enforces, so a broken ``config#fields`` row is
+    rejected at author time rather than projected (R4c.3):
+
+    1. **enum application-subset ⊆ field choices (R4a.4)** — when ``application_choices`` is
+       authored it must be a list whose every entry is a valid choice of the field's own
+       resolved choice vocabulary (``options[].value`` / ``choices``). A subset entry that is
+       not a field choice, or a subset on a field that declares no choices, is a save error.
+    2. **``format.checker`` platform-known (R7.7)** — when a ``format`` object is authored it
+       must be ``{checker, params?}`` with ``checker`` a PLATFORM-KNOWN token
+       (:data:`PLATFORM_FORMAT_TOKENS`). An unknown/non-string checker, or a non-object
+       ``format``, is rejected (a tenant attaches a known token, it cannot author a checker).
+    3. **application-required cannot relax a platform-required field (R4c.3)** — a field that
+       the platform marks ``required`` may not be made ``application_required = False`` on the
+       public form; the public form can only ever TIGHTEN requiredness, never relax the
+       platform floor (the SAM resolver stays the ultimate authority, but a relax is caught
+       here fail-loud at Save).
+
+    Appends a reason under ``dotted`` on any violation (batched; never raises here — the
+    caller collects all reasons and raises one :class:`MembersConfigError`).
+    """
+    # 1) enum application-subset ⊆ field choices (R4a.4).
+    subset = spec.get("application_choices")
+    if subset is not None:
+        if not isinstance(subset, (list, tuple)):
+            reasons[dotted] = "application_choices must be a list"
+        else:
+            choices = _field_choice_values(spec)
+            if choices is None:
+                reasons[dotted] = (
+                    "application_choices is set but the field declares no choices "
+                    "(only an enum field with choices can carry an application subset)"
+                )
+            else:
+                extra = [v for v in subset if v not in choices]
+                if extra:
+                    reasons[dotted] = (
+                        "application_choices entries are not valid field choices: "
+                        f"{extra!r}"
+                    )
+
+    # 2) format.checker must be a platform-known token (R7.7).
+    fmt = spec.get("format")
+    if fmt is not None:
+        if not isinstance(fmt, Mapping):
+            reasons[dotted] = "format must be an object with a 'checker' token"
+        else:
+            checker = fmt.get("checker")
+            if not isinstance(checker, str) or checker not in PLATFORM_FORMAT_TOKENS:
+                known = ", ".join(sorted(PLATFORM_FORMAT_TOKENS))
+                reasons[dotted] = (
+                    f"format.checker {checker!r} is not a platform-known token "
+                    f"(known: {known})"
+                )
+
+    # 3) application-required cannot relax a platform-required field (R4c.3).
+    if platform_required and spec.get("application_required") is False:
+        reasons[dotted] = (
+            "application_required cannot relax a platform-required field "
+            "(the public form may tighten requiredness, never loosen the platform floor)"
+        )
+
+
 def _catalog_keys(overlay: Mapping[str, Any]) -> set[str]:
     """The set of functional-group keys declared in an overlay's functional_groups catalog."""
     catalog = overlay.get("functional_groups") or []
@@ -283,7 +384,13 @@ def validate_field_overlay(overlay: Any) -> None:
       authoring representation that expresses "this field is a scope axis" — must be a
       well-formed scope object AND, when ENABLED, sit on an enum field with values (the scope
       values ARE the field's enum values; :func:`_validate_field_scope`), so a malformed or
-      value-less scope axis never reaches the derived ``config#scope`` projection.
+      value-less scope axis never reaches the derived ``config#scope`` projection;
+    - the per-field APPLICATION attributes (Member Application Form, R4c.3; carried onto both
+      overlay fields and fixed overrides by task 8.1) — fail-loud at Save
+      (:func:`_validate_application_attrs`): the enum ``application_choices`` subset must be ⊆
+      the field's own choices (R4a.4), a ``format.checker`` must be a PLATFORM-KNOWN token
+      (:data:`PLATFORM_FORMAT_TOKENS`, R7.7), and ``application_required`` may not relax a
+      platform-required fixed field (R4c.3) — so a broken public-form config never projects.
 
     Raises :class:`MembersConfigError` (with a key → reason map) on any violation.
     """
@@ -320,6 +427,14 @@ def validate_field_overlay(overlay: Any) -> None:
                 _check_group(dotted, spec.get("functional_group"))
                 if _FIELD_SCOPE_ATTR in spec:
                     _validate_field_scope(dotted, spec, reasons)
+                # Application attributes (R4c.3): a FIXED override may carry the four public-form
+                # attrs. A fixed field the platform marks required cannot be relaxed on the form.
+                _validate_application_attrs(
+                    dotted,
+                    spec,
+                    reasons,
+                    platform_required=dotted in _REQUIRED_FIXED_KEYS,
+                )
 
     # fields — the added variable fields, keyed by canonical key (lands under `overlay`).
     fields = overlay.get("fields") or {}
@@ -342,6 +457,12 @@ def validate_field_overlay(overlay: Any) -> None:
                 _check_group(dotted, spec.get("functional_group"))
                 if _FIELD_SCOPE_ATTR in spec:
                     _validate_field_scope(dotted, spec, reasons)
+                # Application attributes (R4c.3): an added variable field is never a
+                # platform-required field, so only the subset ⊆ choices + known-checker
+                # invariants apply (platform_required=False).
+                _validate_application_attrs(
+                    dotted, spec, reasons, platform_required=False
+                )
 
     if reasons:
         raise MembersConfigError(reasons)
@@ -442,6 +563,108 @@ def validate_mail_certified(value: Any) -> None:
         return
     if not isinstance(value, bool):
         raise MembersConfigError({"mail_certified": "must be a boolean (true/false)"})
+
+
+# ── Member Application Form params on config#mail (application-app, task 8.2) ───────────
+#
+# Two per-tenant application params ride the SAME config#mail row as the sender config
+# (design §7). We validate the AUTHORED shape here so a malformed value never reaches the
+# projection. Both are OPTIONAL: an unset/None value is accepted (the scope-copy toggle
+# fails closed to False in the builder; the consent notice is simply omitted from the row).
+# The application Reply-To param is DROPPED (D24 — Reply-To is the all-scope Members_CRUD
+# set, not configured), so there is no validator for it.
+
+
+def validate_application_scope_copy(value: Any) -> None:
+    """Fail fast if ``members.application_scope_copy`` is not a boolean (D9a, task 8.2).
+
+    The OPTIONAL, tenant-gated "scope-matched copy" toggle (D9a/R8.3a). Accepts an
+    unset/None value (optional param → the builder fails closed to ``False``, the D9
+    all-scope-only default). Otherwise the value must be a real ``bool`` — the fail-closed
+    scope-copy gate reads it, so an ambiguous truthy string (``"false"``) must NOT be stored
+    as if it enabled the extra fan-out.
+
+    Raises :class:`MembersConfigError` (``{"application_scope_copy": reason}``) on violation.
+    """
+    if value is None:
+        return
+    if not isinstance(value, bool):
+        raise MembersConfigError(
+            {"application_scope_copy": "must be a boolean (true/false)"}
+        )
+
+
+def validate_application_consent_notice(value: Any) -> None:
+    """Fail fast if ``members.application_consent_notice`` is malformed (D26, task 8.2).
+
+    The per-tenant, bilingual, VERSIONED consent/privacy notice (D26/R12.1a/R12.1c). Accepts
+    an unset/None value (optional param → the builder omits ``consent_notice`` from the row;
+    the platform MAY seed a default elsewhere, R12.1c). When authored, the value must be a
+    well-formed notice so a broken one never projects:
+
+    - a mapping (object) with a STABLE ``version`` id — a non-blank string (the per-revision
+      id a stored consent references so a later revision never retroactively changes an
+      existing record, R12.1a);
+    - a ``text`` mapping of ``<locale> → <body>`` carrying at least one non-blank string body
+      (the bilingual ``{nl, en}`` notice, R12.1c), every present body being a string.
+
+    Raises :class:`MembersConfigError` (``{"application_consent_notice": reason}``) on any
+    violation, surfacing the first structural problem found.
+    """
+    if value is None:
+        return
+    if not isinstance(value, Mapping):
+        raise MembersConfigError(
+            {
+                "application_consent_notice": (
+                    "must be an object with a 'version' and a 'text' {nl,en} map"
+                )
+            }
+        )
+
+    version = value.get("version")
+    if isinstance(version, bool) or not isinstance(version, (str, int)):
+        raise MembersConfigError(
+            {
+                "application_consent_notice": (
+                    "'version' must be a stable non-blank id (a string or int)"
+                )
+            }
+        )
+    if isinstance(version, str) and not version.strip():
+        raise MembersConfigError(
+            {"application_consent_notice": "'version' must be a non-blank id"}
+        )
+
+    text = value.get("text")
+    if not isinstance(text, Mapping):
+        raise MembersConfigError(
+            {
+                "application_consent_notice": (
+                    "'text' must be a map of locale → notice body (e.g. {nl, en})"
+                )
+            }
+        )
+    non_blank_bodies = 0
+    for locale, body in text.items():
+        if not isinstance(body, str):
+            raise MembersConfigError(
+                {
+                    "application_consent_notice": (
+                        f"notice body for locale {locale!r} must be a string"
+                    )
+                }
+            )
+        if body.strip():
+            non_blank_bodies += 1
+    if non_blank_bodies == 0:
+        raise MembersConfigError(
+            {
+                "application_consent_notice": (
+                    "'text' must carry at least one non-blank locale body"
+                )
+            }
+        )
 
 
 # ── default_page_size validation (R2.1, R2.6 — a positive-int tenant DEFAULT) ──────────
@@ -619,6 +842,8 @@ def validate_members_param(
     - ``mail_domain``       → :func:`validate_mail_domain`
     - ``mail_local_part``   → :func:`validate_mail_local_part`
     - ``mail_certified``    → :func:`validate_mail_certified`
+    - ``application_scope_copy``     → :func:`validate_application_scope_copy`
+    - ``application_consent_notice`` → :func:`validate_application_consent_notice`
     - ``default_page_size`` → :func:`validate_default_page_size`
 
     ``scope_dimensions`` has no cross-reference rule of its own here (its internal shape is
@@ -633,5 +858,9 @@ def validate_members_param(
         validate_mail_local_part(value)
     elif key == "mail_certified":
         validate_mail_certified(value)
+    elif key == "application_scope_copy":
+        validate_application_scope_copy(value)
+    elif key == "application_consent_notice":
+        validate_application_consent_notice(value)
     elif key == "default_page_size":
         validate_default_page_size(value)

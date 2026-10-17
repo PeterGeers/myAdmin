@@ -60,8 +60,11 @@ AWS) and only set for local testing against the T0 ``dynamodb-local`` container.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 from services import projection_schema as schema
 
+from sam.members.domain.field_formats import known_tokens
 from sam.members.domain.field_resolver import (
     FieldScope,
     FixedFieldOverride,
@@ -69,7 +72,12 @@ from sam.members.domain.field_resolver import (
     OverlayField,
     TenantOverlay,
 )
-from sam.members.domain.fixed_fields import EnumOption, FieldType, MemberNumberFormat
+from sam.members.domain.fixed_fields import (
+    EnumOption,
+    FieldFormat,
+    FieldType,
+    MemberNumberFormat,
+)
 from sam.members.domain.scope_dimensions import ScopeConfig, ScopeDimension
 
 __all__ = ["MembersProjectionReader"]
@@ -328,6 +336,49 @@ class MembersProjectionReader:
             required_for=required_for,
         )
 
+    @staticmethod
+    def _build_format(spec) -> FieldFormat | None:
+        """Map a projected ``format`` sub-object onto a :class:`FieldFormat` (R7.1/R7.3; seam c).
+
+        The declarative field-validator attribute: a projected ``config#fields`` field (overlay
+        field or fixed-field override) may carry a ``format`` object ``{checker, params}`` naming
+        a PLATFORM-DEFINED checker token (``EMAIL`` / ``IBAN`` / …). This reader rebuilds it onto
+        the field so the public field-config read + create validator (tasks 3.4/4.1) can enforce
+        it.
+
+        **DEGRADES gracefully — never raises (R7.3).** A stray or outdated token must never crash
+        the field-config read, so this returns ``None`` (no extra checker beyond ``type`` /
+        ``required``) for every non-usable spec:
+
+        - a missing / non-dict spec (the field carries no format);
+        - a missing / non-string / empty ``checker`` (malformed shape);
+        - an **unknown token** — a ``checker`` that is not in the registry's
+          :func:`~sam.members.domain.field_formats.known_tokens` platform set (e.g. a token a
+          since-removed checker once defined, or a typo). Validating the token against the
+          registry HERE means a resolved field never carries a format the validator cannot run.
+
+        ``params`` is carried verbatim as a mapping when it is one, else dropped to ``{}`` (the
+        checker reads it; a non-mapping is treated as "no params" rather than a crash). This
+        mirrors the degrade-on-garbage discipline of :meth:`_build_options` /
+        :meth:`_build_member_number_format` / :meth:`_build_field_scope` — projected config data
+        degrades gracefully, it is never user input that should surface an error.
+        """
+        if not isinstance(spec, dict):
+            return None
+        checker = spec.get("checker")
+        if not isinstance(checker, str) or not checker:
+            return None
+        # Degrade on an UNKNOWN token (R7.3): a checker not in the platform-defined registry set
+        # is dropped rather than carried, so no resolved field names a checker the validator
+        # cannot run. A stray token never crashes the read — it is simply not enforced.
+        if checker not in known_tokens():
+            return None
+        params = spec.get("params")
+        return FieldFormat(
+            checker=checker,
+            params=dict(params) if isinstance(params, Mapping) else {},
+        )
+
     @classmethod
     def _build_overlay_field(cls, name: str, spec: dict) -> OverlayField:
         """Map a projected variable-field spec onto an :class:`OverlayField`.
@@ -336,9 +387,16 @@ class MembersProjectionReader:
         ``functional_groups`` catalog; it MUST be carried so an added field is sectioned by
         FUNCTION, not by its storage bucket. ``options`` (rich enum {value,label,roles}) and
         ``show_when`` (conditional visibility) are reconstructed when the projection carries them.
+
+        The four public member-application attributes (D20; R4.2/R4a/R4b/R7.1) ride as sibling
+        keys and are carried 1:1: ``application_visible`` / ``application_required`` (bools,
+        default ``False`` → field off the public form), ``application_choices`` (the enum
+        application SUBSET, ``None`` = full set), and ``format`` (the declarative validator,
+        degraded to ``None`` on an unknown/malformed token by :meth:`_build_format`).
         """
         choices = spec.get("choices")
         options = cls._build_options(spec.get("options"))
+        application_choices = spec.get("application_choices")
         return OverlayField(
             key=spec.get("key") or name,
             type=cls._to_field_type(spec.get("type")),
@@ -352,6 +410,14 @@ class MembersProjectionReader:
             order=int(spec.get("order", 0) or 0),
             # Phase 3 step 9 (R2.1): carry the field's scope-axis attribute (SAM read repr).
             scope=cls._build_field_scope(spec.get("scope")),
+            # Public member-application attributes (D20; R4.2/R4a/R4b). Defaults keep an
+            # un-authored variable field OFF the public form with full choices.
+            application_visible=bool(spec.get("application_visible", False)),
+            application_required=bool(spec.get("application_required", False)),
+            application_choices=(
+                tuple(application_choices) if application_choices is not None else None
+            ),
+            format=cls._build_format(spec.get("format")),
         )
 
     @classmethod
@@ -369,6 +435,14 @@ class MembersProjectionReader:
         required = spec.get("required")
         order = spec.get("order")
         functional_group = spec.get("functional_group")
+        # Public member-application attributes (D20; R4.2/R4a/R4b). On an OVERRIDE these are
+        # `None` when absent ("leave the base value as-is"), consistent with every other
+        # override aspect — an override that touches none of them does not change the fixed
+        # field's application behaviour. A present bool is coerced; `application_choices` is
+        # carried as a tuple when present, else `None` (full set).
+        application_visible = spec.get("application_visible")
+        application_required = spec.get("application_required")
+        application_choices = spec.get("application_choices")
         return FixedFieldOverride(
             label=dict(label) if isinstance(label, dict) else None,
             visible=bool(visible) if visible is not None else None,
@@ -377,6 +451,16 @@ class MembersProjectionReader:
             functional_group=str(functional_group) if functional_group else None,
             # Phase 3 step 9 (R2.1): carry a fixed field's scope-axis attribute (SAM read repr).
             scope=cls._build_field_scope(spec.get("scope")),
+            application_visible=(
+                bool(application_visible) if application_visible is not None else None
+            ),
+            application_required=(
+                bool(application_required) if application_required is not None else None
+            ),
+            application_choices=(
+                tuple(application_choices) if application_choices is not None else None
+            ),
+            format=cls._build_format(spec.get("format")),
         )
 
     # ── Pagination default (Phase 2 step (a) — the view_contexts.page_size re-home) ────
@@ -541,6 +625,90 @@ class MembersProjectionReader:
         if row is None:
             return False
         return row.get("mail_certified") is True
+
+    # ── Tenant consent notice (Member Application Form D26/R12.1a/R12.1c, task 2.6) ────
+    #
+    # The per-tenant, bilingual, VERSIONED consent/privacy notice the tenant authored on the
+    # Flask plane (``members.application_consent_notice``) and projected onto the SAME
+    # ``config#mail`` row by ``build_config_mail_row`` / ``_resolve_application_consent_notice``
+    # (task 8.2). Projected shape: ``{"version": <str>, "text": {<locale>: <body>, …}}``, present
+    # ONLY when the tenant authored a well-formed notice (a non-blank version AND at least one
+    # non-blank locale body); OMITTED otherwise so an un-authored tenant projects a
+    # back-compatible row. These two accessors are the SAM read side (the task's
+    # ``get_consent_notice`` / version accessor), mirroring ``get_mail_domain`` /
+    # ``is_mail_enabled``: one shared partition Query (cached), empty-is-valid, never raises.
+
+    def get_consent_notice(self, tenant_id: str) -> dict | None:
+        """Return the tenant's projected consent notice from ``config#mail`` (D26/R12.1c).
+
+        The public field-config read (R5) serves this notice's current text + version to the
+        form; :meth:`get_consent_notice_version` reads the version alone for the server-side
+        consent stamp (task 2.6). Returns ``{"version": <str>, "text": {<locale>: <body>, …}}``
+        when the tenant authored a well-formed notice, else ``None`` (un-authored / malformed /
+        absent row — the platform MAY seed a default elsewhere, R12.1c).
+
+        **Degrades gracefully — never raises** (same discipline as ``get_mail_domain``): an
+        absent ``config#mail`` row, a missing / non-mapping ``consent_notice`` attribute, a
+        missing / blank ``version``, or an empty / non-mapping ``text`` all resolve to ``None``.
+        Only non-blank string locale bodies survive into the returned ``text`` map, so a served
+        notice body is always ``{str: str}`` — the symmetric read-side guard to the Flask
+        builder's ``_resolve_application_consent_notice`` (task 8.2) so a stray stored value
+        never surfaces a broken notice.
+
+        Args:
+            tenant_id: The tenant (partition key) whose consent notice to resolve.
+
+        Returns:
+            The projected ``{"version", "text"}`` notice, or ``None`` when absent/unusable.
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_MAIL)
+        if row is None:
+            return None
+        notice = row.get("consent_notice")
+        if not isinstance(notice, Mapping):
+            return None
+        version = notice.get("version")
+        if not isinstance(version, str) or not version.strip():
+            return None
+        raw_text = notice.get("text")
+        if not isinstance(raw_text, Mapping):
+            return None
+        text = {
+            str(locale): body
+            for locale, body in raw_text.items()
+            if isinstance(locale, str)
+            and locale.strip()
+            and isinstance(body, str)
+            and body.strip()
+        }
+        if not text:
+            return None
+        return {"version": version.strip(), "text": text}
+
+    def get_consent_notice_version(self, tenant_id: str) -> str | None:
+        """Return the CURRENT version id of the tenant's consent notice, or ``None`` (R12.1a).
+
+        The server-authoritative half of the consent stamp (task 2.6): ``create_application``
+        records THIS version — the tenant's current notice version, resolved server-side — on
+        the application record, NEVER a client-supplied ``notice_version``, so a later notice
+        revision never retroactively changes an existing record's recorded version (R12.1a).
+
+        ``None`` when the tenant has authored no well-formed notice (delegates to
+        :meth:`get_consent_notice`); the caller decides how a tenant-with-no-notice behaves
+        (task 2.6 still records the applicant's affirmative acceptance with a ``None`` version
+        rather than failing the submit — the notice text is the tenant's concern, the
+        affirmative consent is the applicant's). Never raises.
+
+        Args:
+            tenant_id: The tenant (partition key) whose current notice version to resolve.
+
+        Returns:
+            The current notice ``version`` string, or ``None`` when no notice is authored.
+        """
+        notice = self.get_consent_notice(tenant_id)
+        if notice is None:
+            return None
+        return notice.get("version")
 
     # ── Scope grants (consumed by the edge, task 8.3) ──────────────────────────────────
 
