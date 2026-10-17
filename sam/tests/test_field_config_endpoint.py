@@ -333,141 +333,36 @@ def test_field_config_route_requires_auth():
 
 
 # ---------------------------------------------------------------------------
-# S5c Task 4.6 — the module's declared lifecycle exposed on the field-config payload
-# (design C2 / C-SURFACE, R5.7). The single + bulk transition modals read their
-# candidate target states from this block ONLY (never a hardcoded status list):
-#
-#   - a tenant WITH a configured lifecycle → the declarative transition graph is
-#     projected as `allowed_transitions` ({fromState: [toState, ...]}) + `initial_state`
-#     + `allowed_states`, and the `context.approved`-guarded edges are surfaced in
-#     `requires_approval` (deliberately limited — only what the module already models);
-#   - a tenant with NO configured lifecycle → `lifecycle` is `None`, so the SPA offers
-#     NO transition targets (deny-by-default at the UI). The module stays authoritative
-#     regardless (it re-validates every transition and answers 409 with reasons).
-#
-# Validates: Requirements 5.7
+# retire-members-status-lifecycle-engine (design C2 / §F) — the field-config payload
+# NO LONGER carries a `lifecycle` block. The membership lifecycle state engine was
+# retired: `status` is now a plain, tenant-driven OPEN enum edited as an ordinary field
+# (via the member edit modal), so there is no transition graph to project and the SPA
+# offers no transition targets. The former `TestGetFieldConfigLifecycleDomain` domain
+# cases and the two edge-dispatch cases that round-tripped the declared/None lifecycle
+# block were removed with the surface they covered. These replacement cases pin the
+# OMISSION — the payload is otherwise identical (the fixed/overlay/analytics cases are
+# unchanged, and `status` still surfaces its seed options, pinned in
+# `test_status_enum_field_carries_its_choices_as_options` above).
 # ---------------------------------------------------------------------------
 
-from sam.members.domain.fixed_fields import MembershipStatus as _MS
-from sam.members.domain.lifecycle_config import (
-    HDCN_LIFECYCLE_CONFIG,
-    StaticLifecycleConfigProvider,
-)
 
-
-class TestGetFieldConfigLifecycleDomain:
-    def test_lifecycle_absent_when_no_provider_injected(self, repo):
-        # Deliberately limited + deny-by-default: a service built without a lifecycle
-        # provider surfaces `lifecycle: None`, so the SPA offers no transition targets.
+class TestGetFieldConfigOmitsLifecycle:
+    def test_served_config_has_no_lifecycle_key(self, repo):
+        # The served field-config payload no longer carries a `lifecycle` key (the engine
+        # is retired; status is a plain open enum).
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         config = service.get_field_config("h-dcn")
-        assert config["lifecycle"] is None
+        assert "lifecycle" not in config
 
-    def test_lifecycle_none_for_tenant_without_configured_lifecycle(self, repo):
-        # The provider knows h-dcn only → any OTHER tenant gets `lifecycle: None`.
-        service = MembershipService(
-            repo,
-            overlay_provider=StaticOverlayProvider({}),
-            lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
-        )
-        config = service.get_field_config("other")
-        assert config["lifecycle"] is None
-
-    def test_lifecycle_projects_the_declared_transition_graph(self, repo):
-        service = MembershipService(
-            repo,
-            overlay_provider=StaticOverlayProvider({}),
-            lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
-        )
-        lifecycle = service.get_field_config("h-dcn")["lifecycle"]
-
-        assert lifecycle is not None
-        # The state vocabulary + initial state come straight from the module config.
-        assert lifecycle["allowed_states"] == [
-            "application", "pending", "active", "suspended", "lapsed", "left",
-        ]
-        assert lifecycle["initial_state"] == "application"
-
-        # `allowed_transitions` is the {fromState: [toState, ...]} map the single modal
-        # reads for a member's current state (and the bulk modal unions). It carries
-        # EXACTLY the module's declared edges — never a hardcoded status list.
-        at = lifecycle["allowed_transitions"]
-        assert at["application"] == ["pending"]
-        assert at["pending"] == ["active", "left"]
-        assert set(at["active"]) == {"suspended", "lapsed", "left"}
-        # A terminal state declares no outgoing edges → it is not a key (no targets).
-        assert "left" not in at
-
-    def test_lifecycle_requires_approval_derived_from_context_guard(self, repo):
-        # The only `context.approved`-guarded edge in h-dcn's graph is application->pending;
-        # it surfaces in `requires_approval` so the modal renders the approval checkbox.
-        # Derived from the guard DATA — never a hardcoded edge list.
-        service = MembershipService(
-            repo,
-            overlay_provider=StaticOverlayProvider({}),
-            lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
-        )
-        lifecycle = service.get_field_config("h-dcn")["lifecycle"]
-        assert lifecycle["requires_approval"] == ["application->pending"]
-
-    def test_lifecycle_targets_match_the_engines_allowed_to_states(self, repo):
-        # The projected candidate targets for each state agree with what the engine itself
-        # would permit at the graph level (the UI list is a faithful convenience view of
-        # the authoritative graph — server stays authoritative on guards).
-        service = MembershipService(
-            repo,
-            overlay_provider=StaticOverlayProvider({}),
-            lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
-        )
-        at = service.get_field_config("h-dcn")["lifecycle"]["allowed_transitions"]
-        for state in _MS:
-            engine_targets = [
-                t.value for t in HDCN_LIFECYCLE_CONFIG.allowed_to_states(state)
-            ]
-            if engine_targets:
-                assert at[state.value] == engine_targets
-            else:
-                assert state.value not in at
-
-    def test_lifecycle_block_is_json_serializable(self, repo):
-        service = MembershipService(
-            repo,
-            overlay_provider=StaticOverlayProvider({}),
-            lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
-        )
+    def test_config_without_lifecycle_is_json_serializable(self, repo):
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         json.dumps(service.get_field_config("h-dcn"))  # must not raise
 
 
-# ---------------------------------------------------------------------------
-# S5c Task 4.6 — edge dispatch: GET /members/field-config carries the lifecycle block
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def inject_service_with_lifecycle(monkeypatch, repo):
-    service = MembershipService(
-        repo,
-        overlay_provider=StaticOverlayProvider({}),
-        lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
-    )
-    monkeypatch.setattr(app, "_get_membership_service", lambda: service)
-    return service
-
-
-def test_field_config_route_carries_the_declared_lifecycle(inject_service_with_lifecycle):
+def test_field_config_route_omits_the_lifecycle_key(inject_service):
     resp = app.handler(_event("GET", "/members/field-config"))
     assert resp["statusCode"] == 200
-    data = _data(resp)
-    assert data["lifecycle"] is not None
-    assert data["lifecycle"]["allowed_transitions"]["pending"] == ["active", "left"]
-    assert data["lifecycle"]["requires_approval"] == ["application->pending"]
-
-
-def test_field_config_route_lifecycle_none_without_provider(inject_service):
-    # inject_service wires a service with NO lifecycle provider → deny-by-default at the UI.
-    resp = app.handler(_event("GET", "/members/field-config"))
-    assert resp["statusCode"] == 200
-    assert _data(resp)["lifecycle"] is None
+    assert "lifecycle" not in _data(resp)
 
 
 # ---------------------------------------------------------------------------

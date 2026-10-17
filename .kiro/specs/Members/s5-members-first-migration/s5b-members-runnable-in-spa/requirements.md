@@ -2,6 +2,15 @@
 
 ## S5b — Members runnable in the myAdmin SPA, fed by the governance projection — Requirements
 
+> **Superseded note (`retire-members-status-lifecycle-engine`).** The membership **lifecycle
+> engine** was retired after this spec was written. Every "single / bulk **lifecycle
+> transition**" item below (the glossary line, acceptance criteria **5 and 6**, and the
+> walkthrough/docs mentions) is **superseded**: there is no transition graph, guards,
+> transition routes (`.../transition`, `/memberships/transition`), or transition modal any
+> more. `status` is a plain tenant-driven **OPEN** enum (authored like `gender`) and a status
+> change is an ordinary member **field edit** via the member edit modal. Row selection (the
+> bulk checkbox column) remains, but it no longer drives a bulk-transition action.
+
 - Status: Draft (rewrite — settled projection-channel design; supersedes the prior
   pilot-routing framing).
 - Roadmap step: closes the S5 gate's runnable/operational/UX obligations **and** the
@@ -405,11 +414,16 @@ surface, so that I can operate members end-to-end within my subgroup.
    and/or `POST /members/{member_id}/memberships`).
 4. THE page SHALL provide an export action (`GET /members/export` or client-side CSV of
    loaded rows).
-5. THE page SHALL provide a single-member lifecycle transition action
+5. **SUPERSEDED (`retire-members-status-lifecycle-engine`).** ~~THE page SHALL provide a
+   single-member lifecycle transition action
    (`POST /members/{member_id}/memberships/{membership_id}/transition`), with allowed
-   transitions constrained by the module response.
-6. THE page SHALL provide bulk actions including a bulk lifecycle transition over selected
-   rows (`POST /memberships/transition`).
+   transitions constrained by the module response.~~ A member's `status` is now changed as an
+   ordinary field edit in the member **edit modal** (open enum, any value); there is no
+   transition route or transition modal.
+6. **SUPERSEDED (`retire-members-status-lifecycle-engine`).** ~~THE page SHALL provide bulk
+   actions including a bulk lifecycle transition over selected rows
+   (`POST /memberships/transition`).~~ The bulk-transition action and its route were removed.
+   The row-selection checkbox column remains but no longer drives a status-change action.
 7. ALL views/modals/actions SHALL be subgroup/scope-filtered — a scoped user sees and acts
    only within their granted subgroup, as enforced authoritatively by the module edge.
 

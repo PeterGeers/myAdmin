@@ -1,1 +1,0 @@
-lambda web functions use for access to landing pages, snelle rit invoer, webshop, applicationmembers

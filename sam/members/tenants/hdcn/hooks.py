@@ -21,11 +21,9 @@ Rung discipline (R1.3) — where each h-dcn difference actually landed:
   not — and should not — know about, so it is a hook. Applicants / non-active members are not
   required to have registered a motorcycle yet, so the check only bites once the member is
   ACTIVE.
-- ``on_transition`` — **LEFT ON THE SAFE DEFAULT (no-op).** h-dcn's activation/approval
-  workflow is fully captured by the declarative lifecycle graph + guards (Rung 1-2,
-  :data:`sam.members.domain.lifecycle_config.HDCN_LIFECYCLE_CONFIG`). h-dcn has no genuinely
-  bespoke transition side-effect in the repo today, so registering one would be inventing a
-  need — the ladder working as intended (a difference that stayed below Rung 3).
+- ``on_transition`` — **RETIRED.** The membership lifecycle engine was removed (see spec
+  ``retire-members-status-lifecycle-engine``); status is now a plain tenant-driven field and a
+  status change is an ordinary member edit, so there is no transition seam to register against.
 - ``resolve_visible_regions`` — **LEFT ON THE SAFE DEFAULT (identity).** Regional visibility
   is **fully declarative** via :func:`sam.members.domain.scope_access.resolve_scope_access`
   (task 3.1, Rung 1-2: admin/all → ``["*"]``, a scoped grant → its declared-value subset,
@@ -36,9 +34,10 @@ Rung discipline (R1.3) — where each h-dcn difference actually landed:
 - ``calculate_fee`` — **NOT REGISTERED.** h-dcn has no per-record fee computation; the named
   point exists for future clubs only.
 
-Net h-dcn Rung-3 footprint: **1 of 5** named points registered (``validate_member``); the other
-four stayed at Rung 1-2, are unused, or were removed (``derive_member_number``, s5k) — direct
-evidence for the Go/No-Go rung distribution (R8.2).
+Net h-dcn Rung-3 footprint: **1 of 3** named points registered (``validate_member``); the other
+two (``resolve_visible_regions``, ``calculate_fee``) stayed at Rung 1-2 or are unused.
+(``derive_member_number`` was removed in s5k; ``on_transition`` was removed with the lifecycle
+engine.) Direct evidence for the Go/No-Go rung distribution (R8.2).
 """
 
 from __future__ import annotations
@@ -46,7 +45,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from sam.members.domain.fixed_fields import MembershipStatus
 from sam.members.domain.tenant_hooks import HookName, TenantHookRegistry
 
 __all__ = [
@@ -96,7 +94,7 @@ def hdcn_validate_member(
     at once.
     """
     errors: dict[str, str] = {}
-    if _current_status(record) == MembershipStatus.ACTIVE.value:
+    if _current_status(record) == "active":
         overlay = _overlay(record)
         motor = overlay.get("motor") or overlay.get("motor_type")
         if not (isinstance(motor, str) and motor.strip()):
@@ -110,10 +108,11 @@ def register_hdcn_hooks(registry: TenantHookRegistry) -> TenantHookRegistry:
     """Bind h-dcn's Rung-3 hook implementations into ``registry`` for ``tenant_id="h-dcn"``.
 
     The single wiring point (called once at module composition). It registers ONLY the hook
-    h-dcn genuinely needs — ``validate_member`` — and deliberately leaves ``on_transition``
-    (safe no-op), ``resolve_visible_regions`` (declarative at Rung 1-2), and ``calculate_fee``
-    (unused) on their safe generic defaults. (s5k removed ``derive_member_number`` — member
-    numbering is no longer generated.) Returns the same ``registry`` for chaining.
+    h-dcn genuinely needs — ``validate_member`` — and deliberately leaves
+    ``resolve_visible_regions`` (declarative at Rung 1-2) and ``calculate_fee`` (unused) on
+    their safe generic defaults. (s5k removed ``derive_member_number`` — member numbering is no
+    longer generated; the lifecycle-engine retirement removed ``on_transition``.) Returns the
+    same ``registry`` for chaining.
     """
     registry.register(HookName.VALIDATE_MEMBER, HDCN_TENANT_ID, hdcn_validate_member)
     return registry

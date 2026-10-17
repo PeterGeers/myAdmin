@@ -20,8 +20,6 @@ import {
   getFieldConfig,
   listMembershipTypes,
   createMembership,
-  transitionMembership,
-  bulkTransition,
   getColumnPreferences,
   saveColumnPreferences,
 } from './membersApiService';
@@ -328,23 +326,9 @@ describe('membersApiService — wrapper method/path/headers (task 16.4)', () => 
     expect(init.body).toBe(JSON.stringify(body));
   });
 
-  it('transitionMembership → POST /members/{id}/memberships/{mid}/transition', async () => {
-    const body = { target: 'active' };
-    await transitionMembership('M-1', 'MS-2', body);
-    const [url, init] = fetchCall();
-    expect(init.method).toBe('POST');
-    expect(url).toBe(`${BASE}/members/M-1/memberships/MS-2/transition`);
-    expect(init.body).toBe(JSON.stringify(body));
-  });
-
-  it('bulkTransition → POST /memberships/transition with the body', async () => {
-    const body = { member_ids: ['M-1', 'M-2'], target: 'lapsed' };
-    await bulkTransition(body);
-    const [url, init] = fetchCall();
-    expect(init.method).toBe('POST');
-    expect(url).toBe(`${BASE}/memberships/transition`);
-    expect(init.body).toBe(JSON.stringify(body));
-  });
+  // retire-members-status-lifecycle-engine (design D/F): the `transitionMembership` and
+  // `bulkTransition` wrapper tests were removed with the SPA transition surface + the two
+  // transition routes. Status is now a plain field edit via `updateMember` (covered above).
 });
 
 describe('membersApiService — 401 refresh + retry-once (task 16.4)', () => {

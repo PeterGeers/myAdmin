@@ -299,6 +299,21 @@ def test_property_no_config_scope_collapses_to_tenant_wide(data, tenant_id, role
 # Property 3b — no config#fields → the fixed-field base (R1.7)
 # ---------------------------------------------------------------------------
 
+def _expected_choices(f):
+    """The resolved `choices` the FieldResolver reproduces for a fixed field.
+
+    The resolver keeps the bare `choices` list coherent with the rich `options` (field_resolver
+    _resolve_fixed): when a field ships `options` (e.g. `status` after
+    retire-members-status-lifecycle-engine — an OPEN enum with a default-seed option list, and
+    `choices=None`), the resolved `choices` is the options' values. Otherwise it is the field's
+    own `choices` (None for an open enum like `gender`). The expected mirror must apply the SAME
+    rule so an open-enum-with-seed-options field is reproduced exactly.
+    """
+    if f.options is not None:
+        return tuple(o.value for o in f.options)
+    return tuple(f.choices) if f.choices is not None else None
+
+
 # The exact fixed base each resolved fixed field must reproduce (label/required/order/visible).
 _EXPECTED_FIXED = {
     f.dotted_key(): {
@@ -307,7 +322,7 @@ _EXPECTED_FIXED = {
         "type": f.type,
         "required": f.required,
         "label": dict(f.label),
-        "choices": tuple(f.choices) if f.choices is not None else None,
+        "choices": _expected_choices(f),
         "order": f.order,
         "visible": True,  # no overlay → the base default (nothing hides a fixed field)
     }

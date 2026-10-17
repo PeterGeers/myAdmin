@@ -78,3 +78,14 @@ Optional/supporting docs when useful: a `README.md` navigation guide, `analysis.
 
 - Chunks < 1 day, grouped in phases, with dependencies
 - Include testing requirements per phase
+- **Include the CI/CD tasks per `43-cicd-deploys.md`.** Every spec's `tasks.md` MUST make the
+  CI/CD surface explicit — it is part of the work, not an afterthought:
+  - the **quality gates** the change must pass (the per-PR CodeQL + GitGuardian today; the
+    nightly Full Test Suite; Backend/Frontend CI when re-enabled);
+  - the **branch→env deploy** path it rides (`test`→TEST, `main`→PRODUCTION) and WHICH deploy
+    workflow(s) its paths trigger (`deploy-sam-*`, `deploy-frontend`), deployed via the codified
+    `samconfig.toml` / OIDC pipeline — never a hand-typed deploy;
+  - any **new or changed workflow / `samconfig.toml` / IAM-OIDC wiring** the feature needs (a new
+    stack, a new deploy path, a new usage plan) as its own task;
+  - the **promote `test`→`main`** step as the production-release gate.
+  A spec that ships code but names no CI/CD task is incomplete.

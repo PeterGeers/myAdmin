@@ -47,8 +47,10 @@ Two hard constraints shape everything below and are drawn directly from the anal
 ## Terminology / Glossary
 
 - **Applicant** — a non-member who submits the public form. Represented by a member record
-  in `status = application` ("Aanmelding"), the lifecycle **initial state** of the closed
-  `MembershipStatus` enum (Option 1, D1).
+  in `status = application` ("Aanmelding"), the default create-time status value (Option 1, D1).
+  (`retire-members-status-lifecycle-engine`: `status` is an OPEN tenant-driven enum, not a
+  closed `MembershipStatus` set; `application` is a plain default literal stamped on create,
+  not a lifecycle "initial state".)
 - **Public intake** — an unauthenticated write path on the SAM edge. The plane's **first**
   route not behind the Cognito authorizer; a deliberate, fenced exception to the
   "deny without a verified token" invariant.
@@ -728,8 +730,14 @@ reviewing and approving an applicant is the normal member workflow, not a new to
 
 > Reuses the standard member overview, the generic table-filter framework
 > (`Common/Frameworks/table-filter-framework-v2`), and the existing member detail +
-> status-transition flow — this spec adds NO new grid or review UI, only a default
+> edit flow — this spec adds NO new grid or review UI, only a default
 > `status = application` filter and keyword-filtering on the existing `overlay.additional_info`.
+>
+> **Superseded note (`retire-members-status-lifecycle-engine`):** the membership lifecycle
+> engine was retired. `status` is now a plain tenant-driven OPEN enum (authored like `gender`),
+> and a status change is an ordinary member **field edit** — there is no transition graph,
+> guard, or transition modal. Wherever this requirement said "status transition", read "status
+> field edit via the member edit modal".
 
 #### Acceptance criteria
 1. The staff email deep-link (R8.6) SHALL target the **existing authenticated member
@@ -739,9 +747,11 @@ reviewing and approving an applicant is the normal member workflow, not a new to
 2. Opening the link SHALL require normal Cognito sign-in and the usual tenant + capability
    check (`Members_CRUD` / `members:admin`); an unauthenticated or unauthorised click SHALL
    NOT reveal any applicant data. The `member_id` in the URL is a destination, not a grant.
-3. The reviewer SHALL approve/reject via the **existing membership status transition**
-   (`application → active`/`pending`, or a reject/withdraw transition) — no bespoke
-   approval workflow in v1.
+3. The reviewer SHALL approve/reject by **editing the member's `status` field** to the
+   target value (e.g. `application → active`/`pending`, or a reject/withdraw value) via the
+   existing member edit modal — a plain field edit, no bespoke approval workflow in v1.
+   (`retire-members-status-lifecycle-engine`: status is an OPEN enum and a status change is
+   an ordinary field edit; there is no transition graph or transition endpoint.)
 4. The "applications inbox" — the **standard member overview table** driven by the
    **generic table-filter framework** (`.kiro/specs/Common/Frameworks/table-filter-framework-v2`,
    per steering 32/40), the SAME overview staff already use, **filtered to
@@ -759,7 +769,7 @@ reviewing and approving an applicant is the normal member workflow, not a new to
    design). Because the keywords are stable, a reviewer SHALL be able to **filter the overview
    on `overlay.additional_info` by keyword** (via the generic table-filter framework) to list
    possible duplicates or un-notified applications — reliable detection with no dedicated
-   column. The notes are advisory; they SHALL NOT auto-block the transition, and an
+   column. The notes are advisory; they SHALL NOT auto-block the status edit, and an
    un-notified application is never silently lost.
 
 **User story:** As the platform, I want a tenant's application emails to go out as that
@@ -1093,8 +1103,9 @@ that the fenced exception can never silently widen.
   or email, and any write to the Flask `email_log` MySQL table (boundary rule).
 - Option 1 is chosen (D1), so there is no separate quarantine/import path and no distinct
   "application" concept — an applicant is a member record in `status = application`. A
-  dedicated staff review/approve UI beyond the normal member list + status-transition flow
-  is not in v1.
+  dedicated staff review/approve UI beyond the normal member list + a plain `status` field
+  edit is not in v1. (`retire-members-status-lifecycle-engine`: status is edited as an
+  ordinary field, not via a transition flow.)
 - The alternative intake shapes (Option 2 DynamoDB quarantine, Option 3 S3-JSON import)
   from the analysis — not built (D1).
 - A **tokenized public application-status viewer** for applicants (a signed, expiring link

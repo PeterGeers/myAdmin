@@ -589,36 +589,9 @@
       "error": "Verwijderen van lid mislukt"
     }
   },
-  "transition": {
-    "title": "Status wijzigen",
-    "currentState": "Huidige status",
-    "toStateLabel": "Nieuwe status",
-    "toStatePlaceholder": "Kies een status",
-    "noTargets": "Er zijn geen toegestane overgangen vanuit de huidige status.",
-    "approvedLabel": "Aanvraag goedgekeurd",
-    "confirm": "Wijzigen",
-    "cancel": "Annuleren",
-    "toast": {
-      "success": "Status gewijzigd",
-      "error": "Status wijzigen mislukt"
-    }
-  },
-  "bulkTransition": {
-    "barLabel": "Bulk: status wijzigen ({{count}})",
+  "selection": {
     "selectAll": "Alles selecteren",
-    "selectRow": "{{name}} selecteren",
-    "title": "Bulk status wijzigen",
-    "selectedCount": "{{count}} leden geselecteerd",
-    "toStateLabel": "Nieuwe status",
-    "toStatePlaceholder": "Kies een status",
-    "noTargets": "Er zijn geen toegestane statussen beschikbaar.",
-    "approvedLabel": "Aanvraag goedgekeurd",
-    "confirm": "Wijzigen",
-    "cancel": "Annuleren",
-    "toast": {
-      "success": "Status gewijzigd voor {{count}} leden",
-      "error": "Bulk status wijzigen mislukt"
-    }
+    "selectRow": "{{name}} selecteren"
   },
   "pagination": {
     "previous": "Vorige",
