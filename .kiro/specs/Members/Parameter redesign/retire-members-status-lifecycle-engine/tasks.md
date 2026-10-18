@@ -115,7 +115,7 @@ re-run the same tests, then the checkpoint.
     - **EXPECTED OUTCOME**: tests PASS (public-form `status=application` default; gender parity; member CRUD/export; tenant isolation — no regressions).
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 4. Checkpoint — Ensure all tests pass
+- [x] 4. Checkpoint — Ensure all tests pass
   - Run the SAM suite (`python -m pytest`) + the parity harness (22 routes, `routes_covered == route_names()`) + the frontend tests. Ask the user if questions arise (especially the deferred welcome-mail follow-up and whether the `active`-requires-member_number+email invariant should be re-added as a plain rule).
 
 ## Notes

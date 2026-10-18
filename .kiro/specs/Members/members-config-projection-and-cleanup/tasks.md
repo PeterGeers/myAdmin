@@ -136,7 +136,7 @@ B:  5 ──▶ 6 ──▶ 7      (independent of A)
     is the Railway backend, not the SAM Lambda). deploy-frontend.yml fires only on main
     (frontend/**) -> production Pages; TEST frontend is the local dev server.
   - [x] 9.3 No new/changed workflow, samconfig.toml, or IAM-OIDC wiring needed by this spec.
-  - [ ] 9.4 Promote test->main: ONE reviewed MERGE-COMMIT PR, CodeQL + GitGuardian green,
+  - [x] 9.4 Promote test->main: ONE reviewed MERGE-COMMIT PR, CodeQL + GitGuardian green,
     preview prod changesets (none expected - no SAM/stateful change). Merge to main IS a
     production deploy.
   - _Requirements: governance gate per 40/43_
