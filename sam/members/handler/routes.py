@@ -24,11 +24,10 @@ The route names mirror h-dcn's handler behaviours so parity is auditable at the 
 
     Member CRUD ............ create · get-by-id · get-self · list · list-filtered ·
                             update · delete · export                     (8)
-    Membership lifecycle ... create · get · list · update · delete ·
-                            transition · bulk-transition                 (7)
+    Membership lifecycle ... create · get · list · update · delete         (5)
     Delegates .............. manage delegates · send delegate invitation (2)
     Payments (member) ...... get member payments                        (1)
-                                                                    total 18
+                                                                    total 16
 """
 
 from __future__ import annotations
@@ -721,7 +720,11 @@ ROUTES: tuple[RouteSpec, ...] = (
         self_service=False,
         summary="Delete a member record.",
     ),
-    # ── Membership lifecycle (7) ──────────────────────────────────────────────────────
+    # ── Membership lifecycle (5) ──────────────────────────────────────────────────────
+    # create · get · list · update · delete. The two transition routes (single + bulk) were
+    # removed when the membership lifecycle engine was retired (spec
+    # ``retire-members-status-lifecycle-engine``): status is now a plain tenant-driven field, so
+    # a status change is an ordinary ``update_membership``/member edit, not a transition endpoint.
     RouteSpec(
         name="create_membership",
         method=HttpMethod.POST,
@@ -766,24 +769,6 @@ ROUTES: tuple[RouteSpec, ...] = (
         capability=CAP_MEMBERS_ADMIN,
         self_service=False,
         summary="Delete a membership.",
-    ),
-    RouteSpec(
-        name="transition_membership",
-        method=HttpMethod.POST,
-        path="/members/{member_id}/memberships/{membership_id}/transition",
-        group=RouteGroup.MEMBERSHIP,
-        capability=CAP_MEMBERS_WRITE,
-        self_service=False,
-        summary="Apply a lifecycle transition to a membership (guarded by config/rules).",
-    ),
-    RouteSpec(
-        name="bulk_transition_memberships",
-        method=HttpMethod.POST,
-        path="/memberships/transition",
-        group=RouteGroup.MEMBERSHIP,
-        capability=CAP_MEMBERS_ADMIN,
-        self_service=False,
-        summary="Apply a lifecycle transition to many memberships at once.",
     ),
     # ── Delegates (2) ─────────────────────────────────────────────────────────────────
     RouteSpec(
@@ -853,7 +838,7 @@ ROUTES: tuple[RouteSpec, ...] = (
     # Catalog MANAGEMENT writes: create / update / soft-delete (retire) a membership type.
     # Gated by ``members:admin`` (CAP_MEMBERS_ADMIN), NOT ``members:write``: managing the
     # tenant's type vocabulary is an administrative concern (like delete_member /
-    # bulk_transition, which are also admin-gated), distinct from writing an individual member
+    # delete_membership, which are also admin-gated), distinct from writing an individual member
     # record. The reads above use ``members:read`` (viewing the catalog is an ordinary read);
     # only mutation is elevated to admin. None are self-service — a member never manages the
     # tenant catalog. The ``{type_code}`` write routes share the ``/membership-types`` prefix

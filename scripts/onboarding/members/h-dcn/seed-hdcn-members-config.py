@@ -90,7 +90,7 @@ def seed(tenant_id: str, *, apply: bool, config_path: str | None, svc=None) -> i
         from database import DatabaseManager
         from services.parameter_service import ParameterService
 
-        svc = ParameterService(DatabaseManager(test_mode=False))
+        svc = ParameterService(DatabaseManager())  # test_mode kwarg removed (test-env Phase 3); DB target is DB_* env
 
     current_scope = svc.get_param(_MEMBERS_NAMESPACE, _SCOPE_DIMENSIONS_KEY, tenant=tenant_id)
     current_overlay = svc.get_param(_MEMBERS_NAMESPACE, _FIELD_OVERLAY_KEY, tenant=tenant_id)

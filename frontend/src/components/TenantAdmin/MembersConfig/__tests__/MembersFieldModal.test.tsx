@@ -148,6 +148,8 @@ describe('MembersFieldModal — create', () => {
     expect(screen.queryByText('Choices')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'enum' } });
     expect(screen.getByText('Choices')).toBeInTheDocument();
+    // enum shows the inline values editor, NOT the reference catalog pointer (R3.3).
+    expect(screen.queryByTestId('members-field-modal-reference-note')).not.toBeInTheDocument();
   });
 
   it('authors the scope-binding attribute (single-vocabulary, R3.2/R3.3) when the switch is on', () => {
@@ -179,6 +181,47 @@ describe('MembersFieldModal — create', () => {
     fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
     const next = onChange.mock.calls[0][0] as Record<string, any>;
     expect(next.fields.nickname.alias).toBeUndefined();
+  });
+});
+
+describe('MembersFieldModal — reference vs enum branch (Property 4, R3.1/R3.2/R3.3)', () => {
+  it('a REFERENCE field shows the catalog pointer, NOT an enum-values editor (R3.1/R3.3)', () => {
+    renderModal({ mode: 'create' });
+    // Drive the field type to `reference` the same way the enum test does (the Type select).
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'reference' } });
+    const modal = screen.getByTestId('members-field-modal');
+    // The read-only note + its pointer link to the membership-type catalog are shown (no dead end).
+    expect(within(modal).getByTestId('members-field-modal-reference-note')).toBeInTheDocument();
+    expect(within(modal).getByTestId('members-field-modal-reference-link')).toBeInTheDocument();
+    // The inline enum choices editor is ABSENT for a reference field — values live in the catalog.
+    expect(within(modal).queryByText('Choices')).not.toBeInTheDocument();
+  });
+
+  it('clicking the pointer invokes the onManageCatalog handler when wired (R3.1)', () => {
+    const onManageCatalog = vi.fn();
+    renderModal({ mode: 'create', onManageCatalog });
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'reference' } });
+    fireEvent.click(screen.getByTestId('members-field-modal-reference-link'));
+    expect(onManageCatalog).toHaveBeenCalledTimes(1);
+  });
+
+  it('a REFERENCE field still exposes the presentation attributes (label / order) for editing (R3.2)', () => {
+    renderModal({ mode: 'create' });
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'reference' } });
+    const modal = screen.getByTestId('members-field-modal');
+    // Presentation attributes remain editable — only the VALUES are managed elsewhere.
+    expect(within(modal).getByLabelText('Label (English)')).toBeInTheDocument();
+    expect(within(modal).getByLabelText('Order')).toBeInTheDocument();
+  });
+
+  it('an ENUM field still shows the inline EnumOptionsEditor and NOT the reference note (R3.3)', () => {
+    renderModal({ mode: 'create' });
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'enum' } });
+    const modal = screen.getByTestId('members-field-modal');
+    // enum keeps its inline values editor (the "Choices" block) unchanged …
+    expect(within(modal).getByText('Choices')).toBeInTheDocument();
+    // … and does NOT render the reference catalog pointer.
+    expect(within(modal).queryByTestId('members-field-modal-reference-note')).not.toBeInTheDocument();
   });
 });
 

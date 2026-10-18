@@ -10,7 +10,7 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ApiError } from '../shared/api/ApiError';
 import { getCurrentAuthTokens } from './authService';
-import { createMember, transitionMembership, getMember } from './membersApiService';
+import { createMember, updateMember, getMember } from './membersApiService';
 import { createMockResponse } from '@/test-utils/mockHelpers';
 
 vi.mock('./authService', () => ({
@@ -74,27 +74,33 @@ describe('membersApiService — ApiError surfacing', () => {
     expect(apiErr.errors![1].params).toEqual({ allowed: ['active', 'inactive'] });
   });
 
-  it('throws an ApiError carrying the 409 reasons array', async () => {
+  // retire-members-status-lifecycle-engine (design D/F): `transitionMembership` was removed with
+  // the SPA transition surface, so the 409 `reasons[]` ApiError-envelope coverage is re-pointed
+  // onto a surviving write wrapper (`updateMember`). ApiError parses `reasons[]` the same way
+  // regardless of which call triggers the non-2xx — the behaviour under test is the envelope
+  // shape, not any transition route. (A generic conflict code stands in for the retired
+  // `errors.transition.denied`.)
+  it('throws an ApiError carrying a 409 reasons array', async () => {
     vi.mocked(global.fetch).mockResolvedValueOnce(
       createMockResponse({
         ok: false,
         status: 409,
         body: {
           success: false,
-          error: 'Transition denied',
-          code: 'errors.transition.denied',
+          error: 'Conflict',
+          code: 'errors.member.conflict',
           reasons: [
-            { code: 'errors.transition.denied', detail: 'member number required to activate' },
+            { code: 'errors.member.conflict', detail: 'member number required to activate' },
           ],
         },
       }),
     );
 
-    const err = await transitionMembership('M-1', 'MS-1', { to_state: 'active' }).catch((e) => e);
+    const err = await updateMember('M-1', { membership: { status: 'active' } }).catch((e) => e);
     expect(err).toBeInstanceOf(ApiError);
     const apiErr = err as ApiError;
     expect(apiErr.status).toBe(409);
-    expect(apiErr.code).toBe('errors.transition.denied');
+    expect(apiErr.code).toBe('errors.member.conflict');
     expect(apiErr.hasReasons()).toBe(true);
     expect(apiErr.reasons).toHaveLength(1);
     expect((apiErr.reasons as { code: string; detail: string }[])[0].detail).toContain(
@@ -107,11 +113,11 @@ describe('membersApiService — ApiError surfacing', () => {
       createMockResponse({
         ok: false,
         status: 409,
-        body: { success: false, error: 'Transition denied', reasons: ['legacy reason text'] },
+        body: { success: false, error: 'Conflict', reasons: ['legacy reason text'] },
       }),
     );
 
-    const err = (await transitionMembership('M-1', 'MS-1', { to_state: 'active' }).catch(
+    const err = (await updateMember('M-1', { membership: { status: 'active' } }).catch(
       (e) => e,
     )) as ApiError;
     expect(err).toBeInstanceOf(ApiError);

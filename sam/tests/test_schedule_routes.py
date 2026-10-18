@@ -52,10 +52,6 @@ if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
 from sam.members.domain.execute_and_deliver import DeliveryNotConfigured
-from sam.members.domain.lifecycle_config import (
-    HDCN_LIFECYCLE_CONFIG,
-    StaticLifecycleConfigProvider,
-)
 from sam.members.domain.membership_service import (
     MembershipService,
     ScheduleNotFound,
@@ -90,9 +86,7 @@ def hooks() -> TenantHookRegistry:
 def service(repo, hooks) -> MembershipService:
     return MembershipService(
         repo,
-        lifecycle_provider=StaticLifecycleConfigProvider(
-            {"h-dcn": HDCN_LIFECYCLE_CONFIG}
-        ),
+        # Lifecycle engine retired (retire-members-status-lifecycle-engine): no lifecycle_provider.
         tenant_hooks=hooks,
     )
 
@@ -667,7 +661,7 @@ def service_with_scheduler(repo, hooks, scheduler) -> MembershipService:
     """The real service, built like production but with the FAKE scheduler port injected."""
     return MembershipService(
         repo,
-        lifecycle_provider=StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG}),
+        # Lifecycle engine retired (retire-members-status-lifecycle-engine): no lifecycle_provider.
         tenant_hooks=hooks,
         scheduler_port=scheduler,
     )

@@ -1,0 +1,383 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Reproduce the exact wedge as a failing test: stored `config#fields` = 6-value": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260861510
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260875017
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261048110
+      }
+    ],
+    "1.2 Property P2 (idempotent): for an unchanged source, a re-sync writes nothing and": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260861687
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261059936
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261227202
+      }
+    ],
+    "1.3 Property P4 (concrete regression): a tenant overlay authoring `membership.status`": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260861795
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261231880
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261398926
+      }
+    ],
+    "2.1 Ensure `ProjectionSync.sync_administration` builds rows from a non-stale param read": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260861891
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261403213
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261640322
+      }
+    ],
+    "2.2 Add/adjust a `ParameterService` cache-invalidation seam if needed (uncached read or": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260861982
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261645016
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261757064
+      }
+    ],
+    "3.1 Change `_conditional_put` (or its caller) to read the full stored item and compare": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260862079
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261761743
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792262313301
+      }
+    ],
+    "3.2 Decide + implement the datastore concurrency guard per design A3 (prefer: drop the": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260862303
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792262317638
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792262606491
+      }
+    ],
+    "3.3 Confirm generality: the change is in `ProjectionSync`/shared seam so it applies to": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260862396
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792262610772
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792262758087
+      }
+    ],
+    "3.4 Update any existing `projection_sync` tests that asserted the strict-greater gate to": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260862486
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792262762213
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792262926689
+      }
+    ],
+    "4.1 Confirm/extend `validate_items` so a structurally incomplete/malformed `config#*`": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260862586
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792262931609
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263183404
+      }
+    ],
+    "4.2 Re-run task-1 tests: the wedge-reproduction now PASSES (fix validated); P2/P4 pass.": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260862689
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263188989
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263263185
+      }
+    ],
+    "5.1 Add a migration under `backend/src/migrations/` (pattern:": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260862792
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263269126
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263376837
+      }
+    ],
+    "5.2 Remove `config#views` projection residue (delete stored `sk=config#views` rows per": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260862942
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263382228
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263695512
+      }
+    ],
+    "5.3 Migration unit test: dry-run makes no change; `--apply` deletes only targeted rows;": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260863047
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263699919
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263802193
+      }
+    ],
+    "6.1 Delete `build_config_views_row` + any view-context domain/validation modules and": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260863155
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263806412
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263900693
+      }
+    ],
+    "6.2 Update/remove the paired tests (change-with-tests).": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260863289
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263904824
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792264032702
+      }
+    ],
+    "7.1 Remove `view_contexts` from `MEMBERS_PARAM_KEYS` and `MEMBERS_PARAM_TO_CONFIG_ID`": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260863382
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792264037413
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792264175323
+      }
+    ],
+    "7.2 Update `membersConfigService.test.ts` (re-point the generic save-helper test to a": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260863515
+      },
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792264179736
+      }
+    ],
+    "7.3 Repo-wide search (excluding `.aws-sam/**`, `node_modules`, `.kiro/specs`,": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260863625
+      }
+    ],
+    "8.1 Run backend pytest (incl. the new projection + migration tests) and the SAM suite": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260863730
+      }
+    ],
+    "8.2 Run the frontend vitest suite — green.": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260863844
+      }
+    ],
+    "8.3 Confirm the two pre-existing unrelated frontend typecheck errors": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260863960
+      }
+    ],
+    "8.4 Ad-hoc (NOT a code task): re-sync h-dcn on `test` and confirm `died` appears in the": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792260864056
+      }
+    ],
+    "1. Write the exploration + property tests for the content-gate (BEFORE the fix)": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261399075
+      }
+    ],
+    "2. Build from a coherent (uncached) source in the sync run": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792261757420
+      }
+    ],
+    "3. Make the write decision content-driven; keep version for recording/ordering": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792262926986
+      }
+    ],
+    "4. Validate-before-write (loud, never silent-stale)": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263263577
+      }
+    ],
+    "5. Data + projection cleanup migration": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792263802340
+      }
+    ],
+    "6. Remove the Flask-plane view-context builder/modules (if any remain)": [
+      {
+        "executionId": "136f660d-af15-43c3-b1f2-25ed78de77ab",
+        "chatSessionId": "sess_db29d2be-8a23-42b6-acb6-23472464ec8b",
+        "timestamp": 1792264032855
+      }
+    ]
+  }
+}

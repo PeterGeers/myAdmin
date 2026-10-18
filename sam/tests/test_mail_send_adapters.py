@@ -131,6 +131,40 @@ class TestSesBotoSender:
         )
         assert "ReplyToAddresses" not in client.send_email_calls[0]
 
+    def test_simple_send_splits_multi_address_reply_to_into_the_address_list(self):
+        # The member-application Reply-To is the all-scope Members_CRUD SET (application-app
+        # R9a/D8/D24): the worker passes it as ONE comma-joined `reply_to` string; the adapter
+        # splits it back into the SES `ReplyToAddresses` LIST so every admin is a reply target.
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="")
+        sender.send(
+            from_address="noreply@tenant.example",
+            reply_to="a@tenant.example, b@tenant.example",
+            recipients=["x@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+        assert client.send_email_calls[0]["ReplyToAddresses"] == [
+            "a@tenant.example",
+            "b@tenant.example",
+        ]
+
+    def test_attachment_send_joins_multi_address_reply_to_in_the_header(self):
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="")
+        sender.send(
+            from_address="noreply@tenant.example",
+            reply_to="a@tenant.example, b@tenant.example",
+            recipients=["x@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+            attachments=[
+                {"filename": "f.csv", "content": b"a\n1\n", "content_type": "text/csv"}
+            ],
+        )
+        raw = client.send_raw_email_calls[0]["RawMessage"]["Data"]
+        assert "Reply-To: a@tenant.example, b@tenant.example" in raw
+
     def test_attachment_send_uses_send_raw_email_with_from_and_reply_to_headers(self):
         client = FakeSesClient()
         sender = SesBotoSender(client=client, configuration_set="cfg")

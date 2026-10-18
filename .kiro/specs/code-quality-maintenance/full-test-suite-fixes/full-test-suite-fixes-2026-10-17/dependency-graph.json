@@ -1,0 +1,109 @@
+{
+  "specId": "24c7cace-01f0-463e-9e80-74118d57a4ac",
+  "spec": "full-test-suite-fixes-2026-10-17",
+  "ciRun": 39072218600,
+  "ciRunNumber": 74,
+  "ciConclusion": "failure",
+  "ciHeadSha": "c07927f44886b3b062a20f4cf7955970167dde38",
+  "ciHeadBranch": "test",
+  "ciEvent": "workflow_dispatch",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (run #74, 2026-10-17, dispatched on test after merging PR #121 + PR #122)",
+  "priorities": {
+    "critical": [],
+    "high": [
+      "H1",
+      "H2",
+      "H3"
+    ],
+    "medium": [],
+    "low": [
+      "L1",
+      "L2"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "H1",
+      "title": "Align projection convergence property test to the content-driven write gate (test_projection_convergence_props)",
+      "priority": "high",
+      "effort": "M",
+      "plane": "backend",
+      "type": "fix-or-realign",
+      "rootCause": "test_projection_convergence_props.py::test_projection_converges_after_a_source_change fails (Hypothesis, 2 distinct: assert item[VERSION_ATTR]==new_version -> 0==1 line 440; assert item['is_active'] is expectation['value'] -> True is False line 439). PR #121 made the projection write content-driven and dropped the strictly-greater version datastore gate (design A3 (a), last-writer-wins); the property still encodes the OLD version-monotonic + deterministic is_active expectation. Change-with-tests miss on a PROPERTY test. Realign to content-gate semantics (version is bookkeeping, content drives the write) without weakening, OR fix projection_sync if the counterexample reveals a real convergence defect. Decide from the Falsifying example."
+    },
+    {
+      "id": "H2",
+      "title": "Update the two MembersConfig status-banner tests for the retired view_contexts (views badge gone)",
+      "priority": "high",
+      "effort": "S",
+      "plane": "frontend",
+      "type": "fix",
+      "rootCause": "MembersConfigEditor.test.tsx (status banner) and MembersConfigStatus.test.tsx (null version) both assert a retired `views` element (members-config-status-views-badge / members-config-status-views). PR #121 retired view_contexts/config#views so the banner no longer renders a views row. Change-with-tests miss: service test + key decl were updated, these two status-banner tests were not. Realign/remove the views expectations to the retired reality (fields/scope/mail only); keep surviving assertions."
+    },
+    {
+      "id": "H3",
+      "title": "ruff format the two PR #121 files (CI-blocking backend Ruff Format fail)",
+      "priority": "high",
+      "effort": "S",
+      "plane": "backend",
+      "type": "lint-blocking",
+      "rootCause": "Backend Ruff Format FAILED (CI-blocking): 2 files would be reformatted, both from PR #121 \u2014 retire_members_view_contexts.py:125 (logger.info wrap) and parameter_service.py:673 (if-comprehension clause split). The pre-commit hook runs the DB-access guard but not ruff format, so the drift reached CI. Auto-fixable with `ruff format`; format-only, re-run paired tests to confirm no logic change."
+    },
+    {
+      "id": "L1",
+      "title": "Add ruff format --check to the backend pre-commit hook (prevent H3 recurrence)",
+      "priority": "low",
+      "effort": "S",
+      "plane": "backend",
+      "type": "hygiene",
+      "rootCause": "H3 reached CI because the pre-commit hook does not run ruff format --check. Add a `ruff format --check backend/ sam/` step so format drift is caught locally, not at the CI gate. Optional hardening."
+    },
+    {
+      "id": "L2",
+      "title": "Gate: do not promote test->main until Full Test Suite is green on test",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "verification",
+      "rootCause": "Steering 43: the test->main merge is a production deploy (frontend Pages on frontend/**; SAM on sam/**). TEST must be verified-green first. This run is red on H1/H2/H3. After they land, re-dispatch full-test-suite.yml --ref test, confirm success, then open ONE test->main PR (CodeQL + GitGuardian green) and merge with a merge commit."
+    }
+  ],
+  "edges": [
+    {
+      "from": "H1",
+      "to": "L2",
+      "type": "blocks",
+      "reason": "backend convergence red must be green before TEST is verified for promotion (steering 43)"
+    },
+    {
+      "from": "H2",
+      "to": "L2",
+      "type": "blocks",
+      "reason": "frontend status-banner reds must be green before promotion"
+    },
+    {
+      "from": "H3",
+      "to": "L2",
+      "type": "blocks",
+      "reason": "CI-blocking ruff-format fail must be cleared before the suite can be green"
+    }
+  ],
+  "recommendedOrder": [
+    "H3",
+    "H2",
+    "H1",
+    "L1",
+    "L2"
+  ],
+  "notes": [
+    "CI run #74 (id 39072218600, 2026-10-17 21:44 UTC @ c07927f44 on test, workflow_dispatch) is RED. SAM GREEN (100%). Backend: 1 failed / 7330 passed / 14 skipped. Frontend: 2 failed / 3859 passed / 12 skipped. Backend Ruff Format FAIL (CI-blocking, 2 files). Backend Ruff Lint PASS, Vulture PASS.",
+    "ALL FOUR REDS trace to the two just-merged PRs: #121 (members-config-projection-and-cleanup: content-gate + view_contexts retirement) and #122 (membership-type-catalog-admin-ui), batched onto test before this run. Not pre-existing debt.",
+    "H1 root cause: PR #121 changed the projection write from version-monotonic to content-driven (dropped the strictly-greater version datastore gate); test_projection_convergence_props still asserts the old version/is_active monotonic post-conditions. Change-with-tests miss on a property test.",
+    "H2 root cause: PR #121 retired view_contexts/config#views; two MembersConfig status-banner tests still assert the removed `views` badge. Change-with-tests miss (service test updated, status-banner tests not).",
+    "H3 root cause: PR #121 committed non-ruff-format-clean code (retire_members_view_contexts.py, parameter_service.py); pre-commit hook does not run ruff format, so it reached CI as a BLOCKING fail.",
+    "REPORT-ONLY (non-blocking): frontend tsc = 2 PRE-EXISTING unrelated errors (PublicApplicationForm.axe.test.tsx toHaveNoViolations; useApplicationsInbox.test.ts Mock typing) \u2014 deferred in the Members specs, not introduced here. Frontend ESLint all warnings. SAM ruff lint 95 findings (25 I001, 13 RUF022, 11 UP037, 10 RUF100, 8 F401, ...), SAM job green \u2014 pre-existing SAM debt, out of scope.",
+    "COMPARISON vs #73 (full-test-suite-fixes-2026-10-15b): #73 was down to ONE MembersPage async-settle flake; #74 is a REGRESSION SPIKE (1 backend + 2 frontend + a NEW CI-blocking ruff-format) all from PRs #121/#122. The MembersPage flake did NOT recur.",
+    "RECURRING: change-with-tests misses on a Members config refactor (3 of 4 reds are paired tests not realigned to PR #121 behaviour) \u2014 exactly the class 30-backend-api-flask-mysql Change-With-Tests Contract names as the top recurring CI failure. Plus ruff format not in the pre-commit hook. See requirements Lessons 1-4.",
+    "PROMOTION GATE (steering 43): fix H1/H2/H3, re-dispatch full-test-suite.yml --ref test, confirm green, THEN open/merge the test->main PR (production deploy). Do not promote on red TEST."
+  ]
+}

@@ -27,10 +27,12 @@ Overlay authority (mirrors ``FieldConfigMixin``, kept safe by design):
 - **override presentation-only** aspects of a *fixed* field (its label, whether it is visible,
   its ordering, and — for an *optional* fixed field — whether it is required in this tenant),
 - but it may **NEVER** weaken a platform invariant: it cannot drop/rename a fixed field, make a
-  platform-``required`` fixed field optional, change a fixed field's ``type``, collide with a
-  fixed field's key, or touch the closed ``membership.status`` enum. Those are the base
-  registry's ``ALWAYS_REQUIRED``-style guarantees. Violations raise :class:`OverlayError`
-  (fail fast — a config bug, not user input).
+  platform-``required`` fixed field optional, change a fixed field's ``type``, or collide with a
+  fixed field's key. Those are the base registry's ``ALWAYS_REQUIRED``-style guarantees.
+  Violations raise :class:`OverlayError` (fail fast — a config bug, not user input).
+  (``membership.status`` is an OPEN enum, exactly like ``gender``: the overlay authors its value
+  list and a tenant-authored value wins end-to-end — it is NOT a closed platform set the overlay
+  is forbidden to touch.)
 
 What this module is NOT:
 - It does not persist anything (that is the repository, task 1.4 / Step 4).
@@ -47,6 +49,7 @@ from typing import Any
 from ._field_models import (
     OVERLAY_GROUP,
     FieldConfig,
+    FieldFormat,
     FieldOrigin,
     FieldProvenance,
     FieldScope,
@@ -75,6 +78,7 @@ from .fixed_fields import (
 __all__ = [
     "OVERLAY_GROUP",
     "FieldConfig",
+    "FieldFormat",
     "FieldOrigin",
     "FieldProvenance",
     "FieldResolver",
@@ -197,6 +201,18 @@ class FieldResolver:
         show_when = fixed.show_when
         member_number_format = fixed.member_number_format
         scope: FieldScope | None = None  # a fixed field carries no base scope; only an override can
+        # Public member-application attributes (D20; R4.2/R4a/R4b/R7.1): start from the fixed
+        # field's base values (defaults keep a field OFF the public form, full choices, optional,
+        # no validator) and let a fixed-field override set them. The override values are
+        # `bool | None` (a ``None`` means "leave the base as-is", exactly like `required`/`visible`)
+        # so an override that touches none of these does not change the field's application
+        # behaviour. Without this carry the public field-config read (task 4.1) and the
+        # create_application validator (task 2.2/2.4) would never see a membership field a tenant
+        # put on the form via an override — the resolver silently dropped them before.
+        application_visible = fixed.application_visible
+        application_required = fixed.application_required
+        application_choices = fixed.application_choices
+        fmt_format = fixed.format
         if override is not None:
             if override.label is not None:
                 label = override.label
@@ -216,6 +232,14 @@ class FieldResolver:
                 member_number_format = override.member_number_format
             if override.scope is not None:
                 scope = override.scope
+            if override.application_visible is not None:
+                application_visible = override.application_visible
+            if override.application_required is not None:
+                application_required = override.application_required
+            if override.application_choices is not None:
+                application_choices = override.application_choices
+            if override.format is not None:
+                fmt_format = override.format
         # Keep `choices` (the bare value list) coherent with rich `options` when a tenant
         # supplies them (so consumers that read either stay consistent).
         choices = fixed.choices
@@ -237,6 +261,10 @@ class FieldResolver:
             scope=scope,
             visible=visible,
             order=order,
+            application_visible=application_visible,
+            application_required=application_required,
+            application_choices=application_choices,
+            format=fmt_format,
         )
 
     @staticmethod
@@ -327,6 +355,14 @@ class FieldResolver:
             scope=of.scope,
             visible=of.visible,
             order=of.order,
+            # Public member-application attributes (D20; R4.2/R4a/R4b/R7.1): carried 1:1 from the
+            # overlay field (plain values, not `None`-sentinels — an authored overlay field owns
+            # its own application behaviour). Without this carry a tenant-added field a tenant put
+            # on the public form would never reach the public field-config read / create validator.
+            application_visible=of.application_visible,
+            application_required=of.application_required,
+            application_choices=of.application_choices,
+            format=of.format,
         )
 
     @staticmethod

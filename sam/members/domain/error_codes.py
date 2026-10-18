@@ -47,7 +47,11 @@ __all__ = [
     "VALIDATION_MUST_BE_A_STRING",
     "VALIDATION_MUST_BE_ONE_OF",
     "VALIDATION_INVALID_DATE",
+    "VALIDATION_INVALID_EMAIL",
+    "VALIDATION_INVALID_IBAN",
     "VALIDATION_UNSUPPORTED_FIELD_TYPE",
+    "CONSENT_REQUIRED",
+    "APPLICATION_NOT_AVAILABLE",
     # field-level domain codes (errors.* namespace)
     "MEMBER_NUMBER_FORMAT",
     "ENUM_ROLE_RESTRICTED",
@@ -149,9 +153,38 @@ VALIDATION_MUST_BE_ONE_OF = "errors.validation.mustBeOneOf"
 #: here (``detail`` keeps the specific English wording).
 VALIDATION_INVALID_DATE = "errors.validation.invalidDate"
 
+#: A field carrying the ``EMAIL`` format checker (R7.6) received a value that is not a
+#: well-formed email address. Reuses the generic ``errors.validation.invalidFormat`` key —
+#: the ``detail`` keeps the email-specific English wording.
+VALIDATION_INVALID_EMAIL = "errors.validation.invalidFormat"
+
+#: A field carrying the ``IBAN`` format checker (R7.6) received a value that failed the ISO
+#: 13616 mod-97 checksum (or was structurally not an IBAN). Reuses the generic
+#: ``errors.validation.invalidFormat`` key; the ``detail`` keeps the IBAN-specific wording.
+VALIDATION_INVALID_IBAN = "errors.validation.invalidFormat"
+
 #: Defensive: an unknown field type in the registry (a programming error, not user input).
 #: Surfaces under the existing generic ``errors.validation.invalidFormat`` key.
 VALIDATION_UNSUPPORTED_FIELD_TYPE = "errors.validation.invalidFormat"
+
+#: The PUBLIC application form was submitted WITHOUT the applicant's explicit, affirmative
+#: consent (Member Application Form F4/R12.1). Unlike the neutral-202 duplicate flag, a submit
+#: without affirmative consent is one of the few HARD rejects on the public path — it surfaces as
+#: a field-level validation error on the synthetic ``consent`` key (R1a 422). Reuses the existing
+#: ``errors.validation.required`` i18n leaf (the consent checkbox is, in effect, a required
+#: affirmative field); the ``detail`` keeps the consent-specific English wording.
+CONSENT_REQUIRED = "errors.validation.required"
+
+#: The tenant is NOT accepting applications yet — it has no usable certified sender
+#: (``mail_certified`` + a projected ``mail_domain``), so the public form must not open and a
+#: direct submit must be refused with NO record (Member Application Form D15/R5.4/R9.4). This is
+#: the NEUTRAL readiness signal: distinct from the 404 (unknown/forged slug) and the 422
+#: (validation) — a request-level ``code`` (not a per-field :class:`FieldError`), carried on the
+#: R1a envelope the edge maps to a **409**. Deliberately NEUTRAL: it leaks NO mail-config detail
+#: (never says "certify your domain" / names ``mail_domain`` / distinguishes not-certified from
+#: no-domain), so the public surface cannot be probed for a tenant's mail posture. Added to the
+#: locale files (``errors.application.*``) by the frontend task (9.4).
+APPLICATION_NOT_AVAILABLE = "errors.application.notAvailable"
 
 
 # ── Field-level domain codes — keys in the EXISTING ``errors.*`` i18n namespace ──────────

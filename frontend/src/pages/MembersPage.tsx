@@ -58,8 +58,6 @@ import { MembersAddModal } from '../components/members/MembersAddModal';
 import { MembersEditModal } from '../components/members/MembersEditModal';
 import { MembersDeleteConfirm } from '../components/members/MembersDeleteConfirm';
 import { MembersViewBody } from '../components/members/MembersViewBody';
-import { MembersTransitionModal } from '../components/members/MembersTransitionModal';
-import { MembersBulkTransitionModal } from '../components/members/MembersBulkTransitionModal';
 import { generateCsv, downloadCsv } from '../utils/csvExport';
 import { renderFieldValue, valueFor } from '../components/members/fieldValue';
 import { formFields, groupFieldsBySection } from '../components/members/fieldForm';
@@ -69,6 +67,8 @@ import { useMembersColumns } from '../components/members/overview/useMembersColu
 import { useMembersPagination } from '../components/members/overview/useMembersPagination';
 import { useMembersSelection } from '../components/members/overview/useMembersSelection';
 import { MembersToolbar } from '../components/members/overview/MembersToolbar';
+import { MembersInboxBar } from '../components/members/overview/MembersInboxBar';
+import { useApplicationsInbox } from '../components/members/overview/useApplicationsInbox';
 import { MembersStatsStrip } from '../components/members/overview/MembersStatsStrip';
 import { MembersTable } from '../components/members/overview/MembersTable';
 import { MembersPaginationBar } from '../components/members/overview/MembersPaginationBar';
@@ -112,16 +112,6 @@ const MembersPage: React.FC = () => {
   const { isOpen: isEditOpen, onOpen: onEditOpen, onClose: onEditClose } = useDisclosure();
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
 
-  // Single transition modal (task 20.3, R8.5).
-  const {
-    isOpen: isTransitionOpen, onOpen: onTransitionOpen, onClose: onTransitionClose,
-  } = useDisclosure();
-
-  // Bulk transition modal (task 20.4, R8.6).
-  const {
-    isOpen: isBulkOpen, onOpen: onBulkOpen, onClose: onBulkClose,
-  } = useDisclosure();
-
   // Column chooser modal (session-columns task 4.1, design C2/C8).
   const {
     isOpen: isColumnChooserOpen, onOpen: onColumnChooserOpen, onClose: onColumnChooserClose,
@@ -150,6 +140,21 @@ const MembersPage: React.FC = () => {
   } = useFilterableTable<MemberRow>(enrichedRows, {
     initialFilters: dynamicInitialFilters,
     defaultSort,
+  });
+
+  // ── Applications inbox preset (task 7.2, R8b.4/R8b.5/F3) ─────────────────────
+  // The staff applications inbox is the EXISTING member grid pinned to
+  // `status = application` via the Table Filter Framework v2 (`setFilter`), with
+  // the `DUP` / `NO_NOTIFY` keyword notes on `overlay.additional_info`
+  // keyword-filterable in that same grid. No new grid — a preset over the one
+  // overview the framework already drives.
+  const { activateInbox, filterKeyword, clearInbox } = useApplicationsInbox({
+    setFilter,
+    // Pass the EFFECTIVE chosen keys (the user's saved set, or the first-time
+    // compact default) so surfacing the note column PRESERVES the visible columns
+    // instead of collapsing a first-time user's default view to just the note.
+    chosenKeys: effectiveChosenKeys,
+    onColumnsChange: handleColumnsChange,
   });
 
   // ── Client-side pagination over the filtered/sorted set ──────────────────────
@@ -183,22 +188,14 @@ const MembersPage: React.FC = () => {
     return { total, filtered, active, regions };
   }, [memberRows, processedData]);
 
-  // ── Row selection for bulk actions (task 20.4, R8.6) ─────────────────────────
+  // ── Row selection (checkbox column) ──────────────────────────────────────────
   const {
     selectedIds,
-    selectedIdList,
     allVisibleSelected,
     someVisibleSelected,
     toggleSelectAll,
     toggleRow,
-    clearSelection,
   } = useMembersSelection(visibleData);
-
-  // After a successful bulk transition: clear the selection AND refresh the list.
-  const handleBulkDone = useCallback(() => {
-    clearSelection();
-    loadMembers();
-  }, [clearSelection, loadMembers]);
 
   const handleRowClick = useCallback(async (row: MemberRow) => {
     setSelectedMember(row);
@@ -240,18 +237,6 @@ const MembersPage: React.FC = () => {
 
   const handleDeleteClose = () => {
     onDeleteClose();
-    setSelectedMember(null);
-  };
-
-  // Single transition (task 20.3): switch from the read-only view modal to the
-  // transition modal on the same selected member.
-  const handleTransitionOpen = () => {
-    onViewClose();
-    onTransitionOpen();
-  };
-
-  const handleTransitionClose = () => {
-    onTransitionClose();
     setSelectedMember(null);
   };
 
@@ -308,13 +293,23 @@ const MembersPage: React.FC = () => {
         loading={loading}
         globalSearch={globalSearch}
         setGlobalSearch={setGlobalSearch}
-        selectedCount={selectedIds.size}
-        onBulkOpen={onBulkOpen}
         onColumnChooserOpen={onColumnChooserOpen}
         canExport={hasAnyRole(['Tenant_Admin', 'SysAdmin'])}
         onExport={() => { void handleExport(); }}
         onAddOpen={onAddOpen}
       />
+
+      {/* Applications inbox preset (task 7.2, R8b.4/R8b.5/F3): pins the existing
+          grid to status=application + exposes DUP/NO_NOTIFY keyword filters over
+          overlay.additional_info — a view of the one overview, not a new grid. */}
+      {!loading && (
+        <MembersInboxBar
+          t={t}
+          onActivateInbox={activateInbox}
+          onFilterKeyword={filterKeyword}
+          onClear={clearInbox}
+        />
+      )}
 
       {/* Live statistics strip (task 4.3, design C-SURFACE; R5.4). */}
       {!loading && <MembersStatsStrip stats={stats} t={t} />}
@@ -385,18 +380,10 @@ const MembersPage: React.FC = () => {
             >
               {t('actions.delete')}
             </Button>
-            {/* Single transition (task 20.3, R8.5) — ghost, opens the transition
-                modal whose targets come FROM THE MODULE (not hardcoded). */}
-            <Button
-              variant="ghost"
-              colorScheme="orange"
-              mr={3}
-              onClick={handleTransitionOpen}
-              isDisabled={!selectedMember}
-            >
-              {t('actions.transition')}
-            </Button>
-            {/* Edit (task 19.2) — orange, opens the pre-filled edit modal. */}
+            {/* Edit (task 19.2) — orange, opens the pre-filled edit modal.
+                Status is now an ordinary enum field edited here (no transition
+                engine) — the member edit modal renders it from the resolved
+                field config like any other field. */}
             <Button
               colorScheme="orange"
               mr={3}
@@ -435,25 +422,6 @@ const MembersPage: React.FC = () => {
         onClose={handleDeleteClose}
         member={selectedMember}
         onDeleted={loadMembers}
-      />
-
-      {/* Single transition modal (task 20.3, R8.5) — target states FROM THE
-          MODULE (field-config `lifecycle`), never hardcoded. */}
-      <MembersTransitionModal
-        isOpen={isTransitionOpen}
-        onClose={handleTransitionClose}
-        member={selectedMember}
-        fieldConfig={fieldConfig}
-        onDone={loadMembers}
-      />
-
-      {/* Bulk transition modal (task 20.4, R8.6) — over the checkbox selection. */}
-      <MembersBulkTransitionModal
-        isOpen={isBulkOpen}
-        onClose={onBulkClose}
-        memberIds={selectedIdList}
-        fieldConfig={fieldConfig}
-        onDone={handleBulkDone}
       />
 
       {/* Column chooser modal (session-columns task 4.1, design C2/C8). Renders

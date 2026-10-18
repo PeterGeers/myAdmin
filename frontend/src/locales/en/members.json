@@ -454,6 +454,13 @@
     "delete": "Delete",
     "transition": "Change status"
   },
+  "inbox": {
+    "label": "Applications inbox:",
+    "applications": "Applications",
+    "duplicates": "Possible duplicates",
+    "notNotified": "Not auto-notified",
+    "clear": "Clear"
+  },
   "view": {
     "compact": "Compact",
     "full": "Full"
@@ -582,40 +589,27 @@
       "error": "Failed to delete member"
     }
   },
-  "transition": {
-    "title": "Change status",
-    "currentState": "Current status",
-    "toStateLabel": "New status",
-    "toStatePlaceholder": "Choose a status",
-    "noTargets": "There are no allowed transitions from the current status.",
-    "approvedLabel": "Application approved",
-    "confirm": "Change",
-    "cancel": "Cancel",
-    "toast": {
-      "success": "Status changed",
-      "error": "Failed to change status"
-    }
-  },
-  "bulkTransition": {
-    "barLabel": "Bulk: change status ({{count}})",
+  "selection": {
     "selectAll": "Select all",
-    "selectRow": "Select {{name}}",
-    "title": "Bulk change status",
-    "selectedCount": "{{count}} members selected",
-    "toStateLabel": "New status",
-    "toStatePlaceholder": "Choose a status",
-    "noTargets": "There are no allowed statuses available.",
-    "approvedLabel": "Application approved",
-    "confirm": "Change",
-    "cancel": "Cancel",
-    "toast": {
-      "success": "Status changed for {{count}} members",
-      "error": "Bulk status change failed"
-    }
+    "selectRow": "Select {{name}}"
   },
   "pagination": {
     "previous": "Previous",
     "next": "Next",
     "pageOf": "Page {{page}} of {{total}}"
+  },
+  "publicApplication": {
+    "notAvailable": {
+      "title": "Applications are not available yet",
+      "body": "This organisation is not accepting applications yet. Please try again later."
+    },
+    "notFound": {
+      "title": "Page not found",
+      "body": "No application form was found at this address."
+    },
+    "error": {
+      "title": "Something went wrong",
+      "body": "The application form could not be loaded. Please try again later."
+    }
   }
 }

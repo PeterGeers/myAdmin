@@ -67,25 +67,40 @@ def get_worker() -> Any:
     """
     global _WORKER
     if _WORKER is None:
+        from sam.members.domain.mail_sender_resolver import MailSenderResolver
         from sam.members.domain.template_service import TemplateService
         from sam.members.repository.mail_send_adapters import (
             DynamoDbMailSentMarkerStore,
             SesBotoSender,
         )
         from sam.members.repository.members_repository import DynamoDbMembersRepository
+        from sam.members.repository.projection_config_reader import MembersProjectionReader
+        from sam.members.repository.role_recipients_reader import RoleRecipientsReader
         from sam.members.repository.template_body_store import S3TemplateBodyStore
         from sam.members.worker.mail_audit import log_analytics_output
         from sam.members.worker.mail_send_worker import MailSendWorker
 
         repo = DynamoDbMembersRepository()
         template_service = TemplateService(repo, S3TemplateBodyStore())
+        # Member-application notification ports (application-app task 6.3): the projection reader
+        # serves BOTH the From sender resolution (config#mail, D4) and the scope config for the
+        # staff-recipient resolver (config#scope, D9). Both read-only over the governance
+        # projection — no new store.
+        projection_reader = MembersProjectionReader()
         _WORKER = MailSendWorker(
             ses=SesBotoSender(),
             marker_store=DynamoDbMailSentMarkerStore(),
             template_service=template_service,
             audit=log_analytics_output,
-            # Advance the send-run status tally (R9.1) — same repo the template service uses.
+            # Advance the send-run status tally (R9.1/D22) — same repo the template service uses.
             run_store=repo,
+            # Members store (application-app task 6.4): the NO_NOTIFY seam UPDATEs the committed
+            # application record's overlay.additional_info when a staff notification has no
+            # recipients (R8.5). The SAME repo — get_member/save_member on the members table.
+            members_store=repo,
+            # Staff recipients + Reply-To (task 6.1, D9/D9a/R9a) and the per-tenant From (D4).
+            recipient_resolver=RoleRecipientsReader(projection_reader),
+            sender_resolver=MailSenderResolver(projection_reader),
         )
     return _WORKER
 

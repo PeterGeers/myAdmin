@@ -70,13 +70,6 @@ from sam.members.domain.execute_and_deliver import (
     MailNotCertified,
 )
 from sam.members.domain.field_resolver import TenantOverlay, TenantOverlayProvider
-from sam.members.domain.fixed_fields import (
-    MembershipStatus,  # noqa: F401 (surface compat)
-)
-from sam.members.domain.lifecycle_config import (
-    HDCN_LIFECYCLE_CONFIG,
-    StaticLifecycleConfigProvider,
-)
 from sam.members.domain.membership_service import (
     DEFAULT_SCOPE_DIMENSION_KEY,
     AnalyticsSetConflict,
@@ -88,7 +81,6 @@ from sam.members.domain.membership_service import (
     MemberValidationError,
     ScheduleNotFound,
     ScopeDenied,
-    TransitionDenied,
 )
 from sam.members.domain.membership_type_catalog import MembershipTypeValidationError
 from sam.members.domain.scope_access import ScopeAccess, resolve_scope_access
@@ -122,7 +114,6 @@ from sam.members.handler._http import (
     _field_errors_array,
     _json_default,  # noqa: F401 (surface compat: tests reach app._json_default)
     _parse_request,
-    _reasons_array,
     _response,
 )
 from sam.members.handler.router import (
@@ -160,8 +151,7 @@ logger = logging.getLogger(__name__)
 # :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader`, instead
 # of the S5 in-memory ``Static*`` reference providers. This is the swap the S5 seams always
 # documented ("a later step swaps in a DynamoDB-backed provider behind the same seam") — no
-# domain code changes; the reader already duck-types both Protocols. Lifecycle config is NOT
-# part of the projection, so ``_LIFECYCLE_PROVIDER`` below stays a ``Static*`` provider.
+# domain code changes; the reader already duck-types both Protocols.
 #
 # PER-INVOCATION FRESHNESS (correctness, R5). ``MembersProjectionReader`` holds a
 # ``_partition_cache`` that is meant to live for **one** request (a tenant partition Queried
@@ -390,15 +380,6 @@ class _ProjectionDefaultPageSizeProvider:
 #: The default-page-size provider handed to the domain service — a stable indirection that
 #: reads a fresh projection each call (see :class:`_ProjectionDefaultPageSizeProvider`).
 _DEFAULT_PAGE_SIZE_PROVIDER: DefaultPageSizeProvider = _ProjectionDefaultPageSizeProvider()
-
-#: The tenants' membership-lifecycle configuration, carried as **data** (design C2, never an
-#: ``if tenant == ...``): h-dcn is simply the first ``tenant_id`` the provider knows about
-#: (its declarative state graph + guards, :data:`HDCN_LIFECYCLE_CONFIG`). A tenant with no
-#: configured lifecycle has no state machine, so a transition request for it is denied (never
-#: a silent allow). In-memory default; a later step swaps in a DynamoDB-backed provider behind
-#: the same :class:`~sam.members.domain.lifecycle_config.LifecycleConfigProvider` seam.
-_LIFECYCLE_PROVIDER = StaticLifecycleConfigProvider({"h-dcn": HDCN_LIFECYCLE_CONFIG})
-
 
 def _build_tenant_hooks() -> TenantHookRegistry:
     """Build the unified Rung-3 hook registry with each tenant's hooks registered (design C5).
@@ -1105,7 +1086,6 @@ def _get_membership_service() -> MembershipService:
         _SERVICE = MembershipService(
             DynamoDbMembersRepository(),
             overlay_provider=_OVERLAY_PROVIDER,
-            lifecycle_provider=_LIFECYCLE_PROVIDER,
             tenant_hooks=_TENANT_HOOKS,
             scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
             mail_gate_provider=_MAIL_GATE_PROVIDER,
@@ -1305,16 +1285,6 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
         # read (404, no existence leak), an authenticated+entitled write out of scope is an
         # honest authorization denial.
         return _error(403, "Forbidden", code="errors.api.forbidden")
-    except TransitionDenied as exc:
-        # A lifecycle transition that is not declared, or whose guards/required-fields fail
-        # (design C2) → 409 Conflict, carrying the reasons as an RFC 9457 array (v1.0). Never a
-        # silent allow; the hook did not fire and the record was not mutated.
-        return _error(
-            409,
-            "Transition denied",
-            code="errors.transition.denied",
-            reasons=_reasons_array(exc.reasons),
-        )
     except MemberValidationError as exc:
         # A well-formed write that violates the fixed-field or tenant validate_member rules
         # (design C2/C5) → 422 Unprocessable, carrying the per-field errors as an RFC 9457 array.

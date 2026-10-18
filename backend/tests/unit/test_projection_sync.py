@@ -68,11 +68,15 @@ class FakeTable:
     real boto3 Table has, so the tests exercise the real reconcile, not a mock of
     it:
 
-    - ``put_item`` enforces the conditional-version guarantee a real table would:
-      a put with the sync's ``attribute_not_exists(#v) OR #v < :incoming``
-      condition is rejected (raising a botocore-shaped
-      ConditionalCheckFailedException) when the stored version is already >= the
-      incoming version.
+    - ``put_item`` RETAINS the ability to enforce a conditional-version guarantee
+      (raising a botocore-shaped ConditionalCheckFailedException when a
+      ``ConditionExpression`` is supplied and the stored version is already >= the
+      incoming version). As of task 3.2 (design.md A3 option (a)) the sync NO LONGER
+      sends a ``ConditionExpression`` — the single-process serial drain makes the
+      write last-writer-wins and the Python content/version gate (``_conditional_put``)
+      is the sole write decision — so this branch is a defensive capability the sync
+      does not exercise; the fake still models it so a benign conditional failure is
+      handled correctly if a real table ever carries a table-level condition.
     - ``query`` supports the sync's tenant-scoped, ``begins_with(sk, …)`` key
       condition (``#pk = :pk AND begins_with(#sk, :sk_prefix)``), returning only
       the matching partition's rows — so a query cannot address another tenant.
@@ -1293,6 +1297,158 @@ def test_build_config_fields_row_non_scope_field_carries_none_scope():
     assert item.attributes["fields"]["motor_type"]["scope"] is None
 
 
+def test_build_config_fields_row_overlay_field_carries_application_attributes():
+    """Member Application Form (R4c.1/R4c.2, D20): the four per-field application attributes
+    ride 1:1 onto an OVERLAY field's config#fields entry.
+
+    A tenant authors ``application_visible`` / ``application_required`` /
+    ``application_choices`` (an enum subset) / ``format`` (a FieldFormat {checker, params})
+    on a variable overlay field; each must be carried verbatim onto the projected row so the
+    SAM read side (R4/R4a/R4b/R5) can project the public form from it.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fields": {
+                    "membership_kind": {
+                        "type": "enum",
+                        "choices": ["basis", "gezin", "jeugd", "ere"],
+                        "application_visible": True,
+                        "application_required": True,
+                        "application_choices": ["basis", "gezin", "jeugd"],
+                        "format": {"checker": "EMAIL", "params": {}},
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    field = item.attributes["fields"]["membership_kind"]
+    assert field["application_visible"] is True
+    assert field["application_required"] is True
+    assert field["application_choices"] == ["basis", "gezin", "jeugd"]
+    assert field["format"] == {"checker": "EMAIL", "params": {}}
+
+
+def test_build_config_fields_row_overlay_field_application_attributes_default_back_compatible():
+    """R4c.5: an overlay field that authors NONE of the application attributes projects the
+    back-compatible defaults — off the public form, not required, full choice set, no format —
+    so a tenant not using the application form gets a well-formed, unchanged-behaviour row.
+    """
+    params = FakeParameterService(
+        {("members", "field_overlay", "h-dcn"): {"fields": {"motor_type": {}}}}
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    field = item.attributes["fields"]["motor_type"]
+    assert field["application_visible"] is False
+    assert field["application_required"] is False
+    assert field["application_choices"] is None
+    assert field["format"] is None
+
+
+def test_build_config_fields_row_overlay_field_application_defaults_present_alongside_other_attrs():
+    """R4c.5 / R14.20: the four application-attribute keys are ALWAYS projected on an overlay
+    field — with their back-compatible defaults — even when the tenant authors only UNRELATED
+    attributes (label/type/order) and none of the application ones.
+
+    This pins the 1:1 carry as key-present-with-default (not key-absent), so the SAM read side
+    can rely on the keys existing on every projected overlay field regardless of what else the
+    tenant happened to author. The distinct earlier default test authors a fully-empty field;
+    this is the realistic back-compat case of a pre-application-form tenant that authors normal
+    field attributes but nothing application-related.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fields": {
+                    "motor_brand": {
+                        "type": "string",
+                        "label": {"nl": "Merk"},
+                        "order": 3,
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    field = item.attributes["fields"]["motor_brand"]
+    # The authored (unrelated) attributes survive.
+    assert field["label"] == {"nl": "Merk"}
+    assert field["order"] == 3
+    # The application-attribute keys are present with their back-compatible defaults.
+    assert field["application_visible"] is False
+    assert field["application_required"] is False
+    assert field["application_choices"] is None
+    assert field["format"] is None
+
+
+def test_build_config_fields_row_fixed_override_carries_application_attributes():
+    """R4c.1/R4c.2 (D20): the four application attributes also ride on a FIXED-field override,
+    so a tenant can select a fixed field (e.g. ``membership.membership_type``) onto the public
+    form with its own subset / requiredness / FieldFormat — carried 1:1 like on an overlay
+    field. Additive: only the authored attributes are present on the override.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {
+                    "membership.membership_type": {
+                        "options": [
+                            {"value": "basis", "label": {"nl": "Basis"}},
+                            {"value": "gezin", "label": {"nl": "Gezin"}},
+                            {"value": "ere", "label": {"nl": "Ere"}},
+                        ],
+                        "application_visible": True,
+                        "application_required": True,
+                        "application_choices": ["basis", "gezin"],
+                        "format": {"checker": "IBAN", "params": None},
+                    }
+                }
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    override = item.attributes["overrides"]["membership.membership_type"]
+    assert override["application_visible"] is True
+    assert override["application_required"] is True
+    assert override["application_choices"] == ["basis", "gezin"]
+    assert override["format"] == {"checker": "IBAN", "params": None}
+    # The enum subset (application_choices) is DISTINCT from the full enum vocabulary; the
+    # fixed-override coherence step leaves the full `choices` as the options-derived list.
+    assert override["choices"] == ["basis", "gezin", "ere"]
+
+
+def test_build_config_fields_row_fixed_override_application_attributes_additive():
+    """R4c.5: a fixed override that authors NO application attributes carries none of them
+    (additive — a missing attribute means "leave the fixed base as-is"), so an existing
+    override's projected shape is unchanged for a tenant not using the application form.
+    """
+    params = FakeParameterService(
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {"personal.name": {"label": {"nl": "Naam"}, "order": 1}}
+            }
+        }
+    )
+
+    item = build_config_fields_row({"administration": "h-dcn"}, params)
+
+    override = item.attributes["overrides"]["personal.name"]
+    assert override == {"label": {"nl": "Naam"}, "order": 1}
+    assert "application_visible" not in override
+    assert "application_required" not in override
+    assert "application_choices" not in override
+    assert "format" not in override
+
+
 def test_build_config_fields_row_projects_authored_default_page_size():
     """An authored positive members.default_page_size is carried onto config#fields (R2.1)."""
     params = FakeParameterService(
@@ -1477,6 +1633,157 @@ def test_sync_param_edit_alone_projects_the_change(sam_module):
     # The edit propagated: config#fields was re-written with the newer version.
     assert table.store[("TenantA", fields_sk)][schema.VERSION_ATTR] == "2026-10-12T12:00:00"
     assert result.written >= 1
+
+
+# --- Build from a coherent (uncached) source (R1.1, design.md A2 / task 2.1) --
+#
+# ROOT CAUSE (design.md A2): the sync's ParameterService is a process-wide
+# singleton reused across every run. ``get_param`` memoises resolved values, so a
+# value cached by an EARLIER run can serialize STALE content while the UNCACHED
+# ``get_param_revision`` stamps a FRESH version — the version/content desync that
+# wedges a row. FIX (task 2.1): ``sync_administration`` drops this service's cached
+# ``members.*`` values for the tenant BEFORE building, so the builders re-read the
+# CURRENT source value and the built content always matches its version. This
+# PREVENTS NEW desyncs; healing an ALREADY-wedged row is task 3's content-gate.
+
+
+class CachingFakeParameterService:
+    """A ``ParameterService`` stand-in that FAITHFULLY models the stale-cache wedge.
+
+    Unlike the plain :class:`FakeParameterService` (which reads its backing dict
+    directly, so it can never go stale), this fake reproduces the exact mechanism
+    the design names: ``get_param`` memoises the FIRST value it resolves per
+    ``(tenant, namespace, key)`` and keeps serving that cached value even after the
+    underlying source is edited — until the ``members`` namespace is invalidated for
+    the tenant via :meth:`invalidate_namespace` (the seam task 2.1's
+    ``sync_administration`` calls). ``get_param_revision`` is UNCACHED (reads the
+    live revision every time), mirroring the real service — so without the
+    invalidation a built row's VERSION can advance while its CONTENT lags.
+    """
+
+    def __init__(self, params=None, revisions=None):
+        self._params = params or {}
+        self._revisions = revisions or {}
+        self._cache: dict[tuple, object] = {}
+        self.calls: list[dict] = []
+        self.invalidations: list[dict] = []
+
+    def set_source(self, namespace, key, tenant, value):
+        """Edit the UNDERLYING source (does NOT touch the cache — models an edit via
+        a different service instance, exactly like the save route)."""
+        self._params[(namespace, key, tenant)] = value
+
+    def set_revision(self, namespace, key, tenant, revision):
+        self._revisions[(namespace, key, tenant)] = revision
+
+    def get_param(self, namespace, key, tenant=None, role=None, user=None):
+        self.calls.append({"namespace": namespace, "key": key, "tenant": tenant})
+        cache_key = ("tenant", tenant, namespace, key)
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+        value = self._params.get((namespace, key, tenant))
+        if value is not None:
+            self._cache[cache_key] = value
+        return value
+
+    def get_param_revision(self, namespace, key, tenant=None, role=None, user=None):
+        # UNCACHED — always the live revision (mirrors the real service).
+        return self._revisions.get((namespace, key, tenant))
+
+    def invalidate_namespace(self, namespace, tenant=None):
+        self.invalidations.append({"namespace": namespace, "tenant": tenant})
+        keys_to_remove = [
+            k
+            for k in self._cache
+            if k[2] == namespace and (tenant is None or (k[0] == "tenant" and k[1] == tenant))
+        ]
+        for k in keys_to_remove:
+            del self._cache[k]
+
+
+def test_sync_administration_invalidates_members_cache_before_building(sam_module):
+    """R1.1/A2: ``sync_administration`` evicts the tenant's cached ``members.*`` before
+    building, so it reads a NON-STALE source.
+
+    Proven directly: the param service exposes the invalidation seam; after a sync run
+    the sync recorded an eviction of the ``members`` namespace scoped to THIS tenant.
+    """
+    table = FakeTable()
+    params = CachingFakeParameterService(
+        params={("members", "field_overlay", "TenantA"): {"fields": {}}},
+        revisions={("members", "field_overlay", "TenantA"): "2026-01-01T00:00:00"},
+    )
+    source = FakeSource({"TenantA": _tenant_source("TenantA", sam_module)})
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+
+    sync.sync_administration("TenantA")
+
+    assert {"namespace": "members", "tenant": "TenantA"} in params.invalidations
+
+
+def test_sync_administration_builds_from_fresh_source_not_stale_cache(sam_module):
+    """R1.1/A2 (the heart of task 2.1): a value cached by an earlier sync run must NOT
+    leak STALE content into a later run's built row — the sync reads the CURRENT source.
+
+    Scenario (the exact version/content desync the design describes):
+      1. First sync: the overlay authors the 6-value ``membership.status``; the sync
+         caches that content and projects it at revision V1.
+      2. A tenant admin edits the overlay to the 7-value set (incl. ``died``) via a
+         DIFFERENT service instance — the sync's cache is NOT touched by that write, but
+         the uncached revision advances to V2.
+      3. Second sync: WITHOUT the fix the sync would re-serialize the CACHED 6-value
+         content while stamping the FRESH V2 version (the wedge). WITH task 2.1 it evicts
+         the cache first and re-reads the 7-value source, so the built row's content
+         (7 values) matches its version (V2) — coherent, no desync.
+
+    This asserts the BUILT content is fresh (the thing task 2.1 fixes). It is NOT the
+    already-wedged-row heal (a pre-seeded stale STORED row at an equal version) — that is
+    task 3's content-gate and remains the one expected failure until then.
+    """
+    status_six = ["active", "inactive", "pending", "suspended", "honorary", "lapsed"]
+    status_seven = [*status_six, "died"]
+
+    def _overlay(values):
+        return {
+            "fixed_overrides": {
+                "membership.status": {
+                    "label": {"nl": "Status", "en": "Status"},
+                    "choices": list(values),
+                }
+            }
+        }
+
+    tenant_id = "TenantA"
+    fields_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields")
+    table = FakeTable()
+    params = CachingFakeParameterService(
+        params={("members", "field_overlay", tenant_id): _overlay(status_six)},
+        revisions={("members", "field_overlay", tenant_id): "2026-01-01T00:00:00"},
+    )
+    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+
+    # First sync: caches + projects the 6-value content at V1.
+    sync.sync_administration(tenant_id)
+    stored = table.store[(tenant_id, fields_sk)]
+    assert stored["overrides"]["membership.status"]["choices"] == status_six
+
+    # Tenant admin edits the overlay (7-value, incl. `died`) via a different service
+    # instance: the sync's cache is NOT invalidated by that write, only the source +
+    # the uncached revision advance to V2.
+    params.set_source("members", "field_overlay", tenant_id, _overlay(status_seven))
+    params.set_revision("members", "field_overlay", tenant_id, "2026-10-12T12:00:00")
+
+    # Second sync: with task 2.1 the sync evicts the stale cache and re-reads V2's
+    # 7-value source — the built row's CONTENT matches its (fresh) VERSION.
+    sync.sync_administration(tenant_id)
+    stored = table.store[(tenant_id, fields_sk)]
+    assert stored["overrides"]["membership.status"]["choices"] == status_seven, (
+        "A2 VIOLATED: the sync re-serialized STALE cached content (6-value status) "
+        "while the source + version advanced to the 7-value set — the version/content "
+        "desync the non-stale read must prevent."
+    )
+    assert stored[schema.VERSION_ATTR] == "2026-10-12T12:00:00"
 
 
 # --- C2 scopegrant#<email>#<dimension> builder (S5b design.md C2, R2.1/R2.2) ---
@@ -1908,10 +2215,14 @@ def test_build_config_mail_row_true_flag_projects_enabled():
     assert item.tenant_id == "h-dcn"
     assert item.sort_key == schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail")
     assert item.version == 7
+    # application-app task 8.2: the D9a scope-copy toggle now always rides the row as a
+    # fail-closed boolean (False here — un-authored); the D26 consent notice is omitted
+    # when un-authored.
     assert item.attributes == {
         "mail_enabled": True,
         "mail_local_part": "noreply",
         "mail_certified": False,
+        "application_scope_copy": False,
     }
 
 
@@ -1927,6 +2238,7 @@ def test_build_config_mail_row_false_flag_projects_disabled():
         "mail_enabled": False,
         "mail_local_part": "noreply",
         "mail_certified": False,
+        "application_scope_copy": False,
     }
 
 
@@ -1957,6 +2269,9 @@ def test_build_config_mail_row_projects_all_four_fields_into_single_row():
         "mail_domain": "h-dcn.nl",
         "mail_local_part": "info",
         "mail_certified": True,
+        # application-app task 8.2: fail-closed scope-copy toggle (none authored here);
+        # consent notice omitted (none authored).
+        "application_scope_copy": False,
     }
     # The DynamoDB projection carries the canonical key attrs + the four fields.
     dynamo = item.to_dynamodb_item()
@@ -2031,6 +2346,8 @@ def test_build_config_mail_row_no_param_fails_closed_to_false():
         "mail_enabled": False,
         "mail_local_part": "noreply",
         "mail_certified": False,
+        # application-app task 8.2: scope-copy fails closed to False; consent notice omitted.
+        "application_scope_copy": False,
     }
 
 
@@ -2053,8 +2370,9 @@ def test_build_config_mail_row_malformed_values_fail_closed_to_false():
 def test_build_config_mail_row_issues_zero_writes_and_reads_tenant_scope():
     """One-directional (Property 1): only tenant-scope READS of the members.* params.
 
-    The builder reads each of the four mail params for this tenant and issues ZERO
-    writes — never a cross-tenant or unscoped read.
+    The builder reads each of the six params for this tenant and issues ZERO writes —
+    never a cross-tenant or unscoped read. application-app task 8.2 added two params that
+    ride the SAME config#mail row (the D9a scope-copy toggle + the D26 consent notice).
     """
     params = FakeParameterService(
         {("members", "mail_enabled", "h-dcn"): True}
@@ -2063,13 +2381,15 @@ def test_build_config_mail_row_issues_zero_writes_and_reads_tenant_scope():
     build_config_mail_row({"administration": "h-dcn"}, params)
 
     # Every call is a read scoped to THIS tenant on the members namespace — no write.
-    assert len(params.calls) == 4
+    assert len(params.calls) == 6
     read_keys = {call["key"] for call in params.calls}
     assert read_keys == {
         "mail_enabled",
         "mail_domain",
         "mail_local_part",
         "mail_certified",
+        "application_scope_copy",
+        "application_consent_notice",
     }
     for call in params.calls:
         assert call["namespace"] == "members"
@@ -2080,6 +2400,140 @@ def test_build_config_mail_row_missing_tenant_key_raises():
     """A tenant without administration/tenant_id is a cross-tenant hazard (R5.4)."""
     with pytest.raises(ValueError):
         build_config_mail_row({}, FakeParameterService({}))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# Member Application Form task 8.2 — the D9a scope-copy toggle + the D26 consent notice,
+# both projected onto the SAME config#mail row (application-app design §7, R4c).
+#
+# Feature: Members/application-app, R4c / R12 / D9a / D26. The application Reply-To param
+# is DROPPED (D24 — Reply-To is the all-scope Members_CRUD set, not configured).
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+def test_build_config_mail_row_scope_copy_true_projects_enabled():
+    """An explicit members.application_scope_copy=True enables the D9a scope-matched copy."""
+    params = FakeParameterService(
+        {("members", "application_scope_copy", "h-dcn"): True}
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["application_scope_copy"] is True
+
+
+def test_build_config_mail_row_scope_copy_fails_closed_to_false():
+    """Fail-closed (D9a): only an explicit boolean True enables the scope-matched copy.
+
+    Any other/absent value projects False — the D9 all-scope-only default — so a malformed
+    value never silently fans the staff notification out to scope-limited recipients.
+    """
+    for raw in ("true", "True", 1, "yes", [], {}, None, False):
+        params = FakeParameterService(
+            {("members", "application_scope_copy", "h-dcn"): raw}
+        )
+        item = build_config_mail_row({"administration": "h-dcn"}, params)
+        assert item.attributes["application_scope_copy"] is False, (
+            f"raw scope_copy={raw!r} must fail closed to False"
+        )
+
+
+def test_build_config_mail_row_scope_copy_always_present_even_unauthored():
+    """The scope-copy toggle ALWAYS rides the row (present-but-False ≠ not projected)."""
+    item = build_config_mail_row(
+        {"administration": "h-dcn"}, FakeParameterService({})
+    )
+
+    assert item.attributes["application_scope_copy"] is False
+
+
+def test_build_config_mail_row_projects_wellformed_consent_notice():
+    """A versioned, bilingual consent notice projects as {version, text:{nl,en}} (D26)."""
+    notice = {
+        "version": "2026-01-15",
+        "text": {
+            "nl": "Door te verzenden ga je akkoord met onze privacyverklaring.",
+            "en": "By submitting you agree to our privacy notice.",
+        },
+    }
+    params = FakeParameterService(
+        {("members", "application_consent_notice", "h-dcn"): notice}
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["consent_notice"] == {
+        "version": "2026-01-15",
+        "text": {
+            "nl": "Door te verzenden ga je akkoord met onze privacyverklaring.",
+            "en": "By submitting you agree to our privacy notice.",
+        },
+    }
+    # The notice rides the config#mail DynamoDB item too.
+    dynamo = item.to_dynamodb_item()
+    assert dynamo["consent_notice"]["version"] == "2026-01-15"
+
+
+def test_build_config_mail_row_consent_notice_coerces_scalar_version():
+    """A stable non-blank scalar version (int) is projected as its string form (R12.1a)."""
+    params = FakeParameterService(
+        {
+            ("members", "application_consent_notice", "h-dcn"): {
+                "version": 3,
+                "text": {"nl": "Akkoord."},
+            }
+        }
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["consent_notice"]["version"] == "3"
+    assert item.attributes["consent_notice"]["text"] == {"nl": "Akkoord."}
+
+
+def test_build_config_mail_row_consent_notice_drops_blank_locale_bodies():
+    """Only non-blank string locale bodies survive into the projected notice text (R12.1c)."""
+    params = FakeParameterService(
+        {
+            ("members", "application_consent_notice", "h-dcn"): {
+                "version": "v1",
+                "text": {"nl": "Akkoord.", "en": "   ", "de": 123},
+            }
+        }
+    )
+
+    item = build_config_mail_row({"administration": "h-dcn"}, params)
+
+    assert item.attributes["consent_notice"]["text"] == {"nl": "Akkoord."}
+
+
+def test_build_config_mail_row_omits_consent_notice_when_unauthored_or_malformed():
+    """Un-authored / malformed notice → consent_notice OMITTED (back-compatible row, R4c.5).
+
+    A tenant not using the application form (no notice, or a notice missing its version or a
+    usable locale body) projects a row WITHOUT a consent_notice attribute — the public
+    field-config read then serves no tenant notice (a platform seed may apply, R12.1c).
+    """
+    malformed = (
+        None,
+        "just a string",
+        {},  # no version, no text
+        {"text": {"nl": "Akkoord."}},  # missing version
+        {"version": "v1"},  # missing text
+        {"version": "", "text": {"nl": "Akkoord."}},  # blank version
+        {"version": "   ", "text": {"nl": "Akkoord."}},  # whitespace version
+        {"version": True, "text": {"nl": "Akkoord."}},  # bool version is not an id
+        {"version": "v1", "text": {}},  # empty text
+        {"version": "v1", "text": {"nl": "   ", "en": ""}},  # all-blank bodies
+    )
+    for raw in malformed:
+        params = FakeParameterService(
+            {("members", "application_consent_notice", "h-dcn"): raw}
+        )
+        item = build_config_mail_row({"administration": "h-dcn"}, params)
+        assert "consent_notice" not in item.attributes, (
+            f"malformed/absent notice {raw!r} must NOT project a consent_notice attribute"
+        )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════
@@ -2706,3 +3160,143 @@ def test_build_scopegrant_rows_grant_comes_from_scope_not_role_for_same_user(sam
     assert schema.build_sort_key(
         schema.RECORD_TYPE_ROLE, "alice@h-dcn.example", "SamTest_Read"
     ) in written
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# Task 5.2 — config#views PROJECTION residue removal (R2.1, R2.6).
+#
+# Feature: members-config-projection-and-cleanup, design § B1/B2.
+#
+# config#views (the retired Members `view_contexts` column-layouts) is NO LONGER emitted:
+# the builder was removed, so a fresh sync never produces the row. BUT config#* rows are
+# UPSERT-ONLY — the diff-and-delete reconcile is confined to the scopegrant#… SK space and
+# never sweeps a config#* row (see test_sync_reconcile_never_deletes_non_scopegrant_rows
+# above). So a stored config#views row written BEFORE retirement is ORPHANED and would
+# persist forever. ProjectionSync.delete_config_views_residue is the explicit, tenant-
+# scoped, dry-run-able cleanup for it. These tests use the in-memory FakeTable.
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+def _config_views_sk():
+    return schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_VIEWS)
+
+
+def _seed_config_views_residue(table, administration, *, version=1):
+    """Write a pre-retirement config#views residue row directly into the fake table."""
+    sk = _config_views_sk()
+    table.store[(administration, sk)] = {
+        schema.PARTITION_KEY_ATTR: administration,
+        schema.SORT_KEY_ATTR: sk,
+        schema.VERSION_ATTR: version,
+        "contexts": [{"name": "default", "columns": ["name", "email"]}],
+    }
+
+
+def test_sync_does_not_recreate_config_views_once_builder_removed(sam_module):
+    """R2.6: no builder emits config#views, so a sync NEVER (re-)creates the row.
+
+    Confirms the "removed builder" half of the and/or: a full sync of a SAM tenant writes
+    config#scope / config#fields / config#mail but NO config#views — so once the residue
+    is deleted it is not re-created by a subsequent sync.
+    """
+    table = FakeTable()
+    params = FakeParameterService(
+        {
+            ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
+            ("members", "field_overlay", "h-dcn"): _hdcn_field_overlay(),
+        }
+    )
+    source = FakeSource(
+        {"h-dcn": _tenant_source("h-dcn", sam_module,
+                                 roles=[{"email": "a@b.example",
+                                         "role": "SamTest_Read"}])}
+    )
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+
+    sync.sync_administration("h-dcn")
+    written = _items_in(table, "h-dcn")
+
+    # The surviving config rows are emitted...
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") in written
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") in written
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
+    # ...but config#views is never produced (the builder is gone — R2.6).
+    assert _config_views_sk() not in written
+
+
+def test_delete_config_views_residue_dry_run_makes_no_change(sam_module):
+    """Dry run (DEFAULT) COUNTS the residue and makes NO write (R2.1)."""
+    table = FakeTable()
+    _seed_config_views_residue(table, "h-dcn")
+    sync = ProjectionSync(FakeSource({}), table=table)
+
+    summary = sync.delete_config_views_residue(["h-dcn"])  # dry_run defaults True
+
+    assert summary == {"scanned": 1, "deleted": 0}
+    # The row is still present and nothing was deleted.
+    assert _config_views_sk() in _items_in(table, "h-dcn")
+    assert table.delete_calls == []
+
+
+def test_delete_config_views_residue_apply_deletes_only_views_row(sam_module):
+    """--apply deletes ONLY the config#views row — other config#* rows survive (R2.1)."""
+    table = FakeTable()
+    _seed_config_views_residue(table, "h-dcn")
+    # Surviving config rows that MUST NOT be touched.
+    fields_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields")
+    scope_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope")
+    table.store[("h-dcn", fields_sk)] = {
+        schema.PARTITION_KEY_ATTR: "h-dcn", schema.SORT_KEY_ATTR: fields_sk,
+        schema.VERSION_ATTR: 1, "overrides": {},
+    }
+    table.store[("h-dcn", scope_sk)] = {
+        schema.PARTITION_KEY_ATTR: "h-dcn", schema.SORT_KEY_ATTR: scope_sk,
+        schema.VERSION_ATTR: 1, "dimensions": [],
+    }
+    sync = ProjectionSync(FakeSource({}), table=table)
+
+    summary = sync.delete_config_views_residue(["h-dcn"], dry_run=False)
+
+    assert summary == {"scanned": 1, "deleted": 1}
+    written = _items_in(table, "h-dcn")
+    assert _config_views_sk() not in written          # residue gone
+    assert fields_sk in written                        # survivors untouched
+    assert scope_sk in written
+    # The single delete targeted exactly the config#views key.
+    assert table.delete_calls == [schema.build_key("h-dcn", _config_views_sk())]
+
+
+def test_delete_config_views_residue_is_idempotent_noop_on_rerun(sam_module):
+    """A re-run after a successful apply finds nothing and deletes 0 (R2.1 idempotent)."""
+    table = FakeTable()
+    _seed_config_views_residue(table, "h-dcn")
+    sync = ProjectionSync(FakeSource({}), table=table)
+
+    first = sync.delete_config_views_residue(["h-dcn"], dry_run=False)
+    second = sync.delete_config_views_residue(["h-dcn"], dry_run=False)
+
+    assert first == {"scanned": 1, "deleted": 1}
+    assert second == {"scanned": 0, "deleted": 0}      # no-op second time
+
+
+def test_delete_config_views_residue_is_tenant_scoped(sam_module):
+    """Tenant-scoped (Property 1/2): a residue delete for one tenant never touches another.
+
+    A tenant WITHOUT residue contributes nothing, and the delete issued for the tenant WITH
+    residue addresses only its own partition — another tenant's config#views (if any) is
+    left to its own explicit run.
+    """
+    table = FakeTable()
+    _seed_config_views_residue(table, "h-dcn")
+    _seed_config_views_residue(table, "other-tenant")
+    sync = ProjectionSync(FakeSource({}), table=table)
+
+    summary = sync.delete_config_views_residue(["h-dcn"], dry_run=False)
+
+    assert summary == {"scanned": 1, "deleted": 1}
+    # Only h-dcn's residue was removed; other-tenant's row is untouched.
+    assert _config_views_sk() not in _items_in(table, "h-dcn")
+    assert _config_views_sk() in _items_in(table, "other-tenant")
+    assert all(
+        key[schema.PARTITION_KEY_ATTR] == "h-dcn" for key in table.delete_calls
+    )

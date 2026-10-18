@@ -740,6 +740,108 @@ def test_field_has_no_scope_by_default():
     assert cfg.field("membership.status").scope is None
 
 
+# ── public member-application attributes CARRIED onto the resolved field (D20; application-app
+#    task 2.2/3.6/4.1). Before this fix `_apply_override` / `_as_variable_field` DROPPED the four
+#    sibling attrs, so a tenant that put a field on the public form never saw them downstream.
+#    R4.2/R4a/R4b/R7.1.
+
+
+def test_application_attrs_default_off_on_a_plain_fixed_field():
+    # A fixed field with no override is OFF the public form, full choices, optional, no validator.
+    cfg = _resolver().resolve("t")
+    email = cfg.field("personal.email")
+    assert email.application_visible is False
+    assert email.application_required is False
+    assert email.application_choices is None
+    assert email.format is None
+
+
+def test_application_attrs_carry_from_a_fixed_field_override():
+    # A tenant puts a FIXED field on the public form via an override (D20: attrs ride on
+    # fixed-field overrides too — e.g. membership_type onto the form).
+    from sam.members.domain.field_resolver import FieldFormat
+
+    overlay = TenantOverlay(
+        overrides={
+            "personal.email": FixedFieldOverride(
+                application_visible=True,
+                application_required=True,
+                format=FieldFormat(checker="EMAIL"),
+            ),
+        }
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    email = cfg.field("personal.email")
+    assert email.application_visible is True
+    assert email.application_required is True
+    assert email.format == FieldFormat(checker="EMAIL")
+
+
+def test_application_override_leaves_base_values_when_untouched():
+    # An override that does NOT set the application attrs (None sentinels) leaves the base as-is —
+    # consistent with how `required`/`visible` behave (None = "leave the base value").
+    overlay = TenantOverlay(
+        overrides={"personal.email": FixedFieldOverride(label={"en": "Your email"})}
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    email = cfg.field("personal.email")
+    assert email.label == {"en": "Your email"}
+    assert email.application_visible is False  # untouched → base default
+    assert email.format is None
+
+
+def test_application_choices_subset_carries_from_a_fixed_override():
+    # The enum application SUBSET (R4a) survives the resolve onto the resolved field.
+    overlay = TenantOverlay(
+        overrides={
+            "membership.membership_type": FixedFieldOverride(
+                application_visible=True,
+                application_choices=("gewoon",),
+            )
+        }
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    mt = cfg.field("membership.membership_type")
+    assert mt.application_visible is True
+    assert mt.application_choices == ("gewoon",)
+
+
+def test_application_attrs_carry_from_a_variable_field():
+    # A tenant-added overlay field selected onto the public form carries its attrs 1:1.
+    from sam.members.domain.field_resolver import FieldFormat
+
+    overlay = TenantOverlay(
+        fields={
+            "iban": OverlayField(
+                key="iban",
+                type=FieldType.STRING,
+                label={"nl": "IBAN"},
+                application_visible=True,
+                application_required=True,
+                format=FieldFormat(checker="IBAN"),
+            )
+        }
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    iban = cfg.field("overlay.iban")
+    assert iban.application_visible is True
+    assert iban.application_required is True
+    assert iban.format == FieldFormat(checker="IBAN")
+
+
+def test_application_attrs_default_off_on_a_plain_variable_field():
+    # A variable field a tenant did NOT select onto the form stays off it (back-compatible).
+    overlay = TenantOverlay(
+        fields={"club_note": OverlayField(key="club_note", label={"nl": "Notitie"})}
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    note = cfg.field("overlay.club_note")
+    assert note.application_visible is False
+    assert note.application_required is False
+    assert note.application_choices is None
+    assert note.format is None
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════
 # Phase 1 — Catalog Backbone, Task 4.2 — resolve() regression lock (byte-for-byte stable)
 #

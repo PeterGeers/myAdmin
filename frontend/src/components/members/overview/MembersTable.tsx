@@ -92,7 +92,7 @@ export const MembersTable: React.FC<MembersTableProps> = ({
             <Th textAlign="center">
               <Checkbox
                 colorScheme="orange"
-                aria-label={t('bulkTransition.selectAll')}
+                aria-label={t('selection.selectAll')}
                 isChecked={allVisibleSelected}
                 isIndeterminate={someVisibleSelected}
                 onChange={toggleSelectAll}
@@ -122,7 +122,7 @@ export const MembersTable: React.FC<MembersTableProps> = ({
               >
                 <Checkbox
                   colorScheme="orange"
-                  aria-label={t('bulkTransition.selectRow', { name: row.name || row.member_id })}
+                  aria-label={t('selection.selectRow', { name: row.name || row.member_id })}
                   isChecked={selectedIds.has(row.member_id)}
                   onChange={() => toggleRow(row.member_id)}
                 />

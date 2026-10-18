@@ -135,6 +135,106 @@ DynamoDB emulator are **dev-only** and out of scope for the TEST environment (se
   ordering, i18n), see `38-sam-module-field-config.md`.
 - **Tenancy lives in the repository/data layer:** `tenant_id` PK + `LeadingKeys`, one place.
 
+## The public (unauthenticated) intake edge — a fenced exception (ADR 0007 companion)
+
+Everything above assumes the authenticated edge: the `sam/shared` verified-JWT + entitlement
+toolkit runs **once** in `handler()` (via `_authenticate_and_authorize`) BEFORE dispatch, and the
+tenant comes from the verified entitlement's `tenant_keys` (the `X-Tenant` header SELECTS among
+verified tenants; see ADR 0007). That is the default and it does not change.
+
+A module MAY ALSO expose a **public, token-less intake edge** — e.g. the Members *application
+form*, where an applicant is a member of the public, not an authenticated user. This is the plane's
+FIRST such surface (Member Application Form, D27) and a **deliberate, fenced exception** to ADR
+0007's "deny without a verified token" invariant. Because it removes the single gate every other
+rule leans on, it is only allowed with the controls below — all of them. Read this as: *the auth
+gate is replaced by an explicit set of edge controls, not simply dropped.*
+
+### The pattern (how the public edge is wired)
+
+1. **A SEPARATE public `AWS::Serverless::Api` with NO `DefaultAuthorizer` (D27).** The public
+   routes do NOT live on the authenticated module API as an `Auth: {Authorizer: NONE}` per-route
+   carve-out — they get their **own** `AWS::Serverless::Api`, its own stage, its own invoke URL,
+   and its own throttle / usage plan. The authenticated API and its `handler()` are **untouched** —
+   cleanest blast-radius isolation for an unauthenticated surface. (Precedent that an
+   unauthenticated carve-out is possible already exists on the authenticated API:
+   `AddDefaultAuthorizerToCorsPreflight: false` exempts the CORS preflight today.) In the Members
+   module this is `MembersPublicApi` + `MembersPublicApiUsagePlan` in `sam/members/template.yaml`,
+   with exactly two explicit method+path routes (never a catch-all `{proxy+}`).
+
+2. **A token-less entrypoint that NEVER calls `_authenticate_and_authorize`.** The public API is
+   routed to a **dedicated** handler entrypoint (`handler/public_app.py` → `MembersPublicFunction`),
+   DISTINCT from the authenticated `handler/app.py`. It is thin in exactly the same way
+   (parse → guards → resolve-tenant → delegate → shape response) and REUSES the shared response
+   envelope (`handler/_http._response` / `_error` / `_field_errors_array` / `_parse_request`), so
+   there is ONE response + error renderer — but it has **no auth step**: no token, no
+   tenant-from-claims, no capability / scope gate. Authority does not apply to a public applicant.
+   The domain / repository layers below the edge are reused **unchanged** (the public
+   `create_application` reuses the authenticated `create_member` spine), so the exception lives at
+   the edge only.
+
+3. **Tenant is a PATH SLUG resolved against an allow-list (verify-before-trust) — never a token,
+   claim, or body value.** Without a JWT there is no verified `tenant_keys`, so the tenant is
+   carried as a path segment (`/public/members/{slug}/…`, reusing the existing landing-page slug,
+   D19) and resolved to a canonical `tenant_id` against an **allow-list** before anything else
+   (`domain/tenant_directory.py` + a thin slug→`tenant_id` projection reader). The slug is trusted
+   for NOTHING: it only SELECTS among allow-listed tenants, and the resolved `tenant_id` becomes the
+   record's ONLY tenant source (mirroring the authoritative-tenant stamp on the authenticated
+   edge). An unknown / forged / blank slug resolves to a **non-probeable 404** that is
+   deliberately indistinguishable from "no such endpoint" — so the allow-list is not an enumeration
+   oracle. The repository tenant-invariant (`tenant_id` PK + `LeadingKeys`) covers this path with
+   the SAME test as the authenticated path.
+
+### The controls that REPLACE the auth gate (all required — not a menu)
+
+A public edge is only in-bounds with every one of these, provisioned on its own API / function:
+
+- **Honeypot** — a hidden form field a real browser leaves blank; a non-blank value is a bot tell
+  and is rejected with a NEUTRAL 400 before any tenant resolution or write (the caller is never
+  told which guard tripped).
+- **Payload-size cap** — the raw body is bounded (measured before JSON parse) so an unauthenticated
+  caller cannot stream an arbitrarily large body into the Lambda (memory / cost abuse). Over-cap →
+  the same neutral 400. Fail-safe: a bad env override never *disables* the cap.
+- **CORS restricted to the form origin(s) — never `*`.** The authenticated edge may answer
+  `Access-Control-Allow-Origin: *` (token-gated); a public POST must NOT be callable cross-origin
+  from any site, so the edge echoes the caller's `Origin` only when it is in a configured allow-list
+  and is otherwise **fail-closed** (no origin header set — no `*` fallback). CORS headers ride
+  EVERY response, success AND error, so the SPA can read the body in all cases.
+- **API Gateway throttle + usage plan (NO WAF — D17).** The public API has its own rate + burst
+  throttle and a usage plan on its stage. A WAF (rate-based rule / CAPTCHA) is the one material
+  recurring cost and is deliberately NOT provisioned at a member-form's low, human-paced volume; it
+  is recorded as an **easy add-on at this edge** IF real abuse appears. Revisit on volume / attack.
+- **Least-privilege IAM (exact table / queue ARNs, no wildcard, no cross-account).** The public
+  function's role is scoped to EXACTLY what the intake needs and nothing more — e.g. in Members:
+  members-table write (`PutItem`/`UpdateItem`/`Query`/`GetItem` on the exact `${MembersTableName}`
+  ARN + its `/index/*`, deliberately **no** `DeleteItem` / `BatchWriteItem`, D23), governance
+  projection **read-only** (`Query`/`GetItem`, one-way projection ADR 0005), and mail-queue
+  **`sqs:SendMessage` only** (producer, never consume) on the exact queue ARN. The `!Sub` on the
+  table-name parameter means a TEST public fn (resolved to `test_*`) can never touch the PROD tables
+  — IAM is the hard isolation boundary, as everywhere on this plane.
+
+### The readiness gate (fence WHEN a public edge is live)
+
+A public intake edge is only *reachable* for a tenant that is actually ready to receive it. The
+Members form is gated on the tenant being **certified + having a verified sender domain**
+(`config#mail` → `mail_certified` + `mail_domain`): an un-ready tenant's form returns a neutral
+"not available" (no config leak), and the submit path RE-checks the same gate (defense in depth —
+refuse, write no record). So no accepted submission is ever silently un-notifiable, and a public
+surface cannot be opened for a tenant that has not completed the prerequisite onboarding.
+
+### Posture: the record is the authoritative channel; the email is best-effort
+
+The accepted intake **record** (the `status=application` member, surfaced in the staff inbox /
+overview filter) is the source of truth. The notification is **offloaded** to the mail-send queue +
+worker and is **best-effort**: a slow or failing SES send is retried → DLQ and NEVER fails or rolls
+back the applicant's submission. Staff act on the inbox, not the email; a record whose email send
+failed is still in the `status=application` filter. Keep this split for any future public intake —
+commit the record synchronously, offload the notification.
+
+> Any future public edge (an events RSVP, a webshop guest checkout) follows THIS pattern: its own
+> no-authorizer API + token-less entrypoint, slug→tenant allow-list, the five edge controls, a
+> readiness gate, and the record-is-authoritative posture — and it gets its OWN ADR companion to
+> ADR 0007 recording the fenced exception and its controls.
+
 ## Why generic (reusable across app migrations)
 
 Only the **application/domain service** is app-specific. The **frontend contract**, the
@@ -183,3 +283,11 @@ CRUD service/repo pattern, the client-side pivot/list adapter, the result/export
   Flask `auth/tenant_context.py` pattern. See **ADR 0007**
   (`docs/decisions/0007-active-tenant-resolution-sam-edge.md`) + spec
   `s5f-sam-edge-active-tenant`. Future modules (Events/Webshop) resolve tenant identically.
+- **Public (unauthenticated) intake edge (the fenced exception above):** its own
+  no-`DefaultAuthorizer` API + token-less entrypoint, slug→tenant allow-list, the five edge
+  controls, the readiness gate, and the record-is-authoritative posture. First instance = the
+  Member Application Form (`.kiro/specs/Members/application-app/`, D27/D17). Real seams:
+  `sam/members/handler/public_app.py` (edge), `sam/members/domain/tenant_directory.py` (allow-list
+  slug resolver), and `MembersPublicApi` + `MembersPublicFunction` in `sam/members/template.yaml`.
+  Recorded as a **companion to ADR 0007** (`docs/decisions/` — the public-unauthenticated-intake
+  ADR) alongside the per-tenant verified-sender dependency on the SNS-SES / SES Email Service spec.
