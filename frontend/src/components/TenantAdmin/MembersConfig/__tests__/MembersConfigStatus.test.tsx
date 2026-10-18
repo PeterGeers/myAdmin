@@ -25,7 +25,7 @@ describe('MembersConfigStatus', () => {
   it('shows Delivered with the loaded version for a non-null version', () => {
     render(
       <MembersConfigStatus
-        status={{ fields: '2026-10-12T09:00:00', scope: 3, views: null, mail: null }}
+        status={{ fields: '2026-10-12T09:00:00', scope: 3, mail: null }}
         lang="en"
       />,
     );
@@ -40,15 +40,15 @@ describe('MembersConfigStatus', () => {
   });
 
   it('shows Not yet delivered for a null version', () => {
-    render(<MembersConfigStatus status={{ views: null }} lang="en" />);
-    const views = screen.getByTestId('members-config-status-views');
-    expect(within(views).getByText('Not yet delivered')).toBeInTheDocument();
+    render(<MembersConfigStatus status={{ mail: null }} lang="en" />);
+    const mail = screen.getByTestId('members-config-status-mail');
+    expect(within(mail).getByText('Not yet delivered')).toBeInTheDocument();
   });
 
   it('skips a config id the module did not report at all', () => {
     render(<MembersConfigStatus status={{ fields: 1 }} lang="en" />);
     expect(screen.getByTestId('members-config-status-fields')).toBeInTheDocument();
-    // scope/views/mail were not in the map → not rendered.
+    // scope/mail were not in the map → not rendered.
     expect(screen.queryByTestId('members-config-status-scope')).not.toBeInTheDocument();
     expect(screen.queryByTestId('members-config-status-mail')).not.toBeInTheDocument();
   });

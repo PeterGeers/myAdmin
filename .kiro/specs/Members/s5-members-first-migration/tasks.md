@@ -127,7 +127,13 @@ listed (no manual-only ops).
 
 ### Step 5 — Module write path + workflow
 
-- [x] 5.0 Implement the lifecycle state machine + declarative rules (domain)
+- [x] 5.0 Implement the lifecycle state machine + declarative rules (domain) — **SUPERSEDED / RETIRED**
+  - **Superseded by `retire-members-status-lifecycle-engine`.** This built the membership
+    lifecycle engine (states/transitions from tenant config, declarative guards, the
+    `on_transition` side-effect hook). That engine was later **retired in full**: `status` is
+    now a plain tenant-driven OPEN enum (authored like `gender`) and a status change is an
+    ordinary member field edit — no state machine, graph, guards, transition routes, or
+    `on_transition` hook. See `.kiro/specs/Members/retire-members-status-lifecycle-engine`.
   - Build `MembershipService` states/transitions from tenant **config**; evaluate
     declarative guards; run side-effects via the `on_transition` hook. Tenant-agnostic core.
   - _Requirements: R1.4, R4.2 (C2, Property 5)_
@@ -139,6 +145,10 @@ listed (no manual-only ops).
   - _Requirements: R4.3 (C5, Property 5)_
 
 - [x] 5.2 Implement the WRITE routes (create/update/transition/delegates/memberships)
+  - **Partially superseded by `retire-members-status-lifecycle-engine`:** the two
+    status-**transition** write routes (single + bulk) were removed; status is now changed via
+    the ordinary `update_member`/`update_membership` field edit. The create/update/delegate/
+    membership write routes are unchanged.
   - Build the write routes on the tenant-scoped tables + verified auth, reusing h-dcn's
     workflow rules via config/rules/hooks. Enforce member-number uniqueness per tenant with
     DynamoDB **conditional writes**.

@@ -271,14 +271,20 @@ task is < 1 day, builds on the previous, and ends wired together. Legend:
     - _Requirements: R8.3, R7.7_
   - [x] 20.2 `[A]` Export (`GET /members/export` or client-side CSV of loaded rows).
     - _Requirements: R8.4_
-  - [x] 20.3 `[A]` Single transition →
-    `POST /members/{id}/memberships/{mid}/transition`; allowed targets from module response.
+  - [x] 20.3 `[A]` Single transition → `POST /members/{id}/memberships/{mid}/transition`;
+    allowed targets from module response. — **SUPERSEDED (`retire-members-status-lifecycle-engine`):**
+    the single-transition modal + route were removed; status is now a plain field edit in the
+    member edit modal.
     - _Requirements: R8.5_
   - [x] 20.4 `[A]` Bulk actions incl. bulk transition over selected rows →
-    `POST /memberships/transition`.
+    `POST /memberships/transition`. — **SUPERSEDED (`retire-members-status-lifecycle-engine`):**
+    the bulk-transition modal + route were removed. The row-selection checkbox column remains
+    but no longer drives a status-change action.
     - _Requirements: R8.6_
   - [x] 20.5 `[A]` Vitest + RTL + MSW: edit/add request bodies; dropdown active-only; delete
-    confirm→DELETE; single + bulk transition paths.
+    confirm→DELETE; ~~single + bulk transition paths~~ (transition tests removed with the
+    transition surface — `retire-members-status-lifecycle-engine`; status is covered via the
+    `updateMember` field-edit path).
     - _Requirements: R10.7, R10.1, R10.9_
 
 - [ ] 21. Checkpoint — all views/modals/actions wired + tested. Ensure all tests pass, ask

@@ -39,10 +39,6 @@ if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
 from sam.members.domain.analytics_set import AnalyticsSetValidationError
-from sam.members.domain.lifecycle_config import (
-    HDCN_LIFECYCLE_CONFIG,
-    StaticLifecycleConfigProvider,
-)
 from sam.members.domain.membership_service import (
     AnalyticsSetNotFound,
     MembershipService,
@@ -75,11 +71,10 @@ def hooks() -> TenantHookRegistry:
 
 @pytest.fixture()
 def service(repo, hooks) -> MembershipService:
+    # The lifecycle engine is retired (retire-members-status-lifecycle-engine): the service
+    # no longer takes a `lifecycle_provider`. Analytics-set CRUD never depended on it.
     return MembershipService(
         repo,
-        lifecycle_provider=StaticLifecycleConfigProvider(
-            {"h-dcn": HDCN_LIFECYCLE_CONFIG}
-        ),
         tenant_hooks=hooks,
     )
 
@@ -912,9 +907,7 @@ class TestColumnPreferencesScopeDimensionOverlay:
         return MembershipService(
             repo,
             overlay_provider=StaticOverlayProvider({"h-dcn": overlay}),
-            lifecycle_provider=StaticLifecycleConfigProvider(
-                {"h-dcn": HDCN_LIFECYCLE_CONFIG}
-            ),
+            # Lifecycle engine retired (retire-members-status-lifecycle-engine): no lifecycle_provider.
             tenant_hooks=hooks,
             scope_config_provider=StaticScopeConfigProvider(
                 {"h-dcn": region_dimensions}

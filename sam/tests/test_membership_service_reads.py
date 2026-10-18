@@ -126,6 +126,19 @@ class FakeMembersRepository:
     def deactivate_membership_type(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 
+    # Public-application session de-dup (application-app task 2.1) — part of the Protocol but
+    # unused by the READ surface these tests cover, so stubbed like the other write members.
+    def claim_application_session(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    def get_application_session_member(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
+    # Duplicate-flag name+DOB lookup (application-app task 2.5, D25) — part of the Protocol but
+    # unused by the READ surface these tests cover, so stubbed like the other write members.
+    def query_by_name_dob(self, *a, **k):  # pragma: no cover
+        raise NotImplementedError
+
     def get_analytics_set(self, *a, **k):  # pragma: no cover
         raise NotImplementedError
 

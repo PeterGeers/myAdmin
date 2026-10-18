@@ -1,0 +1,90 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. **H1. Align the projection convergence property test to the content-driven write gate (or fix a real convergence defect).** [M]": [
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792278485720
+      },
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792278494038
+      },
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792317738312
+      }
+    ],
+    "2. **H2. Update the two `MembersConfig` status-banner tests for the retired `view_contexts`.** [S]": [
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792278485878
+      },
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792278501647
+      },
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792317740194
+      }
+    ],
+    "3. **H3. `ruff format` the two PR #121 files (CI-blocking).** [S]": [
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792278485966
+      },
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792278507567
+      },
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792317741605
+      }
+    ],
+    "4. **L1. Add `ruff format --check` to the backend pre-commit hook (prevent recurrence of H3).** [S] — optional hardening.": [
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792278486048
+      },
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792278513920
+      },
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792317743282
+      }
+    ],
+    "5. **L2. Do not promote `test -> main` until the Full Test Suite is green on `test`.** [S] — release gate (steering 43).": [
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792278486167
+      },
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792317805088
+      },
+      {
+        "executionId": "f2d34755-1adc-4c20-948d-3a3fe7cb5734",
+        "chatSessionId": "sess_92f07dc8-7bb4-4774-9228-a3a2f7b0442d",
+        "timestamp": 1792318427501
+      }
+    ]
+  }
+}

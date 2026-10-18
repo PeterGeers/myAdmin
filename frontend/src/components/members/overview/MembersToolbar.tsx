@@ -2,10 +2,13 @@
  * Members Overview — header toolbar (title + global search + primary actions).
  * Extracted from `pages/MembersPage.tsx` during the file-length split
  * (code-quality-fixes 2026-10-15, task 6) with ZERO behaviour change: the
- * header `Flex`, the inline global search, the conditional bulk-transition
- * action, the column-chooser button, the admin-gated export action, and the
- * add action are moved verbatim. All state + handlers are owned by the page and
- * passed in as props.
+ * header `Flex`, the inline global search, the column-chooser button, the
+ * admin-gated export action, and the add action are moved verbatim. All state +
+ * handlers are owned by the page and passed in as props.
+ *
+ * The bulk "change status" affordance was removed when the membership lifecycle
+ * engine was retired (see spec retire-members-status-lifecycle-engine): status
+ * is now an ordinary enum field edited via the member edit modal.
  */
 
 import React from 'react';
@@ -13,15 +16,13 @@ import {
   Flex, Text, Button, HStack,
   Input, InputGroup, InputLeftElement, InputRightElement, IconButton,
 } from '@chakra-ui/react';
-import { AddIcon, DownloadIcon, RepeatIcon, SearchIcon, CloseIcon, SettingsIcon } from '@chakra-ui/icons';
+import { AddIcon, DownloadIcon, SearchIcon, CloseIcon, SettingsIcon } from '@chakra-ui/icons';
 
 export interface MembersToolbarProps {
   t: (key: string, opts?: Record<string, unknown>) => string;
   loading: boolean;
   globalSearch: string;
   setGlobalSearch: (value: string) => void;
-  selectedCount: number;
-  onBulkOpen: () => void;
   onColumnChooserOpen: () => void;
   canExport: boolean;
   onExport: () => void;
@@ -33,8 +34,6 @@ export const MembersToolbar: React.FC<MembersToolbarProps> = ({
   loading,
   globalSearch,
   setGlobalSearch,
-  selectedCount,
-  onBulkOpen,
   onColumnChooserOpen,
   canExport,
   onExport,
@@ -78,19 +77,6 @@ export const MembersToolbar: React.FC<MembersToolbarProps> = ({
             </InputRightElement>
           )}
         </InputGroup>
-      )}
-      {/* Bulk transition action (task 20.4, R8.6) — appears only when ≥1 row
-          is selected; opens the bulk-transition modal over the selection. */}
-      {selectedCount > 0 && (
-        <Button
-          size="sm"
-          leftIcon={<RepeatIcon />}
-          colorScheme="orange"
-          variant="ghost"
-          onClick={onBulkOpen}
-        >
-          {t('bulkTransition.barLabel', { count: selectedCount })}
-        </Button>
       )}
       {/* Column chooser action (session-columns task 4.1, R1/C2). */}
       <Button

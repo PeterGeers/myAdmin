@@ -97,6 +97,17 @@ CONFIG_ID_SCOPE = "scope"
 CONFIG_ID_FIELDS = "fields"
 CONFIG_ID_MAIL = "mail"
 
+#: RETIRED ``config#<id>`` sub-config id (Phase 2 step (d), R2.6). ``config#views``
+#: carried the Members named column-layouts (``view_contexts``); the only value that
+#: survived (``page_size``) was re-homed to the ``default_page_size`` scalar on
+#: ``config#fields`` and the builder was removed, so the sync NO LONGER emits this row.
+#: It is retained here ONLY as a named target for the projection-residue cleanup
+#: (:meth:`ProjectionSync.delete_config_views_residue`) that deletes any stored
+#: ``config#views`` row left over from before retirement — because ``config#*`` rows are
+#: upsert-only (the ``scopegrant#…`` reconcile does not sweep them), an orphaned row would
+#: otherwise persist forever. Do NOT add this id to any builder.
+CONFIG_ID_VIEWS = "views"
+
 #: Per-user scope-grant rows (S5b design.md C1 "New projected record types").
 #: Two id parts, ``<email>`` then ``<dimension>`` (per-user, so an email segment
 #: is present), yielding ``scopegrant#<email>#<dimension>``. Assembled/parsed

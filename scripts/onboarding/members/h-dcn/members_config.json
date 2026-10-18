@@ -172,10 +172,7 @@
       },
       "membership.member_number": {
         "functional_group": "membership",
-        "format": {
-          "regex": "^(M\\d{5}|D\\d{5}|C\\d{5})$"
-        },
-        "_comment": "member_number is the AUTHORITATIVE 'SAM Code' read verbatim from the sheet (SAM Code identity change, user-approved): a Member 'M#####', a Donateur 'D#####', or a Contact 'C#####' - all one letter + exactly 5 digits. Was ^(M\\d{5}|C_.+)$ (M-member OR C_<name>-contact) before the SAM Code column supplied a uniform 5-digit code for all three. RE-RUN seed-hdcn-members-config.py to push this into MySQL members.field_overlay. Regex wins over prefix/width in MemberNumberFormat."
+        "_comment": "member_number carries NO code-level format check (deliberate policy decision): the early strict logic and the later M[0-9]{5} regex were BOTH retired — member_number is validated MANUALLY by the user only. The only platform data-entry checks are the EMAIL and IBAN FieldFormat checkers (sam/members/domain/field_formats.py); there is no member_number checker. A stale 'format: {regex: ...}' was removed here because the FieldFormat validator requires a known 'checker' token (EMAIL/IBAN) and rejected it at Save. member_number stays an optional free string; the h-dcn IMPORT still checks its own _MEMBER_NUMBER_FORMAT_RE in hdcn_backfill.py (import-time data-gap guard), independent of this config."
       }
     },
     "fields": {

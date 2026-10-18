@@ -1,12 +1,11 @@
 """Membership-service shared vocabulary (M1 split): module-level constants,
-exception types, the ``TransitionResult`` dataclass, and the ``_as_field_error``
-coercion helper. Extracted verbatim from ``membership_service.py`` so every mixin
-sub-module and the facade import ONE canonical copy (no behaviour change).
+exception types, and the ``_as_field_error`` coercion helper. Extracted verbatim from
+``membership_service.py`` so every mixin sub-module and the facade import ONE canonical copy
+(no behaviour change).
 """
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping
 from typing import Any
 
 from sam.members.domain.error_codes import (
@@ -15,10 +14,6 @@ from sam.members.domain.error_codes import (
 )
 from sam.members.domain.fixed_fields import (
     FieldGroup,
-    MembershipStatus,
-)
-from sam.members.repository.members_repository import (
-    Member,
 )
 
 
@@ -161,35 +156,6 @@ class ScheduleNotFound(Exception):
         )
 
 
-class TransitionDenied(Exception):
-    """Raised when a membership transition is not permitted (design C2 — never a silent allow).
-
-    A transition is denied when it is not declared in the tenant's lifecycle graph, or when
-    one or more declarative guards fail, or when the tenant has no lifecycle config at all.
-    ``reasons`` carries the human-readable cause(s) so the write route (task 5.2) / edge can
-    surface them (mapped to a 409/422). A denied transition NEVER mutates the member or fires
-    the ``on_transition`` hook.
-    """
-
-    def __init__(
-        self,
-        tenant_id: str,
-        from_state: MembershipStatus | None,
-        to_state: MembershipStatus,
-        reasons: Sequence[str],
-    ):
-        self.tenant_id = tenant_id
-        self.from_state = from_state
-        self.to_state = to_state
-        self.reasons = tuple(reasons)
-        frm = getattr(from_state, "value", from_state)
-        to = getattr(to_state, "value", to_state)
-        detail = "; ".join(self.reasons) or "transition not allowed"
-        super().__init__(
-            f"transition {frm!r} -> {to!r} denied for tenant {tenant_id!r}: {detail}"
-        )
-
-
 class MemberValidationError(Exception):
     """Raised when a member write fails validation (fixed-field OR tenant ``validate_member``).
 
@@ -224,22 +190,4 @@ class ScopeDenied(Exception):
     def __init__(self, tenant_id: str, message: str = "write outside allowed scope"):
         self.tenant_id = tenant_id
         super().__init__(f"{message} (tenant {tenant_id!r}, Property 4)")
-
-
-@dataclass(frozen=True)
-class TransitionResult:
-    """The outcome of a PERMITTED transition COMPUTATION (design C2 — the pure decision).
-
-    This is what :meth:`MembershipService.transition_membership` returns on success: the
-    ``from_state`` / ``to_state`` and the ``member`` record with its ``membership.status``
-    updated to the new state. It is a **computation**, not a persist — the state machine
-    decides + dispatches the ``on_transition`` hook here, and the WRITE route (task 5.2) is
-    responsible for saving the returned ``member`` via the repository (see the persist-boundary
-    note on :meth:`MembershipService.transition_membership`).
-    """
-
-    tenant_id: str
-    member: Member
-    from_state: MembershipStatus
-    to_state: MembershipStatus
 

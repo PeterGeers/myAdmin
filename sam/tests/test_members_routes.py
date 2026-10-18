@@ -58,7 +58,9 @@ def test_route_map_covers_eighteen_behaviours_total():
     # routes (mail-spec task 3.2 — GET /members/mail-runs list + GET /members/mail-runs/{run_id})
     # = 49, plus the send-run manual-DELETE route (mail-spec task 3.3, R9.6 retention —
     # DELETE /members/mail-runs/{run_id}) = 50.
-    assert len(ROUTES) == 50
+    # MINUS the two retired membership-transition routes (retire-members-status-lifecycle-engine:
+    # transition_membership + bulk_transition_memberships; status is a plain field edit now) = 48.
+    assert len(ROUTES) == 48
 
 
 def test_route_map_groups_match_the_design_c1_counts():
@@ -68,7 +70,9 @@ def test_route_map_groups_match_the_design_c1_counts():
     # list: get+save, R11.2; column preferences: get+save, session-columns R6; stored mail
     # templates: create+list+get+update+delete, pivot-output-actions R2 task 2.3).
     assert len(routes_by_group(RouteGroup.MEMBER)) == 9
-    assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 7
+    # Membership lifecycle is 5 after the two transition routes were retired
+    # (retire-members-status-lifecycle-engine): create + list + get + update + delete.
+    assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 5
     assert len(routes_by_group(RouteGroup.DELEGATE)) == 2
     assert len(routes_by_group(RouteGroup.PAYMENT)) == 1
     assert len(routes_by_group(RouteGroup.CATALOG)) == 5
@@ -102,8 +106,8 @@ def test_route_map_includes_each_named_behaviour():
         "get_membership",
         "update_membership",
         "delete_membership",
-        "transition_membership",
-        "bulk_transition_memberships",
+        # (transition_membership + bulk_transition_memberships retired --
+        #  retire-members-status-lifecycle-engine)
         # delegates
         "manage_delegates",
         "send_delegate_invitation",
@@ -198,9 +202,11 @@ def test_resolve_item_get_extracts_member_id_path_param(router):
 
 
 def test_resolve_nested_path_extracts_all_params(router):
-    match = router.resolve("POST", "/members/M-1/memberships/MS-9/transition")
+    # The transition route was retired (retire-members-status-lifecycle-engine); the
+    # deepest surviving nested membership route still extracts BOTH path params.
+    match = router.resolve("GET", "/members/M-1/memberships/MS-9")
     assert isinstance(match, RouteMatch)
-    assert match.spec.name == "transition_membership"
+    assert match.spec.name == "get_membership"
     assert match.path_params == {"member_id": "M-1", "membership_id": "MS-9"}
 
 

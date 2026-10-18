@@ -157,7 +157,7 @@ def _error(
     ``errors``/``validation`` i18n namespaces (v1.0, steering `37`); the SPA maps it to localized
     NL/EN copy, with ``message`` (English) as the dev/last-resort fallback. ``params`` carries
     interpolation values for that copy. ``extra`` still carries the structured details the edge
-    already returns — ``errors`` (422 per-field) / ``reasons`` (409 transition denials).
+    already returns — e.g. ``errors`` (the 422 per-field array).
     """
     payload: dict[str, Any] = {"error": message}
     if code is not None:
@@ -187,26 +187,6 @@ def _field_errors_array(errors: Mapping[str, Any]) -> list[dict[str, Any]]:
     return array
 
 
-def _reasons_array(reasons: Any) -> list[dict[str, Any]]:
-    """Shape a :class:`TransitionDenied` ``reasons`` sequence into the RFC 9457 array (v1.0).
-
-    Each entry is ``{code, params?, detail}`` (no ``field`` — a transition denial is not tied to
-    one input field). Today the domain emits reasons as plain English strings (config-driven
-    guard messages), so each is wrapped under the shared ``errors.transition.denied`` code with
-    the string as ``detail``; a :class:`FieldError` reason (future) passes through via
-    ``as_entry``. Tolerant of a single string or a non-sequence.
-    """
-    if isinstance(reasons, (str, bytes)):
-        reasons = [reasons]
-    array: list[dict[str, Any]] = []
-    for reason in reasons or ():
-        if isinstance(reason, FieldError):
-            array.append(reason.as_entry())
-        else:
-            array.append({"code": "errors.transition.denied", "detail": str(reason)})
-    return array
-
-
 __all__ = [
     "_CORS_HEADERS",
     "AcceptedResult",
@@ -215,6 +195,5 @@ __all__ = [
     "_field_errors_array",
     "_json_default",
     "_parse_request",
-    "_reasons_array",
     "_response",
 ]

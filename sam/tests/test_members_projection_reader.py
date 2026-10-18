@@ -384,6 +384,182 @@ class TestGetOverlay:
 
 
 # ---------------------------------------------------------------------------
+# Public member-application attributes on config#fields (task 3.3, seam c)
+#
+# The four sibling keys a tenant authors per field for the public application form —
+# application_visible / application_required / application_choices / format{checker,params} —
+# are read back onto the overlay field (OverlayField) and the fixed-field override
+# (FixedFieldOverride). `format` DEGRADES to None on an unknown/malformed token (R7.3): a stray
+# token never crashes the field-config read, it is simply not enforced.
+#
+# Validates: Requirements R4.2, R4a, R4b, R7.1, R7.3
+# ---------------------------------------------------------------------------
+
+
+class TestOverlayApplicationAttributes:
+    def test_get_overlay_variable_field_carries_the_four_application_attrs(self):
+        """A projected overlay field carries all four application attributes 1:1 (D20)."""
+        table = FakeTable()
+        fields = {
+            "motor_type": {
+                "key": "motor_type",
+                "type": "enum",
+                "choices": ["BMW", "Honda", "Yamaha", "Internal"],
+                "application_visible": True,
+                "application_required": True,
+                "application_choices": ["BMW", "Honda", "Yamaha"],
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields, overrides={}))
+
+        reader = MembersProjectionReader(table=table)
+        field = reader.get_overlay("h-dcn").fields["motor_type"]
+
+        assert field.application_visible is True
+        assert field.application_required is True
+        assert field.application_choices == ("BMW", "Honda", "Yamaha")
+
+    def test_get_overlay_variable_field_application_attrs_default_off(self):
+        """An un-authored overlay field defaults OFF the public form, full choices (back-compat)."""
+        table = FakeTable()
+        fields = {"motor_type": {"key": "motor_type", "type": "string"}}
+        table.put(_config_fields_item("h-dcn", fields, overrides={}))
+
+        reader = MembersProjectionReader(table=table)
+        field = reader.get_overlay("h-dcn").fields["motor_type"]
+
+        assert field.application_visible is False
+        assert field.application_required is False
+        assert field.application_choices is None
+        assert field.format is None
+
+    def test_get_overlay_variable_field_carries_known_format(self):
+        """A projected `format` naming a KNOWN token round-trips to FieldFormat (R7.1)."""
+        table = FakeTable()
+        fields = {
+            "contact_email": {
+                "key": "contact_email",
+                "type": "string",
+                "format": {"checker": "EMAIL", "params": {"strict": True}},
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields, overrides={}))
+
+        reader = MembersProjectionReader(table=table)
+        fmt = reader.get_overlay("h-dcn").fields["contact_email"].format
+
+        assert fmt is not None
+        assert fmt.checker == "EMAIL"
+        assert dict(fmt.params) == {"strict": True}
+
+    def test_get_overlay_variable_field_unknown_format_token_degrades_to_none(self):
+        """An UNKNOWN checker token degrades to None — never raises, never enforced (R7.3)."""
+        table = FakeTable()
+        fields = {
+            "mystery": {
+                "key": "mystery",
+                "type": "string",
+                "format": {"checker": "NOT_A_REAL_CHECKER", "params": {}},
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields, overrides={}))
+
+        reader = MembersProjectionReader(table=table)
+        overlay = reader.get_overlay("h-dcn")  # must not raise
+
+        assert overlay.fields["mystery"].format is None
+
+    def test_get_overlay_variable_field_malformed_format_degrades_to_none(self):
+        """A malformed `format` (non-dict / missing checker) degrades to None (R7.3)."""
+        table = FakeTable()
+        fields = {
+            "a": {"key": "a", "type": "string", "format": "EMAIL"},           # not a dict
+            "b": {"key": "b", "type": "string", "format": {"params": {}}},    # no checker
+            "c": {"key": "c", "type": "string", "format": {"checker": ""}},   # empty checker
+            "d": {"key": "d", "type": "string", "format": {"checker": 7}},    # non-string checker
+        }
+        table.put(_config_fields_item("h-dcn", fields, overrides={}))
+
+        reader = MembersProjectionReader(table=table)
+        overlay = reader.get_overlay("h-dcn")  # must not raise
+
+        assert overlay.fields["a"].format is None
+        assert overlay.fields["b"].format is None
+        assert overlay.fields["c"].format is None
+        assert overlay.fields["d"].format is None
+
+    def test_get_overlay_known_format_non_mapping_params_degrades_to_empty(self):
+        """A known token with non-mapping params keeps the checker, drops params to {} (R7.3)."""
+        table = FakeTable()
+        fields = {
+            "iban": {
+                "key": "iban",
+                "type": "string",
+                "format": {"checker": "IBAN", "params": "nonsense"},
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields, overrides={}))
+
+        reader = MembersProjectionReader(table=table)
+        fmt = reader.get_overlay("h-dcn").fields["iban"].format
+
+        assert fmt is not None
+        assert fmt.checker == "IBAN"
+        assert dict(fmt.params) == {}
+
+    def test_get_overlay_override_carries_the_four_application_attrs(self):
+        """A fixed-field OVERRIDE carries the four application attrs (D20: on overrides too)."""
+        table = FakeTable()
+        overrides = {
+            "membership.membership_type": {
+                "application_visible": True,
+                "application_required": True,
+                "application_choices": ["student", "regular"],
+                "format": {"checker": "EMAIL"},
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        ov = reader.get_overlay("h-dcn").overrides["membership.membership_type"]
+
+        assert ov.application_visible is True
+        assert ov.application_required is True
+        assert ov.application_choices == ("student", "regular")
+        assert ov.format is not None
+        assert ov.format.checker == "EMAIL"
+
+    def test_get_overlay_override_application_attrs_absent_leave_base_as_is(self):
+        """An override touching none of the application attrs leaves them None (base as-is)."""
+        table = FakeTable()
+        overrides = {"personal.first_name": {"label": {"nl": "Voornaam"}}}
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        ov = reader.get_overlay("h-dcn").overrides["personal.first_name"]
+
+        assert ov.application_visible is None
+        assert ov.application_required is None
+        assert ov.application_choices is None
+        assert ov.format is None
+
+    def test_get_overlay_override_unknown_format_token_degrades_to_none(self):
+        """An override's unknown `format` token degrades to None — never raises (R7.3)."""
+        table = FakeTable()
+        overrides = {
+            "membership.membership_type": {
+                "format": {"checker": "BOGUS", "params": {}},
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        overlay = reader.get_overlay("h-dcn")  # must not raise
+
+        assert overlay.overrides["membership.membership_type"].format is None
+
+
+# ---------------------------------------------------------------------------
 # get_default_page_size — the Phase 2 step (a) pagination default on config#fields
 #
 # The per-context view_contexts.page_size re-homes to a SINGLE tenant-level

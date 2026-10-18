@@ -23,6 +23,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from .fixed_fields import (
     EnumOption,
+    FieldFormat,
     FieldType,
     MemberNumberFormat,
 )
@@ -30,6 +31,7 @@ from .fixed_fields import (
 __all__ = [
     "OVERLAY_GROUP",
     "FieldConfig",
+    "FieldFormat",
     "FieldOrigin",
     "FieldProvenance",
     "FieldScope",
@@ -122,6 +124,14 @@ class ResolvedField:
     visible: bool = True
     read_only: bool = False                                  # True for CALCULATED fields (derived, never stored)
     order: int = 0
+    # ── Public member-application attributes (D20; R4.2/R4a/R4b/R7.1) ──────────────────
+    # Carried onto the resolved field (from the overlay field / fixed-field override) the same
+    # way `member_number_format` is, so the public field-config read + create validator can emit
+    # and enforce them. Defaults keep a resolved field OFF the public form and back-compatible.
+    application_visible: bool = False                        # on the public application form? (R4.2/R4.3)
+    application_required: bool = False                       # required ON THE FORM (overlay-only, R4b)
+    application_choices: tuple[str, ...] | None = None       # enum application SUBSET (R4a); None → full set
+    format: FieldFormat | None = None                        # declarative field validator (R7.1); None → none
 
     def dotted_key(self) -> str:
         """Fully-qualified path of the field, e.g. ``personal.first_name`` / ``overlay.motor_type``."""
@@ -198,6 +208,16 @@ class OverlayField:
     show_when: Mapping[str, Any] | None = None
     visible: bool = True
     order: int = 0
+    #: ── Public member-application attributes (D20; R4.2/R4a/R4b/R7.1) ─────────────────
+    #: The four sibling keys a tenant authors per overlay field for the public application
+    #: form, carried 1:1 from the projected `config#fields` row (mirrors the existing
+    #: `options`/`choices`/`show_when` carries). Defaults keep a variable field OFF the public
+    #: form and back-compatible (no authoring → field absent from the form, full choices, not
+    #: application-required, no extra validator).
+    application_visible: bool = False                        # on the public application form? (R4.2/R4.3)
+    application_required: bool = False                       # required ON THE FORM (overlay-only, R4b)
+    application_choices: tuple[str, ...] | None = None       # enum application SUBSET (R4a); None → full set
+    format: FieldFormat | None = None                        # declarative field validator (R7.1); None → none
     #: Phase 3 step 9 (R2.1) — the SAM READ representation of scope-binding as a field
     #: attribute: when this field is authored as a scope axis, its scope config
     #: (:class:`FieldScope`); ``None`` otherwise. This is the authoring/read re-presentation
@@ -247,6 +267,16 @@ class FixedFieldOverride:
     show_when: Mapping[str, Any] | None = None   # per-field conditional visibility (R4.12)
     member_number_format: MemberNumberFormat | None = None  # only meaningful for member_number (task 1.4b)
     order: int | None = None
+    #: ── Public member-application attributes (D20; R4.2/R4a/R4b/R7.1) ─────────────────
+    #: The four sibling keys a tenant authors as a fixed-field OVERRIDE to put a platform fixed
+    #: field (e.g. a `membership_type` choice) on the public application form (D20: the attrs
+    #: ride on BOTH overlay fields and fixed-field overrides). ``None`` means "leave the base
+    #: value as-is" — consistent with every other override attribute — so an override that
+    #: touches none of these does not change a field's application behaviour.
+    application_visible: bool | None = None                  # put the fixed field on the form? (R4.2/R4.3)
+    application_required: bool | None = None                 # required ON THE FORM (overlay-only, R4b)
+    application_choices: tuple[str, ...] | None = None       # enum application SUBSET (R4a); None → full set
+    format: FieldFormat | None = None                        # declarative field validator (R7.1); None → none
     #: Phase 3 step 9 (R2.1) — the SAM READ representation of scope-binding as a field attribute
     #: on a FIXED field (e.g. ``region``). ``None`` when the fixed field is not re-presented as a
     #: scope axis. Read re-presentation only; scope RESOLUTION stays on ``config#scope`` /

@@ -57,8 +57,6 @@ export {
   deleteMember,
   exportMembers,
   createMembership,
-  transitionMembership,
-  bulkTransition,
   deliveryFromBackend,
   deliveryToBackend,
   listAnalyticsSets,
@@ -96,4 +94,7 @@ export {
 export {
   getFieldConfig,
   listMembershipTypes,
+  createMembershipType,
+  updateMembershipType,
+  deactivateMembershipType,
 } from './members/membersConfigApi';

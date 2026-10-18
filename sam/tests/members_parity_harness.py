@@ -35,8 +35,9 @@ check:
 3. **api_contract** — every one of h-dcn's ~18 handler behaviours has a corresponding route
    that answers with the expected shape/status; the harness emits a route-by-route parity
    checklist.
-4. **workflow** — h-dcn's lifecycle (application → pending → active ⇄ suspended, → lapsed,
-   → left) runs through the engine with h-dcn's declarative guards.
+4. **workflow** — a status change is an ORDINARY field edit (the lifecycle engine is
+   retired, retire-members-status-lifecycle-engine): status is a plain tenant-driven open
+   enum changed via update_membership, any value → any value, no graph/guards/transition route.
 
 THE PARITY REPORT
 -----------------
@@ -62,10 +63,6 @@ from enum import Enum
 from typing import Any
 
 from sam.members.domain.field_resolver import StaticOverlayProvider
-from sam.members.domain.lifecycle_config import (
-    HDCN_LIFECYCLE_CONFIG,
-    StaticLifecycleConfigProvider,
-)
 from sam.members.domain.membership_service import MembershipService
 from sam.members.domain.scope_dimensions import StaticScopeConfigProvider
 from sam.tests._scope_fixtures import SAMPLE_SCOPE_CONFIG
@@ -375,11 +372,10 @@ class MembersParityHarness:
             table=self.table, client=self.table.meta.client
         )
         self.hooks: TenantHookRegistry = register_hdcn_hooks(TenantHookRegistry())
+        # Lifecycle engine retired (retire-members-status-lifecycle-engine): the service no
+        # longer takes a `lifecycle_provider`; status is a plain tenant-driven open enum.
         self.service = MembershipService(
             self.repo,
-            lifecycle_provider=StaticLifecycleConfigProvider(
-                {tenant_id: HDCN_LIFECYCLE_CONFIG}
-            ),
             tenant_hooks=self.hooks,
         )
         # The standalone template service (R2) over the SAME repo (its *_template methods are
@@ -853,9 +849,10 @@ class MembersParityHarness:
         """Walk EVERY declared route group and confirm the migrated module answers.
 
         The route map is the union of h-dcn's ~18 handler behaviours + the new catalog group
-        (design C8). For each route the harness sends a representative request and records
-        whether the module answered with an expected status (never 404 "no such route" and
-        never 501 "not built"). Some behaviours (bulk transition edge cases, invitation
+        (design C8), MINUS the two retired membership-transition routes
+        (retire-members-status-lifecycle-engine). For each route the harness sends a
+        representative request and records whether the module answered with an expected status
+        (never 404 "no such route" and never 501 "not built"). Some behaviours (invitation
         delivery UX) are asserted at the "route answers" level and flagged MANUAL for the
         deeper hands-on review.
         """
@@ -970,7 +967,7 @@ class MembersParityHarness:
                 {},
                 "delete a member",
             ),
-            # ── Membership lifecycle (7 h-dcn behaviours) ──
+            # ── Membership lifecycle (5 h-dcn behaviours — transition routes retired) ──
             (
                 "create_membership",
                 "POST",
@@ -1012,16 +1009,6 @@ class MembersParityHarness:
                 "update a membership",
             ),
             (
-                "transition_membership",
-                "POST",
-                "/members/API-1/memberships/MS-1/transition",
-                {"to_state": "active"},
-                None,
-                {200, 409},
-                {},
-                "apply a guarded lifecycle transition",
-            ),
-            (
                 "delete_membership",
                 "DELETE",
                 "/members/API-1/memberships/MS-2",
@@ -1030,16 +1017,6 @@ class MembersParityHarness:
                 {200},
                 {},
                 "delete a membership",
-            ),
-            (
-                "bulk_transition_memberships",
-                "POST",
-                "/memberships/transition",
-                {"to_state": "left", "member_ids": ["API-1"]},
-                None,
-                {200},
-                {},
-                "bulk lifecycle transition",
             ),
             # ── Delegates (2 h-dcn behaviours) ──
             (
@@ -1527,90 +1504,70 @@ class MembersParityHarness:
 
     # ── Dimension 4: workflow (lifecycle end-to-end through the engine) ─────────────────
     def walk_workflow(self, report: ParityReport) -> None:
-        """Walk a representative member through h-dcn's full lifecycle via the engine.
+        """Walk a member's status change as an ORDINARY field edit (engine retired).
 
-        application → pending (approval flag) → active (member-number + contact guards) →
-        suspended → active → lapsed → left, with the declarative guards enforced (a guard
-        that fails denies the move with a 409 and does not mutate the record).
+        retire-members-status-lifecycle-engine (design §A/§F): the membership lifecycle state
+        engine is gone. ``status`` is now a plain, tenant-driven OPEN enum changed via an
+        ordinary ``update_membership`` (PUT) — ANY value → ANY value, with no transition
+        graph, guards, approval flag, or transition route. This dimension-4 walk therefore
+        proves exactly that: a status change the old graph forbade (e.g. ``active →
+        application``) now succeeds as a plain field edit and persists.
         """
         d = Dimension.WORKFLOW
         mid = "WF-1"
-        # Start at application (initial state) with the fields activation will require, plus
-        # a motor so the active-state validate_member hook passes. Seeded via the repository so
-        # the id "WF-1" is stable/addressable across the transition steps (the create ROUTE mints
-        # its own uuid — s5k); the lifecycle transitions below are what this dimension exercises.
+        # Seed a member + membership at an arbitrary starting status, addressable by "WF-1"
+        # (the create ROUTE mints its own uuid — s5k; the status edit below is what this
+        # dimension exercises).
         record = self.valid_member_body(
-            mid, region=self.region, member_number="W-1001", status="application"
+            mid, region=self.region, member_number="W-1001", status="active"
         )
         record["overlay"] = {**record.get("overlay", {}), "motor": "Honda CB500"}
         record["tenant_id"] = self.tenant_id
         self.repo.save_member(self.tenant_id, record)
-
-        def transition(to_state: str, context: Mapping[str, Any] | None = None) -> int:
-            payload: dict[str, Any] = {"to_state": to_state}
-            if context is not None:
-                payload["context"] = dict(context)
-            resp = self.call(
-                "POST", f"/members/{mid}/memberships/MS-1/transition", body=payload
-            )
-            return resp["statusCode"]
+        self.call(
+            "POST", f"/members/{mid}/memberships",
+            body={"membership_id": "MS-1", "status": "active"},
+        )
 
         def current_status() -> str | None:
-            m = self.repo.get_member(self.tenant_id, mid)
-            return (m or {}).get("membership", {}).get("status")
-
-        # A denied transition first: application→pending WITHOUT the approval flag → 409, and
-        # the state is not mutated (guard enforced).
-        denied = transition("pending")  # no context.approved
-        report.record(
-            d,
-            "application→pending denied without approval flag",
-            "transition_membership",
-            Outcome.PASS
-            if denied == 409 and current_status() == "application"
-            else Outcome.FAIL,
-            f"pending (unapproved) → {denied} (expected 409), state still {current_status()!r}",
-        )
-
-        # The happy path, step by step.
-        steps = [
-            (
-                "application→pending (approved)",
-                "pending",
-                {"approved": True},
-                "pending",
-            ),
-            ("pending→active (guards pass)", "active", None, "active"),
-            ("active→suspended", "suspended", None, "suspended"),
-            ("suspended→active", "active", None, "active"),
-            ("active→lapsed", "lapsed", None, "lapsed"),
-            ("lapsed→left (terminal)", "left", None, "left"),
-        ]
-        for label, to_state, ctx, expected_state in steps:
-            code = transition(to_state, ctx)
-            ok = code == 200 and current_status() == expected_state
-            report.record(
-                d,
-                label,
-                "transition_membership",
-                Outcome.PASS if ok else Outcome.FAIL,
-                f"{label} → {code} (expected 200), state now {current_status()!r}",
+            resp = self.call(
+                "GET", f"/members/{mid}/memberships/MS-1", groups=("Regio_All",)
             )
+            if resp["statusCode"] != 200:
+                return None
+            return self.data(resp).get("status")
 
-        # An undeclared edge (application→active directly) is denied — proven on a fresh member
-        # (seeded via the repository so "WF-2" is addressable; the create route mints its own id).
-        self._seed_member("WF-2", member_number="W-1002", status="application")
+        # A status change the OLD engine graph forbade (active → application, an undeclared
+        # "backwards" edge) is now an ordinary field edit via update_membership → 200, and the
+        # new value persists. No graph, no guard, no approval flag.
         resp = self.call(
-            "POST",
-            "/members/WF-2/memberships/MS-1/transition",
-            body={"to_state": "active"},
+            "PUT", f"/members/{mid}/memberships/MS-1", body={"status": "application"}
         )
         report.record(
             d,
-            "undeclared transition edge is denied",
-            "transition_membership",
-            Outcome.PASS if resp["statusCode"] == 409 else Outcome.FAIL,
-            f"application→active (undeclared) → {resp['statusCode']} (expected 409)",
+            "status change active→application is a plain field edit (no engine)",
+            "update_membership",
+            Outcome.PASS
+            if resp["statusCode"] == 200 and current_status() == "application"
+            else Outcome.FAIL,
+            f"PUT status active→application → {resp['statusCode']} (expected 200), "
+            f"status now {current_status()!r}",
+        )
+
+        # A tenant-authored status value the old CLOSED set rejected (e.g. "died"/Overleden) is
+        # accepted as a plain any→any edit — the open-enum behaviour the retirement delivers.
+        resp = self.call(
+            "PUT", f"/members/{mid}/memberships/MS-1", body={"status": "died"}
+        )
+        report.record(
+            d,
+            "status change to a tenant-authored value (open enum) succeeds",
+            "update_membership",
+            Outcome.PASS
+            if resp["statusCode"] == 200 and current_status() == "died"
+            else Outcome.FAIL,
+            f"PUT status → 'died' → {resp['statusCode']} (expected 200), "
+            f"status now {current_status()!r}",
         )
 
     # ── Orchestration ──────────────────────────────────────────────────────────────────

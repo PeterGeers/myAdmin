@@ -28,8 +28,8 @@ which the per-tenant *variable* overlay (``members.field_overlay``) is merged. T
 
 - the **canonical field keys** (the single source of truth for field names — no free strings
   scattered across handlers/repository), grouped and ordered, and
-- **validation** of a member's fixed data against those field definitions (required-ness, type,
-  and the closed membership-status enum),
+- **validation** of a member's fixed data against those field definitions (required-ness and
+  type; ``status`` is an OPEN enum validated as a non-blank string, like ``gender``),
 
 so the domain layer (and only the domain layer) is the authoritative validator; the React
 frontend renders the resolved config and is never trusted to enforce a rule.
@@ -37,9 +37,11 @@ frontend renders the resolved config and is never trusted to enforce a rule.
 R4.2 — **a Fixed field MAY have Parameter enum values.** ``gender`` and ``status`` are Fixed
 fields whose *value list* is tenant config (buckets 1/4 of design "Dropdown / enum fields"). The
 registry does NOT hardcode a tenant's vocabulary:
-- ``status`` uses the platform-canonical **closed** :class:`MembershipStatus` set (the platform
-  keeps its lifecycle state set; the tenant enum *values*/labels are config — task 2 leaves
-  ``MembershipStatus`` intact because it is imported across the lifecycle/hooks/handler layers).
+- ``status`` is an **OPEN** enum (``choices=None``), exactly like ``gender``: the tenant
+  supplies the authoritative value list via ``members.field_overlay``, so a tenant-authored
+  value (e.g. ``died``/"Overleden") survives save → projection → resolved config and
+  validates. The base only carries a minimal default-seed ``options`` list (incl.
+  ``application``, the create-time default) a fresh tenant may relabel/extend.
 - ``gender`` is a Fixed enum with **no baked-in choices** — its option list is tenant-supplied via
   ``members.field_overlay`` (so h-dcn's ``M/V/X/N`` is data, not a code constant). Until a tenant
   supplies choices the base leaves them open (any non-blank string).
@@ -88,12 +90,12 @@ __all__ = [
     "PERSONAL_FIELDS",
     "EnumOption",
     "FieldError",
+    "FieldFormat",
     "FieldGroup",
     "FieldType",
     "FieldValidationError",
     "FixedField",
     "MemberNumberFormat",
-    "MembershipStatus",
     "canonical_keys",
     "field_by_key",
     "option_values",
@@ -126,27 +128,6 @@ class FieldType(str, Enum):
     DATE = "date"          # ISO-8601 calendar date, YYYY-MM-DD
     ENUM = "enum"          # value must be one of ``FixedField.choices`` (None → open, tenant config)
     REFERENCE = "reference"  # a code that references another entity (e.g. catalog); shape-checked only
-
-
-class MembershipStatus(str, Enum):
-    """The closed membership-status enum (platform-fixed lifecycle state set).
-
-    Per the classification table ``status`` is a **Fixed (Parameter enum values)** field: the
-    platform keeps this closed state set; a tenant's enum *values*/labels are config. The
-    *transition graph* between these states is tenant **config** (design C2) — the registry only
-    fixes the set of legal status *values* every tenant shares.
-
-    NOTE: this enum is imported across ``lifecycle_config`` / ``transition_hooks`` /
-    ``tenant_hooks`` / ``handler/app`` / ``tenants/hdcn/hooks`` / ``hdcn_backfill`` — its values
-    MUST stay intact.
-    """
-
-    APPLICATION = "application"
-    PENDING = "pending"
-    ACTIVE = "active"
-    SUSPENDED = "suspended"
-    LAPSED = "lapsed"
-    LEFT = "left"
 
 
 # ── Enum options + value-level role gating (R4.11 / R4.12) ────────────────────────────
@@ -243,6 +224,30 @@ class MemberNumberFormat:
         return None
 
 
+@dataclass(frozen=True)
+class FieldFormat:
+    """A declarative, named field VALIDATOR attached to a field (R7.1, D16).
+
+    Generalizes the :class:`MemberNumberFormat` precedent from a single hardcoded constraint to
+    a config-driven one: instead of baking a checker into code, a field carries a ``checker``
+    token (a key into the platform-defined validator registry built in
+    :mod:`sam.members.domain.field_formats`, task 3.2 — e.g. ``EMAIL`` / ``IBAN``) plus optional
+    ``params`` the checker interprets. The attribute itself is pure DATA — it names a checker and
+    its parameters; it holds NO validation logic (the registry owns the callables). This keeps the
+    field model storage-agnostic exactly like ``MemberNumberFormat``.
+
+    Defaults to "no format" (``None`` on the field). ``params`` is a mapping the registered checker
+    reads (empty by default); ``checker`` is the registry token the platform defines (a tenant
+    picks a known token, it never authors code — R7.7). Conditionality is NOT expressed here: a
+    field's existing ``show_when`` governs whether the format runs (R7.4), so a hidden field is
+    neither required nor format-checked. Frozen because it is shared config, never mutated in
+    place.
+    """
+
+    checker: str
+    params: Mapping[str, Any] = field(default_factory=dict)
+
+
 #: The canonical dotted key of the member-number field (single source of truth).
 MEMBER_NUMBER_FIELD_KEY = "membership.member_number"
 
@@ -272,6 +277,15 @@ class FixedField:
     member_number_format: MemberNumberFormat | None = None  # only meaningful for member_number (task 1.4b)
     show_when: Mapping[str, Any] | None = None            # per-field conditional-visibility condition (R4.12)
     order: int = 0
+    # ── Public member-application attributes (D20; R4.2/R4a/R4b/R7.1) ──────────────────
+    # The four sibling attributes the public application form reads, carried the same way as
+    # `member_number_format` (pure data, authored in Flask → projected onto `config#fields`,
+    # read-only on the SAM plane). Defaults keep every existing field OFF the public form and
+    # back-compatible: a tenant that authors none of these is unaffected.
+    application_visible: bool = False                      # on the public application form? (R4.2/R4.3)
+    application_required: bool = False                     # required ON THE FORM (overlay-only, R4b)
+    application_choices: tuple[str, ...] | None = None     # enum application SUBSET (R4a); None → full set
+    format: FieldFormat | None = None                     # declarative field validator (R7.1); None → none
 
     def dotted_key(self) -> str:
         """Fully-qualified path of the field in the record, e.g. ``membership.status``."""
@@ -433,18 +447,22 @@ MEMBERSHIP_FIELDS: tuple[FixedField, ...] = (
         label={"nl": "Lidnummer", "en": "Member number"},
         order=10,
     ),
-    # status — Fixed field, **Parameter enum values** (R4.2). The platform keeps the closed
-    # MembershipStatus set; tenant labels/values are config. Choices are the canonical set here;
-    # the tenant may relabel/restrict via overlay without changing the platform state set.
+    # status — Fixed field, **Parameter enum values** (R4.2): an OPEN enum, exactly like
+    # `gender`. `choices=None` means the tenant supplies the authoritative value list via
+    # `members.field_overlay`; a tenant-authored value (e.g. `died`/"Overleden") survives
+    # save → projection → resolved config and validates, with no platform-closed state set.
+    # The `options` below are only a minimal DEFAULT SEED (sensible starting values incl.
+    # `application`, the create-time default) a fresh tenant can relabel/extend — they are
+    # seed DATA, not a validation gate.
     FixedField(
         key="status",
         group=FieldGroup.MEMBERSHIP,
         type=FieldType.ENUM,
         required=True,
-        choices=tuple(s.value for s in MembershipStatus),
-        # Rich options (R4.11): the platform-canonical closed lifecycle set with {nl,en} labels.
-        # No `roles` restriction on any status option in the base (a tenant may add gating via
-        # overlay); frontend renders these labels, the domain still validates against `choices`.
+        choices=None,  # open enum — tenant supplies the value list via members.field_overlay
+        # Minimal default-seed options (R4.11) with {nl,en} labels: sensible starting status
+        # values a new tenant may relabel/extend. No `roles` restriction in the base; the
+        # resolved tenant field (its overlay choices) enforces membership downstream.
         options=(
             EnumOption(value="application", label={"nl": "Aanmelding", "en": "Application"}),
             EnumOption(value="pending", label={"nl": "In behandeling", "en": "Pending"}),
@@ -682,8 +700,8 @@ def validate_fixed_fields(
     - **required** fields must be present and non-null (unless ``partial=True``, used for
       update/patch flows where absent keys mean "leave unchanged");
     - present, non-null values must satisfy their field **type** (string non-blank; date
-      ISO-8601; status one of the closed :class:`MembershipStatus` enum; an OPEN enum a
-      non-blank string; reference a non-blank code);
+      ISO-8601; an OPEN enum like ``status``/``gender`` a non-blank string, with the resolved
+      tenant choices enforcing membership downstream; reference a non-blank code);
     - a ``None`` value clears an **optional** field (allowed) but fails a **required** one.
 
     Raises :class:`FieldValidationError` (with a key→reason map) if anything is invalid;
