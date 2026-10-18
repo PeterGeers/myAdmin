@@ -93,7 +93,7 @@ const FIELD_CONFIG: FieldConfig = {
     { key: 'personal', order: 1 },
     { key: 'motor', order: 2 },
   ],
-  config_status: { fields: '2026-10-12T09:00:00', scope: 3, views: null, mail: null },
+  config_status: { fields: '2026-10-12T09:00:00', scope: 3, mail: null },
 };
 
 function seed(rows: Record<string, Parameter> = { field_overlay: overlayRow }, cfg: FieldConfig | null = FIELD_CONFIG) {
@@ -129,7 +129,7 @@ describe('MembersConfigEditor — status banner', () => {
     await renderEditor();
     expect(screen.getByTestId('members-config-status')).toBeInTheDocument();
     expect(screen.getByTestId('members-config-status-fields-badge')).toHaveTextContent('Delivered');
-    expect(screen.getByTestId('members-config-status-views-badge')).toHaveTextContent('Not yet delivered');
+    expect(screen.getByTestId('members-config-status-mail-badge')).toHaveTextContent('Not yet delivered');
   });
 
   it('hides the banner when the field-config fetch fails (null)', async () => {

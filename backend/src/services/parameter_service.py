@@ -670,7 +670,8 @@ class ParameterService:
         keys_to_remove = [
             k
             for k in self._cache
-            if k[2] == namespace and (tenant is None or (k[0] == "tenant" and k[1] == tenant))
+            if k[2] == namespace
+            and (tenant is None or (k[0] == "tenant" and k[1] == tenant))
         ]
         for k in keys_to_remove:
             del self._cache[k]

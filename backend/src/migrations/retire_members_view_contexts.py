@@ -122,7 +122,9 @@ def migrate(db: DatabaseManager | None = None, dry_run: bool = True) -> dict:
         commit=True,
     )
     summary["deleted"] = int(deleted or 0)
-    logger.info("  OK deleted %d tenant members.view_contexts row(s).", summary["deleted"])
+    logger.info(
+        "  OK deleted %d tenant members.view_contexts row(s).", summary["deleted"]
+    )
 
     mode = "DRY RUN" if dry_run else "APPLIED"
     logger.info(

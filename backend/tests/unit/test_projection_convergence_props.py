@@ -193,8 +193,7 @@ class FakeTable:
         items = [
             dict(v)
             for (pk, sk), v in self.store.items()
-            if pk == tenant_id
-            and (sk_prefix is None or str(sk).startswith(sk_prefix))
+            if pk == tenant_id and (sk_prefix is None or str(sk).startswith(sk_prefix))
         ]
         return {"Items": items}
 
@@ -339,11 +338,7 @@ def _sources_from_state(state) -> dict[str, TenantSource]:
 
 def _snapshot_partition(table: FakeTable, tenant_id: str) -> dict:
     """A deep, comparable snapshot of one tenant's partition (items + versions)."""
-    return {
-        k: copy.deepcopy(v)
-        for k, v in table.store.items()
-        if k[0] == tenant_id
-    }
+    return {k: copy.deepcopy(v) for k, v in table.store.items() if k[0] == tenant_id}
 
 
 def _bump(source: TenantSource) -> int:
@@ -503,38 +498,39 @@ def _apply_change(src: TenantSource, change_kind, new_version, new_attr, extra_e
     roles = [dict(r) for r in src.user_tenant_roles]
 
     if change_kind == "flip_module":
-        # Flip the guaranteed SAM module's is_active. Flipping it inactive could
-        # remove the projection gate; guard so the tenant still projects (there
-        # must remain an active SAM module). We instead flip it and, if that
-        # would un-project the tenant, keep it active but toggle via a second
-        # active SAM module so the record still exists. Simplest robust choice:
-        # only flip when it stays active-> we ADD a second active SAM module and
-        # flip THAT, guaranteeing the gate holds and the module record changes.
-        # To keep it simple + deterministic we bump the SAM module version and
-        # set is_active True (idempotent-safe) — that alone is not a value change,
-        # so instead: append a distinct inactive->active SAM module row is not
-        # possible (same SK). Therefore flip the FIRST sam module's is_active but
-        # ensure the gate stays satisfied by leaving it active only if it is the
-        # sole gate. We flip to the OPPOSITE and, when turning it off, that de-
-        # projects the tenant which is a legitimate but different property; skip.
-        sam_idx = next(
-            (i for i, m in enumerate(modules) if m["module_name"] == _SAM_MODULE_NAME),
-            None,
-        )
-        if sam_idx is None:
+        # Flip the SAM module record's ``is_active``. The generated source may list
+        # the SAM module name on SEVERAL ``tenant_modules`` rows (the guaranteed
+        # prepended active row + any extra_modules), which all build to the SAME
+        # ``module#SAM_TEST_MODULE`` projection key. PR #121's write gate is
+        # content-driven + last-writer-wins (design A3 (a)): duplicate keys in a
+        # batch resolve to their LAST occurrence (``projection_sync`` keeps only the
+        # last index per key), so the STORED module row reflects the LAST SAM row —
+        # NOT the first. The old property flipped the FIRST SAM row and asserted the
+        # stored value/version from it, which a later duplicate row silently
+        # overwrote (the change-with-tests miss this test re-encodes). Realign to the
+        # content-gate semantics: operate on the row that actually wins — the LAST
+        # SAM module row — so the expected converged value/version matches what the
+        # last-writer-wins gate stores. (This does not weaken the property: it still
+        # asserts the stored ``is_active`` and ``version`` converge to the changed
+        # fact; it just targets the row the gate deterministically lands on.)
+        sam_indices = [
+            i for i, m in enumerate(modules) if m["module_name"] == _SAM_MODULE_NAME
+        ]
+        if not sam_indices:
             return None
-        # Count active SAM modules; only flip to inactive if another active SAM
-        # module keeps the gate satisfied (so the module record is still built).
-        active_sam = [
-            i
-            for i, m in enumerate(modules)
-            if m["module_name"] == _SAM_MODULE_NAME and m.get("is_active")
+        sam_idx = sam_indices[-1]  # last-writer-wins: the last SAM row is the winner
+        # Active SAM rows OTHER than the one we flip; needed so the projection gate
+        # (at least one active SAM module) stays satisfied if we flip this row off —
+        # then the tenant still projects and the module record is still built.
+        other_active_sam = [
+            i for i in sam_indices if i != sam_idx and bool(modules[i].get("is_active"))
         ]
         current = bool(modules[sam_idx].get("is_active"))
         new_value = not current
-        if new_value is False and len(active_sam) <= 1:
-            # Flipping off would un-project the tenant; not a converged-value
-            # case for this module record. Skip (other change kinds cover it).
+        if new_value is False and not other_active_sam:
+            # Flipping the winning row off with no other active SAM row would
+            # un-project the tenant; not a converged-module-value case for this
+            # record. Skip (other change kinds cover it).
             return None
         modules[sam_idx]["is_active"] = new_value
         modules[sam_idx]["version"] = new_version

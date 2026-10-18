@@ -100,4 +100,79 @@ if [ "$status" -ne 0 ]; then
 fi
 
 echo "pre-commit: DB-access guards passed."
+
+# ---------------------------------------------------------------------------
+# ruff-format guard (Req: prevent recurrence of the 2026-10-17 H3 CI-blocking
+# format drift). The authoritative backend CI gate runs
+#   ruff format --check src/ --exclude src/validate_pattern/
+# from backend/ and BLOCKS the Full Test Suite on drift (full-test-suite.yml).
+# A format-only drift should be caught here locally, not at the CI gate.
+#
+# Scope: STAGED backend/** + sam/** Python files only — mirroring the staged-
+# file scoping of the DB-access guards above. A whole-tree `ruff format --check
+# backend/ sam/` is deliberately NOT used: the existing tree is not uniformly
+# ruff-formatted (notably sam/, whose CI check is non-blocking `|| true`), so a
+# whole-tree check would reject nearly every commit. Checking only the files a
+# commit introduces catches drift like the two PR #121 files without drowning in
+# pre-existing debt, and stays fast (pure formatter check, no network).
+#
+# Honours each tree's CI config: src/validate_pattern/ is excluded (matches the
+# backend CI --exclude); sam/ files are checked with sam's resolved config.
+# Bypassable with `git commit --no-verify` by design (fast local feedback only).
+# ---------------------------------------------------------------------------
+
+# Resolve a ruff binary: prefer the backend venv (matches $PY above), else PATH.
+RUFF=""
+if [ -x "$REPO_ROOT/backend/.venv/bin/ruff" ]; then
+    RUFF="$REPO_ROOT/backend/.venv/bin/ruff"
+elif command -v ruff >/dev/null 2>&1; then
+    RUFF="ruff"
+fi
+
+if [ -n "$RUFF" ]; then
+    # Partition the staged python into backend/** and sam/** (each uses the
+    # exclude/config its CI gate uses). backend/src/validate_pattern/ is dropped
+    # to match the backend CI --exclude.
+    backend_fmt=""
+    sam_fmt=""
+    for f in $staged_py; do
+        [ -f "$REPO_ROOT/$f" ] || continue
+        case "$f" in
+            backend/src/validate_pattern/*) : ;;  # excluded by backend CI
+            backend/*) backend_fmt="$backend_fmt $f" ;;
+        esac
+    done
+    # sam/** python is not in $staged_py (that globs backend/**); collect it too.
+    staged_sam_py=$(git diff --cached --name-only --diff-filter=ACM -- 'sam/**/*.py')
+    for f in $staged_sam_py; do
+        [ -f "$REPO_ROOT/$f" ] || continue
+        sam_fmt="$sam_fmt $f"
+    done
+    backend_fmt=$(echo "$backend_fmt" | xargs)
+    sam_fmt=$(echo "$sam_fmt" | xargs)
+
+    fmt_status=0
+    if [ -n "$backend_fmt" ]; then
+        if ! (cd "$REPO_ROOT" && "$RUFF" format --check $backend_fmt); then
+            fmt_status=1
+        fi
+    fi
+    if [ -n "$sam_fmt" ]; then
+        if ! (cd "$REPO_ROOT/sam" && "$RUFF" format --check --config "$REPO_ROOT/backend/ruff.toml" $sam_fmt); then
+            fmt_status=1
+        fi
+    fi
+
+    if [ "$fmt_status" -ne 0 ]; then
+        echo "" >&2
+        echo "pre-commit: ruff-format drift in staged file(s) — commit blocked." >&2
+        echo "  Fix with:  ruff format $backend_fmt $sam_fmt" >&2
+        echo "  Then 're-stage' and commit again, or bypass with 'git commit --no-verify'." >&2
+        exit 1
+    fi
+    echo "pre-commit: ruff-format check passed."
+else
+    echo "pre-commit: ruff not found — skipping format check (install ruff in backend/.venv)." >&2
+fi
+
 exit 0
