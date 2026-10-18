@@ -71,7 +71,7 @@ Change-with-tests applies throughout.
   - [x] 4.1 Run the frontend vitest suite (incl. the new service/surface/field-editor tests) — green.
   - [x] 4.2 Run the build typecheck (`tsc -b`) — green (watch for the known pre-existing unrelated
     typecheck errors; do not let this task mask them).
-  - [~] 4.3 Manual smoke on `test`: create a type (appears in the member dropdown), edit its label,
+  - [x] 4.3 Manual smoke on `test`: create a type (appears in the member dropdown), edit its label,
     retire it (disappears from the dropdown but stays in the management list). No SAM deploy needed.
   - _Requirements: 4.2, 4.3_
 
