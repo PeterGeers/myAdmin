@@ -138,9 +138,12 @@ class SESEmailService:
 
             return {"success": False, "error": f"{error_code}: {error_msg}"}
 
-        except Exception as e:
-            logger.error(f"Unexpected error sending email to {to_email}: {e}")
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Unexpected error sending email to %s", to_email)
+            return {
+                "success": False,
+                "error": "Failed to send email. Please try again later.",
+            }
 
     def send_invitation(
         self,
@@ -297,8 +300,11 @@ class SESEmailService:
 
             return {"success": False, "error": f"{error_code}: {error_msg}"}
 
-        except Exception as e:
-            logger.error(
-                f"Unexpected error sending email with attachments to {to_email}: {e}"
+        except Exception:
+            logger.exception(
+                "Unexpected error sending email with attachments to %s", to_email
             )
-            return {"success": False, "error": str(e)}
+            return {
+                "success": False,
+                "error": "Failed to send email. Please try again later.",
+            }

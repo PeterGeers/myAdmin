@@ -160,9 +160,12 @@ class InvitationService:
                 "expiry_days": self.invitation_expiry_days,
             }
 
-        except Exception as e:
-            logger.error(f"Error creating invitation: {e}")
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Error creating invitation")
+            return {
+                "success": False,
+                "error": "An internal error occurred. Please try again later.",
+            }
 
     def mark_invitation_sent(self, administration: str, email: str) -> bool:
         """

@@ -1,6 +1,14 @@
+import logging
+
 from database import DatabaseManager
 from db_exceptions import DatabaseError
 from dialect_helpers import dialect
+
+logger = logging.getLogger(__name__)
+
+# Generic, caller-safe message returned instead of raw exception text; the full
+# exception is logged server-side (CodeQL py/stack-trace-exposure).
+_GENERIC_ERROR = "An internal error occurred. Please try again later."
 
 
 class STRDatabase(DatabaseManager):
@@ -290,8 +298,9 @@ class STRDatabase(DatabaseManager):
                 "summary": results,
             }
 
-        except DatabaseError as e:
-            return {"success": False, "error": str(e)}
+        except DatabaseError:
+            logger.exception("STR database error")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def _ensure_bnbfuture_structure(self):
         """Ensure bnbfuture table has proper AUTO_INCREMENT id field"""
@@ -536,8 +545,14 @@ class STRDatabase(DatabaseManager):
                 ],
             }
 
-        except DatabaseError as e:
-            return {"inserted": 0, "updated": 0, "updated_codes": [], "error": str(e)}
+        except DatabaseError:
+            logger.exception("STR database upsert error")
+            return {
+                "inserted": 0,
+                "updated": 0,
+                "updated_codes": [],
+                "error": _GENERIC_ERROR,
+            }
 
     def _upsert_airbnb_half(
         self,
@@ -729,13 +744,14 @@ class STRDatabase(DatabaseManager):
                 "planned_updated": planned_updated,
             }
 
-        except DatabaseError as e:
+        except DatabaseError:
+            logger.exception("STR database upsert error")
             return {
                 "realised_inserted": 0,
                 "realised_updated": 0,
                 "planned_inserted": 0,
                 "planned_updated": 0,
-                "error": str(e),
+                "error": _GENERIC_ERROR,
             }
 
     def get_unenriched_direct_codes(self, tenant: str) -> list[str]:

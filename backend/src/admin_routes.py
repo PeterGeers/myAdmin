@@ -30,6 +30,7 @@ from botocore.exceptions import ClientError
 
 from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_token
 from auth.cognito_utils import cognito_required
+from routes.error_responses import error_response
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin")
 
@@ -101,7 +102,7 @@ def list_users(user_email, user_roles):
         try:
             pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(e, "Admin operation failed", status=500)
 
         response = cognito_client.list_users(UserPoolId=pool_id, Limit=60)
 
@@ -142,7 +143,7 @@ def list_users(user_email, user_roles):
         return jsonify({"success": True, "users": users, "count": len(users)})
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Admin operation failed", status=500)
 
 
 @admin_bp.route("/users", methods=["POST"])
@@ -168,7 +169,7 @@ def create_user(user_email, user_roles):
         try:
             pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(e, "Admin operation failed", status=500)
 
         # Build user attributes
         user_attributes = [
@@ -210,7 +211,6 @@ def create_user(user_email, user_roles):
 
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
-        error_message = e.response["Error"]["Message"]
 
         if error_code == "UsernameExistsException":
             return jsonify(
@@ -224,7 +224,9 @@ def create_user(user_email, user_roles):
                 }
             ), 400
         else:
-            return jsonify({"success": False, "error": error_message}), 500
+            # Don't echo the raw AWS error message to the client
+            # (py/stack-trace-exposure) — log it server-side, return generic + id.
+            return error_response(e, "Admin operation failed", status=500)
 
 
 @admin_bp.route("/groups", methods=["GET", "OPTIONS"])
@@ -239,7 +241,7 @@ def list_groups(user_email, user_roles):
         try:
             pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(e, "Admin operation failed", status=500)
 
         response = cognito_client.list_groups(UserPoolId=pool_id, Limit=60)
 
@@ -262,7 +264,7 @@ def list_groups(user_email, user_roles):
         return jsonify({"success": True, "groups": groups, "count": len(groups)})
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Admin operation failed", status=500)
 
 
 @admin_bp.route("/users/<username>/groups", methods=["POST"])
@@ -279,7 +281,7 @@ def add_user_to_group(username, user_email, user_roles):
         try:
             pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(e, "Admin operation failed", status=500)
 
         cognito_client.admin_add_user_to_group(
             UserPoolId=pool_id, Username=username, GroupName=group_name
@@ -290,7 +292,7 @@ def add_user_to_group(username, user_email, user_roles):
         )
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Admin operation failed", status=500)
 
 
 @admin_bp.route("/users/<username>/groups/<group_name>", methods=["DELETE"])
@@ -301,7 +303,7 @@ def remove_user_from_group(username, group_name, user_email, user_roles):
         try:
             pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(e, "Admin operation failed", status=500)
 
         cognito_client.admin_remove_user_from_group(
             UserPoolId=pool_id, Username=username, GroupName=group_name
@@ -315,7 +317,7 @@ def remove_user_from_group(username, group_name, user_email, user_roles):
         )
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Admin operation failed", status=500)
 
 
 @admin_bp.route("/users/<username>/enable", methods=["POST"])
@@ -326,14 +328,14 @@ def enable_user(username, user_email, user_roles):
         try:
             pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(e, "Admin operation failed", status=500)
 
         cognito_client.admin_enable_user(UserPoolId=pool_id, Username=username)
 
         return jsonify({"success": True, "message": f"User {username} enabled"})
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Admin operation failed", status=500)
 
 
 @admin_bp.route("/users/<username>/disable", methods=["POST"])
@@ -344,14 +346,14 @@ def disable_user(username, user_email, user_roles):
         try:
             pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(e, "Admin operation failed", status=500)
 
         cognito_client.admin_disable_user(UserPoolId=pool_id, Username=username)
 
         return jsonify({"success": True, "message": f"User {username} disabled"})
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Admin operation failed", status=500)
 
 
 @admin_bp.route("/users/<username>", methods=["DELETE"])
@@ -362,14 +364,14 @@ def delete_user(username, user_email, user_roles):
         try:
             pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(e, "Admin operation failed", status=500)
 
         cognito_client.admin_delete_user(UserPoolId=pool_id, Username=username)
 
         return jsonify({"success": True, "message": f"User {username} deleted"})
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Admin operation failed", status=500)
 
 
 @admin_bp.route("/users/<username>/attributes", methods=["PUT"])
@@ -394,7 +396,7 @@ def update_user_attributes(username, user_email, user_roles):
             try:
                 pool_id = _resolve_pool_id()
             except PoolResolutionError as e:
-                return jsonify({"success": False, "error": str(e)}), 500
+                return error_response(e, "Admin operation failed", status=500)
 
             cognito_client.admin_update_user_attributes(
                 UserPoolId=pool_id,
@@ -407,4 +409,4 @@ def update_user_attributes(username, user_email, user_roles):
         )
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Admin operation failed", status=500)

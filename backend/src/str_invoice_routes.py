@@ -8,6 +8,7 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from utils.date_utils import normalize_dates
+from utils.path_security import is_within_base
 
 logger = logging.getLogger(__name__)
 
@@ -261,11 +262,29 @@ def generate_invoice(user_email, user_roles, tenant, user_tenants):
                 template_content = None
 
         if not template_content:
-            # Fallback: Load from filesystem
-            template_file = f"str_invoice_{language}_template.html"
-            template_path = os.path.join(
-                os.path.dirname(__file__), "..", "templates", "html", template_file
+            # Fallback: Load from filesystem.
+            # `language` is user-supplied (request body) and is interpolated into
+            # the template filename, so it must not be able to steer the path out
+            # of the templates dir. Reject anything outside the known language set
+            # up front, then confirm containment explicitly: canonicalize the
+            # resolved template path (realpath resolves ../ traversal + symlinks)
+            # and require it to stay inside the templates/html base dir before the
+            # open() sink runs (CodeQL py/path-injection).
+            if language not in ("nl", "en"):
+                logger.warning(f"Rejected unsupported invoice language: {language!r}")
+                return jsonify({"success": False, "error": "Unsupported language"}), 400
+
+            templates_base = os.path.join(
+                os.path.dirname(__file__), "..", "templates", "html"
             )
+            template_file = f"str_invoice_{language}_template.html"
+            template_path = os.path.join(templates_base, template_file)
+
+            if not is_within_base(template_path, templates_base):
+                logger.warning(
+                    f"Rejected out-of-base template path for language {language!r}"
+                )
+                return jsonify({"success": False, "error": "Template not found"}), 500
 
             if not os.path.exists(template_path):
                 logger.error(f"Template not found: {template_path}")
