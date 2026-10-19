@@ -10,6 +10,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from routes.error_responses import error_response
 from services.year_end_config import YearEndConfigService
 
 year_end_config_bp = Blueprint("year_end_config", __name__)
@@ -52,7 +53,7 @@ def validate_tenant_config(
         ), 200
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Year-end config request failed", status=500)
 
 
 @year_end_config_bp.route("/api/tenant-admin/year-end-config/purposes", methods=["GET"])
@@ -80,7 +81,7 @@ def get_tenant_purposes(
         ), 200
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Year-end config request failed", status=500)
 
 
 @year_end_config_bp.route(
@@ -120,7 +121,7 @@ def set_tenant_account_purpose(
         return jsonify({"success": True, "message": message}), 200
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Year-end config request failed", status=500)
 
 
 @year_end_config_bp.route(
@@ -153,7 +154,7 @@ def get_tenant_available_accounts(
         return jsonify({"success": True, "accounts": accounts}), 200
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Year-end config request failed", status=500)
 
 
 # ============================================================================
@@ -190,7 +191,7 @@ def get_vat_netting_config(
         ), 200
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Year-end config request failed", status=500)
 
 
 @year_end_config_bp.route("/api/year-end-config/vat-netting", methods=["POST"])
@@ -239,7 +240,7 @@ def configure_vat_netting(
         ), 200
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Year-end config request failed", status=500)
 
 
 @year_end_config_bp.route("/api/year-end-config/vat-netting", methods=["DELETE"])
@@ -261,7 +262,7 @@ def remove_vat_netting(
         ), 200
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Year-end config request failed", status=500)
 
 
 @year_end_config_bp.route(
@@ -283,4 +284,4 @@ def get_balance_sheet_accounts(
         return jsonify({"success": True, "accounts": accounts}), 200
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Year-end config request failed", status=500)

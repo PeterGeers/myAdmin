@@ -13,6 +13,7 @@ from auth.tenant_context import tenant_required
 from btw_processor import BTWProcessor
 from database import DatabaseManager
 from mutaties_cache import get_cache
+from routes.error_responses import error_response
 from services.template_service import TemplateService
 from toeristenbelasting_processor import ToeristenbelastingProcessor
 
@@ -213,7 +214,7 @@ def btw_generate_report(user_email, user_roles) -> ResponseReturnValue:
             import traceback
 
             traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Tax request failed", status=500)
 
 
 @tax_bp.route("/api/btw/save-transaction", methods=["POST"])
@@ -235,7 +236,7 @@ def btw_save_transaction(user_email, user_roles) -> ResponseReturnValue:
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Tax request failed", status=500)
 
 
 @tax_bp.route("/api/btw/upload-report", methods=["POST"])
@@ -270,7 +271,7 @@ def btw_upload_report(user_email, user_roles) -> ResponseReturnValue:
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Tax request failed", status=500)
 
 
 # Toeristenbelasting (Tourist Tax) Declaration routes
@@ -342,7 +343,7 @@ def toeristenbelasting_generate_report(
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Tax request failed", status=500)
 
 
 @tax_bp.route("/api/toeristenbelasting/available-years", methods=["GET"])
@@ -360,4 +361,4 @@ def toeristenbelasting_available_years(user_email, user_roles) -> ResponseReturn
         return jsonify({"success": True, "years": years})
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Tax request failed", status=500)
