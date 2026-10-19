@@ -33,13 +33,13 @@ The tables below are each a list of **the kinds of row you find in one tenant's 
 
 The single most load-bearing distinction. **User ≠ member. There is no link between them.**
 
-| | **User** (access principal) | **Member** (data subject) |
-| --- | --- | --- |
-| What it is | a person with a Cognito login + admin/access rights | a person recorded as a club member |
-| Identified by | Cognito login (`email` / `sub`) | `member_id` |
-| Defined in | MySQL `user_tenant_roles` → projected as `role#…` rows | `member#…` rows in `sam-members` |
-| Has access rights? | **Yes** — that is its whole purpose | **No** — being a member grants nothing |
-| Link to the other | **none** (the same human MAY be both, but nothing stores that) | **none** |
+| | **User** (access principal) | versus | **Member** (data subject) |
+| --- | --- | :---: | --- |
+| What it is | a person with a Cognito login + admin/access rights |  | a person recorded as a club member |
+| Identified by | Cognito login (`email` / `sub`) |  | `member_id` |
+| Defined in | MySQL `user_tenant_roles` → projected as `role#…` rows |  | `member#…` rows in `sam-members` |
+| Has access rights? | **Yes** — that is its whole purpose |  | **No** — being a member grants nothing |
+| Link to the other | **none** (the same human MAY be both, but nothing stores that) |  | **none** |
 
 User-keyed rows use the Cognito `sub`; member-keyed rows use `member_id`. They never reference
 each other.
