@@ -106,13 +106,18 @@ class EmailVerificationService:
                 "status": "failed",
                 "error": f"{error_code}: {error_msg}",
             }
-        except Exception as e:
-            logger.error(
-                f"Unexpected error calling SES for {email} "
-                f"(tenant: {administration}): {e}"
+        except Exception:
+            logger.exception(
+                "Unexpected error calling SES for %s (tenant: %s)",
+                email,
+                administration,
             )
             self._store_verification_record(administration, email, "failed")
-            return {"success": False, "status": "failed", "error": str(e)}
+            return {
+                "success": False,
+                "status": "failed",
+                "error": "Email verification failed. Please try again later.",
+            }
 
         # Store pending record
         self._store_verification_record(administration, email, "pending")
@@ -235,12 +240,16 @@ class EmailVerificationService:
                 f"(tenant: {administration}): [{error_code}] {error_msg}"
             )
             return {"success": False, "error": f"{error_code}: {error_msg}"}
-        except Exception as e:
-            logger.error(
-                f"Unexpected error resending for {email} "
-                f"(tenant: {administration}): {e}"
+        except Exception:
+            logger.exception(
+                "Unexpected error resending for %s (tenant: %s)",
+                email,
+                administration,
             )
-            return {"success": False, "error": str(e)}
+            return {
+                "success": False,
+                "error": "Resend failed. Please try again later.",
+            }
 
         # Update record: set status to pending, update last_resend_at
         now = datetime.utcnow()

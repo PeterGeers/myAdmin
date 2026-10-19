@@ -115,9 +115,9 @@ class ToeristenbelastingProcessor:
 
             return {"success": True, "html_report": html_report, "data": raw_data}
 
-        except Exception as e:
-            print(f"Error generating toeristenbelasting report: {e}", flush=True)
-            import traceback
-
-            traceback.print_exc()
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Error generating toeristenbelasting report")
+            return {
+                "success": False,
+                "error": "An internal error occurred. Please try again later.",
+            }

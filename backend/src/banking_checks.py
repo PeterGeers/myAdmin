@@ -616,5 +616,9 @@ class BankingChecks:
                 },
             }
 
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Banking check failed")
+            return {
+                "success": False,
+                "error": "An internal error occurred. Please try again later.",
+            }

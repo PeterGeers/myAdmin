@@ -12,6 +12,7 @@ from flask import Blueprint, jsonify, request
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_payload, error_response
 from utils.date_utils import normalize_dates
 
 reporting_bp = Blueprint("reporting", __name__)
@@ -113,7 +114,7 @@ class ReportingService:
             return {"success": True, "data": results}
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return error_payload(e, "Report generation failed")
 
 
 @reporting_bp.route("/str-revenue", methods=["GET"])
@@ -131,7 +132,7 @@ def get_str_revenue(user_email, user_roles, tenant, user_tenants):
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Report request failed", status=500)
 
 
 @reporting_bp.route("/account-summary", methods=["GET"])
@@ -184,7 +185,7 @@ def get_account_summary(user_email, user_roles, tenant, user_tenants):
 
         return jsonify({"success": True, "data": results})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Report request failed", status=500)
 
 
 @reporting_bp.route("/mutaties-table", methods=["GET"])
@@ -267,7 +268,7 @@ def get_mutaties_table(user_email, user_roles, tenant, user_tenants):
         normalize_dates(results, ["TransactionDate"])
         return jsonify({"success": True, "data": results})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Report request failed", status=500)
 
 
 @reporting_bp.route("/filter-options", methods=["GET"])
@@ -367,11 +368,9 @@ def get_filter_options(user_email, user_roles, tenant, user_tenants):
             }
         )
     except Exception as e:
-        print(f"Error in get_filter_options: {e}", flush=True)
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e, "Report request failed", status=500, log_context="get_filter_options"
+        )
 
 
 @reporting_bp.route("/available-<data_type>", methods=["GET"])
@@ -401,7 +400,7 @@ def get_available_data(data_type, user_email, user_roles, tenant, user_tenants):
 
         return jsonify({"success": True, data_type: values})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Report request failed", status=500)
 
 
 @reporting_bp.route("/check-reference", methods=["GET"])
@@ -483,11 +482,9 @@ def get_check_reference(user_email, user_roles, tenant, user_tenants):
             {"success": True, "transactions": transactions, "summary": summary}
         )
     except Exception as e:
-        print(f"Error in get_check_reference: {e}", flush=True)
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e, "Report request failed", status=500, log_context="get_check_reference"
+        )
 
 
 @reporting_bp.route("/available-years", methods=["GET"])
@@ -525,7 +522,7 @@ def get_available_years(user_email, user_roles, tenant, user_tenants):
 
         return jsonify({"success": True, "years": years})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Report request failed", status=500)
 
 
 # Global variables set by app.py

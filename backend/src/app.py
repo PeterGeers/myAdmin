@@ -46,6 +46,7 @@ from routes.contact_routes import contact_bp
 from routes.duplicate_detection_routes import duplicate_detection_bp
 from routes.email_log_routes import email_log_bp
 from routes.environment_routes import environment_bp
+from routes.error_responses import error_payload
 from routes.financial_reporting_routes import financial_reporting_bp
 from routes.folder_routes import folder_bp
 from routes.invoice_routes import invoice_bp
@@ -96,6 +97,7 @@ from str_invoice_routes import str_invoice_bp
 from tenant_admin_routes import tenant_admin_bp
 from tenant_module_routes import tenant_module_bp
 from transaction_logic import TransactionLogic
+from utils.path_security import is_within_base
 
 env_path = Path(__file__).parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
@@ -246,8 +248,15 @@ def serve_docs(path="index.html"):
     """Serve the MkDocs documentation site, embeddable in iframe."""
     try:
         abs_docs_path = os.path.abspath(docs_site_path)
-        # If path is a directory, serve its index.html
+        # Containment guard: the user-supplied <path:path> is joined onto the docs
+        # root, so canonicalize the result (realpath resolves ../ traversal and
+        # symlinks) and confirm it stays inside abs_docs_path BEFORE any os.path.*
+        # probe or send_from_directory. A traversal escape is rejected as 404
+        # (CodeQL py/path-injection).
         full_path = os.path.join(abs_docs_path, path)
+        if not is_within_base(full_path, abs_docs_path):
+            return jsonify({"error": "Documentation not found"}), 404
+        # If path is a directory, serve its index.html
         if os.path.isdir(full_path):
             path = os.path.join(path, "index.html")
         response = send_from_directory(abs_docs_path, path)
@@ -559,8 +568,11 @@ def check_for_early_duplicates(filename, folder_name, drive_result):
 
 @app.errorhandler(500)
 def handle_500(e):
-    print(f"500 error: {e}")
-    return jsonify({"error": "Internal server error", "message": str(e)}), 500
+    # Log the full exception (with stack) server-side under a correlation error_id
+    # and return only a generic message + that id to the client (never str(e) —
+    # CodeQL py/stack-trace-exposure).
+    payload = error_payload(e, "Internal server error", include_success=False)
+    return jsonify(payload), 500
 
 
 # Banking processor routes moved to: routes/banking_routes.py (Phase 3.2)

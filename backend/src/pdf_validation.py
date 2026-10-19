@@ -1,6 +1,9 @@
+import logging
 import re
 
 from database import DatabaseManager
+
+logger = logging.getLogger(__name__)
 
 
 class PDFValidator:
@@ -215,8 +218,13 @@ class PDFValidator:
 
                 return {"status": "missing", "record": record}
 
-        except Exception as e:
-            return {"status": "error", "record": record, "error": str(e)}
+        except Exception:
+            logger.exception("PDF validation error for record")
+            return {
+                "status": "error",
+                "record": record,
+                "error": "An internal error occurred. Please try again later.",
+            }
 
     def _extract_file_id(self, url):
         """Extract file ID from Google Drive file URL"""

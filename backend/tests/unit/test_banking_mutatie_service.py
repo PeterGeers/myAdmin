@@ -63,10 +63,13 @@ def _setup_write_cursor(service, existing_record):
 # get_mutaties — tenant scoping
 # ---------------------------------------------------------------------------
 
+
 class TestGetMutatiesTenantScoping:
     def test_all_with_single_tenant_filters_to_that_tenant(self, service):
         """administration='all' + one accessible tenant → equality filter on it."""
-        cursor = _setup_read_cursor(service, rows=[{"ID": 1, "TransactionDate": None}], total=1)
+        cursor = _setup_read_cursor(
+            service, rows=[{"ID": 1, "TransactionDate": None}], total=1
+        )
 
         result = service.get_mutaties(
             filters={"administration": "all", "years": [""]},
@@ -111,7 +114,9 @@ class TestGetMutatiesTenantScoping:
 
     def test_explicit_administration_in_user_tenants_filters_to_it(self, service):
         """A permitted explicit administration → equality filter on exactly that value."""
-        cursor = _setup_read_cursor(service, rows=[{"ID": 7, "TransactionDate": None}], total=1)
+        cursor = _setup_read_cursor(
+            service, rows=[{"ID": 7, "TransactionDate": None}], total=1
+        )
 
         result = service.get_mutaties(
             filters={"administration": "T2", "years": [""]},
@@ -128,13 +133,19 @@ class TestGetMutatiesTenantScoping:
 # get_mutaties — pagination & formatting
 # ---------------------------------------------------------------------------
 
+
 class TestGetMutatiesPagination:
     def test_pagination_metadata_has_more_true(self, service):
         rows = [{"ID": i, "TransactionDate": None} for i in range(10)]
         _setup_read_cursor(service, rows=rows, total=50)
 
         result = service.get_mutaties(
-            filters={"administration": "all", "years": [""], "limit": "10", "offset": "0"},
+            filters={
+                "administration": "all",
+                "years": [""],
+                "limit": "10",
+                "offset": "0",
+            },
             tenant="T1",
             user_tenants=["T1"],
         )
@@ -187,7 +198,9 @@ class TestGetMutatiesPagination:
         )
 
         assert result["success"] is False
-        assert "connection lost" in result["error"]
+        # Raw exception text must not leak to the caller (py/stack-trace-exposure).
+        assert "connection lost" not in result["error"]
+        assert result["error"] == "An internal error occurred. Please try again later."
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +239,9 @@ class TestUpdateMutatie:
 
         service.update_mutatie(42, dict(VALID_UPDATE), "T1")
 
-        update_call = [c for c in cursor.execute.call_args_list if "UPDATE" in c[0][0]][0]
+        update_call = [c for c in cursor.execute.call_args_list if "UPDATE" in c[0][0]][
+            0
+        ]
         params = update_call[0][1]
         # Param order mirrors the UPDATE: amount is the 4th SET value.
         assert params[3] == 123.45
@@ -258,7 +273,9 @@ class TestUpdateMutatie:
 
         service.update_mutatie(42, dict(VALID_UPDATE), "T1")
 
-        update_call = [c for c in cursor.execute.call_args_list if "UPDATE" in c[0][0]][0]
+        update_call = [c for c in cursor.execute.call_args_list if "UPDATE" in c[0][0]][
+            0
+        ]
         params = update_call[0][1]
         # Trailing params: (..., administration, mutatie_id)
         assert params[-2] == "T1"
@@ -270,4 +287,6 @@ class TestUpdateMutatie:
         result = service.update_mutatie(42, dict(VALID_UPDATE), "T1")
 
         assert result["success"] is False
-        assert "deadlock" in result["error"]
+        # Raw exception text must not leak to the caller (py/stack-trace-exposure).
+        assert "deadlock" not in result["error"]
+        assert result["error"] == "An internal error occurred. Please try again later."

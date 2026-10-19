@@ -11,11 +11,19 @@ Handles banking transaction processing business logic including:
 Extracted from app.py during refactoring (Phase 3.1)
 """
 
+import logging
 from typing import Any
 
 from banking_processor import BankingProcessor
 from database import DatabaseManager
 from db_exceptions import ClosedPeriodError
+
+logger = logging.getLogger(__name__)
+
+# Generic, caller-safe message returned instead of raw exception text. The full
+# exception (with stack) is logged server-side via ``logger.exception`` so the
+# internal detail never reaches the client (CodeQL py/stack-trace-exposure).
+_GENERIC_ERROR = "An internal error occurred. Please try again later."
 
 
 class BankingService:
@@ -46,9 +54,9 @@ class BankingService:
             files = self.processor.get_csv_files(folder_path)
 
             return {"success": True, "files": files, "folder": folder_path}
-        except Exception as e:
-            print(f"Banking scan files error: {e}", flush=True)
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Banking scan files error")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def validate_iban_tenant(self, iban: str, tenant: str) -> dict[str, Any]:
         """
@@ -86,19 +94,22 @@ class BankingService:
                 else:
                     return {"valid": True, "tenant": iban_tenant}
             else:
-                # IBAN not found in lookup - might be okay for new accounts
+                # IBAN not found in lookup - might be okay for new accounts.
+                # IBAN is financial PII (GDPR) - redact to last-4 in both the
+                # server log line and the client-facing warning message.
+                redacted_iban = f"***{iban[-4:]}" if iban else "***"
                 print(
-                    f"Warning: IBAN {iban} not found in bank account lookups",
+                    f"Warning: IBAN {redacted_iban} not found in bank account lookups",
                     flush=True,
                 )
                 return {
                     "valid": True,  # Allow processing
                     "tenant": None,
-                    "warning": f"IBAN {iban} not found in lookup table",
+                    "warning": f"IBAN {redacted_iban} not found in lookup table",
                 }
-        except Exception as e:
-            print(f"Error validating IBAN: {e}", flush=True)
-            return {"valid": False, "error": str(e)}
+        except Exception:
+            logger.exception("Error validating IBAN")
+            return {"valid": False, "error": _GENERIC_ERROR}
 
     def process_banking_files(
         self, file_paths: list[str], tenant: str
@@ -146,9 +157,9 @@ class BankingService:
                 "count": len(records),
             }
 
-        except Exception as e:
-            print(f"Banking process files error: {e}", flush=True)
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Banking process files error")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def check_sequences(
         self,
@@ -183,9 +194,9 @@ class BankingService:
                 "duplicates": duplicates,
             }
 
-        except Exception as e:
-            print(f"Check sequences error: {e}", flush=True)
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Check sequences error")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def apply_patterns(
         self,
@@ -317,12 +328,9 @@ class BankingService:
                     "method": "legacy",
                 }
 
-        except Exception as e:
-            print(f"Pattern matching error: {e}", flush=True)
-            import traceback
-
-            traceback.print_exc()
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Pattern matching error")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def save_transactions(
         self,
@@ -397,12 +405,9 @@ class BankingService:
         except ClosedPeriodError:
             raise
 
-        except Exception as e:
-            print(f"Banking save transactions error: {e}", flush=True)
-            import traceback
-
-            traceback.print_exc()
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Banking save transactions error")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def get_lookups(self, tenant: str) -> dict[str, Any]:
         """
@@ -454,9 +459,9 @@ class BankingService:
                 else None,
             }
 
-        except Exception as e:
-            print(f"Banking lookups error: {e}", flush=True)
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Banking lookups error")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def get_mutaties(
         self, filters: dict[str, Any], tenant: str, user_tenants: list[str]
@@ -499,12 +504,9 @@ class BankingService:
 
             return {"success": True, "balances": balances}
 
-        except Exception as e:
-            print(f"Banking check accounts error: {e}", flush=True)
-            import traceback
-
-            traceback.print_exc()
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Banking check accounts error")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def check_revolut_balance(
         self, iban: str, account_code: str, start_date: str, expected_balance: float
@@ -549,9 +551,6 @@ class BankingService:
             else:
                 return result
 
-        except Exception as e:
-            print(f"Check Revolut balance error: {e}", flush=True)
-            import traceback
-
-            traceback.print_exc()
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Check Revolut balance error")
+            return {"success": False, "error": _GENERIC_ERROR}
