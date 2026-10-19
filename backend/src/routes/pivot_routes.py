@@ -29,6 +29,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 from routes.service_accessors import make_db_service_accessor
 from services.parameter_service import ParameterService
 from services.pivot_model_store import PivotModelStore
@@ -138,7 +139,7 @@ def execute_pivot(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         return jsonify({"success": False, "error": str(e)}), 500
     except Exception as e:
         logger.error("Unexpected error executing pivot: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)
 
 
 # ---------------------------------------------------------------------------
@@ -168,7 +169,7 @@ def get_available_columns(
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         logger.error("Error fetching columns for %s: %s", source, e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)
 
 
 @pivot_bp.route("/sources", methods=["GET"])
@@ -188,7 +189,7 @@ def get_registered_sources(
         return jsonify({"success": True, "data": sources})
     except Exception as e:
         logger.error("Error fetching registered sources: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +212,7 @@ def list_models(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         return jsonify({"success": True, "data": models})
     except Exception as e:
         logger.error("Error listing pivot models: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)
 
 
 @pivot_bp.route("/models", methods=["POST"])
@@ -263,7 +264,7 @@ def save_model(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVa
         return jsonify({"success": False, "error": error_msg}), 400
     except Exception as e:
         logger.error("Error saving pivot model: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)
 
 
 @pivot_bp.route("/models/<int:model_id>", methods=["PUT"])
@@ -308,7 +309,7 @@ def update_model(
         return jsonify({"success": False, "error": error_msg}), 400
     except Exception as e:
         logger.error("Error updating pivot model %s: %s", model_id, e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)
 
 
 @pivot_bp.route("/models/<int:model_id>", methods=["GET"])
@@ -336,7 +337,7 @@ def load_model(
         return jsonify({"success": False, "error": error_msg}), 400
     except Exception as e:
         logger.error("Error loading pivot model %s: %s", model_id, e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)
 
 
 @pivot_bp.route("/models/<int:model_id>", methods=["DELETE"])
@@ -361,7 +362,7 @@ def delete_model(
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Error deleting pivot model %s: %s", model_id, e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)
 
 
 # ---------------------------------------------------------------------------
@@ -416,4 +417,4 @@ def export_underlying(
         return jsonify({"success": False, "error": str(e)}), 500
     except Exception as e:
         logger.error("Unexpected error exporting pivot data: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)

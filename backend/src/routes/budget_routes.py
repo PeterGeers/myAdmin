@@ -14,6 +14,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from routes.error_responses import error_response
 from services.budget_service import BudgetService
 
 # Create blueprint
@@ -50,7 +51,7 @@ def budget_list_versions(
         return jsonify({"success": False, "error": "Invalid year parameter"}), 400
     except Exception as e:
         print(f"Budget list versions error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget request failed", status=500)
 
 
 @budget_bp.route("/api/budget/versions", methods=["POST"])
@@ -94,7 +95,7 @@ def budget_create_version(
             return jsonify(result), 400
     except Exception as e:
         print(f"Budget create version error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget request failed", status=500)
 
 
 @budget_bp.route("/api/budget/versions/<int:version_id>/status", methods=["PUT"])
@@ -121,7 +122,7 @@ def budget_transition_status(
             return jsonify(result), 400
     except Exception as e:
         print(f"Budget transition status error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget request failed", status=500)
 
 
 @budget_bp.route("/api/budget/versions/<int:version_id>/activate", methods=["PUT"])
@@ -146,7 +147,7 @@ def budget_activate_version(
             return jsonify(result), 400
     except Exception as e:
         print(f"Budget activate version error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget request failed", status=500)
 
 
 @budget_bp.route("/api/budget/versions/<int:version_id>", methods=["DELETE"])
@@ -165,7 +166,7 @@ def budget_delete_version(
             return jsonify(result), 400
     except Exception as e:
         print(f"Budget delete version error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget request failed", status=500)
 
 
 # =============================================================================
@@ -189,7 +190,7 @@ def budget_list_lines(
             return jsonify(result), 400
     except Exception as e:
         print(f"Budget list lines error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget request failed", status=500)
 
 
 @budget_bp.route("/api/budget/versions/<int:version_id>/lines", methods=["POST"])
@@ -279,7 +280,7 @@ def budget_create_line(
             return jsonify(result), 400
     except Exception as e:
         print(f"Budget create line error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget request failed", status=500)
 
 
 @budget_bp.route("/api/budget/lines/<int:line_id>", methods=["PUT"])
@@ -307,7 +308,7 @@ def budget_update_line(
             return jsonify(result), 400
     except Exception as e:
         print(f"Budget update line error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget request failed", status=500)
 
 
 @budget_bp.route("/api/budget/lines/<int:line_id>", methods=["DELETE"])
@@ -326,7 +327,7 @@ def budget_delete_line(
             return jsonify(result), 400
     except Exception as e:
         print(f"Budget delete line error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget request failed", status=500)
 
 
 # =============================================================================
@@ -397,4 +398,4 @@ def budget_dashboard(
             return jsonify(result), 400
     except Exception as e:
         print(f"Budget dashboard error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget request failed", status=500)
