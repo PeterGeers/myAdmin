@@ -127,6 +127,7 @@ import {
   resolveTemplateSeed,
   flattenRowMergeValues,
   renderMergePreview,
+  sanitizeMailHtml,
 } from './memberMailHelpers';
 
 export {
@@ -135,6 +136,7 @@ export {
   resolveTemplateSeed,
   flattenRowMergeValues,
   renderMergePreview,
+  sanitizeMailHtml,
 } from './memberMailHelpers';
 export type { TemplateSeed } from './memberMailHelpers';
 
@@ -388,8 +390,14 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
     () => renderMergePreview(subject, previewValues),
     [subject, previewValues],
   );
+  // The merged body is sanitized here at its SINGLE computation point so BOTH
+  // preview panes (the inline preview + the confirm-dialog preview) render only
+  // safe HTML — a `<script>` / `onerror=` payload in the tenant-authored body is
+  // stripped before it ever reaches `dangerouslySetInnerHTML` (CodeQL
+  // `js/xss-through-dom`). The send path sanitizes independently (see
+  // `buildAdHocBody`), so neither the preview nor a recipient gets active content.
   const previewBodyHtml = useMemo(
-    () => renderMergePreview(body, previewValues),
+    () => sanitizeMailHtml(renderMergePreview(body, previewValues)),
     [body, previewValues],
   );
   // Send is allowed when at least one recipient resolves (member emails via the
@@ -434,6 +442,13 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
     const attachment = resolveAttachmentKind();
     const toFixed = externalEmails.length > 0 || attachment !== null;
     const rows = (recipients ?? []) as Array<Record<string, unknown>>;
+    // SANITIZE THE BODY BEFORE SEND — not just before preview (CodeQL
+    // `js/xss-through-dom`). The composed body is untrusted (tenant-authored)
+    // input; it must never leave the browser carrying active content that could
+    // be delivered to a recipient. We run it through the SAME DOMPurify seam the
+    // preview uses, so a `<script>` / `onerror=` payload is stripped from the send
+    // path identically to the preview. The subject ships as plain text.
+    const safeBodyHtml = sanitizeMailHtml(body);
     if (toFixed) {
       return {
         mode: 'to_fixed',
@@ -441,6 +456,8 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
         recipients: externalEmails,
         template_id: selectedTemplateId || null,
         attachment,
+        subject,
+        body_html: safeBodyHtml,
         ...(setKey ? { set_id: setKey } : {}),
       };
     }
@@ -451,6 +468,8 @@ export const MemberMailCompose: React.FC<MemberMailComposeProps> = ({
       // Carry the resolved email column as the per-recipient address path override
       // only when it resolved; otherwise the route falls back to its default.
       recipient_field: emailField ?? null,
+      subject,
+      body_html: safeBodyHtml,
       ...(setKey ? { set_id: setKey } : {}),
     };
   };

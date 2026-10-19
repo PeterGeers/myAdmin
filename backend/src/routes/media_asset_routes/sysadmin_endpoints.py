@@ -14,6 +14,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import media_asset_routes as pkg
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +73,12 @@ def force_delete_asset(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Force delete error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Force delete error",
+            status=500,
+            log_context="Force delete error",
+        )
 
 
 @media_asset_bp.route("/migrate", methods=["POST"])
@@ -120,8 +125,12 @@ def migrate_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
         ), 501
 
     except Exception as e:
-        logger.error(f"Migrate assets error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Migrate assets error",
+            status=500,
+            log_context="Migrate assets error",
+        )
 
 
 @media_asset_bp.route("/admin/tenants", methods=["GET"])
@@ -169,5 +178,9 @@ def admin_tenant_stats(
         return jsonify({"success": True, "data": data}), 200
 
     except Exception as e:
-        logger.error(f"Admin tenant stats error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Admin tenant stats error",
+            status=500,
+            log_context="Admin tenant stats error",
+        )

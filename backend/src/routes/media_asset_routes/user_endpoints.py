@@ -14,6 +14,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import media_asset_routes as pkg
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +81,16 @@ def upload_asset(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
             return jsonify(result), 400
 
     except ValueError as e:
-        return jsonify({"success": False, "error": str(e)}), 400
+        # Deliberate, caller-safe validation message (not a stack trace).
+        validation_message = str(e)
+        return jsonify({"success": False, "error": validation_message}), 400
     except Exception as e:
-        logger.error(f"Asset upload error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to upload asset",
+            status=500,
+            log_context="Asset upload error",
+        )
 
 
 @media_asset_bp.route("/search", methods=["GET"])
@@ -124,8 +131,12 @@ def search_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         return jsonify(result), 200
 
     except Exception as e:
-        logger.error(f"Search assets error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Search assets error",
+            status=500,
+            log_context="Search assets error",
+        )
 
 
 @media_asset_bp.route("/<asset_id>", methods=["GET"])
@@ -154,8 +165,12 @@ def get_asset(
             return jsonify(result), 404
 
     except Exception as e:
-        logger.error(f"Get asset error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Get asset error",
+            status=500,
+            log_context="Get asset error",
+        )
 
 
 @media_asset_bp.route("/<asset_id>/attach", methods=["POST"])
@@ -205,8 +220,12 @@ def attach_asset(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Attach asset error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Attach asset error",
+            status=500,
+            log_context="Attach asset error",
+        )
 
 
 @media_asset_bp.route("/<asset_id>/detach", methods=["POST"])
@@ -256,8 +275,12 @@ def detach_asset(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Detach asset error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Detach asset error",
+            status=500,
+            log_context="Detach asset error",
+        )
 
 
 @media_asset_bp.route("/replace", methods=["POST"])
@@ -310,5 +333,9 @@ def replace_asset(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Replace asset error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Replace asset error",
+            status=500,
+            log_context="Replace asset error",
+        )

@@ -14,6 +14,7 @@ from auth.tenant_context import tenant_required
 from bnb_cache import get_bnb_cache
 from database import DatabaseManager
 from mutaties_cache import get_cache, invalidate_cache
+from routes.error_responses import error_response
 
 cache_bp = Blueprint("cache", __name__)
 
@@ -62,7 +63,7 @@ def cache_warmup(user_email, user_roles) -> ResponseReturnValue:
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Cache request failed", status=500)
 
 
 @cache_bp.route("/api/cache/status", methods=["GET"])
@@ -86,7 +87,7 @@ def cache_status(user_email, user_roles) -> ResponseReturnValue:
             }
         )
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Cache request failed", status=500)
 
 
 @cache_bp.route("/api/cache/refresh", methods=["POST"])
@@ -119,7 +120,7 @@ def cache_refresh(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Cache request failed", status=500)
 
 
 @cache_bp.route("/api/cache/invalidate", methods=["POST"])
@@ -138,7 +139,7 @@ def cache_invalidate_endpoint(
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Cache request failed", status=500)
 
 
 # BNB Cache Management Endpoints
@@ -152,7 +153,7 @@ def bnb_cache_status(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify({"success": True, **status})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Cache request failed", status=500)
 
 
 @cache_bp.route("/api/bnb-cache/refresh", methods=["POST"])
@@ -171,7 +172,7 @@ def bnb_cache_refresh(user_email, user_roles) -> ResponseReturnValue:
             {"success": True, "message": "BNB cache refreshed successfully", **status}
         )
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Cache request failed", status=500)
 
 
 @cache_bp.route("/api/bnb-cache/invalidate", methods=["POST"])
@@ -186,4 +187,4 @@ def bnb_cache_invalidate(user_email, user_roles) -> ResponseReturnValue:
             {"success": True, "message": "BNB cache invalidated successfully"}
         )
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Cache request failed", status=500)

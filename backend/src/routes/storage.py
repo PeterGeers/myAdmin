@@ -21,6 +21,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 from services.media_asset_service import MediaAssetService
 from services.parameter_service import ParameterService
 
@@ -86,7 +87,7 @@ def get_presigned_url(
 
     except Exception as e:
         logger.error(f"Error generating pre-signed URL: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Storage request failed", status=500)
 
 
 # Allowed MIME types and max file size for logo upload
@@ -186,4 +187,4 @@ def upload_logo(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
 
     except Exception as e:
         logger.error(f"Error uploading logo: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Storage request failed", status=500)

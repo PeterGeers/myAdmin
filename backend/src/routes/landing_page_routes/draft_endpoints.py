@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import landing_page_routes as pkg
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +47,12 @@ def get_draft(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVal
         return jsonify({"success": True, "data": draft})
 
     except Exception as e:
-        logger.error(f"Error getting draft for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error getting draft",
+            status=500,
+            log_context="Error getting draft",
+        )
 
 
 @landing_page_bp.route("/api/landing/draft", methods=["PUT"])
@@ -97,5 +102,9 @@ def save_draft(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVa
             return jsonify(result), 500
 
     except Exception as e:
-        logger.error(f"Error saving draft for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error saving draft",
+            status=500,
+            log_context="Error saving draft",
+        )

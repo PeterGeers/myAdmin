@@ -31,6 +31,7 @@ from auth.tenant_context import (
 )
 from database import DatabaseManager
 from dialect_helpers import dialect
+from routes.error_responses import error_payload
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -292,7 +293,9 @@ def list_accounts(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error listing accounts for tenant {tenant}: {e}")
-        return jsonify({"error": "Failed to list accounts", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Failed to list accounts", include_success=False)
+        ), 500
 
 
 @chart_of_accounts_bp.route(
@@ -361,7 +364,9 @@ def get_account(user_email, user_roles, account) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error getting account {account} for tenant {tenant}: {e}")
-        return jsonify({"error": "Failed to get account", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Failed to get account", include_success=False)
+        ), 500
 
 
 @chart_of_accounts_bp.route("/api/tenant-admin/chart-of-accounts", methods=["POST"])
@@ -501,7 +506,9 @@ def create_account(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error creating account for tenant {tenant}: {e}")
-        return jsonify({"error": "Failed to create account", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Failed to create account", include_success=False)
+        ), 500
 
 
 @chart_of_accounts_bp.route(
@@ -686,7 +693,9 @@ def update_account(user_email, user_roles, account) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error updating account {account} for tenant {tenant}: {e}")
-        return jsonify({"error": "Failed to update account", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Failed to update account", include_success=False)
+        ), 500
 
 
 @chart_of_accounts_bp.route(
@@ -773,4 +782,6 @@ def delete_account(user_email, user_roles, account) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error deleting account {account} for tenant {tenant}: {e}")
-        return jsonify({"error": "Failed to delete account", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Failed to delete account", include_success=False)
+        ), 500

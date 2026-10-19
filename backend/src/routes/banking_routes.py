@@ -17,6 +17,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from db_exceptions import ClosedPeriodError
+from routes.error_responses import error_response
 from services.banking_service import BankingService
 
 # Create blueprint
@@ -43,7 +44,7 @@ def banking_scan_files(
             return jsonify(result), 500
     except Exception as e:
         print(f"Banking scan files error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/process-files", methods=["POST"])
@@ -67,7 +68,7 @@ def banking_process_files(
 
     except Exception as e:
         print(f"Banking process files error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/check-sequences", methods=["POST"])
@@ -86,7 +87,7 @@ def banking_check_sequences(
         return jsonify(result)
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/apply-patterns", methods=["POST"])
@@ -109,7 +110,7 @@ def banking_apply_patterns(
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/save-transactions", methods=["POST"])
@@ -135,7 +136,7 @@ def banking_save_transactions(
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/lookups", methods=["GET"])
@@ -155,7 +156,7 @@ def banking_lookups(
 
     except Exception as e:
         print(f"Banking lookups error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/mutaties", methods=["GET"])
@@ -192,7 +193,7 @@ def banking_mutaties(
             return jsonify(result), status_code
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/filter-options", methods=["GET"])
@@ -241,7 +242,7 @@ def banking_filter_options(
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/update-mutatie", methods=["POST"])
@@ -301,7 +302,7 @@ def banking_update_mutatie(
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/insert-mutatie", methods=["POST"])
@@ -359,7 +360,7 @@ def banking_insert_mutatie(
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/check-accounts", methods=["GET"])
@@ -383,7 +384,7 @@ def banking_check_accounts(
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/check-sequence", methods=["GET"])
@@ -420,7 +421,7 @@ def banking_check_sequence(
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/check-revolut-balance", methods=["GET"])
@@ -446,7 +447,7 @@ def banking_check_revolut_balance(
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/check-revolut-balance-debug", methods=["GET"])
@@ -490,7 +491,7 @@ def banking_check_revolut_balance_debug(user_email, user_roles) -> ResponseRetur
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/opening-balance-date", methods=["GET"])
@@ -528,7 +529,7 @@ def banking_opening_balance_date(
 
     except Exception as e:
         print(f"Opening balance date error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)
 
 
 @banking_bp.route("/api/banking/migrate-revolut-ref2", methods=["POST"])
@@ -545,4 +546,4 @@ def banking_migrate_revolut_ref2(user_email, user_roles) -> ResponseReturnValue:
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Banking request failed", status=500)

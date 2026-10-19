@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import landing_page_routes as pkg
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +110,12 @@ def get_branding_settings(
         return jsonify({"success": True, "data": result})
 
     except Exception as e:
-        logger.error(f"Error loading branding settings for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error loading branding settings",
+            status=500,
+            log_context="Error loading branding settings",
+        )
 
 
 @landing_page_bp.route("/api/landing/branding", methods=["PUT"])
@@ -216,5 +221,9 @@ def save_branding_settings(
         return jsonify({"success": True, "message": "Settings saved successfully"})
 
     except Exception as e:
-        logger.error(f"Error saving branding settings for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error saving branding settings",
+            status=500,
+            log_context="Error saving branding settings",
+        )

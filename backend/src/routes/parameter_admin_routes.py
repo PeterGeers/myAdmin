@@ -16,6 +16,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 from routes.service_accessors import make_db_service_accessor
 from services.parameter_service import ParameterService
 
@@ -191,7 +192,7 @@ def list_parameters(
         return jsonify({"success": True, "tenant": tenant, "parameters": grouped})
     except Exception as e:
         logger.error("Error listing parameters: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Parameter request failed", status=500)
 
 
 @parameter_admin_bp.route("/api/tenant-admin/parameters", methods=["POST"])
@@ -259,7 +260,7 @@ def create_parameter(
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         logger.error("Error creating parameter: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Parameter request failed", status=500)
 
 
 @parameter_admin_bp.route(
@@ -326,7 +327,7 @@ def update_parameter(
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         logger.error("Error updating parameter %s: %s", param_id, e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Parameter request failed", status=500)
 
 
 @parameter_admin_bp.route(
@@ -375,7 +376,7 @@ def delete_parameter(
         return jsonify({"success": False, "error": "Delete failed"}), 500
     except Exception as e:
         logger.error("Error deleting parameter %s: %s", param_id, e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Parameter request failed", status=500)
 
 
 @parameter_admin_bp.route("/api/tenant-admin/parameters/default", methods=["GET"])
@@ -449,7 +450,7 @@ def get_parameter_default(
         return jsonify({"success": True, "has_default": False})
     except Exception as e:
         logger.error("Error fetching parameter default: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Parameter request failed", status=500)
 
 
 @parameter_admin_bp.route("/api/tenant-admin/parameters/schema", methods=["GET"])
@@ -495,4 +496,4 @@ def get_parameter_schema(
         )
     except Exception as e:
         logger.error("Error getting parameter schema: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Parameter request failed", status=500)

@@ -10,6 +10,7 @@ from flask.typing import ResponseReturnValue
 from flask_babel import gettext as _
 
 from auth.cognito_utils import cognito_required
+from routes.error_responses import error_payload
 from services.user_language_service import (
     get_user_language,
     update_user_language,
@@ -42,7 +43,12 @@ def get_user_language_preference(user_email, user_roles) -> ResponseReturnValue:
     except Exception as e:
         print(f"❌ Error in get_user_language_preference: {e}")
         return jsonify(
-            {"error": _("Failed to retrieve language preference"), "details": str(e)}
+            {
+                **error_payload(
+                    e, "Language preference request failed", include_success=False
+                ),
+                "error": _("Failed to retrieve language preference"),
+            }
         ), 500
 
 
@@ -100,5 +106,10 @@ def update_user_language_preference(user_email, user_roles) -> ResponseReturnVal
     except Exception as e:
         print(f"❌ Error in update_user_language_preference: {e}")
         return jsonify(
-            {"error": _("Failed to update language preference"), "details": str(e)}
+            {
+                **error_payload(
+                    e, "Language preference request failed", include_success=False
+                ),
+                "error": _("Failed to update language preference"),
+            }
         ), 500

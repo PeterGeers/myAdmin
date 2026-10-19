@@ -35,9 +35,7 @@ def _make_jwt(payload):
         .decode()
         .rstrip("=")
     )
-    body = (
-        base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
-    )
+    body = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
     return f"{header}.{body}.mock_signature"
 
 
@@ -61,8 +59,9 @@ def no_jwt_verifier():
     singleton and let ``extract_user_credentials`` decode the unverified payload
     (the same fallback used in local dev / verifier-less CI).
     """
-    with patch("auth.cognito_utils._get_jwt_verifier", return_value=None), patch(
-        "auth.cognito_utils.get_verified_tenants", return_value=None
+    with (
+        patch("auth.cognito_utils._get_jwt_verifier", return_value=None),
+        patch("auth.cognito_utils.get_verified_tenants", return_value=None),
     ):
         yield
 
@@ -116,9 +115,7 @@ def mock_cognito():
 def mock_scope_service():
     """Patch the scope-service factory so no real DB/ParameterService is built."""
     svc = Mock()
-    with patch(
-        "routes.tenant_admin_scope._build_scope_service", return_value=svc
-    ):
+    with patch("routes.tenant_admin_scope._build_scope_service", return_value=svc):
         yield svc
 
 
@@ -327,9 +324,7 @@ class TestTenantIsolationAndModule:
         assert resp.status_code == 403
         mock_scope_service.get_scope.assert_not_called()
 
-    def test_unknown_module_returns_404(
-        self, app, mock_cognito, mock_scope_service
-    ):
+    def test_unknown_module_returns_404(self, app, mock_cognito, mock_scope_service):
         with _tenant_admin_role_patch():
             with app.test_client() as client:
                 resp = client.get(
@@ -438,4 +433,11 @@ class TestResyncProjection:
         assert resp.status_code == 500
         body = resp.get_json()
         assert body["success"] is False
-        assert "dynamo unavailable" in body["error"]
+        # Revised error contract (security-assessment-2026-10-19 Task 4): the raw
+        # exception text ("dynamo unavailable") is logged server-side, never
+        # returned to the client. Response carries a generic message + error_id,
+        # plus the tenant (preserved from the original shape).
+        assert "dynamo unavailable" not in body["error"]
+        assert body["error"] == "Projection resync failed"
+        assert body["error_id"]
+        assert body["tenant"] == "TenantA"

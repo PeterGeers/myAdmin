@@ -39,6 +39,7 @@ from auth.admin_pool_resolver import PoolResolutionError
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants
 from database import DatabaseManager
+from routes.error_responses import error_payload, error_response
 from routes.sysadmin_helpers import _resolve_pool_id
 from routes.tenant_admin_users import (
     cognito_client,
@@ -188,7 +189,17 @@ def _resolve_tenant_and_target(username: str):
     try:
         user_pool_id = _resolve_pool_id()
     except PoolResolutionError as e:
-        return None, None, (jsonify({"error": str(e)}), 500)
+        return (
+            None,
+            None,
+            error_response(
+                e,
+                "Failed to resolve admin pool",
+                status=500,
+                include_success=False,
+                log_context="scope _resolve_pool_id",
+            ),
+        )
 
     # Resolve the target user and verify they belong to this tenant.
     try:
@@ -288,7 +299,10 @@ def set_user_scope(username, module, user_email, user_roles) -> ResponseReturnVa
             created_by=user_email,
         )
     except ScopeValidationError as e:
-        return jsonify({"success": False, "error": str(e)}), 400
+        # Deliberate, caller-safe validation message from the service (e.g.
+        # "Unknown value 'X' for scope dimension 'region'") — not a stack trace.
+        validation_message = str(e)
+        return jsonify({"success": False, "error": validation_message}), 400
 
     print(
         f"AUDIT: Scope for {module} set on {username} by {user_email} "
@@ -422,17 +436,13 @@ def resync_projection(user_email, user_roles) -> ResponseReturnValue:
         sync = get_default_trigger()._resolve_sync()
         result = sync.sync_administration(tenant)
     except Exception as e:
-        print(
-            f"AUDIT: Projection resync FAILED for tenant {tenant} by {user_email}: {e}",
-            flush=True,
+        payload = error_payload(
+            e,
+            "Projection resync failed",
+            log_context=f"Projection resync FAILED for tenant {tenant} by {user_email}",
         )
-        return jsonify(
-            {
-                "success": False,
-                "tenant": tenant,
-                "error": str(e),
-            }
-        ), 500
+        payload["tenant"] = tenant
+        return jsonify(payload), 500
 
     written = getattr(result, "written", 0)
     removed = getattr(result, "deleted", 0)

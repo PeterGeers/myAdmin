@@ -53,10 +53,24 @@ Success:
 return jsonify({'success': True, 'data': result}), 200
 ```
 
-Error:
+Error (never return `str(e)` to the client — it leaks internal detail, CodeQL
+`py/stack-trace-exposure`). Log the full exception server-side (with stack) and return a
+**generic** message plus a correlation `error_id` the user can quote in a support request:
 
 ```python
-return jsonify({'success': False, 'error': str(e)}), 500
+from routes.error_responses import error_response
+
+except Exception as e:
+    return error_response(e, "Module action failed", status=500)
+    # -> ({'success': False, 'error': 'Module action failed', 'error_id': '<uuid>'}, 500)
+    #    full exception + stack logged server-side, keyed by the same error_id
+```
+
+Validation / business errors you raise deliberately (not caught exceptions) keep their
+explicit, caller-safe message — only the `except Exception` path must stop echoing `str(e)`:
+
+```python
+return jsonify({'success': False, 'error': 'amountGross is required'}), 400
 ```
 
 Access denied:
@@ -67,9 +81,14 @@ return jsonify({'success': False, 'error': 'Access denied'}), 403
 
 ## Error Handling
 
-Every route wraps logic in try/except:
+Every route wraps logic in try/except. On the caught-exception path, delegate to
+`error_response` — it logs the full exception (with stack) server-side under a generated
+`error_id` and returns the generic client body + the same status code. Never put `str(e)`
+in the client response:
 
 ```python
+from routes.error_responses import error_response
+
 try:
     result = service.do_something(tenant, ...)
     if result['success']:
@@ -77,9 +96,16 @@ try:
     else:
         return jsonify(result), 400
 except Exception as e:
-    print(f"Module action error: {e}", flush=True)
-    return jsonify({'success': False, 'error': str(e)}), 500
+    return error_response(e, "Module action failed", status=500)
 ```
+
+- Response shape stays `{'success': False, 'error': <generic msg>, 'error_id': <uuid>}` and
+  the HTTP status is unchanged from the old convention (500 for unexpected errors).
+- The `error_id` ties the client-visible failure to the full server-side log line for triage
+  without exposing internals.
+- For routes that historically returned the bare `{'error': str(e)}` shape (no `success`
+  key — e.g. the sysadmin role endpoints), pass `include_success=False` to
+  `error_response` so the response stays `{'error': <generic msg>, 'error_id': <uuid>}`.
 
 ## Service Layer
 

@@ -534,6 +534,20 @@ export interface AdHocMailBody {
   label_options?: Partial<StoredLabelOptions> | null;
   recipient_field?: string | null;
   /**
+   * The composed subject, as plain text. Carried alongside `body_html` so an
+   * ad-hoc compose that is NOT backed by a stored `template_id` still transmits
+   * the user's authored message (not only the template renders it server-side).
+   */
+  subject?: string;
+  /**
+   * The composed mail body as **sanitized** HTML (XSS-stripped client-side before
+   * it ever leaves the browser — CodeQL `js/xss-through-dom`). The compose must
+   * never ship active content (`<script>`, `onerror=`, `javascript:` URLs) that a
+   * recipient could receive; the frontend sanitizes the authored body here so the
+   * send path and the preview are stripped by the SAME seam.
+   */
+  body_html?: string;
+  /**
    * An optional free-form LABEL folded into the audit + the stable job id
    * (defaults server-side to `"adhoc"`). NOT a saved-set key — an ad-hoc send has
    * no set; this is only an audit tag (R8.1).
