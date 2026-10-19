@@ -7,6 +7,7 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
+from routes.error_responses import error_response
 from services.function_guard import function_guard
 from services.media_asset_service import MediaAssetService
 from services.storage_resolver import (
@@ -141,7 +142,9 @@ def upload_receipt(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
 
             return jsonify({"driveUrl": drive_result["url"]})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Missing-invoices request failed", status=500, include_success=False
+        )
 
 
 @missing_invoices_bp.route("/api/update-transaction-refs", methods=["POST"])

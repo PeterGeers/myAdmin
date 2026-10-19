@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
+from routes.error_responses import error_response
 from services.email_log_service import EmailLogService
 
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ def get_email_logs(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error fetching email logs: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Email-log request failed", status=500)
 
 
 @email_log_bp.route("/api/webhooks/ses", methods=["POST"])

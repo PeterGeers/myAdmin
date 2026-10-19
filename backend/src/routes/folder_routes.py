@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from google_drive_service import GoogleDriveService
+from routes.error_responses import error_response
 from services.storage_resolver import (
     create_s3_folder,
     list_s3_folders,
@@ -138,7 +139,9 @@ def get_folders(user_email, user_roles) -> ResponseReturnValue:
         return jsonify(folders)
     except Exception as e:
         print(f"Error in get_folders: {e}", flush=True)
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Folder request failed", status=500, include_success=False
+        )
 
 
 @folder_bp.route("/api/create-folder", methods=["POST"])
@@ -217,4 +220,4 @@ def create_folder(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
             return jsonify({"success": True, "path": folder_path})
         return jsonify({"success": False, "error": "No folder name provided"}), 400
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Folder request failed", status=500)
