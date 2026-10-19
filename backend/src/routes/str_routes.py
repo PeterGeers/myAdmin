@@ -22,6 +22,7 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from dialect_helpers import dialect
+from routes.error_responses import error_response
 from str_database import STRDatabase
 from str_processor import STRProcessor
 
@@ -154,7 +155,7 @@ def str_upload_authenticated(
         return jsonify(response_data)
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "STR request failed", status=500)
 
 
 @str_bp.route("/api/str/save", methods=["POST"])
@@ -308,7 +309,7 @@ def str_save(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "STR request failed", status=500)
 
 
 # Pricing routes
@@ -338,7 +339,7 @@ def pricing_generate(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "STR request failed", status=500)
 
 
 @str_bp.route("/api/pricing/recommendations", methods=["GET"])
@@ -392,7 +393,7 @@ def pricing_recommendations(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "STR request failed", status=500)
 
 
 @str_bp.route("/api/pricing/historical", methods=["GET"])
@@ -460,7 +461,7 @@ def pricing_historical(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "STR request failed", status=500)
 
 
 @str_bp.route("/api/pricing/listings", methods=["GET"])
@@ -482,7 +483,7 @@ def pricing_listings(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "STR request failed", status=500)
 
 
 @str_bp.route("/api/pricing/multipliers", methods=["GET"])
@@ -533,7 +534,7 @@ def pricing_multipliers(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "multipliers": results, "listing": listing})
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "STR request failed", status=500)
 
 
 @str_bp.route("/api/str/write-future", methods=["POST"])
@@ -563,7 +564,7 @@ def str_write_future(user_email, user_roles) -> ResponseReturnValue:
             ), 400
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "STR request failed", status=500)
 
 
 @str_bp.route("/api/str/import-payout", methods=["POST", "OPTIONS"])
@@ -660,11 +661,12 @@ def str_import_payout_authenticated(user_email, user_roles) -> ResponseReturnVal
         return jsonify(response)
 
     except Exception as e:
-        print(f"Error in Payout import: {e!s}", flush=True)
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to import payout CSV",
+            status=500,
+            log_context="str_import_payout",
+        )
 
 
 @str_bp.route("/api/str/summary", methods=["GET"])
@@ -681,7 +683,7 @@ def str_summary(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "summary": summary})
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "STR request failed", status=500)
 
 
 @str_bp.route("/api/str/future-trend", methods=["GET"])
@@ -710,7 +712,7 @@ def str_future_trend(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "data": results})
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "STR request failed", status=500)
 
 
 @str_bp.route("/api/str/enrich-direct", methods=["POST"])
@@ -785,8 +787,12 @@ def str_enrich_direct(
             }
         )
     except Exception as e:
-        print(f"Error in str_enrich_direct: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to enrich direct bookings",
+            status=500,
+            log_context="str_enrich_direct",
+        )
 
 
 @str_bp.route("/api/str/calculate-taxes", methods=["POST"])
@@ -826,4 +832,10 @@ def str_calculate_taxes(user_email, user_roles) -> ResponseReturnValue:
             }
         )
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to calculate taxes",
+            status=500,
+            include_success=False,
+            log_context="str_calculate_taxes",
+        )

@@ -19,6 +19,7 @@ from flask_babel import gettext as _
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
 from database import DatabaseManager
+from routes.error_responses import error_response
 from services.tenant_settings_service import TenantSettingsService
 
 # Initialize logger
@@ -57,11 +58,12 @@ def get_settings(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "tenant": tenant, "settings": settings})
 
     except Exception as e:
-        logger.error(f"Error getting settings: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant settings request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_settings_bp.route("/settings", methods=["PUT"])
@@ -119,11 +121,12 @@ def update_settings(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        logger.error(f"Error updating settings: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant settings request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_settings_bp.route("/activity", methods=["GET"])
@@ -169,17 +172,19 @@ def get_activity(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "tenant": tenant, "activity": activity})
 
     except Exception as e:
-        logger.error(f"Error getting activity: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant settings request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 # ============================================================================
 # Tenant Language Endpoints (i18n)
 # ============================================================================
 
+from routes.error_responses import error_payload
 from services.tenant_language_service import (
     get_tenant_language,
     update_tenant_language,
@@ -217,8 +222,12 @@ def get_tenant_language_preference(user_email, user_roles) -> ResponseReturnValu
         logger.error(f"Error in get_tenant_language_preference: {e}")
         return jsonify(
             {
+                **error_payload(
+                    e,
+                    "Failed to retrieve tenant language preference",
+                    include_success=False,
+                ),
                 "error": _("Failed to retrieve tenant language preference"),
-                "details": str(e),
             }
         ), 500
 
@@ -287,5 +296,7 @@ def update_tenant_language_preference(user_email, user_roles) -> ResponseReturnV
     except Exception as e:
         logger.error(f"Error in update_tenant_language_preference: {e}")
         return jsonify(
-            {"error": "Failed to update tenant language preference", "details": str(e)}
+            error_payload(
+                e, "Failed to update tenant language preference", include_success=False
+            )
         ), 500

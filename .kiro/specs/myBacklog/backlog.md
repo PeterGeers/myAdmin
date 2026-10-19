@@ -1,6 +1,5 @@
 
 # Time tracking
-
 - Quick add part
   -- Missing product or NOT
   -- What about more people able to track time
@@ -9,13 +8,7 @@
   -- How can we easy filter a period for submitting (day, week, month or year)
 
 
-# STR Import Guesty
 
-https://app.guesty.com/reservations?viewId=6a72237ce377681f84e3746c
-Add website data loading from guesty
-Strip fee is not in Guesty and can be found in stripe link reservation code
-
-What is this : https://report.guesty.com/apps/reservations?apiKey=89b048a6196d1b5fbcbc40f8cb6b75924419bce37cd1efa83af5d4c6b230e089ddb4caaaad87ab85a5444543e00bcd0c80e18d3bb037d66aca1a1f7513fea2ff
 
 ## prompt:
 Checkin is between 2 months ago and 1 year into the future for Platform Manual
@@ -28,11 +21,6 @@ How can wwe make a resusable piece of code as in .kiro\specs\Common\Frameworks a
 
 # PITR / Backup in dynamodb
 Check the current settings and what is needed
-
-
-# Candidates for Shared frontend component library
-
-
 
 
 
@@ -111,16 +99,7 @@ Storage is "one choice relevant for many modules that store objects." Architectu
 
 
 
-# Projection version gap — config/param changes don't auto-bump the projection version
-> MOVED (2026-10-12) → `.kiro/specs/Members/Parameter redesign/impact-analysis.md` §0.3 + Phase 0
-> step 2. This is the "version-bump trap" the spec already owns (the `_scope_config_version`
-> tenant-row-proxy defect that silently drops `members.*` edits). The spec covers the proper fix
-> (per-param revision, Phase 0 step 2) and goes further — adding a read-side delivered/loaded
-> status (Phase 0 step 3) so stale/failed syncs are diagnosable. The field evidence
-> (`written=0 skipped=15` on h-dcn) and the committed interim runner
-> (`scripts/aws/project-config-to-prod.py`, which refuses success on `written==0`) are preserved
-> in that §0.3 note. The runner's `_restrip_aws_env()` dependency stays the SEPARATE backlog item
-> below ("load_dotenv() clobbers AWS_PROFILE").
+
 
 
 
@@ -190,14 +169,7 @@ still-legitimate flag (orthogonal to `APP_ENV`), but is a candidate to fold into
 there is ONE environment selector. Not part of this bugfix.
 
 
-# CodeQL backlog — 30 pre-existing open code-scanning alerts (triage + fix)
-**Context (surfaced 2026-10-03 while handling a GitHub CodeQL email on PR #66):** the email's
-`py/clear-text-logging-sensitive-data` alert on `scripts/test-environment/provision-test-account.py`
-is ALREADY FIXED/closed (password generation+printing was removed in `94c45f2`; the current file
-requires `--password` and never logs it). No action needed there. BUT querying
-`repos/PeterGeers/myAdmin/code-scanning/alerts?state=open` revealed **30 OTHER pre-existing open
-alerts** unrelated to that PR's diff — recorded here for triage. None block current merges (they are
-not on changed lines), but they are real findings.
+
 
 ## The 30 open alerts, grouped by rule
 
@@ -286,3 +258,58 @@ Relates to: steering `43-cicd-deploys.md` ("no secrets in CI"), `41-shell-enviro
 analysis. Also connects to the open "s3 object management module and SAM" + shared-building-blocks
 backlog items (same reuse-across-planes theme).
 
+
+# Sam related admin tasks 
+Due to having big problems mapping mysql data to sam config records and the basic rules that sam and mysql cannot read each others data. 
+There still is the option to use the UIX as the tool to do tasks on both planes. One UI frontend plane for myadmin and 2 backend planes flask and sam.
+
+There is no rule that states that states Sam Admin tasks must be in Flask. 
+
+# Complete py/stack-trace-exposure sweep — remaining ~44 route files / ~180 sites
+
+**Source:** `security-assessment-2026-10-19` Task 4 was SCOPED (orchestrator decision) to the
+spec-named files only. The real `'error': str(e)` anti-pattern spans **259 sites across 54
+route files** — far more than the 79 the CodeQL seed reported. Task 4 converted the spec-named
+files (**117 sites**): `str_routes.py`, `financial_reporting_routes.py`, `aangifte_ib_routes.py`,
+`sysadmin_roles.py`, the whole `landing_page_routes/` package, the whole `media_asset_routes/`
+package, and the `tenant_admin_*` files.
+
+**Remaining:** ~44 route files / ~**142** `'error': str(e)` sites NOT yet converted (259 total −
+117 converted). Convert each `except … return jsonify({... 'error': str(e)}), 5xx` to the shared
+`error_responses` helper.
+
+**This is a mechanical follow-up — the convention and helper already exist:**
+- Convention: steering `30-backend-api-flask-mysql.md` → "Response Format" / "Error Handling"
+  already revised to the generic-message + `error_id` contract (no `str(e)` to client).
+- Helper: `backend/src/routes/error_responses.py` — `error_response(e, "<generic msg>", status=…,
+  include_success=<bool>, log_context=…)` returns `(jsonify(body), status)` and logs the full
+  exception (with stack) server-side under the `error_id`. `error_payload(...)` returns the raw
+  dict for SSE generators / embedded-in-data error fields.
+
+**Per-file recipe (same as Task 4):**
+1. `from routes.error_responses import error_response` (add `error_payload` if the file has SSE
+   `json.dumps({'type':'error',...})` frames or embeds `'error': str(e)` inside a data structure).
+2. Replace the `except Exception` (and typed `ClientError` / `PoolResolutionError`) 5xx paths with
+   `error_response(...)`. Keep the bare `{'error': ...}` shape via `include_success=False`.
+3. Deliberate validation errors (`ValueError` / `ScopeValidationError` → 400) KEEP their explicit
+   caller-safe message — assign `msg = str(e)` to a local; do NOT route them through the helper.
+4. Change-With-Tests: update any paired test that asserts the raw exception text in `['error']` to
+   assert the generic message + presence of `error_id` instead (most route tests only assert the
+   500 status + `success is False`, which the helper preserves — those need no change).
+
+**Note:** a `.agent-output/convert_errors.py` + `convert_errors2.py` regex converter handled the
+bulk of Task 4's uniform `logger.error(...)` + `jsonify({...'error': str(e)}), 500` blocks; a
+similar pass can bootstrap the remaining files (hand-check SSE yields, tuple-wrapped returns, and
+dict-literal error fields, which the regex does not cover).
+
+**Verification gate:** the `py/stack-trace-exposure` count only drops on the next CodeQL scan of
+`main` (security-assessment Task 11). Do NOT claim closure before that scan diffs the per-rule
+count against the `requirements.md` baseline.
+
+# Unit test for routes/error_responses.py helper
+Task 4 of security-assessment-2026-10-19 added backend/src/routes/error_responses.py
+(error_response / error_payload) but no dedicated unit test — it is currently covered
+only indirectly via converted route tests. Add backend/tests/unit/test_error_responses.py
+asserting: generic client_message returned, non-empty error_id, str(exc) never in body,
+status passthrough, include_success=False shape, and full-exception server-side logging
+(caplog + exc_info). Mechanical; the helper is stable.

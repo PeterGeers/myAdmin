@@ -12,6 +12,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 
 from .sysadmin_helpers import (
     get_tenant_user_count,
@@ -113,7 +114,9 @@ def create_tenant(user_email, user_roles) -> ResponseReturnValue:
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Tenant admin request failed", status=500, include_success=False
+        )
 
 
 @sysadmin_tenants_bp.route("", methods=["GET"])
@@ -237,7 +240,9 @@ def list_tenants(user_email, user_roles) -> ResponseReturnValue:
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Tenant admin request failed", status=500, include_success=False
+        )
 
 
 @sysadmin_tenants_bp.route("/<administration>", methods=["GET"])
@@ -304,7 +309,9 @@ def get_tenant(user_email, user_roles, administration) -> ResponseReturnValue:
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Tenant admin request failed", status=500, include_success=False
+        )
 
 
 @sysadmin_tenants_bp.route("/<administration>", methods=["PUT"])
@@ -410,7 +417,9 @@ def update_tenant(user_email, user_roles, administration) -> ResponseReturnValue
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Tenant admin request failed", status=500, include_success=False
+        )
 
 
 @sysadmin_tenants_bp.route("/<administration>", methods=["DELETE"])
@@ -473,7 +482,9 @@ def delete_tenant(user_email, user_roles, administration) -> ResponseReturnValue
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Tenant admin request failed", status=500, include_success=False
+        )
 
 
 # ============================================================================
@@ -552,7 +563,9 @@ def get_tenant_modules(user_email, user_roles, administration) -> ResponseReturn
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Tenant admin request failed", status=500, include_success=False
+        )
 
 
 @sysadmin_tenants_bp.route("/<administration>/modules", methods=["PUT"])
@@ -658,4 +671,6 @@ def update_tenant_modules(
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Tenant admin request failed", status=500, include_success=False
+        )

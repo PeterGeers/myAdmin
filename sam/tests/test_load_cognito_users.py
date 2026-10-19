@@ -30,20 +30,29 @@ import sys
 import pytest
 
 # repo root + backend/src on sys.path (mirrors the other sam runner tests).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-FIXTURE = os.path.join(_REPO_ROOT, "sam", "tests", "fixtures", "cognito_users_sample.json")
+FIXTURE = os.path.join(
+    _REPO_ROOT, "sam", "tests", "fixtures", "cognito_users_sample.json"
+)
 
 
 def _load_runner_module():
     """Import the hyphen-named runner script by path (not a valid module name)."""
     path = os.path.join(
-        _REPO_ROOT, "scripts", "onboarding", "members", "_generic", "load-cognito-users.py"
+        _REPO_ROOT,
+        "scripts",
+        "onboarding",
+        "members",
+        "_generic",
+        "load-cognito-users.py",
     )
     spec = importlib.util.spec_from_file_location("load_cognito_users", path)
     module = importlib.util.module_from_spec(spec)
@@ -95,11 +104,17 @@ class FakeCognitoBoto3Client:
             raise self.exceptions.UserNotFoundException(Username)
         return {"Username": Username, "UserPoolId": UserPoolId}
 
-    def admin_create_user(self, *, UserPoolId, Username, UserAttributes, MessageAction=None):
+    def admin_create_user(
+        self, *, UserPoolId, Username, UserAttributes, MessageAction=None
+    ):
         if Username in self.users:
             raise self.exceptions.UsernameExistsException(Username)
         attrs = {a["Name"]: a["Value"] for a in UserAttributes}
-        self.users[Username] = {"pool": UserPoolId, "attributes": attrs, "message": MessageAction}
+        self.users[Username] = {
+            "pool": UserPoolId,
+            "attributes": attrs,
+            "message": MessageAction,
+        }
 
     def admin_set_user_password(self, *, UserPoolId, Username, Password, Permanent):
         self.passwords[Username] = {"password": Password, "permanent": Permanent}
@@ -123,7 +138,9 @@ class RecordingGovernanceClient:
 
 
 def _cognito(existing=None):
-    return runner.CognitoAdminClient(region="eu-west-1", client=FakeCognitoBoto3Client(existing=existing))
+    return runner.CognitoAdminClient(
+        region="eu-west-1", client=FakeCognitoBoto3Client(existing=existing)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +157,7 @@ class TestBuildLoadPlan:
 
     def test_counts_scoped_vs_general(self):
         plan = runner.build_load_plan(FIXTURE)
-        assert plan.scoped_count == 2   # 601 (Noord), 602 (Zuid,Oost)
+        assert plan.scoped_count == 2  # 601 (Noord), 602 (Zuid,Oost)
         assert plan.general_count == 3  # 701, 702, 801 (scope "all")
 
     def test_role_breakdown(self):
@@ -164,46 +181,94 @@ class TestBuildLoadPlan:
         plan = runner.build_load_plan(FIXTURE)
         by_email = {u.email: u for u in plan.users}
         assert by_email["member-general-701@example.com"].scope_claim() == "*"
-        assert json.loads(by_email["member-scoped-602@example.com"].scope_claim()) == ["Zuid", "Oost"]
+        assert json.loads(by_email["member-scoped-602@example.com"].scope_claim()) == [
+            "Zuid",
+            "Oost",
+        ]
 
     def test_cli_tenant_overrides_file_default(self, tmp_path):
         path = tmp_path / "u.json"
-        path.write_text(json.dumps({"default_tenant": "file-club", "users": [
-            {"email": "a@example.com", "role": "Members_Read", "scope": ["Noord"]}
-        ]}), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                {
+                    "default_tenant": "file-club",
+                    "users": [
+                        {
+                            "email": "a@example.com",
+                            "role": "Members_Read",
+                            "scope": ["Noord"],
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         plan = runner.build_load_plan(str(path), cli_default_tenant="cli-club")
         assert plan.users[0].tenants == ["cli-club"]
 
     def test_unknown_role_is_a_collected_error(self, tmp_path):
         path = tmp_path / "u.json"
-        path.write_text(json.dumps({"default_tenant": "c", "users": [
-            {"email": "a@example.com", "role": "Bogus_Role", "scope": "all"}
-        ]}), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                {
+                    "default_tenant": "c",
+                    "users": [
+                        {"email": "a@example.com", "role": "Bogus_Role", "scope": "all"}
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         plan = runner.build_load_plan(str(path))
         assert plan.ok_count == 0 and plan.error_count == 1
         assert "unknown role" in plan.errors[0][1]
 
     def test_missing_email_is_a_collected_error(self, tmp_path):
         path = tmp_path / "u.json"
-        path.write_text(json.dumps({"default_tenant": "c", "users": [
-            {"role": "Members_Read", "scope": "all"}
-        ]}), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                {
+                    "default_tenant": "c",
+                    "users": [{"role": "Members_Read", "scope": "all"}],
+                }
+            ),
+            encoding="utf-8",
+        )
         plan = runner.build_load_plan(str(path))
         assert plan.error_count == 1 and "email" in plan.errors[0][1]
 
     def test_no_tenant_and_no_default_is_an_error(self, tmp_path):
         path = tmp_path / "u.json"
-        path.write_text(json.dumps({"users": [
-            {"email": "a@example.com", "role": "Members_Read", "scope": "all"}
-        ]}), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                {
+                    "users": [
+                        {
+                            "email": "a@example.com",
+                            "role": "Members_Read",
+                            "scope": "all",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
         plan = runner.build_load_plan(str(path))
         assert plan.error_count == 1 and "default tenant" in plan.errors[0][1]
 
     def test_empty_scope_list_is_an_error(self, tmp_path):
         path = tmp_path / "u.json"
-        path.write_text(json.dumps({"default_tenant": "c", "users": [
-            {"email": "a@example.com", "role": "Members_Read", "scope": []}
-        ]}), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                {
+                    "default_tenant": "c",
+                    "users": [
+                        {"email": "a@example.com", "role": "Members_Read", "scope": []}
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         plan = runner.build_load_plan(str(path))
         assert plan.error_count == 1
 
@@ -218,20 +283,26 @@ class TestRunnerDryRun:
         cog = FakeCognitoBoto3Client()
         gov = RecordingGovernanceClient()
         rc = runner.load_users(
-            FIXTURE, pool_id="eu-west-1_xyrlzfqbl", region="eu-west-1", apply=False,
-            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog), governance=gov,
+            FIXTURE,
+            pool_id="eu-west-1_xyrlzfqbl",
+            region="eu-west-1",
+            apply=False,
+            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog),
+            governance=gov,
         )
         assert rc == 0
-        assert cog.users == {}          # no user created
-        assert gov.calls == []          # no endpoint call
+        assert cog.users == {}  # no user created
+        assert gov.calls == []  # no endpoint call
 
     def test_dry_run_emits_a_plan(self, capsys):
-        runner.load_users(FIXTURE, pool_id="eu-west-1_xyrlzfqbl", region="eu-west-1", apply=False)
+        runner.load_users(
+            FIXTURE, pool_id="eu-west-1_xyrlzfqbl", region="eu-west-1", apply=False
+        )
         out = capsys.readouterr().out
         assert "Cognito bulk user load — plan" in out
         assert "DRY-RUN" in out
-        assert "eu-west-1_xyrlzfqbl" in out              # resolved target pool
-        assert "GOVERNANCE ENDPOINT" in out              # role path named
+        assert "eu-west-1_xyrlzfqbl" in out  # resolved target pool
+        assert "GOVERNANCE ENDPOINT" in out  # role path named
         assert "users in file     : 5" in out
 
     def test_apply_is_the_only_write_flag(self):
@@ -259,7 +330,9 @@ class TestRunnerRequiresPoolAndSource:
             )
 
     def test_pool_alias_accepted(self):
-        args = runner.build_parser().parse_args(["--pool", "eu-west-1_xyrlzfqbl", "--source", FIXTURE])
+        args = runner.build_parser().parse_args(
+            ["--pool", "eu-west-1_xyrlzfqbl", "--source", FIXTURE]
+        )
         assert args.pool_id == "eu-west-1_xyrlzfqbl"
 
 
@@ -273,21 +346,37 @@ class TestRunnerApply:
         cog = FakeCognitoBoto3Client()
         gov = RecordingGovernanceClient()
         rc = runner.load_users(
-            FIXTURE, pool_id="POOL", region="eu-west-1", apply=True,
-            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog), governance=gov,
+            FIXTURE,
+            pool_id="POOL",
+            region="eu-west-1",
+            apply=True,
+            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog),
+            governance=gov,
         )
         assert rc == 0
         assert set(cog.users) == {
-            "member-scoped-601@example.com", "member-scoped-602@example.com",
-            "member-general-701@example.com", "member-general-702@example.com",
+            "member-scoped-601@example.com",
+            "member-scoped-602@example.com",
+            "member-general-701@example.com",
+            "member-general-702@example.com",
             "member-extra-801@example.com",
         }
         # custom:tenants scalar vs array shape landed on the created user.
-        assert cog.users["member-scoped-601@example.com"]["attributes"]["custom:tenants"] == "h-dcn-test"
-        assert cog.users["member-extra-801@example.com"]["attributes"]["custom:tenants"].startswith("[")
+        assert (
+            cog.users["member-scoped-601@example.com"]["attributes"]["custom:tenants"]
+            == "h-dcn-test"
+        )
+        assert cog.users["member-extra-801@example.com"]["attributes"][
+            "custom:tenants"
+        ].startswith("[")
         # custom:scope: all → "*", subset → JSON array.
-        assert cog.users["member-general-701@example.com"]["attributes"]["custom:scope"] == "*"
-        assert json.loads(cog.users["member-scoped-602@example.com"]["attributes"]["custom:scope"]) == ["Zuid", "Oost"]
+        assert (
+            cog.users["member-general-701@example.com"]["attributes"]["custom:scope"]
+            == "*"
+        )
+        assert json.loads(
+            cog.users["member-scoped-602@example.com"]["attributes"]["custom:scope"]
+        ) == ["Zuid", "Oost"]
         # every created user got a permanent password set by the SCRIPT.
         assert all(p["permanent"] for p in cog.passwords.values())
         assert len(cog.passwords) == 5
@@ -296,8 +385,12 @@ class TestRunnerApply:
         cog = FakeCognitoBoto3Client()
         gov = RecordingGovernanceClient()
         runner.load_users(
-            FIXTURE, pool_id="POOL", region="eu-west-1", apply=True,
-            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog), governance=gov,
+            FIXTURE,
+            pool_id="POOL",
+            region="eu-west-1",
+            apply=True,
+            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog),
+            governance=gov,
         )
         # Every role assignment is a recorded ENDPOINT call (never a direct DB/projection write).
         assigned = {(email, role) for _tenant, email, role in gov.calls}
@@ -310,13 +403,20 @@ class TestRunnerApply:
 
     def test_apply_is_idempotent_existing_users_skipped(self, capsys):
         # 601 + 701 already exist → created only the other 3; existing ones skipped, not recreated.
-        cog = FakeCognitoBoto3Client(existing={
-            "member-scoped-601@example.com", "member-general-701@example.com",
-        })
+        cog = FakeCognitoBoto3Client(
+            existing={
+                "member-scoped-601@example.com",
+                "member-general-701@example.com",
+            }
+        )
         gov = RecordingGovernanceClient()
         rc = runner.load_users(
-            FIXTURE, pool_id="POOL", region="eu-west-1", apply=True,
-            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog), governance=gov,
+            FIXTURE,
+            pool_id="POOL",
+            region="eu-west-1",
+            apply=True,
+            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog),
+            governance=gov,
         )
         assert rc == 0
         out = capsys.readouterr().out
@@ -329,46 +429,87 @@ class TestRunnerApply:
         cog = FakeCognitoBoto3Client()
         gov = RecordingGovernanceClient()
         client = runner.CognitoAdminClient(region="eu-west-1", client=cog)
-        runner.load_users(FIXTURE, pool_id="POOL", region="eu-west-1", apply=True, cognito=client, governance=gov)
+        runner.load_users(
+            FIXTURE,
+            pool_id="POOL",
+            region="eu-west-1",
+            apply=True,
+            cognito=client,
+            governance=gov,
+        )
         created_after_first = dict(cog.users)
         # Second run over the SAME file — all users already present → all skipped.
-        rc = runner.load_users(FIXTURE, pool_id="POOL", region="eu-west-1", apply=True, cognito=client, governance=gov)
+        rc = runner.load_users(
+            FIXTURE,
+            pool_id="POOL",
+            region="eu-west-1",
+            apply=True,
+            cognito=client,
+            governance=gov,
+        )
         assert rc == 0
         assert cog.users == created_after_first  # nothing new created
 
-    def test_apply_without_governance_creates_users_but_marks_role_skipped(self, capsys):
+    def test_apply_without_governance_creates_users_but_marks_role_skipped(
+        self, capsys
+    ):
         # No governance client wired → users created + attributes set, role step skipped (for SPA).
         cog = FakeCognitoBoto3Client()
         rc = runner.load_users(
-            FIXTURE, pool_id="POOL", region="eu-west-1", apply=True,
-            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog), governance=None,
+            FIXTURE,
+            pool_id="POOL",
+            region="eu-west-1",
+            apply=True,
+            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog),
+            governance=None,
         )
         assert rc == 0
-        assert len(cog.users) == 5             # users still created by the script
+        assert len(cog.users) == 5  # users still created by the script
         out = capsys.readouterr().out
         assert "roles assigned   : 0" in out
-        assert "roles skipped    : 5" in out   # endpoint not wired → left for the SPA
+        assert "roles skipped    : 5" in out  # endpoint not wired → left for the SPA
 
     def test_apply_refuses_a_file_with_malformed_rows(self, tmp_path):
         path = tmp_path / "bad.json"
-        path.write_text(json.dumps({"default_tenant": "c", "users": [
-            {"email": "ok@example.com", "role": "Members_Read", "scope": "all"},
-            {"email": "bad@example.com", "role": "Nope", "scope": "all"},
-        ]}), encoding="utf-8")
+        path.write_text(
+            json.dumps(
+                {
+                    "default_tenant": "c",
+                    "users": [
+                        {
+                            "email": "ok@example.com",
+                            "role": "Members_Read",
+                            "scope": "all",
+                        },
+                        {"email": "bad@example.com", "role": "Nope", "scope": "all"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
         cog = FakeCognitoBoto3Client()
-        rc = runner.load_users(str(path), pool_id="POOL", region="eu-west-1", apply=True,
-                               cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog),
-                               governance=RecordingGovernanceClient())
-        assert rc == 2               # refused
-        assert cog.users == {}       # nothing created from a partially-broken file
+        rc = runner.load_users(
+            str(path),
+            pool_id="POOL",
+            region="eu-west-1",
+            apply=True,
+            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog),
+            governance=RecordingGovernanceClient(),
+        )
+        assert rc == 2  # refused
+        assert cog.users == {}  # nothing created from a partially-broken file
 
     def test_role_error_is_reported_not_fatal(self):
         cog = FakeCognitoBoto3Client()
         gov = RecordingGovernanceClient()
         gov.raise_for = {"member-general-702@example.com"}
         rc = runner.load_users(
-            FIXTURE, pool_id="POOL", region="eu-west-1", apply=True,
-            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog), governance=gov,
+            FIXTURE,
+            pool_id="POOL",
+            region="eu-west-1",
+            apply=True,
+            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog),
+            governance=gov,
         )
         # Exit 3 = applied but with a reconcilable error; the user was still CREATED.
         assert rc == 3
@@ -380,3 +521,65 @@ class TestCliDefaultDryRun:
         rc = runner.main(["--pool-id", "eu-west-1_xyrlzfqbl", "--source", FIXTURE])
         assert rc == 0
         assert "DRY-RUN" in capsys.readouterr().out
+
+
+class TestGeneratedPasswordRedaction:
+    """The apply summary must NOT print generated passwords unless --show-passwords is set
+    (py/clear-text-logging-sensitive-data)."""
+
+    def test_default_apply_redacts_generated_passwords(self, capsys):
+        cog = FakeCognitoBoto3Client()
+        gov = RecordingGovernanceClient()
+        rc = runner.load_users(
+            FIXTURE,
+            pool_id="POOL",
+            region="eu-west-1",
+            apply=True,
+            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog),
+            governance=gov,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        # The script DID generate passwords (every created user got one set)...
+        assert len(cog.passwords) == 5
+        # ...but NONE of the cleartext secrets appear on stdout by default.
+        for rec in cog.passwords.values():
+            assert rec["password"] not in out
+        # A redacted placeholder is shown instead, with the email still listed.
+        assert "<hidden — pass --show-passwords to reveal>" in out
+        assert "member-scoped-601@example.com" in out
+
+    def test_show_passwords_flag_reveals_generated_passwords(self, capsys):
+        cog = FakeCognitoBoto3Client()
+        gov = RecordingGovernanceClient()
+        rc = runner.load_users(
+            FIXTURE,
+            pool_id="POOL",
+            region="eu-west-1",
+            apply=True,
+            show_passwords=True,
+            cognito=runner.CognitoAdminClient(region="eu-west-1", client=cog),
+            governance=gov,
+        )
+        assert rc == 0
+        out = capsys.readouterr().out
+        assert "<hidden — pass --show-passwords to reveal>" not in out
+        # With the flag the real generated passwords ARE printed.
+        for rec in cog.passwords.values():
+            assert rec["password"] in out
+
+    def test_show_passwords_defaults_off_in_cli(self):
+        args = runner.build_parser().parse_args(
+            ["--pool-id", "eu-west-1_xyrlzfqbl", "--source", FIXTURE]
+        )
+        assert args.show_passwords is False
+        args_on = runner.build_parser().parse_args(
+            [
+                "--pool-id",
+                "eu-west-1_xyrlzfqbl",
+                "--source",
+                FIXTURE,
+                "--show-passwords",
+            ]
+        )
+        assert args_on.show_passwords is True

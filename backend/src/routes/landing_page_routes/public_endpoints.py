@@ -8,6 +8,7 @@ package namespace at call time so the test suite's
 import logging
 import os
 import re
+from html.parser import HTMLParser
 
 from flask import jsonify, request
 from flask.typing import ResponseReturnValue
@@ -41,6 +42,49 @@ def _sanitize_filename(filename: str) -> str:
     return name.lower()
 
 
+class _TagStripper(HTMLParser):
+    """Linear HTML tag stripper backed by the stdlib streaming tokenizer.
+
+    ``HTMLParser`` scans input character-by-character, so it strips tags in
+    O(n) time with no regex backtracking — this replaces the previous
+    ``re.sub(r"<[^>]*>", "", value)`` approach that CodeQL flagged as
+    ``py/polynomial-redos`` on this unauthenticated endpoint. Only text
+    data (``handle_data``) and decoded entities/char-refs are kept; every
+    start/end/self-closing tag is discarded, matching the old behavior of
+    leaving plain-text content only.
+    """
+
+    def __init__(self) -> None:
+        # convert_charrefs=True makes the parser decode entities (e.g.
+        # ``&amp;`` -> ``&``) and hand them to handle_data, mirroring the
+        # html.unescape step of the previous implementation.
+        super().__init__(convert_charrefs=True)
+        self._parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self._parts.append(data)
+
+    def get_text(self) -> str:
+        return "".join(self._parts)
+
+
+def _strip_tags(value: str) -> str:
+    """Strip all HTML/XML tags from ``value`` in linear time.
+
+    Uses a feed-once ``HTMLParser`` pass. On the rare malformed input that
+    the parser rejects, fall back to returning the raw text unchanged rather
+    than raising — the caller still length-validates and the DB layer uses
+    parameterized queries, so no markup reaches an HTML sink regardless.
+    """
+    stripper = _TagStripper()
+    try:
+        stripper.feed(value)
+        stripper.close()
+    except Exception:  # pragma: no cover - defensive; malformed markup
+        return value
+    return stripper.get_text()
+
+
 def _sanitize_input(value: str) -> str:
     """
     Sanitize user input by stripping HTML tags to prevent stored XSS.
@@ -48,6 +92,10 @@ def _sanitize_input(value: str) -> str:
     Task 4.11 — Input sanitization on contact form fields.
     Strips all HTML/XML tags from the input, leaving only plain text content.
     Also normalizes excessive whitespace.
+
+    Uses a linear ``html.parser``-based stripper instead of a backtracking
+    regex (CodeQL ``py/polynomial-redos``) because this runs on a public,
+    unauthenticated endpoint where the input is attacker-controlled.
 
     Args:
         value: Raw user input string
@@ -57,13 +105,14 @@ def _sanitize_input(value: str) -> str:
     """
     import html as html_module
 
-    # Strip HTML tags
-    clean = re.sub(r"<[^>]*>", "", value)
+    # Strip HTML tags (linear, no backtracking).
+    clean = _strip_tags(value)
     # Unescape any HTML entities that might have been injected (e.g. &lt;script&gt;)
+    # into textual content (double-encoded payloads such as "&amp;lt;script&amp;gt;").
     clean = html_module.unescape(clean)
-    # Strip again after unescape (in case entities decoded into tags)
-    clean = re.sub(r"<[^>]*>", "", clean)
-    # Normalize excessive whitespace (but preserve newlines for message readability)
+    # Strip again after unescape (in case entities decoded into tags).
+    clean = _strip_tags(clean)
+    # Normalize excessive whitespace (but preserve newlines for message readability).
     clean = re.sub(r"[ \t]+", " ", clean)
     return clean.strip()
 

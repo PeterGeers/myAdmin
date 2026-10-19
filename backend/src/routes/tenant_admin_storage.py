@@ -20,6 +20,7 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
+from routes.error_responses import error_payload, error_response
 from services.storage_resolver import get_s3_storage, resolve_storage_provider
 
 # Initialize logger
@@ -100,11 +101,12 @@ def list_folders(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        logger.error(f"Error listing folders: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant storage request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_storage_bp.route("/config", methods=["GET"])
@@ -147,8 +149,12 @@ def get_storage_config(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "tenant": tenant, "config": storage_config})
 
     except Exception as e:
-        logger.error(f"Error getting storage config: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant storage request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_storage_bp.route("/config", methods=["PUT"])
@@ -270,11 +276,12 @@ def update_storage_config(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        logger.error(f"Error updating storage config: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant storage request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_storage_bp.route("/test", methods=["POST"])
@@ -430,11 +437,12 @@ def test_folder_access(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "tenant": tenant, "test_result": test_result})
 
     except Exception as e:
-        logger.error(f"Error testing folder access: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant storage request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_storage_bp.route("/usage", methods=["GET"])
@@ -584,12 +592,19 @@ def get_storage_usage(user_email, user_roles) -> ResponseReturnValue:
                 }
 
             except Exception as e:
-                logger.error(f"Error getting usage for folder {config_key}: {e}")
+                # Per-folder failure embedded in the response: log full detail
+                # server-side; expose only a generic message + correlation id.
+                folder_err = error_payload(
+                    e,
+                    "Failed to read folder usage",
+                    include_success=False,
+                    log_context=f"Error getting usage for folder {config_key}",
+                )
                 usage_stats[config_key] = {
                     "folder_id": folder_id,
                     "folder_name": config_key,
                     "accessible": False,
-                    "error": str(e),
+                    **folder_err,
                 }
 
         logger.info(
@@ -599,8 +614,9 @@ def get_storage_usage(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "tenant": tenant, "usage": usage_stats})
 
     except Exception as e:
-        logger.error(f"Error getting storage usage: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant storage request failed",
+            status=500,
+            include_success=False,
+        )

@@ -17,6 +17,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
 from database import DatabaseManager
+from routes.error_responses import error_response
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -76,11 +77,12 @@ def get_tenant_details(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "tenant": tenant_details})
 
     except Exception as e:
-        logger.error(f"Error getting tenant details: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant details request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_details_bp.route("", methods=["PUT"])
@@ -191,8 +193,9 @@ def update_tenant_details(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        logger.error(f"Error updating tenant details: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant details request failed",
+            status=500,
+            include_success=False,
+        )

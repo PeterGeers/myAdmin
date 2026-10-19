@@ -8,14 +8,29 @@ TenantSlugService, boto3 S3 client).
 
 import json
 import os
+import re
 import sys
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, patch
+from urllib.parse import urlparse
 
 import pytest
 from botocore.exceptions import ClientError
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+
+
+def _has_link_host(html: str, host: str) -> bool:
+    """True iff some href="..." in the HTML fragment has EXACTLY ``host`` as its hostname.
+
+    Compares the parsed URL hostname by EQUALITY (not a substring/`in` check) so a
+    spoofed host such as ``fonts.googleapis.com.evil.example`` does NOT match, and so
+    the check is not an incomplete-URL-substring pattern (CodeQL
+    py/incomplete-url-substring-sanitization).
+    """
+    return any(
+        urlparse(href).hostname == host for href in re.findall(r'href="([^"]+)"', html)
+    )
 
 
 class TestLandingPagePublishService:
@@ -114,7 +129,14 @@ class TestLandingPagePublishService:
         return svc
 
     @pytest.fixture
-    def service(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3, mock_asset_svc):
+    def service(
+        self,
+        mock_landing_page_svc,
+        mock_param_svc,
+        mock_slug_svc,
+        mock_s3,
+        mock_asset_svc,
+    ):
         """Create LandingPagePublishService with mocked dependencies."""
         with patch.dict(
             os.environ,
@@ -206,7 +228,10 @@ class TestLandingPagePublishService:
         """Test publish fails gracefully on S3 index.html write error."""
         # First store_and_register succeeds, second fails
         mock_asset_svc.store_and_register.side_effect = [
-            {"success": True, "asset": {"id": "ast_001", "s3_key": "acme-rentals/landing.json"}},
+            {
+                "success": True,
+                "asset": {"id": "ast_001", "s3_key": "acme-rentals/landing.json"},
+            },
             ClientError(
                 {"Error": {"Code": "InternalError", "Message": "S3 failed"}},
                 "PutObject",
@@ -331,7 +356,9 @@ class TestLandingPagePublishService:
         with pytest.raises(ClientError):
             service.unpublish("TestTenant", "admin@acme.nl")
 
-    def test_unpublish_with_asset_svc_detach_and_delete_orphaned(self, service, mock_s3):
+    def test_unpublish_with_asset_svc_detach_and_delete_orphaned(
+        self, service, mock_s3
+    ):
         """Test unpublish uses asset_svc to detach and delete orphaned assets."""
         # Setup asset service mock
         mock_asset_svc = Mock()
@@ -350,7 +377,10 @@ class TestLandingPagePublishService:
             "success": True,
             "asset": {"id": "ast_json_001", "status": "ORPHAN", "reference_count": 0},
         }
-        mock_asset_svc.delete_asset.return_value = {"success": True, "asset_id": "ast_json_001"}
+        mock_asset_svc.delete_asset.return_value = {
+            "success": True,
+            "asset_id": "ast_json_001",
+        }
 
         result = service.unpublish("TestTenant", "admin@acme.nl")
 
@@ -359,8 +389,12 @@ class TestLandingPagePublishService:
 
         # Verify detach called for each asset
         assert mock_asset_svc.detach.call_count == 2
-        mock_asset_svc.detach.assert_any_call("TestTenant", "ast_json_001", "landing_page", "acme-rentals")
-        mock_asset_svc.detach.assert_any_call("TestTenant", "ast_html_002", "landing_page", "acme-rentals")
+        mock_asset_svc.detach.assert_any_call(
+            "TestTenant", "ast_json_001", "landing_page", "acme-rentals"
+        )
+        mock_asset_svc.detach.assert_any_call(
+            "TestTenant", "ast_html_002", "landing_page", "acme-rentals"
+        )
 
         # Verify delete called for orphaned assets
         assert mock_asset_svc.delete_asset.call_count == 2
@@ -368,7 +402,9 @@ class TestLandingPagePublishService:
         # No direct S3 delete calls
         assert mock_s3.delete_object.call_count == 0
 
-    def test_unpublish_with_asset_svc_no_delete_when_still_referenced(self, service, mock_s3):
+    def test_unpublish_with_asset_svc_no_delete_when_still_referenced(
+        self, service, mock_s3
+    ):
         """Test unpublish does not delete assets that still have references."""
         mock_asset_svc = Mock()
         service.asset_svc = mock_asset_svc
@@ -390,7 +426,9 @@ class TestLandingPagePublishService:
         mock_asset_svc.delete_asset.assert_not_called()
         assert mock_s3.delete_object.call_count == 0
 
-    def test_unpublish_with_asset_svc_fallback_when_no_registered_assets(self, service, mock_s3):
+    def test_unpublish_with_asset_svc_fallback_when_no_registered_assets(
+        self, service, mock_s3
+    ):
         """Test unpublish falls back to _delete_raw when no assets in registry."""
         mock_asset_svc = Mock()
         service.asset_svc = mock_asset_svc
@@ -592,7 +630,9 @@ class TestLandingPagePublishService:
 
         assert result["canonical_url"] == "https://myadmin.app/p/my-slug"
 
-    def test_resolve_seo_canonical_url_jabaki_enabled(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+    def test_resolve_seo_canonical_url_jabaki_enabled(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
+    ):
         """Test canonical URL uses Jabaki subdomain when jabaki_enabled is true."""
         mock_param_svc.get_param.return_value = None
         mock_db = Mock()
@@ -630,7 +670,9 @@ class TestLandingPagePublishService:
         assert result["canonical_url"] == "https://acme-rentals.jabaki.nl/"
         assert result["alternate_urls"] == ["https://myadmin.app/p/acme-rentals"]
 
-    def test_resolve_seo_canonical_url_jabaki_disabled(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+    def test_resolve_seo_canonical_url_jabaki_disabled(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
+    ):
         """Test canonical URL falls back to default when jabaki_enabled is false."""
         mock_param_svc.get_param.return_value = None
         mock_db = Mock()
@@ -679,7 +721,9 @@ class TestLandingPagePublishService:
         assert result["canonical_url"] == "https://myadmin.app/p/my-slug"
         assert result["alternate_urls"] == []
 
-    def test_resolve_seo_custom_domain_takes_priority(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+    def test_resolve_seo_custom_domain_takes_priority(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
+    ):
         """Test custom domain takes highest priority for canonical URL."""
         mock_param_svc.get_param.return_value = None
         mock_db = Mock()
@@ -715,11 +759,19 @@ class TestLandingPagePublishService:
             result = svc.resolve_seo("TestTenant", "acme-rentals", {})
 
         assert result["canonical_url"] == "https://www.acme-rentals.nl/"
-        assert "https://acme-rentals.jabaki.nl/" in result["alternate_urls"]
-        assert "https://myadmin.app/p/acme-rentals" in result["alternate_urls"]
-        assert "https://www.acme-rentals.nl/" not in result["alternate_urls"]
+        assert any(
+            u == "https://acme-rentals.jabaki.nl/" for u in result["alternate_urls"]
+        )
+        assert any(
+            u == "https://myadmin.app/p/acme-rentals" for u in result["alternate_urls"]
+        )
+        assert all(
+            u != "https://www.acme-rentals.nl/" for u in result["alternate_urls"]
+        )
 
-    def test_resolve_seo_custom_domain_without_jabaki(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+    def test_resolve_seo_custom_domain_without_jabaki(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
+    ):
         """Test custom domain as canonical with jabaki disabled."""
         mock_param_svc.get_param.return_value = None
         mock_db = Mock()
@@ -757,7 +809,9 @@ class TestLandingPagePublishService:
         assert result["canonical_url"] == "https://www.acme-rentals.nl/"
         assert result["alternate_urls"] == ["https://myadmin.app/p/acme-rentals"]
 
-    def test_resolve_seo_custom_domain_db_error_graceful(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+    def test_resolve_seo_custom_domain_db_error_graceful(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
+    ):
         """Test graceful degradation when custom domain query fails."""
         mock_param_svc.get_param.return_value = None
         mock_db = Mock()
@@ -1110,32 +1164,32 @@ class TestLandingPagePublishService:
         self, mock_landing_page_svc, mock_param_svc, mock_slug_svc
     ):
         """Test service reads bucket name and base URL from environment."""
-        with patch.dict(
-            os.environ,
-            {
-                "LANDING_PAGES_BUCKET": "custom-bucket",
-                "LANDING_PAGE_BASE_URL": "https://custom.app",
-                "CLOUDFRONT_PUBLIC_PAGES_DOMAIN": "d123.cloudfront.net",
-            },
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "LANDING_PAGES_BUCKET": "custom-bucket",
+                    "LANDING_PAGE_BASE_URL": "https://custom.app",
+                    "CLOUDFRONT_PUBLIC_PAGES_DOMAIN": "d123.cloudfront.net",
+                },
+            ),
+            patch("services.landing_page_publish_service.boto3.client") as mock_boto,
         ):
-            with patch(
-                "services.landing_page_publish_service.boto3.client"
-            ) as mock_boto:
-                mock_boto.return_value = Mock()
+            mock_boto.return_value = Mock()
 
-                from services.landing_page_publish_service import (
-                    LandingPagePublishService,
-                )
+            from services.landing_page_publish_service import (
+                LandingPagePublishService,
+            )
 
-                svc = LandingPagePublishService(
-                    landing_page_service=mock_landing_page_svc,
-                    parameter_service=mock_param_svc,
-                    slug_service=mock_slug_svc,
-                )
+            svc = LandingPagePublishService(
+                landing_page_service=mock_landing_page_svc,
+                parameter_service=mock_param_svc,
+                slug_service=mock_slug_svc,
+            )
 
-                assert svc.bucket_name == "custom-bucket"
-                assert svc.base_url == "https://custom.app"
-                assert svc.cloudfront_domain == "d123.cloudfront.net"
+            assert svc.bucket_name == "custom-bucket"
+            assert svc.base_url == "https://custom.app"
+            assert svc.cloudfront_domain == "d123.cloudfront.net"
 
 
 class TestPublishWithAssetService:
@@ -1213,37 +1267,37 @@ class TestPublishWithAssetService:
         Patches boto3.client and MediaAssetService for the entire test duration
         so that publish() never hits real AWS.
         """
-        with patch.dict(
-            os.environ,
-            {
-                "AWS_DEFAULT_REGION": "eu-west-1",
-                "ENVIRONMENT": "test",
-                "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
-                "LANDING_PAGE_BASE_URL": "https://myadmin.app",
-            },
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "AWS_DEFAULT_REGION": "eu-west-1",
+                    "ENVIRONMENT": "test",
+                    "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                    "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+                },
+            ),
+            patch("services.landing_page_publish_service.boto3.client") as mock_boto,
         ):
+            mock_boto.return_value = Mock()
             with patch(
-                "services.landing_page_publish_service.boto3.client"
-            ) as mock_boto:
-                mock_boto.return_value = Mock()
-                with patch(
-                    "services.landing_page_publish_service.MediaAssetService"
-                ) as MockAssetCls:
-                    MockAssetCls.return_value = mock_asset_svc
+                "services.landing_page_publish_service.MediaAssetService"
+            ) as MockAssetCls:
+                MockAssetCls.return_value = mock_asset_svc
 
-                    from services.landing_page_publish_service import (
-                        LandingPagePublishService,
-                    )
+                from services.landing_page_publish_service import (
+                    LandingPagePublishService,
+                )
 
-                    svc = LandingPagePublishService(
-                        landing_page_service=mock_landing_page_svc,
-                        parameter_service=mock_param_svc,
-                        slug_service=mock_slug_svc,
-                        db_manager=mock_db_manager,
-                    )
-                    # Ensure asset_svc is our mock
-                    svc.asset_svc = mock_asset_svc
-                    yield svc
+                svc = LandingPagePublishService(
+                    landing_page_service=mock_landing_page_svc,
+                    parameter_service=mock_param_svc,
+                    slug_service=mock_slug_svc,
+                    db_manager=mock_db_manager,
+                )
+                # Ensure asset_svc is our mock
+                svc.asset_svc = mock_asset_svc
+                yield svc
 
     def test_publish_uses_store_and_register(self, service, mock_asset_svc):
         """Test publish calls store_and_register for both landing.json and index.html."""
@@ -1292,7 +1346,10 @@ class TestPublishWithAssetService:
         mock_asset_svc.store_and_register.side_effect = [
             {
                 "success": True,
-                "asset": {"id": "ast_1", "s3_key": "TestTenant/landing-pages/ast_1_landing.json"},
+                "asset": {
+                    "id": "ast_1",
+                    "s3_key": "TestTenant/landing-pages/ast_1_landing.json",
+                },
                 "duplicate_of": None,
             },
             {"success": False, "error": "S3 upload failed"},
@@ -1314,7 +1371,9 @@ class TestPublishWithAssetService:
         call_2 = mock_asset_svc.store_and_register.call_args_list[1]
         assert isinstance(call_2[1]["file_data"], bytes)
 
-    def test_publish_uses_slug_as_entity_id(self, service, mock_asset_svc, mock_slug_svc):
+    def test_publish_uses_slug_as_entity_id(
+        self, service, mock_asset_svc, mock_slug_svc
+    ):
         """Test that entity_id is the slug (not a numeric page ID)."""
         mock_slug_svc.get_slug.return_value = "my-custom-slug"
 
@@ -1322,7 +1381,6 @@ class TestPublishWithAssetService:
 
         call_1 = mock_asset_svc.store_and_register.call_args_list[0]
         assert call_1[1]["entity_id"] == "my-custom-slug"
-
 
 
 class TestThemePresetBranding:
@@ -1365,30 +1423,32 @@ class TestThemePresetBranding:
 
             param_svc.get_param.side_effect = get_param_side_effect
 
-            with patch.dict(
-                os.environ,
-                {
-                    "AWS_DEFAULT_REGION": "eu-west-1",
-                    "ENVIRONMENT": "test",
-                    "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
-                    "LANDING_PAGE_BASE_URL": "https://myadmin.app",
-                },
-            ):
-                with patch(
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "AWS_DEFAULT_REGION": "eu-west-1",
+                        "ENVIRONMENT": "test",
+                        "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                        "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+                    },
+                ),
+                patch(
                     "services.landing_page_publish_service.boto3.client"
-                ) as mock_boto:
-                    mock_boto.return_value = Mock()
+                ) as mock_boto,
+            ):
+                mock_boto.return_value = Mock()
 
-                    from services.landing_page_publish_service import (
-                        LandingPagePublishService,
-                    )
+                from services.landing_page_publish_service import (
+                    LandingPagePublishService,
+                )
 
-                    svc = LandingPagePublishService(
-                        landing_page_service=mock_landing_page_svc,
-                        parameter_service=param_svc,
-                        slug_service=mock_slug_svc,
-                    )
-                    return svc
+                svc = LandingPagePublishService(
+                    landing_page_service=mock_landing_page_svc,
+                    parameter_service=param_svc,
+                    slug_service=mock_slug_svc,
+                )
+                return svc
 
         return _factory
 
@@ -1462,10 +1522,12 @@ class TestThemePresetBranding:
 
     def test_theme_override_merging(self, _make_service):
         """Override replaces only specified fields; preset fills the rest."""
-        theme = json.dumps({
-            "preset": "professional",
-            "overrides": {"color_accent": "#custom123"},
-        })
+        theme = json.dumps(
+            {
+                "preset": "professional",
+                "overrides": {"color_accent": "#custom123"},
+            }
+        )
         svc = _make_service(theme_json=theme)
 
         branding = svc.resolve_branding("TestTenant")
@@ -1487,7 +1549,7 @@ class TestThemePresetBranding:
         branding = dict(LandingPageStyles.THEME_PRESETS["professional"])
         font_links = LandingPageStyles.build_font_links(branding)
 
-        assert "fonts.googleapis.com" in font_links
+        assert _has_link_host(font_links, "fonts.googleapis.com")
         assert "Inter" in font_links
 
     def test_theme_luxury_font_links(self):
@@ -1499,7 +1561,7 @@ class TestThemePresetBranding:
 
         assert "Playfair+Display" in font_links
         assert "Lato" in font_links
-        assert "fonts.googleapis.com" in font_links
+        assert _has_link_host(font_links, "fonts.googleapis.com")
 
     def test_theme_minimal_no_font_links(self):
         """Theme 'minimal' preset data → system fonts → no Google Font links."""
@@ -1519,7 +1581,7 @@ class TestThemePresetBranding:
 
         assert "Lora" in font_links
         assert "Nunito" in font_links
-        assert "fonts.googleapis.com" in font_links
+        assert _has_link_host(font_links, "fonts.googleapis.com")
 
     def test_theme_modern_font_links(self):
         """Theme 'modern' preset data → Poppins font link."""
@@ -1529,7 +1591,7 @@ class TestThemePresetBranding:
         font_links = LandingPageStyles.build_font_links(branding)
 
         assert "Poppins" in font_links
-        assert "fonts.googleapis.com" in font_links
+        assert _has_link_host(font_links, "fonts.googleapis.com")
 
     def test_theme_nature_font_links(self):
         """Theme 'nature' preset data → Nunito font link."""
@@ -1539,7 +1601,7 @@ class TestThemePresetBranding:
         font_links = LandingPageStyles.build_font_links(branding)
 
         assert "Nunito" in font_links
-        assert "fonts.googleapis.com" in font_links
+        assert _has_link_host(font_links, "fonts.googleapis.com")
 
     # ────────────────────────────────────────────────────────────────────────
     # Font fields resolved from theme presets via resolve_branding
@@ -1611,10 +1673,12 @@ class TestThemePresetBranding:
 
     def test_theme_override_font_heading_only(self, _make_service):
         """Override font_heading only; preset fills the rest."""
-        theme = json.dumps({
-            "preset": "luxury",
-            "overrides": {"font_heading": "Montserrat"},
-        })
+        theme = json.dumps(
+            {
+                "preset": "luxury",
+                "overrides": {"font_heading": "Montserrat"},
+            }
+        )
         svc = _make_service(theme_json=theme)
 
         branding = svc.resolve_branding("TestTenant")

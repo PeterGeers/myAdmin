@@ -15,6 +15,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -117,7 +118,9 @@ def reprovision_tenant(user_email, user_roles, administration) -> ResponseReturn
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Tenant action failed", status=500, include_success=False
+        )
 
 
 @sysadmin_tenant_actions_bp.route(
@@ -309,4 +312,6 @@ def resend_invitation(user_email, user_roles, administration) -> ResponseReturnV
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Tenant action failed", status=500, include_success=False
+        )

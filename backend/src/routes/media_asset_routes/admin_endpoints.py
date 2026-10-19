@@ -16,6 +16,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import media_asset_routes as pkg
+from routes.error_responses import error_payload, error_response
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,12 @@ def get_dashboard(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         return jsonify(result), 200
 
     except Exception as e:
-        logger.error(f"Dashboard stats error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Dashboard stats error",
+            status=500,
+            log_context="Dashboard stats error",
+        )
 
 
 @media_asset_bp.route("/scan", methods=["POST"])
@@ -68,8 +73,12 @@ def trigger_scan(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
         return jsonify({"success": True, "scan_id": scan_id}), 202
 
     except Exception as e:
-        logger.error(f"Trigger scan error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Trigger scan error",
+            status=500,
+            log_context="Trigger scan error",
+        )
 
 
 @media_asset_bp.route("/scan/<scan_id>/status", methods=["GET"])
@@ -138,7 +147,15 @@ def scan_status_stream(scan_id) -> ResponseReturnValue:
             for progress_data in generator:
                 yield f"data: {json.dumps(progress_data, default=str)}\n\n"
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+            # Log full detail server-side; emit only a generic message +
+            # correlation id on the SSE error frame (no str(e) to client).
+            err = error_payload(
+                e,
+                "Scan failed",
+                include_success=False,
+                log_context="media_asset scan stream",
+            )
+            yield f"data: {json.dumps({'type': 'error', **err})}\n\n"
         finally:
             # Clean up after stream completes
             _active_scans.pop(scan_id, None)
@@ -213,5 +230,9 @@ def approve_delete(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
         ), 200
 
     except Exception as e:
-        logger.error(f"Approve delete error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Approve delete error",
+            status=500,
+            log_context="Approve delete error",
+        )
