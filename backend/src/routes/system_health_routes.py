@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
+from routes.error_responses import error_payload, error_response
 
 system_health_bp = Blueprint("system_health", __name__)
 
@@ -60,7 +61,12 @@ def get_status() -> ResponseReturnValue:
             }
         )
     except Exception as e:
-        return jsonify({"status": "error", "error": str(e)}), 500
+        return jsonify(
+            {
+                "status": "error",
+                **error_payload(e, "Health check failed", include_success=False),
+            }
+        ), 500
 
 
 @system_health_bp.route("/api/db-config", methods=["GET"])
@@ -101,7 +107,9 @@ def get_db_config(user_email, user_roles) -> ResponseReturnValue:
 
         return jsonify(config)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "System health request failed", status=500, include_success=False
+        )
 
 
 @system_health_bp.route("/api/db-test", methods=["GET"])
@@ -134,7 +142,11 @@ def test_db_connection(user_email, user_roles) -> ResponseReturnValue:
         )
     except Exception as e:
         return jsonify(
-            {"status": "error", "message": str(e), "error_type": type(e).__name__}
+            {
+                "status": "error",
+                "message": "Health check failed",
+                **error_payload(e, "Health check failed", include_success=False),
+            }
         ), 500
 
 
@@ -342,10 +354,10 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
                         "action_required": False,
                     }
 
-            except Exception as e:
+            except Exception:
                 results[tenant] = {
                     "status": "error",
-                    "message": str(e),
+                    "message": "Health check failed",
                     "action_required": True,
                 }
 
@@ -367,4 +379,10 @@ def google_drive_token_health(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        return jsonify({"overall_status": "error", "message": str(e)}), 500
+        return jsonify(
+            {
+                "overall_status": "error",
+                "message": "Health check failed",
+                **error_payload(e, "Health check failed", include_success=False),
+            }
+        ), 500
