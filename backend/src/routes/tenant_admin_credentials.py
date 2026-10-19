@@ -12,18 +12,18 @@ Endpoints:
 - POST /api/tenant-admin/credentials/oauth/callback - OAuth callback
 """
 
-from flask import Blueprint, jsonify, request
-from flask.typing import ResponseReturnValue
-import os
+import html
 import json
 import logging
-from werkzeug.utils import secure_filename
+import os
 
-from routes.error_responses import error_response
+from flask import Blueprint, jsonify, request
+from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
 from database import DatabaseManager
+from routes.error_responses import error_response
 from services.credential_service import CredentialService
 
 # Initialize logger
@@ -84,10 +84,11 @@ def upload_credentials(user_email, user_roles) -> ResponseReturnValue:
         try:
             content = file.read().decode("utf-8")
             credentials_data = json.loads(content)
-        except json.JSONDecodeError as e:
-            return jsonify({"error": f"Invalid JSON file: {str(e)}"}), 400
-        except Exception as e:
-            return jsonify({"error": f"Failed to read file: {str(e)}"}), 400
+        except json.JSONDecodeError:
+            # Do not echo the parser message (may contain uploaded-content fragments).
+            return jsonify({"error": "Invalid JSON file"}), 400
+        except Exception:
+            return jsonify({"error": "Failed to read file"}), 400
 
         # Initialize credential service
         db = DatabaseManager()
@@ -433,18 +434,22 @@ def oauth_callback_public() -> ResponseReturnValue:
         error = request.args.get("error")
 
         if error:
-            # OAuth was denied or failed
+            # OAuth was denied or failed. `error` is attacker-controllable (query param),
+            # so escape it for the HTML context and JSON-encode it for the JS-string
+            # context (CodeQL js reflected-XSS). Never interpolate it raw.
+            safe_error_html = html.escape(error)
+            safe_error_js = json.dumps(error)
             return (
                 f"""
             <html>
                 <body>
                     <h2>Authorization Failed</h2>
-                    <p>Error: {error}</p>
+                    <p>Error: {safe_error_html}</p>
                     <p>You can close this window.</p>
                     <script>
                         window.opener.postMessage({{
                             type: 'oauth_error',
-                            error: '{error}'
+                            error: {safe_error_js}
                         }}, '*');
                         setTimeout(() => window.close(), 2000);
                     </script>
@@ -477,6 +482,10 @@ def oauth_callback_public() -> ResponseReturnValue:
 
         # Return success page that will notify the parent window with the code
         # The parent window will then call the /complete endpoint to exchange the code
+        # code/state come from the query string; JSON-encode them for the JS-string
+        # context so they cannot break out of the literal (reflected-XSS defense).
+        safe_code_js = json.dumps(code)
+        safe_state_js = json.dumps(state)
         return f"""
         <html>
             <body>
@@ -487,10 +496,10 @@ def oauth_callback_public() -> ResponseReturnValue:
                     // Send success message to parent window
                     window.opener.postMessage({{
                         type: 'oauth_success',
-                        code: '{code}',
-                        state: '{state}'
+                        code: {safe_code_js},
+                        state: {safe_state_js}
                     }}, '*');
-                    
+
                     // Close window after 2 seconds
                     setTimeout(() => window.close(), 2000);
                 </script>
@@ -503,18 +512,19 @@ def oauth_callback_public() -> ResponseReturnValue:
         import traceback
 
         traceback.print_exc()
+        # Do NOT leak str(e) into the client HTML/JS (CodeQL information-exposure +
+        # reflected-XSS). The full exception is logged above; show a generic message.
         return (
-            f"""
+            """
         <html>
             <body>
                 <h2>Error</h2>
-                <p>{str(e)}</p>
-                <p>You can close this window.</p>
+                <p>An error occurred completing authorization. You can close this window.</p>
                 <script>
-                    window.opener.postMessage({{
+                    window.opener.postMessage({
                         type: 'oauth_error',
-                        error: '{str(e)}'
-                    }}, '*');
+                        error: 'callback_error'
+                    }, '*');
                     setTimeout(() => window.close(), 2000);
                 </script>
             </body>
