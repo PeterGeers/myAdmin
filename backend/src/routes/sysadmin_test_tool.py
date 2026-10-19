@@ -17,6 +17,7 @@ from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
+from routes.error_responses import error_response
 from services.invoice_test_service import InvoiceTestService
 
 # Initialize logger
@@ -182,7 +183,7 @@ def process_file(user_email, user_roles) -> ResponseReturnValue:
     except Exception as e:
         logger.exception("Process file error")
         print(f"Process file error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Test-tool request failed", status=500)
 
 
 @sysadmin_test_tool_bp.route("/rerun-prompt", methods=["POST"])
@@ -241,7 +242,7 @@ def rerun_prompt(user_email, user_roles) -> ResponseReturnValue:
     except Exception as e:
         logger.exception("Rerun prompt error")
         print(f"Rerun prompt error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Test-tool request failed", status=500)
 
 
 @sysadmin_test_tool_bp.route("/vendor-history", methods=["GET"])
@@ -288,4 +289,4 @@ def vendor_history(user_email, user_roles) -> ResponseReturnValue:
     except Exception as e:
         logger.exception("Vendor history error")
         print(f"Vendor history error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Test-tool request failed", status=500)

@@ -19,6 +19,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 from services.email_verification_service import EmailVerificationService
 
 # Initialize logger
@@ -64,7 +65,7 @@ def get_verification_status(
 
     except Exception as e:
         logger.error(f"Error getting verification status for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Verification request failed", status=500)
 
 
 @verification_bp.route("/api/tenant-admin/sender-verification/resend", methods=["POST"])
@@ -100,7 +101,7 @@ def resend_verification(
 
     except Exception as e:
         logger.error(f"Error resending verification for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Verification request failed", status=500)
 
 
 @verification_bp.route("/api/tenant-admin/sender-verification/email", methods=["PUT"])
@@ -151,4 +152,4 @@ def update_sender_email(
 
     except Exception as e:
         logger.error(f"Error updating sender email for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Verification request failed", status=500)

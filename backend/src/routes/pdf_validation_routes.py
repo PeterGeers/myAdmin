@@ -11,6 +11,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from pdf_validation import PDFValidator
+from routes.error_responses import error_payload, error_response
 
 # Create blueprint
 pdf_validation_bp = Blueprint("pdf_validation", __name__)
@@ -68,7 +69,8 @@ def pdf_validate_urls_stream(
                     yield f"data: {json.dumps({'type': 'progress', **progress_data}, default=str)}\n\n"
 
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+            _err = error_payload(e, "PDF validation failed", include_success=False)
+            yield f"data: {json.dumps({'type': 'error', **_err})}\n\n"
 
     return Response(
         generate_progress(),
@@ -143,7 +145,7 @@ def pdf_validate_urls(
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "PDF validation request failed", status=500)
 
 
 @pdf_validation_bp.route("/api/pdf/update-record", methods=["POST"])
@@ -190,7 +192,7 @@ def pdf_update_record(
         import traceback
 
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "PDF validation request failed", status=500)
 
 
 @pdf_validation_bp.route("/api/pdf/get-administrations", methods=["GET"])
@@ -211,7 +213,7 @@ def pdf_get_administrations(
         return jsonify({"success": True, "administrations": filtered})
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "PDF validation request failed", status=500)
 
 
 @pdf_validation_bp.route("/api/pdf/validate-single-url", methods=["GET"])
@@ -245,4 +247,4 @@ def pdf_validate_single_url(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "status": result["status"]})
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "PDF validation request failed", status=500)

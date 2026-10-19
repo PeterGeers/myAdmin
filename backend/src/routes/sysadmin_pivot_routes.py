@@ -21,6 +21,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 from services.parameter_service import ParameterService
 from services.pivot_service import derive_columns_from_schema
 
@@ -139,7 +140,7 @@ def list_datasources(
 
     except Exception as e:
         logger.error("Error listing pivot datasources: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot admin request failed", status=500)
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +313,7 @@ def update_datasources(
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         logger.error("Error updating pivot datasources: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot admin request failed", status=500)
 
 
 # ---------------------------------------------------------------------------
