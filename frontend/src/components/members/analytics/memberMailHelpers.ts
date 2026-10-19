@@ -12,6 +12,7 @@
  * @module components/members/analytics/memberMailHelpers
  */
 
+import DOMPurify from 'dompurify';
 import type { MemberTemplateDto } from '../../../services/memberTemplateService';
 
 /**
@@ -123,4 +124,24 @@ export function renderMergePreview(
     const v = values[key];
     return v === undefined || v === null ? '' : v;
   });
+}
+
+/**
+ * Sanitize a composed/merged mail HTML string before it is rendered via
+ * `dangerouslySetInnerHTML` OR shipped on a send (CodeQL `js/xss-through-dom`).
+ *
+ * The compose body is tenant-authored, so it may legitimately carry basic
+ * formatting markup — but it is still untrusted input that must never be able to
+ * execute script in the app preview NOR be delivered to recipients. DOMPurify (a
+ * DOM-only XSS sanitizer) strips `<script>`, event-handler attributes
+ * (`onerror=`, `onclick=`, …), `javascript:` URLs, and other active content while
+ * preserving the harmless presentational HTML the preview is meant to show.
+ *
+ * `null`/`undefined` collapse to an empty string so a caller can sanitize
+ * unconditionally. This is the SINGLE sanitization seam the compose uses for both
+ * the preview panes and the send path — sanitizing in one place keeps the two in
+ * lockstep (a payload that is stripped from the preview is stripped from the send).
+ */
+export function sanitizeMailHtml(html: string | null | undefined): string {
+  return DOMPurify.sanitize(html ?? '');
 }

@@ -20,6 +20,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from routes.error_responses import error_payload
 from services.year_end_service import YearEndClosureService
 
 year_end_bp = Blueprint("year_end", __name__)
@@ -51,9 +52,9 @@ def get_available_years(
         return jsonify([{"year": year} for year in years]), 200
 
     except Exception as e:
-        return jsonify(
-            {"error": str(e), "message": "Failed to get available years"}
-        ), 500
+        body = error_payload(e, "Failed to get available years", include_success=False)
+        body["message"] = "Failed to get available years"
+        return jsonify(body), 500
 
 
 @year_end_bp.route("/api/year-end/validate", methods=["POST"])
@@ -93,7 +94,9 @@ def validate_year(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         return jsonify(validation), 200
 
     except Exception as e:
-        return jsonify({"error": str(e), "message": "Failed to validate year"}), 500
+        body = error_payload(e, "Failed to validate year", include_success=False)
+        body["message"] = "Failed to validate year"
+        return jsonify(body), 500
 
 
 @year_end_bp.route("/api/year-end/close", methods=["POST"])
@@ -142,13 +145,10 @@ def close_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnVa
         return jsonify(result), 200
 
     except Exception as e:
-        return jsonify(
-            {
-                "success": False,
-                "error": str(e),
-                "message": f"Failed to close year {data.get('year', 'unknown')}",
-            }
-        ), 500
+        msg = f"Failed to close year {data.get('year', 'unknown')}"
+        body = error_payload(e, msg)
+        body["message"] = msg
+        return jsonify(body), 500
 
 
 @year_end_bp.route("/api/year-end/closed-years", methods=["GET"])
@@ -179,7 +179,9 @@ def get_closed_years(
         return jsonify(closed_years), 200
 
     except Exception as e:
-        return jsonify({"error": str(e), "message": "Failed to get closed years"}), 500
+        body = error_payload(e, "Failed to get closed years", include_success=False)
+        body["message"] = "Failed to get closed years"
+        return jsonify(body), 500
 
 
 @year_end_bp.route("/api/year-end/status/<int:year>", methods=["GET"])
@@ -215,9 +217,10 @@ def get_year_status(
             ), 200
 
     except Exception as e:
-        return jsonify(
-            {"error": str(e), "message": f"Failed to get status for year {year}"}
-        ), 500
+        msg = f"Failed to get status for year {year}"
+        body = error_payload(e, msg, include_success=False)
+        body["message"] = msg
+        return jsonify(body), 500
 
 
 @year_end_bp.route("/api/year-end/reopen", methods=["POST"])
@@ -257,10 +260,7 @@ def reopen_year(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         return jsonify(result), 200
 
     except Exception as e:
-        return jsonify(
-            {
-                "success": False,
-                "error": str(e),
-                "message": f"Failed to reopen year {data.get('year', 'unknown')}",
-            }
-        ), 500
+        msg = f"Failed to reopen year {data.get('year', 'unknown')}"
+        body = error_payload(e, msg)
+        body["message"] = msg
+        return jsonify(body), 500

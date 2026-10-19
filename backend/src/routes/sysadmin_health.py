@@ -16,6 +16,7 @@ from flask.typing import ResponseReturnValue
 from auth.admin_pool_resolver import PoolResolutionError, resolve_pool_id_for_token
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 from routes.sysadmin_helpers import _caller_token
 
 # Initialize logger
@@ -322,4 +323,6 @@ def get_system_health(user_email, user_roles) -> ResponseReturnValue:
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Sysadmin health request failed", status=500, include_success=False
+        )

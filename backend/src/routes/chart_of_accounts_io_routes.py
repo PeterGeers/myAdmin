@@ -17,6 +17,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants, is_tenant_admin
 from database import DatabaseManager
+from routes.error_responses import error_payload
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,9 @@ def export_accounts(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error exporting accounts: {e}")
-        return jsonify({"error": "Failed to export accounts", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Failed to export accounts", include_success=False)
+        ), 500
 
 
 @chart_of_accounts_io_bp.route(
@@ -151,4 +154,6 @@ def import_accounts(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error importing accounts: {e}")
-        return jsonify({"error": "Failed to import accounts", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Failed to import accounts", include_success=False)
+        ), 500

@@ -29,6 +29,7 @@ from auth.admin_pool_resolver import (
 from auth.cognito_utils import cognito_required
 from auth.rate_limiter import RateLimiter
 from database import DatabaseManager
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -382,7 +383,7 @@ def confirm_reset_password() -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error in confirm-reset: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Auth request failed", status=500)
 
 
 @auth_bp.route("/me", methods=["GET"])

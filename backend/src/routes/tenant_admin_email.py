@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 from auth.admin_pool_resolver import PoolResolutionError
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
+from routes.error_responses import error_payload
 from routes.sysadmin_helpers import _resolve_pool_id
 from services.cognito_service import CognitoService
 from services.email_template_service import EmailTemplateService
@@ -195,7 +196,9 @@ def send_email_to_user(user_email, user_roles) -> ResponseReturnValue:
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": "Failed to send email", "message": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Failed to send email", include_success=False)
+        ), 500
 
 
 @tenant_admin_email_bp.route("/api/tenant-admin/email-templates", methods=["GET"])
@@ -232,7 +235,9 @@ def list_email_templates(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error listing email templates: {e}")
-        return jsonify({"error": "Failed to list templates", "message": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Failed to list templates", include_success=False)
+        ), 500
 
 
 @tenant_admin_email_bp.route("/api/tenant-admin/resend-invitation", methods=["POST"])
@@ -312,7 +317,9 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
                     error_message=f"Cognito pool resolution failed: {e!s}",
                 )
                 return jsonify(
-                    {"error": "Failed to update user password", "message": str(e)}
+                    error_payload(
+                        e, "Failed to update user password", include_success=False
+                    )
                 ), 500
 
             # Set new permanent password — moves user from
@@ -332,7 +339,9 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
                 error_message=f"Cognito update failed: {e!s}",
             )
             return jsonify(
-                {"error": "Failed to update user password", "message": str(e)}
+                error_payload(
+                    e, "Failed to update user password", include_success=False
+                )
             ), 500
 
         # Get user details for email
@@ -437,4 +446,6 @@ def resend_invitation(user_email, user_roles) -> ResponseReturnValue:
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": "Failed to resend invitation", "message": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Failed to resend invitation", include_success=False)
+        ), 500

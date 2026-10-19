@@ -21,6 +21,7 @@ from auth.admin_pool_resolver import PoolResolutionError
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants
 from database import DatabaseManager
+from routes.error_responses import error_response
 from routes.sysadmin_helpers import _resolve_pool_id
 from routes.tenant_admin_users import (
     cognito_client,
@@ -94,7 +95,12 @@ def assign_user_group(username, user_email, user_roles) -> ResponseReturnValue:
         try:
             user_pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(
+                e,
+                "Failed to resolve admin pool",
+                status=500,
+                log_context="tenant_admin_roles _resolve_pool_id",
+            )
 
         # Get target user and verify they belong to this tenant
         try:
@@ -178,7 +184,12 @@ def assign_user_group(username, user_email, user_roles) -> ResponseReturnValue:
         )
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant role request failed",
+            status=500,
+            log_context="tenant_admin_roles ClientError",
+        )
 
 
 @tenant_admin_roles_bp.route(
@@ -216,7 +227,12 @@ def remove_user_group(
         try:
             user_pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(
+                e,
+                "Failed to resolve admin pool",
+                status=500,
+                log_context="tenant_admin_roles _resolve_pool_id",
+            )
 
         # Get target user and verify they belong to this tenant
         try:
@@ -282,7 +298,12 @@ def remove_user_group(
         )
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant role request failed",
+            status=500,
+            log_context="tenant_admin_roles ClientError",
+        )
 
 
 @tenant_admin_roles_bp.route("/roles", methods=["GET"])
@@ -333,7 +354,11 @@ def get_available_roles(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant role request failed",
+            status=500,
+        )
 
 
 # ============================================================================
@@ -417,8 +442,12 @@ def get_tenant_users_legacy(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        print(f"Error getting tenant users: {e}", flush=True)
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant role request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_roles_bp.route(
@@ -509,8 +538,12 @@ def assign_tenant_role_legacy(username, user_email, user_roles) -> ResponseRetur
         )
 
     except Exception as e:
-        print(f"Error assigning tenant role: {e}", flush=True)
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant role request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_roles_bp.route(
@@ -597,5 +630,9 @@ def remove_tenant_role_legacy(
         )
 
     except Exception as e:
-        print(f"Error removing tenant role: {e}", flush=True)
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant role request failed",
+            status=500,
+            include_success=False,
+        )

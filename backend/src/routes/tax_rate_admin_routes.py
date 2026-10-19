@@ -17,6 +17,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 from routes.service_accessors import make_db_service_accessor
 from services.tax_rate_service import TaxRateService
 
@@ -74,7 +75,7 @@ def list_tax_rates(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
         return jsonify({"success": True, "tenant": tenant, "tax_rates": rates})
     except Exception as e:
         logger.error("Error listing tax rates: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Tax-rate request failed", status=500)
 
 
 @tax_rate_admin_bp.route("/api/tenant-admin/tax-rates", methods=["POST"])
@@ -131,7 +132,7 @@ def create_tax_rate(
         if "1062" in str(e) or "Duplicate" in str(e):
             return jsonify({"success": False, "error": "Duplicate tax rate"}), 409
         logger.error("Error creating tax rate: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Tax-rate request failed", status=500)
 
 
 @tax_rate_admin_bp.route("/api/tenant-admin/tax-rates/<int:rate_id>", methods=["PUT"])
@@ -198,7 +199,7 @@ def update_tax_rate(
         return jsonify({"success": True, "message": "Tax rate updated"})
     except Exception as e:
         logger.error("Error updating tax rate %s: %s", rate_id, e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Tax-rate request failed", status=500)
 
 
 @tax_rate_admin_bp.route(
@@ -249,4 +250,4 @@ def delete_tax_rate(
         return jsonify({"success": False, "error": str(e)}), 403
     except Exception as e:
         logger.error("Error deleting tax rate %s: %s", rate_id, e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Tax-rate request failed", status=500)

@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import landing_page_routes as pkg
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +48,12 @@ def list_versions(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         return jsonify({"success": True, "data": versions})
 
     except Exception as e:
-        logger.error(f"Error listing versions for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error listing versions",
+            status=500,
+            log_context="Error listing versions",
+        )
 
 
 @landing_page_bp.route("/api/landing/version/<int:version>", methods=["GET"])
@@ -86,8 +91,12 @@ def get_version_detail(
         return jsonify({"success": True, "data": version_data})
 
     except Exception as e:
-        logger.error(f"Error getting version {version} for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error getting version",
+            status=500,
+            log_context="Error getting version",
+        )
 
 
 @landing_page_bp.route("/api/landing/version/<int:version>", methods=["DELETE"])
@@ -140,8 +149,12 @@ def delete_version(
         return jsonify({"success": True, "message": f"Version {version} deleted."})
 
     except Exception as e:
-        logger.error(f"Error deleting version {version} for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error deleting version",
+            status=500,
+            log_context="Error deleting version",
+        )
 
 
 @landing_page_bp.route("/api/landing/rollback", methods=["POST"])
@@ -221,8 +234,12 @@ def rollback_landing_page(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Error rolling back landing page for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error rolling back landing page",
+            status=500,
+            log_context="Error rolling back landing page",
+        )
 
 
 @landing_page_bp.route("/api/landing/publish", methods=["POST"])
@@ -256,8 +273,12 @@ def publish_landing_page(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Error publishing landing page for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error publishing landing page",
+            status=500,
+            log_context="Error publishing landing page",
+        )
 
 
 @landing_page_bp.route("/api/landing/unpublish", methods=["POST"])
@@ -291,5 +312,9 @@ def unpublish_landing_page(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Error unpublishing landing page for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error unpublishing landing page",
+            status=500,
+            log_context="Error unpublishing landing page",
+        )

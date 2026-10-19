@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 
 financial_reporting_bp = Blueprint("financial_reporting", __name__)
 
@@ -156,7 +157,7 @@ def get_balance_data(
 
         return jsonify({"success": True, "data": results})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Financial reporting request failed", status=500)
 
 
 @financial_reporting_bp.route("/trends-data", methods=["GET"])
@@ -207,7 +208,7 @@ def get_trends_data(
 
         return jsonify({"success": True, "data": results})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Financial reporting request failed", status=500)
 
 
 @financial_reporting_bp.route("/reference-analysis", methods=["GET"])
@@ -335,4 +336,4 @@ def get_reference_analysis(
             }
         )
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Financial reporting request failed", status=500)
