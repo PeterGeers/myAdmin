@@ -18,6 +18,7 @@ from auth.admin_pool_resolver import resolve_pool_id_for_email
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 from dialect_helpers import dialect
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,9 @@ def list_pending_signups(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error listing pending signups: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Provisioning request failed", status=500, include_success=False
+        )
 
 
 @sysadmin_provisioning_bp.route("/provision", methods=["POST"])
@@ -196,7 +199,9 @@ def provision_signup(user_email, user_roles) -> ResponseReturnValue:
         import traceback
 
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Provisioning request failed", status=500, include_success=False
+        )
 
 
 def _generate_admin_name(company_name: str, email: str) -> str:

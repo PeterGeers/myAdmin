@@ -11,6 +11,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
 from duplicate_checker import DuplicateChecker
+from routes.error_responses import error_payload
 
 # Create blueprint
 duplicate_detection_bp = Blueprint("duplicate_detection", __name__)
@@ -178,7 +179,7 @@ def log_duplicate_decision(user_email, user_roles) -> ResponseReturnValue:
             {
                 "success": True,
                 "message": "Decision processed (logging failed)",
-                "error": str(e),
+                **error_payload(e, "Duplicate detection failed", include_success=False),
                 "logTimestamp": datetime.now().isoformat(),
             }
         ), 200

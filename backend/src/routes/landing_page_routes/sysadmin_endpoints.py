@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import landing_page_routes as pkg
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -47,5 +48,9 @@ def run_verification_check(
         return jsonify({"success": True, "data": result}), 200
 
     except Exception as e:
-        logger.error(f"Error running domain verification check: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error running domain verification check",
+            status=500,
+            log_context="Error running domain verification check",
+        )

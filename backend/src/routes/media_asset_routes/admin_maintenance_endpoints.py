@@ -14,6 +14,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import media_asset_routes as pkg
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +43,12 @@ def get_unregistered(
         return jsonify(result), 200
 
     except Exception as e:
-        logger.error(f"Get unregistered objects error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Get unregistered objects error",
+            status=500,
+            log_context="Get unregistered objects error",
+        )
 
 
 @media_asset_bp.route("/delete-unregistered", methods=["POST"])
@@ -87,8 +92,12 @@ def delete_unregistered(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Delete unregistered objects error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Delete unregistered objects error",
+            status=500,
+            log_context="Delete unregistered objects error",
+        )
 
 
 @media_asset_bp.route("/import", methods=["POST"])
@@ -178,8 +187,12 @@ def import_assets(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
             }
         ), 501
     except Exception as e:
-        logger.error(f"Import assets error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Import assets error",
+            status=500,
+            log_context="Import assets error",
+        )
 
 
 @media_asset_bp.route("/duplicates", methods=["GET"])
@@ -202,8 +215,12 @@ def list_duplicates(
         return jsonify(result), 200
 
     except Exception as e:
-        logger.error(f"List duplicates error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "List duplicates error",
+            status=500,
+            log_context="List duplicates error",
+        )
 
 
 @media_asset_bp.route("/merge-duplicates", methods=["POST"])
@@ -257,8 +274,12 @@ def merge_duplicates(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Merge duplicates error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Merge duplicates error",
+            status=500,
+            log_context="Merge duplicates error",
+        )
 
 
 @media_asset_bp.route("/retention-settings", methods=["GET"])
@@ -283,8 +304,12 @@ def get_retention_settings(
         return jsonify(result), 200
 
     except Exception as e:
-        logger.error(f"Get retention settings error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Get retention settings error",
+            status=500,
+            log_context="Get retention settings error",
+        )
 
 
 @media_asset_bp.route("/retention-settings", methods=["PUT"])
@@ -319,7 +344,13 @@ def update_retention_settings(
         return jsonify(result), 200
 
     except ValueError as e:
-        return jsonify({"success": False, "error": str(e)}), 400
+        # Deliberate, caller-safe validation message (not a stack trace).
+        validation_message = str(e)
+        return jsonify({"success": False, "error": validation_message}), 400
     except Exception as e:
-        logger.error(f"Update retention settings error: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to update retention settings",
+            status=500,
+            log_context="Update retention settings error",
+        )

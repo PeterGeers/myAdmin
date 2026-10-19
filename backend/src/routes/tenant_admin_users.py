@@ -26,6 +26,7 @@ from auth.admin_pool_resolver import PoolResolutionError
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant, get_user_tenants
 from database import DatabaseManager
+from routes.error_responses import error_response
 from routes.sysadmin_helpers import _resolve_pool_id
 from services.cognito_service import CognitoService
 from services.email_template_service import EmailTemplateService
@@ -157,7 +158,12 @@ def list_tenant_users(user_email, user_roles) -> ResponseReturnValue:
         try:
             user_pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(
+                e,
+                "Failed to resolve admin pool",
+                status=500,
+                log_context="tenant_admin_users _resolve_pool_id",
+            )
 
         # Get all users from Cognito (paginated)
         all_cognito_users = []
@@ -232,7 +238,12 @@ def list_tenant_users(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant user request failed",
+            status=500,
+            log_context="tenant_admin_users ClientError",
+        )
 
 
 @tenant_admin_users_bp.route("/users", methods=["POST"])
@@ -276,7 +287,12 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
         try:
             user_pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(
+                e,
+                "Failed to resolve admin pool",
+                status=500,
+                log_context="tenant_admin_users _resolve_pool_id",
+            )
 
         # Get request data
         data = request.get_json()
@@ -675,7 +691,12 @@ def update_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
         try:
             user_pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(
+                e,
+                "Failed to resolve admin pool",
+                status=500,
+                log_context="tenant_admin_users _resolve_pool_id",
+            )
 
         # Get target user and verify they belong to this tenant
         try:
@@ -731,7 +752,12 @@ def update_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
         )
 
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant user request failed",
+            status=500,
+            log_context="tenant_admin_users ClientError",
+        )
 
 
 @tenant_admin_users_bp.route("/users/<username>", methods=["DELETE"])
@@ -767,7 +793,12 @@ def delete_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
         try:
             user_pool_id = _resolve_pool_id()
         except PoolResolutionError as e:
-            return jsonify({"success": False, "error": str(e)}), 500
+            return error_response(
+                e,
+                "Failed to resolve admin pool",
+                status=500,
+                log_context="tenant_admin_users _resolve_pool_id",
+            )
 
         # Verify target user belongs to this tenant before proceeding
         try:
@@ -815,7 +846,14 @@ def delete_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
         )
 
     except ValueError as e:
-        # Safety guard triggered (malformed tenants) or user not found
-        return jsonify({"success": False, "error": str(e)}), 400
+        # Safety guard triggered (malformed tenants) or user not found —
+        # deliberate, caller-safe validation message (not a stack trace).
+        validation_message = str(e)
+        return jsonify({"success": False, "error": validation_message}), 400
     except ClientError as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant user request failed",
+            status=500,
+            log_context="tenant_admin_users ClientError",
+        )

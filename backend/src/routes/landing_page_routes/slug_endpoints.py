@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import landing_page_routes as pkg
+from routes.error_responses import error_payload, error_response
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,12 @@ def get_slug(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
         return jsonify({"success": True, "data": {"slug": slug}})
 
     except Exception as e:
-        logger.error(f"Error getting slug for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error getting slug",
+            status=500,
+            log_context="Error getting slug",
+        )
 
 
 @landing_page_bp.route("/api/landing/slug", methods=["PUT"])
@@ -80,8 +85,12 @@ def set_slug(user_email, user_roles, tenant, user_tenants) -> ResponseReturnValu
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Error setting slug for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error setting slug",
+            status=500,
+            log_context="Error setting slug",
+        )
 
 
 @landing_page_bp.route("/api/landing/slug/validate", methods=["POST"])
@@ -115,5 +124,11 @@ def validate_slug(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
         return jsonify(result)
 
     except Exception as e:
-        logger.error(f"Error validating slug for tenant {tenant}: {e}")
-        return jsonify({"valid": False, "error": str(e)}), 500
+        payload = error_payload(
+            e,
+            "Error validating slug",
+            log_context="Error validating slug",
+        )
+        payload.pop("success", None)
+        payload["valid"] = False
+        return jsonify(payload), 500

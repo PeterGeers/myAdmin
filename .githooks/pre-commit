@@ -158,7 +158,11 @@ if [ -n "$RUFF" ]; then
         fi
     fi
     if [ -n "$sam_fmt" ]; then
-        if ! (cd "$REPO_ROOT/sam" && "$RUFF" format --check --config "$REPO_ROOT/backend/ruff.toml" $sam_fmt); then
+        # $sam_fmt holds REPO-ROOT-relative paths (e.g. sam/tests/foo.py), so run
+        # the check from $REPO_ROOT — not $REPO_ROOT/sam, which doubled the prefix
+        # to sam/sam/... and made ruff fail with os-error-2 on a valid, formatted
+        # file. The sam ruff.toml is still applied via --config.
+        if ! (cd "$REPO_ROOT" && "$RUFF" format --check --config "$REPO_ROOT/backend/ruff.toml" $sam_fmt); then
             fmt_status=1
         fi
     fi

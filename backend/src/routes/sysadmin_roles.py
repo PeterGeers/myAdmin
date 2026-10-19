@@ -25,6 +25,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.admin_pool_resolver import PoolResolutionError
 from auth.cognito_utils import cognito_required
+from routes.error_responses import error_response
 from routes.sysadmin_helpers import _resolve_pool_id
 from services.module_registry import MODULE_REGISTRY
 
@@ -144,15 +145,22 @@ def list_roles(user_email, user_roles) -> ResponseReturnValue:
 
     except PoolResolutionError as e:
         # Target pool could not be resolved (genuine misconfig) — preserve the
-        # existing 500 {"error": ...} shape.
-        logger.error(f"Error listing roles: {e}")
-        return jsonify({"error": str(e)}), 500
+        # existing bare 500 {"error": ...} shape; log full detail server-side.
+        return error_response(
+            e,
+            "Failed to list roles",
+            status=500,
+            include_success=False,
+            log_context="list_roles",
+        )
     except Exception as e:
-        logger.error(f"Error listing roles: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to list roles",
+            status=500,
+            include_success=False,
+            log_context="list_roles",
+        )
 
 
 @sysadmin_roles_bp.route("", methods=["POST"])
@@ -214,15 +222,22 @@ def create_role(user_email, user_roles) -> ResponseReturnValue:
 
     except PoolResolutionError as e:
         # Target pool could not be resolved (genuine misconfig) — preserve the
-        # existing 500 {"error": ...} shape.
-        logger.error(f"Error creating role: {e}")
-        return jsonify({"error": str(e)}), 500
+        # existing bare 500 {"error": ...} shape; log full detail server-side.
+        return error_response(
+            e,
+            "Failed to create role",
+            status=500,
+            include_success=False,
+            log_context="create_role",
+        )
     except Exception as e:
-        logger.error(f"Error creating role: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to create role",
+            status=500,
+            include_success=False,
+            log_context="create_role",
+        )
 
 
 @sysadmin_roles_bp.route("/<role_name>", methods=["PUT"])
@@ -277,15 +292,22 @@ def update_role(user_email, user_roles, role_name) -> ResponseReturnValue:
 
     except PoolResolutionError as e:
         # Target pool could not be resolved (genuine misconfig) — preserve the
-        # existing 500 {"error": ...} shape.
-        logger.error(f"Error updating role: {e}")
-        return jsonify({"error": str(e)}), 500
+        # existing bare 500 {"error": ...} shape; log full detail server-side.
+        return error_response(
+            e,
+            "Failed to update role",
+            status=500,
+            include_success=False,
+            log_context="update_role",
+        )
     except Exception as e:
-        logger.error(f"Error updating role: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to update role",
+            status=500,
+            include_success=False,
+            log_context="update_role",
+        )
 
 
 @sysadmin_roles_bp.route("/<role_name>", methods=["DELETE"])
@@ -335,12 +357,19 @@ def delete_role(user_email, user_roles, role_name) -> ResponseReturnValue:
 
     except PoolResolutionError as e:
         # Target pool could not be resolved (genuine misconfig) — preserve the
-        # existing 500 {"error": ...} shape.
-        logger.error(f"Error deleting role: {e}")
-        return jsonify({"error": str(e)}), 500
+        # existing bare 500 {"error": ...} shape; log full detail server-side.
+        return error_response(
+            e,
+            "Failed to delete role",
+            status=500,
+            include_success=False,
+            log_context="delete_role",
+        )
     except Exception as e:
-        logger.error(f"Error deleting role: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to delete role",
+            status=500,
+            include_success=False,
+            log_context="delete_role",
+        )

@@ -15,6 +15,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import landing_page_routes as pkg
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -108,12 +109,18 @@ def upload_image(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
         )
 
     except ValueError as e:
-        # MediaAssetService raises ValueError for validation failures
+        # MediaAssetService raises ValueError as a deliberate, caller-safe
+        # validation message (not a stack trace) — surface it to the client.
+        validation_message = str(e)
         logger.warning(f"Image validation error for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 400
+        return jsonify({"success": False, "error": validation_message}), 400
     except ClientError as e:
         logger.error(f"S3 upload error for tenant {tenant}: {e}")
         return jsonify({"success": False, "error": "Failed to upload image"}), 500
     except Exception as e:
-        logger.error(f"Error uploading image for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to upload image",
+            status=500,
+            log_context="Error uploading image",
+        )

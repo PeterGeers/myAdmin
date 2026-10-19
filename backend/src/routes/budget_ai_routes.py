@@ -17,6 +17,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
+from routes.error_responses import error_response
 from services.budget_ai_service import BudgetAIService
 from services.budget_service import BudgetService
 
@@ -95,7 +96,7 @@ def budget_copy(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
             return jsonify(result), 400
     except Exception as e:
         print(f"Budget copy error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget AI request failed", status=500)
 
 
 # =============================================================================
@@ -147,7 +148,7 @@ def budget_ai_narrative(
             return jsonify(result)
     except Exception as e:
         print(f"Budget AI narrative error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget AI request failed", status=500)
 
 
 @budget_ai_bp.route("/api/budget/ai/query", methods=["POST"])
@@ -249,7 +250,7 @@ def budget_ai_query(
         return jsonify({"success": True, "data": response_data})
     except Exception as e:
         print(f"Budget AI query error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget AI request failed", status=500)
 
 
 @budget_ai_bp.route("/api/budget/ai/draft-suggestions", methods=["POST"])
@@ -350,7 +351,7 @@ def budget_ai_draft_suggestions(
             return jsonify(result)
     except Exception as e:
         print(f"Budget AI draft suggestions error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget AI request failed", status=500)
 
 
 # =============================================================================
@@ -426,4 +427,4 @@ def budget_ai_generate_lines(
             return jsonify(result)
     except Exception as e:
         print(f"Budget AI generate lines error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Budget AI request failed", status=500)

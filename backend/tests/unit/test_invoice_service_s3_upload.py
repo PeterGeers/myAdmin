@@ -14,19 +14,24 @@ import os
 import sys
 import tempfile
 
+from urllib.parse import urlparse
+
 import pytest
 from unittest.mock import MagicMock, patch
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 
 @pytest.fixture
 def invoice_service():
     """Create InvoiceService instance with mocked dependencies."""
-    with patch('services.invoice_service.DatabaseManager') as mock_db_cls, \
-         patch('services.invoice_service.PDFProcessor'), \
-         patch('services.invoice_service.TransactionLogic'):
+    with (
+        patch("services.invoice_service.DatabaseManager") as mock_db_cls,
+        patch("services.invoice_service.PDFProcessor"),
+        patch("services.invoice_service.TransactionLogic"),
+    ):
         from services.invoice_service import InvoiceService
+
         service = InvoiceService()
         # Replace the db with a mock for use in tests
         service.db = MagicMock()
@@ -37,8 +42,8 @@ def invoice_service():
 def temp_pdf_file():
     """Create a temporary PDF file for testing."""
     # Minimal PDF-like content (starts with %PDF magic bytes)
-    pdf_content = b'%PDF-1.4 fake pdf content for testing'
-    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f:
+    pdf_content = b"%PDF-1.4 fake pdf content for testing"
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
         f.write(pdf_content)
         f.flush()
         yield f.name, pdf_content
@@ -50,8 +55,10 @@ def temp_pdf_file():
 class TestUploadToDriveS3Path:
     """Tests for the S3 upload path using MediaAssetService."""
 
-    @patch('services.media_asset_service.MediaAssetService')
-    @patch('services.storage_resolver.resolve_storage_provider', return_value='s3_shared')
+    @patch("services.media_asset_service.MediaAssetService")
+    @patch(
+        "services.storage_resolver.resolve_storage_provider", return_value="s3_shared"
+    )
     def test_calls_store_and_register_with_correct_params(
         self, mock_resolve, mock_asset_svc_cls, invoice_service, temp_pdf_file
     ):
@@ -60,52 +67,60 @@ class TestUploadToDriveS3Path:
         mock_asset_svc = MagicMock()
         mock_asset_svc_cls.return_value = mock_asset_svc
         mock_asset_svc.store_and_register.return_value = {
-            'success': True,
-            'asset': {
-                'id': 'ast_01ABCDEF',
-                's3_key': 'test_tenant/invoices/ast_01ABCDEF_invoice.pdf',
-                'bucket': 'myadmin-shared',
+            "success": True,
+            "asset": {
+                "id": "ast_01ABCDEF",
+                "s3_key": "test_tenant/invoices/ast_01ABCDEF_invoice.pdf",
+                "bucket": "myadmin-shared",
             },
-            'duplicate_of': None,
+            "duplicate_of": None,
         }
 
         result = invoice_service.upload_to_drive(
-            temp_path, 'invoice.pdf', 'VendorX', 'test_tenant'
+            temp_path, "invoice.pdf", "VendorX", "test_tenant"
         )
 
         # Verify store_and_register was called correctly
         mock_asset_svc.store_and_register.assert_called_once_with(
-            tenant='test_tenant',
+            tenant="test_tenant",
             file_data=pdf_content,
-            filename='invoice.pdf',
-            category='invoices',
-            metadata={'reference_number': 'VendorX'},
+            filename="invoice.pdf",
+            category="invoices",
+            metadata={"reference_number": "VendorX"},
         )
 
-    @patch('services.media_asset_service.MediaAssetService')
-    @patch('services.storage_resolver.resolve_storage_provider', return_value='s3_shared')
+    @patch("services.media_asset_service.MediaAssetService")
+    @patch(
+        "services.storage_resolver.resolve_storage_provider", return_value="s3_shared"
+    )
     def test_returns_s3_key_from_asset_result(
         self, mock_resolve, mock_asset_svc_cls, invoice_service, temp_pdf_file
     ):
         """Returns the s3_key from asset registration as both id and url."""
         temp_path, _ = temp_pdf_file
-        expected_key = 'test_tenant/invoices/ast_01ABCDEF_invoice.pdf'
+        expected_key = "test_tenant/invoices/ast_01ABCDEF_invoice.pdf"
         mock_asset_svc = MagicMock()
         mock_asset_svc_cls.return_value = mock_asset_svc
         mock_asset_svc.store_and_register.return_value = {
-            'success': True,
-            'asset': {'id': 'ast_01ABCDEF', 's3_key': expected_key, 'bucket': 'myadmin-shared'},
-            'duplicate_of': None,
+            "success": True,
+            "asset": {
+                "id": "ast_01ABCDEF",
+                "s3_key": expected_key,
+                "bucket": "myadmin-shared",
+            },
+            "duplicate_of": None,
         }
 
         result = invoice_service.upload_to_drive(
-            temp_path, 'invoice.pdf', 'VendorX', 'test_tenant'
+            temp_path, "invoice.pdf", "VendorX", "test_tenant"
         )
 
         assert result == {"id": expected_key, "url": expected_key}
 
-    @patch('services.media_asset_service.MediaAssetService')
-    @patch('services.storage_resolver.resolve_storage_provider', return_value='s3_shared')
+    @patch("services.media_asset_service.MediaAssetService")
+    @patch(
+        "services.storage_resolver.resolve_storage_provider", return_value="s3_shared"
+    )
     def test_does_not_pass_entity_type_or_entity_id(
         self, mock_resolve, mock_asset_svc_cls, invoice_service, temp_pdf_file
     ):
@@ -114,22 +129,22 @@ class TestUploadToDriveS3Path:
         mock_asset_svc = MagicMock()
         mock_asset_svc_cls.return_value = mock_asset_svc
         mock_asset_svc.store_and_register.return_value = {
-            'success': True,
-            'asset': {'id': 'ast_X', 's3_key': 'key', 'bucket': 'b'},
-            'duplicate_of': None,
+            "success": True,
+            "asset": {"id": "ast_X", "s3_key": "key", "bucket": "b"},
+            "duplicate_of": None,
         }
 
-        invoice_service.upload_to_drive(
-            temp_path, 'invoice.pdf', 'Folder', 'tenant1'
-        )
+        invoice_service.upload_to_drive(temp_path, "invoice.pdf", "Folder", "tenant1")
 
         call_kwargs = mock_asset_svc.store_and_register.call_args
         # entity_type and entity_id should NOT be in the call
-        assert 'entity_type' not in call_kwargs.kwargs
-        assert 'entity_id' not in call_kwargs.kwargs
+        assert "entity_type" not in call_kwargs.kwargs
+        assert "entity_id" not in call_kwargs.kwargs
 
-    @patch('services.media_asset_service.MediaAssetService')
-    @patch('services.storage_resolver.resolve_storage_provider', return_value='s3_shared')
+    @patch("services.media_asset_service.MediaAssetService")
+    @patch(
+        "services.storage_resolver.resolve_storage_provider", return_value="s3_shared"
+    )
     def test_fallback_to_local_on_store_and_register_failure(
         self, mock_resolve, mock_asset_svc_cls, invoice_service, temp_pdf_file
     ):
@@ -138,12 +153,12 @@ class TestUploadToDriveS3Path:
         mock_asset_svc = MagicMock()
         mock_asset_svc_cls.return_value = mock_asset_svc
         mock_asset_svc.store_and_register.return_value = {
-            'success': False,
-            'error': 'S3 upload failed',
+            "success": False,
+            "error": "S3 upload failed",
         }
 
         result = invoice_service.upload_to_drive(
-            temp_path, 'invoice.pdf', 'VendorX', 'test_tenant'
+            temp_path, "invoice.pdf", "VendorX", "test_tenant"
         )
 
         assert result == {
@@ -151,8 +166,10 @@ class TestUploadToDriveS3Path:
             "url": "http://localhost:5000/uploads/invoice.pdf",
         }
 
-    @patch('services.media_asset_service.MediaAssetService')
-    @patch('services.storage_resolver.resolve_storage_provider', return_value='s3_shared')
+    @patch("services.media_asset_service.MediaAssetService")
+    @patch(
+        "services.storage_resolver.resolve_storage_provider", return_value="s3_shared"
+    )
     def test_fallback_to_local_on_exception(
         self, mock_resolve, mock_asset_svc_cls, invoice_service, temp_pdf_file
     ):
@@ -163,7 +180,7 @@ class TestUploadToDriveS3Path:
         mock_asset_svc.store_and_register.side_effect = Exception("Network error")
 
         result = invoice_service.upload_to_drive(
-            temp_path, 'invoice.pdf', 'VendorX', 'test_tenant'
+            temp_path, "invoice.pdf", "VendorX", "test_tenant"
         )
 
         assert result == {
@@ -171,8 +188,10 @@ class TestUploadToDriveS3Path:
             "url": "http://localhost:5000/uploads/invoice.pdf",
         }
 
-    @patch('services.media_asset_service.MediaAssetService')
-    @patch('services.storage_resolver.resolve_storage_provider', return_value='s3_shared')
+    @patch("services.media_asset_service.MediaAssetService")
+    @patch(
+        "services.storage_resolver.resolve_storage_provider", return_value="s3_shared"
+    )
     def test_asset_service_initialized_with_service_db(
         self, mock_resolve, mock_asset_svc_cls, invoice_service, temp_pdf_file
     ):
@@ -181,14 +200,12 @@ class TestUploadToDriveS3Path:
         mock_asset_svc = MagicMock()
         mock_asset_svc_cls.return_value = mock_asset_svc
         mock_asset_svc.store_and_register.return_value = {
-            'success': True,
-            'asset': {'id': 'ast_X', 's3_key': 'key', 'bucket': 'b'},
-            'duplicate_of': None,
+            "success": True,
+            "asset": {"id": "ast_X", "s3_key": "key", "bucket": "b"},
+            "duplicate_of": None,
         }
 
-        invoice_service.upload_to_drive(
-            temp_path, 'invoice.pdf', 'Folder', 'tenant1'
-        )
+        invoice_service.upload_to_drive(temp_path, "invoice.pdf", "Folder", "tenant1")
 
         mock_asset_svc_cls.assert_called_once_with(invoice_service.db)
 
@@ -196,8 +213,11 @@ class TestUploadToDriveS3Path:
 class TestUploadToDriveGoogleDriveUnchanged:
     """Verify Google Drive path is not affected by migration."""
 
-    @patch('services.invoice_service.GoogleDriveService')
-    @patch('services.storage_resolver.resolve_storage_provider', return_value='google_drive')
+    @patch("services.invoice_service.GoogleDriveService")
+    @patch(
+        "services.storage_resolver.resolve_storage_provider",
+        return_value="google_drive",
+    )
     def test_google_drive_path_still_works(
         self, mock_resolve, mock_gdrive_cls, invoice_service, temp_pdf_file
     ):
@@ -206,17 +226,20 @@ class TestUploadToDriveGoogleDriveUnchanged:
         mock_gdrive = MagicMock()
         mock_gdrive_cls.return_value = mock_gdrive
         mock_gdrive.list_subfolders.return_value = [
-            {'name': 'VendorX', 'id': 'folder123'}
+            {"name": "VendorX", "id": "folder123"}
         ]
-        mock_gdrive.check_file_exists.return_value = {'exists': False}
+        mock_gdrive.check_file_exists.return_value = {"exists": False}
         mock_gdrive.upload_file.return_value = {
-            'id': 'gdrive_file_id',
-            'url': 'https://drive.google.com/file/d/gdrive_file_id',
+            "id": "gdrive_file_id",
+            "url": "https://drive.google.com/file/d/gdrive_file_id",
         }
 
         result = invoice_service.upload_to_drive(
-            temp_path, 'invoice.pdf', 'VendorX', 'gdrive_tenant'
+            temp_path, "invoice.pdf", "VendorX", "gdrive_tenant"
         )
 
-        assert result['id'] == 'gdrive_file_id'
-        assert 'drive.google.com' in result['url']
+        assert result["id"] == "gdrive_file_id"
+        # Compare the parsed HOST, not a substring of the URL: a substring test
+        # (`'drive.google.com' in url`) would also pass for a spoofed host like
+        # ``drive.google.com.evil.example``.
+        assert urlparse(result["url"]).hostname == "drive.google.com"

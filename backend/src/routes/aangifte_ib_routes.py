@@ -13,6 +13,7 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from mutaties_cache import get_cache
+from routes.error_responses import error_payload, error_response
 from utils.closure_helpers import get_closure_aware_start_year
 
 aangifte_ib_bp = Blueprint("aangifte_ib", __name__)
@@ -85,7 +86,12 @@ def aangifte_ib(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to load Aangifte IB summary",
+            status=500,
+            log_context="aangifte_ib",
+        )
 
 
 @aangifte_ib_bp.route("/aangifte-ib-details", methods=["GET"])
@@ -146,17 +152,13 @@ def aangifte_ib_details(
         )
 
     except Exception as e:
-        import traceback
-
-        error_details = traceback.format_exc()
-        print(f"Error in aangifte_ib_details: {error_details}", flush=True)
-        return jsonify(
-            {
-                "success": False,
-                "error": str(e),
-                "details": None,
-            }
-        ), 500
+        payload = error_payload(
+            e,
+            "Failed to load Aangifte IB details",
+            log_context="aangifte_ib_details",
+        )
+        payload["details"] = None
+        return jsonify(payload), 500
 
 
 @aangifte_ib_bp.route("/aangifte-ib-export", methods=["POST"])
@@ -337,11 +339,12 @@ def aangifte_ib_export(
             )
 
     except Exception as e:
-        print(f"Error in aangifte_ib_export: {e}", flush=True)
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to export Aangifte IB report",
+            status=500,
+            log_context="aangifte_ib_export",
+        )
 
 
 def _render_table_rows(rows_data) -> str:
@@ -441,7 +444,12 @@ def aangifte_ib_xlsx_export(
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to generate Aangifte IB XLSX export",
+            status=500,
+            log_context="aangifte_ib_xlsx_export",
+        )
 
 
 @aangifte_ib_bp.route("/aangifte-ib-xlsx-export-stream", methods=["POST"])
@@ -498,10 +506,15 @@ def aangifte_ib_xlsx_export_stream(
                     yield f"data: {json.dumps(progress_data, default=str)}\n\n"
 
             except Exception as e:
-                import traceback
-
-                traceback.print_exc()
-                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+                # Log full detail server-side; emit only a generic message +
+                # correlation id on the SSE error frame (no str(e) to client).
+                err = error_payload(
+                    e,
+                    "XLSX export failed",
+                    include_success=False,
+                    log_context="aangifte_ib_xlsx_export_stream",
+                )
+                yield f"data: {json.dumps({'type': 'error', **err})}\n\n"
 
         return Response(
             generate_progress(),
@@ -514,10 +527,12 @@ def aangifte_ib_xlsx_export_stream(
         )
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to start Aangifte IB XLSX export stream",
+            status=500,
+            log_context="aangifte_ib_xlsx_export_stream",
+        )
 
 
 @aangifte_ib_bp.route("/aangifte-ib-xlsx-download", methods=["POST"])
@@ -597,7 +612,9 @@ def aangifte_ib_xlsx_download(
             atexit.register(lambda: os.path.exists(tmp_path) and os.remove(tmp_path))
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Failed to download Aangifte IB XLSX",
+            status=500,
+            log_context="aangifte_ib_xlsx_download",
+        )

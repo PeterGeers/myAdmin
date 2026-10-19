@@ -15,6 +15,7 @@ from werkzeug.utils import secure_filename
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from db_exceptions import ClosedPeriodError
+from routes.error_responses import error_response
 from services.invoice_service import InvoiceService
 
 invoice_bp = Blueprint("invoices", __name__)
@@ -202,4 +203,4 @@ def approve_transactions(
         return jsonify({"success": False, "error": str(e)}), 400
     except Exception as e:
         print(f"Approval error: {e}", flush=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Invoice request failed", status=500)

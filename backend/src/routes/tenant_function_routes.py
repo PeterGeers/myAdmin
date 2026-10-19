@@ -16,6 +16,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 from routes.service_accessors import make_db_service_accessor
 from services.function_registry import FUNCTION_REGISTRY
 from services.module_registry import has_module
@@ -49,7 +50,7 @@ def get_tenant_functions(
         return jsonify({"success": True, "data": functions})
     except Exception as e:
         logger.error(f"Error getting tenant functions: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Function request failed", status=500)
 
 
 @tenant_function_bp.route("/api/tenant/functions", methods=["POST"])
@@ -130,4 +131,4 @@ def toggle_tenant_function(
 
     except Exception as e:
         logger.error(f"Error toggling tenant function: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Function request failed", status=500)

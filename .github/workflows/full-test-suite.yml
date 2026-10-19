@@ -22,6 +22,16 @@ on:
           - sam # SAM module plane only (tests + report-only lint)
           - frontend # frontend only (tests + report-only lint/typecheck)
 
+# Least-privilege default (resolves actions/missing-workflow-permissions ×4).
+# Every job here only checks out the repo and uploads artifacts via
+# actions/upload-artifact@v4 — neither needs more than read access to repo
+# contents. upload-artifact does NOT require a write permission. No job comments
+# on PRs, writes checks/statuses, or uses OIDC (id-token) — OIDC deploy lives in
+# the separate deploy-*.yml workflows. So a single restrictive default covers all
+# four jobs with no per-job widening.
+permissions:
+  contents: read
+
 jobs:
   backend-lint:
     name: Backend Lint & Static Analysis

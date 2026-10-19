@@ -466,6 +466,66 @@ describe('MemberMailCompose', () => {
     });
   });
 
+  // --- Security: DOM XSS in the mail preview + send path (CodeQL js/xss-through-dom) ---
+  // The composed body is tenant-authored (untrusted) HTML rendered via
+  // `dangerouslySetInnerHTML` in BOTH preview panes and carried on the send body.
+  // DOMPurify must strip active content (`<script>`, `onerror=`) from the rendered
+  // preview AND from the send path, so neither the in-app preview nor a recipient
+  // can receive executable markup.
+  describe('XSS sanitization (js/xss-through-dom)', () => {
+    const XSS_BODY =
+      '<img src=x onerror="alert(1)"><script>alert(2)</script><p>Hello</p>';
+
+    it('strips <script> and onerror= from the rendered inline preview', () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      fireEvent.change(screen.getByTestId('member-mail-body'), {
+        target: { value: XSS_BODY },
+      });
+
+      const previewBody = screen.getByTestId('member-mail-preview-body');
+      // The active content is gone...
+      expect(previewBody.innerHTML).not.toContain('<script');
+      expect(previewBody.innerHTML.toLowerCase()).not.toContain('onerror');
+      // ...but the harmless presentational markup survives (we sanitize, not strip-all).
+      expect(previewBody.innerHTML).toContain('Hello');
+    });
+
+    it('strips <script> and onerror= from the confirm-dialog preview', () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      fireEvent.change(screen.getByTestId('member-mail-body'), {
+        target: { value: XSS_BODY },
+      });
+      // Open the confirm dialog, which renders the SAME sanitized preview.
+      fireEvent.click(screen.getByTestId('member-mail-send'));
+      const confirmPreview = screen.getByTestId('member-mail-confirm-preview');
+      expect(confirmPreview.innerHTML).not.toContain('<script');
+      expect(confirmPreview.innerHTML.toLowerCase()).not.toContain('onerror');
+      expect(confirmPreview.innerHTML).toContain('Hello');
+    });
+
+    it('strips <script> and onerror= from the body carried on the send path', async () => {
+      render(<MemberMailCompose {...makeProps()} />);
+      fireEvent.change(screen.getByTestId('member-mail-subject'), {
+        target: { value: 'Hi' },
+      });
+      fireEvent.change(screen.getByTestId('member-mail-body'), {
+        target: { value: XSS_BODY },
+      });
+
+      fireEvent.click(screen.getByTestId('member-mail-send')); // open confirm dialog
+      fireEvent.click(screen.getByTestId('member-mail-confirm-send')); // confirm → send
+      await waitFor(() => expect(sendAdHocMail).toHaveBeenCalledTimes(1));
+
+      const sentBody = sendAdHocMail.mock.calls[0][0];
+      // The send payload carries the SANITIZED body — no active content reaches a recipient.
+      expect(sentBody.body_html).toBeTypeOf('string');
+      expect(sentBody.body_html).not.toContain('<script');
+      expect(sentBody.body_html.toLowerCase()).not.toContain('onerror');
+      // The benign content is preserved so the mail still says what the author wrote.
+      expect(sentBody.body_html).toContain('Hello');
+    });
+  });
+
   it('keeps the modal open on a failed send (set result not lost)', async () => {
     sendAdHocMail.mockRejectedValue(new Error('network boom'));
     const onClose = vi.fn();
