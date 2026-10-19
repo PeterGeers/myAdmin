@@ -10,7 +10,7 @@ import json
 import os
 import re
 import sys
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, patch
 from urllib.parse import urlparse
 
 import pytest
@@ -20,18 +20,17 @@ from botocore.exceptions import ClientError
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 
-def _link_hosts(html: str) -> set[str]:
-    """Return the set of parsed hostnames from every href="..." in an HTML fragment.
+def _has_link_host(html: str, host: str) -> bool:
+    """True iff some href="..." in the HTML fragment has EXACTLY ``host`` as its hostname.
 
-    Used instead of a bare substring check (`"fonts.googleapis.com" in html`) so
-    the assertion compares the real URL HOST — a substring test would also match
-    a spoofed host such as ``fonts.googleapis.com.evil.example``.
+    Compares the parsed URL hostname by EQUALITY (not a substring/`in` check) so a
+    spoofed host such as ``fonts.googleapis.com.evil.example`` does NOT match, and so
+    the check is not an incomplete-URL-substring pattern (CodeQL
+    py/incomplete-url-substring-sanitization).
     """
-    return {
-        urlparse(href).hostname
-        for href in re.findall(r'href="([^"]+)"', html)
-        if urlparse(href).hostname
-    }
+    return any(
+        urlparse(href).hostname == host for href in re.findall(r'href="([^"]+)"', html)
+    )
 
 
 class TestLandingPagePublishService:
@@ -1159,32 +1158,32 @@ class TestLandingPagePublishService:
         self, mock_landing_page_svc, mock_param_svc, mock_slug_svc
     ):
         """Test service reads bucket name and base URL from environment."""
-        with patch.dict(
-            os.environ,
-            {
-                "LANDING_PAGES_BUCKET": "custom-bucket",
-                "LANDING_PAGE_BASE_URL": "https://custom.app",
-                "CLOUDFRONT_PUBLIC_PAGES_DOMAIN": "d123.cloudfront.net",
-            },
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "LANDING_PAGES_BUCKET": "custom-bucket",
+                    "LANDING_PAGE_BASE_URL": "https://custom.app",
+                    "CLOUDFRONT_PUBLIC_PAGES_DOMAIN": "d123.cloudfront.net",
+                },
+            ),
+            patch("services.landing_page_publish_service.boto3.client") as mock_boto,
         ):
-            with patch(
-                "services.landing_page_publish_service.boto3.client"
-            ) as mock_boto:
-                mock_boto.return_value = Mock()
+            mock_boto.return_value = Mock()
 
-                from services.landing_page_publish_service import (
-                    LandingPagePublishService,
-                )
+            from services.landing_page_publish_service import (
+                LandingPagePublishService,
+            )
 
-                svc = LandingPagePublishService(
-                    landing_page_service=mock_landing_page_svc,
-                    parameter_service=mock_param_svc,
-                    slug_service=mock_slug_svc,
-                )
+            svc = LandingPagePublishService(
+                landing_page_service=mock_landing_page_svc,
+                parameter_service=mock_param_svc,
+                slug_service=mock_slug_svc,
+            )
 
-                assert svc.bucket_name == "custom-bucket"
-                assert svc.base_url == "https://custom.app"
-                assert svc.cloudfront_domain == "d123.cloudfront.net"
+            assert svc.bucket_name == "custom-bucket"
+            assert svc.base_url == "https://custom.app"
+            assert svc.cloudfront_domain == "d123.cloudfront.net"
 
 
 class TestPublishWithAssetService:
@@ -1262,37 +1261,37 @@ class TestPublishWithAssetService:
         Patches boto3.client and MediaAssetService for the entire test duration
         so that publish() never hits real AWS.
         """
-        with patch.dict(
-            os.environ,
-            {
-                "AWS_DEFAULT_REGION": "eu-west-1",
-                "ENVIRONMENT": "test",
-                "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
-                "LANDING_PAGE_BASE_URL": "https://myadmin.app",
-            },
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "AWS_DEFAULT_REGION": "eu-west-1",
+                    "ENVIRONMENT": "test",
+                    "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                    "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+                },
+            ),
+            patch("services.landing_page_publish_service.boto3.client") as mock_boto,
         ):
+            mock_boto.return_value = Mock()
             with patch(
-                "services.landing_page_publish_service.boto3.client"
-            ) as mock_boto:
-                mock_boto.return_value = Mock()
-                with patch(
-                    "services.landing_page_publish_service.MediaAssetService"
-                ) as MockAssetCls:
-                    MockAssetCls.return_value = mock_asset_svc
+                "services.landing_page_publish_service.MediaAssetService"
+            ) as MockAssetCls:
+                MockAssetCls.return_value = mock_asset_svc
 
-                    from services.landing_page_publish_service import (
-                        LandingPagePublishService,
-                    )
+                from services.landing_page_publish_service import (
+                    LandingPagePublishService,
+                )
 
-                    svc = LandingPagePublishService(
-                        landing_page_service=mock_landing_page_svc,
-                        parameter_service=mock_param_svc,
-                        slug_service=mock_slug_svc,
-                        db_manager=mock_db_manager,
-                    )
-                    # Ensure asset_svc is our mock
-                    svc.asset_svc = mock_asset_svc
-                    yield svc
+                svc = LandingPagePublishService(
+                    landing_page_service=mock_landing_page_svc,
+                    parameter_service=mock_param_svc,
+                    slug_service=mock_slug_svc,
+                    db_manager=mock_db_manager,
+                )
+                # Ensure asset_svc is our mock
+                svc.asset_svc = mock_asset_svc
+                yield svc
 
     def test_publish_uses_store_and_register(self, service, mock_asset_svc):
         """Test publish calls store_and_register for both landing.json and index.html."""
@@ -1418,30 +1417,32 @@ class TestThemePresetBranding:
 
             param_svc.get_param.side_effect = get_param_side_effect
 
-            with patch.dict(
-                os.environ,
-                {
-                    "AWS_DEFAULT_REGION": "eu-west-1",
-                    "ENVIRONMENT": "test",
-                    "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
-                    "LANDING_PAGE_BASE_URL": "https://myadmin.app",
-                },
-            ):
-                with patch(
+            with (
+                patch.dict(
+                    os.environ,
+                    {
+                        "AWS_DEFAULT_REGION": "eu-west-1",
+                        "ENVIRONMENT": "test",
+                        "LANDING_PAGES_BUCKET": "myadmin-public-pages-test",
+                        "LANDING_PAGE_BASE_URL": "https://myadmin.app",
+                    },
+                ),
+                patch(
                     "services.landing_page_publish_service.boto3.client"
-                ) as mock_boto:
-                    mock_boto.return_value = Mock()
+                ) as mock_boto,
+            ):
+                mock_boto.return_value = Mock()
 
-                    from services.landing_page_publish_service import (
-                        LandingPagePublishService,
-                    )
+                from services.landing_page_publish_service import (
+                    LandingPagePublishService,
+                )
 
-                    svc = LandingPagePublishService(
-                        landing_page_service=mock_landing_page_svc,
-                        parameter_service=param_svc,
-                        slug_service=mock_slug_svc,
-                    )
-                    return svc
+                svc = LandingPagePublishService(
+                    landing_page_service=mock_landing_page_svc,
+                    parameter_service=param_svc,
+                    slug_service=mock_slug_svc,
+                )
+                return svc
 
         return _factory
 
@@ -1542,7 +1543,7 @@ class TestThemePresetBranding:
         branding = dict(LandingPageStyles.THEME_PRESETS["professional"])
         font_links = LandingPageStyles.build_font_links(branding)
 
-        assert "fonts.googleapis.com" in _link_hosts(font_links)
+        assert _has_link_host(font_links, "fonts.googleapis.com")
         assert "Inter" in font_links
 
     def test_theme_luxury_font_links(self):
@@ -1554,7 +1555,7 @@ class TestThemePresetBranding:
 
         assert "Playfair+Display" in font_links
         assert "Lato" in font_links
-        assert "fonts.googleapis.com" in _link_hosts(font_links)
+        assert _has_link_host(font_links, "fonts.googleapis.com")
 
     def test_theme_minimal_no_font_links(self):
         """Theme 'minimal' preset data → system fonts → no Google Font links."""
@@ -1574,7 +1575,7 @@ class TestThemePresetBranding:
 
         assert "Lora" in font_links
         assert "Nunito" in font_links
-        assert "fonts.googleapis.com" in _link_hosts(font_links)
+        assert _has_link_host(font_links, "fonts.googleapis.com")
 
     def test_theme_modern_font_links(self):
         """Theme 'modern' preset data → Poppins font link."""
@@ -1584,7 +1585,7 @@ class TestThemePresetBranding:
         font_links = LandingPageStyles.build_font_links(branding)
 
         assert "Poppins" in font_links
-        assert "fonts.googleapis.com" in _link_hosts(font_links)
+        assert _has_link_host(font_links, "fonts.googleapis.com")
 
     def test_theme_nature_font_links(self):
         """Theme 'nature' preset data → Nunito font link."""
@@ -1594,7 +1595,7 @@ class TestThemePresetBranding:
         font_links = LandingPageStyles.build_font_links(branding)
 
         assert "Nunito" in font_links
-        assert "fonts.googleapis.com" in _link_hosts(font_links)
+        assert _has_link_host(font_links, "fonts.googleapis.com")
 
     # ────────────────────────────────────────────────────────────────────────
     # Font fields resolved from theme presets via resolve_branding

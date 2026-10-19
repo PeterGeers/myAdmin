@@ -10,26 +10,23 @@ import re
 import sys
 from urllib.parse import urlparse
 
-import pytest
-
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 from services.landing_page_styles import LandingPageStyles
 
 
-def _link_hosts(html: str) -> set[str]:
-    """Return the set of parsed hostnames from every href="..." in an HTML fragment.
+def _has_link_host(html: str, host: str) -> bool:
+    """True iff some href="..." in the HTML fragment has EXACTLY ``host`` as its hostname.
 
-    Used instead of a bare substring check (`"fonts.googleapis.com" in html`) so
-    the assertion compares the real URL HOST — a substring test would also match
-    a spoofed host such as ``fonts.googleapis.com.evil.example``.
+    Compares the parsed URL hostname by EQUALITY (not a substring/`in` check) so a
+    spoofed host such as ``fonts.googleapis.com.evil.example`` does NOT match, and so
+    the check is not an incomplete-URL-substring pattern (CodeQL
+    py/incomplete-url-substring-sanitization).
     """
-    return {
-        urlparse(href).hostname
-        for href in re.findall(r'href="([^"]+)"', html)
-        if urlparse(href).hostname
-    }
+    return any(
+        urlparse(href).hostname == host for href in re.findall(r'href="([^"]+)"', html)
+    )
 
 
 class TestBuildSectionStyle:
@@ -337,7 +334,7 @@ class TestBuildFontLinks:
         """Custom font name produces Google Fonts link."""
         branding = {"font_heading": "Inter", "font_body": "system"}
         result = LandingPageStyles.build_font_links(branding)
-        assert "fonts.googleapis.com" in _link_hosts(result)
+        assert _has_link_host(result, "fonts.googleapis.com")
         assert "Inter" in result
         assert "preconnect" in result
 
