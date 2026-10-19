@@ -78,11 +78,14 @@ from dataclasses import dataclass, field
 _r = os.path.abspath(__file__)
 while _r != os.path.dirname(_r):
     _r = os.path.dirname(_r)
-    if os.path.isdir(os.path.join(_r, ".git")) or os.path.isdir(os.path.join(_r, ".kiro")):
+    if os.path.isdir(os.path.join(_r, ".git")) or os.path.isdir(
+        os.path.join(_r, ".kiro")
+    ):
         break
 if _r not in sys.path:
     sys.path.insert(0, _r)
 from scripts.onboarding._lib.paths import ensure_backend_src_on_path  # noqa: E402
+
 ensure_backend_src_on_path()
 
 DEFAULT_REGION = "eu-west-1"
@@ -177,15 +180,21 @@ def _normalize_row(row: dict, *, default_tenant: str | None) -> UserSpec:
     elif isinstance(raw_scope, list):
         regions = [str(s).strip() for s in raw_scope if str(s).strip()]
         if not regions:
-            raise UserSpecError(f"user {email!r} scope list is empty (use 'all' or list regions)")
+            raise UserSpecError(
+                f"user {email!r} scope list is empty (use 'all' or list regions)"
+            )
         scope = regions
     else:
-        raise UserSpecError(f"user {email!r} scope must be 'all' or a list, got {raw_scope!r}")
+        raise UserSpecError(
+            f"user {email!r} scope must be 'all' or a list, got {raw_scope!r}"
+        )
 
     password = row.get("password")
     password = str(password) if password not in (None, "") else None
 
-    return UserSpec(email=email, tenants=tenants, role=role, scope=scope, password=password)
+    return UserSpec(
+        email=email, tenants=tenants, role=role, scope=scope, password=password
+    )
 
 
 @dataclass
@@ -220,7 +229,9 @@ class LoadPlan:
         return out
 
 
-def build_load_plan(source_path: str, *, cli_default_tenant: str | None = None) -> LoadPlan:
+def build_load_plan(
+    source_path: str, *, cli_default_tenant: str | None = None
+) -> LoadPlan:
     """Read the editable file READ-ONLY and build a validated :class:`LoadPlan`.
 
     The file is a JSON object with an optional ``default_tenant`` and a ``users`` array (see
@@ -238,7 +249,9 @@ def build_load_plan(source_path: str, *, cli_default_tenant: str | None = None) 
     default_tenant = cli_default_tenant or doc.get("default_tenant") or None
     plan = LoadPlan(source_description=source_path, default_tenant=default_tenant)
     for i, row in enumerate(doc["users"]):
-        ref = str(row.get("email", f"row[{i}]")) if isinstance(row, dict) else f"row[{i}]"
+        ref = (
+            str(row.get("email", f"row[{i}]")) if isinstance(row, dict) else f"row[{i}]"
+        )
         try:
             plan.users.append(_normalize_row(row, default_tenant=default_tenant))
         except UserSpecError as exc:
@@ -352,9 +365,13 @@ def _print_plan(
     print(f"  source           : {plan.source_description}")
     print(f"  target pool       : {pool_id}")
     print(f"  default tenant    : {plan.default_tenant}")
-    print(f"  mode              : {'APPLY (creates users + drives endpoint)' if apply else 'DRY-RUN (writes nothing)'}")
-    print(f"  role assignment   : GOVERNANCE ENDPOINT "
-          f"({'wired' if governance_ready else 'NOT wired — will be skipped, run via the SPA'})")
+    print(
+        f"  mode              : {'APPLY (creates users + drives endpoint)' if apply else 'DRY-RUN (writes nothing)'}"
+    )
+    print(
+        f"  role assignment   : GOVERNANCE ENDPOINT "
+        f"({'wired' if governance_ready else 'NOT wired — will be skipped, run via the SPA'})"
+    )
     print("-" * 72)
     print(f"  users in file     : {plan.ok_count}")
     print(f"  scoped (subset)   : {plan.scoped_count}")
@@ -440,7 +457,9 @@ def _apply_plan(
             governance.assign_role(tenant, spec.email, spec.role)
             result.roles_assigned += 1
         except Exception as exc:  # noqa: BLE001
-            result.errors.append(f"ROLE {spec.email} ({spec.role}): {type(exc).__name__}: {exc}")
+            result.errors.append(
+                f"ROLE {spec.email} ({spec.role}): {type(exc).__name__}: {exc}"
+            )
     return result
 
 
@@ -459,6 +478,7 @@ def load_users(
     tenant: str | None = None,
     governance_url: str | None = None,
     governance_token: str | None = None,
+    show_passwords: bool = False,
     cognito: CognitoAdminClient | None = None,
     governance: GovernanceEndpointClient | None = None,
 ) -> int:
@@ -467,6 +487,10 @@ def load_users(
     Reads the editable file READ-ONLY, builds a validated plan, prints it, and — only if
     ``apply`` — creates users via Cognito + assigns roles via the governance endpoint. ``cognito``
     / ``governance`` may be injected for tests; in production they are constructed from the args.
+
+    Generated throwaway passwords are NEVER printed to stdout unless ``show_passwords`` is set
+    (``--show-passwords``); by default a redacted placeholder is shown
+    (py/clear-text-logging-sensitive-data).
     """
     plan = build_load_plan(source_path, cli_default_tenant=tenant)
 
@@ -505,18 +529,32 @@ def load_users(
     print("=" * 72)
     print(f"  pool             : {pool_id}")
     print(f"  created          : {result.created}")
-    print(f"  skipped existing : {result.skipped_existing} (idempotent — not recreated)")
+    print(
+        f"  skipped existing : {result.skipped_existing} (idempotent — not recreated)"
+    )
     print(f"  roles assigned   : {result.roles_assigned} (via the governance endpoint)")
-    print(f"  roles skipped    : {result.roles_skipped} "
-          "(endpoint not wired — assign via the SPA / re-run with --governance-url)")
+    print(
+        f"  roles skipped    : {result.roles_skipped} "
+        "(endpoint not wired — assign via the SPA / re-run with --governance-url)"
+    )
     print(f"  errors           : {len(result.errors)}")
     for note in result.errors:
         print(f"    {note}")
     if result.generated_passwords:
         print("-" * 72)
-        print("  generated throwaway passwords (dev/test users only):")
-        for email, pw in sorted(result.generated_passwords.items()):
-            print(f"    {email}  {pw}")
+        if show_passwords:
+            print("  generated throwaway passwords (dev/test users only):")
+            for email, pw in sorted(result.generated_passwords.items()):
+                print(f"    {email}  {pw}")
+        else:
+            # Secrets are NOT printed by default (py/clear-text-logging-sensitive-data).
+            # Pass --show-passwords to reveal them on stdout.
+            print(
+                f"  generated throwaway passwords : {len(result.generated_passwords)} "
+                "(hidden — pass --show-passwords to reveal)"
+            )
+            for email in sorted(result.generated_passwords):
+                print(f"    {email}  <hidden — pass --show-passwords to reveal>")
     print("=" * 72)
 
     # Non-zero if any per-user error so automation notices something to reconcile.
@@ -566,6 +604,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=os.environ.get("AWS_REGION", DEFAULT_REGION),
         help=f"AWS region (default: env AWS_REGION or {DEFAULT_REGION}).",
     )
+    parser.add_argument(
+        "--show-passwords",
+        dest="show_passwords",
+        action="store_true",
+        help="Print the generated throwaway passwords to stdout. OFF by default — without this "
+        "flag the apply summary shows a redacted placeholder instead of the cleartext secret "
+        "(avoids logging sensitive data). Dev/test users only.",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--apply",
@@ -594,6 +640,7 @@ def main(argv: list[str] | None = None) -> int:
             tenant=args.tenant,
             governance_url=args.governance_url,
             governance_token=args.governance_token,
+            show_passwords=args.show_passwords,
         )
     except Exception as exc:  # noqa: BLE001 — surface any failure to the CLI
         print(f"ERROR: {exc}", file=sys.stderr)

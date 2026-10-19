@@ -8,14 +8,30 @@ TenantSlugService, boto3 S3 client).
 
 import json
 import os
+import re
 import sys
 from unittest.mock import Mock, patch, call
+from urllib.parse import urlparse
 
 import pytest
 from botocore.exceptions import ClientError
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+
+
+def _link_hosts(html: str) -> set[str]:
+    """Return the set of parsed hostnames from every href="..." in an HTML fragment.
+
+    Used instead of a bare substring check (`"fonts.googleapis.com" in html`) so
+    the assertion compares the real URL HOST — a substring test would also match
+    a spoofed host such as ``fonts.googleapis.com.evil.example``.
+    """
+    return {
+        urlparse(href).hostname
+        for href in re.findall(r'href="([^"]+)"', html)
+        if urlparse(href).hostname
+    }
 
 
 class TestLandingPagePublishService:
@@ -114,7 +130,14 @@ class TestLandingPagePublishService:
         return svc
 
     @pytest.fixture
-    def service(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3, mock_asset_svc):
+    def service(
+        self,
+        mock_landing_page_svc,
+        mock_param_svc,
+        mock_slug_svc,
+        mock_s3,
+        mock_asset_svc,
+    ):
         """Create LandingPagePublishService with mocked dependencies."""
         with patch.dict(
             os.environ,
@@ -206,7 +229,10 @@ class TestLandingPagePublishService:
         """Test publish fails gracefully on S3 index.html write error."""
         # First store_and_register succeeds, second fails
         mock_asset_svc.store_and_register.side_effect = [
-            {"success": True, "asset": {"id": "ast_001", "s3_key": "acme-rentals/landing.json"}},
+            {
+                "success": True,
+                "asset": {"id": "ast_001", "s3_key": "acme-rentals/landing.json"},
+            },
             ClientError(
                 {"Error": {"Code": "InternalError", "Message": "S3 failed"}},
                 "PutObject",
@@ -331,7 +357,9 @@ class TestLandingPagePublishService:
         with pytest.raises(ClientError):
             service.unpublish("TestTenant", "admin@acme.nl")
 
-    def test_unpublish_with_asset_svc_detach_and_delete_orphaned(self, service, mock_s3):
+    def test_unpublish_with_asset_svc_detach_and_delete_orphaned(
+        self, service, mock_s3
+    ):
         """Test unpublish uses asset_svc to detach and delete orphaned assets."""
         # Setup asset service mock
         mock_asset_svc = Mock()
@@ -350,7 +378,10 @@ class TestLandingPagePublishService:
             "success": True,
             "asset": {"id": "ast_json_001", "status": "ORPHAN", "reference_count": 0},
         }
-        mock_asset_svc.delete_asset.return_value = {"success": True, "asset_id": "ast_json_001"}
+        mock_asset_svc.delete_asset.return_value = {
+            "success": True,
+            "asset_id": "ast_json_001",
+        }
 
         result = service.unpublish("TestTenant", "admin@acme.nl")
 
@@ -359,8 +390,12 @@ class TestLandingPagePublishService:
 
         # Verify detach called for each asset
         assert mock_asset_svc.detach.call_count == 2
-        mock_asset_svc.detach.assert_any_call("TestTenant", "ast_json_001", "landing_page", "acme-rentals")
-        mock_asset_svc.detach.assert_any_call("TestTenant", "ast_html_002", "landing_page", "acme-rentals")
+        mock_asset_svc.detach.assert_any_call(
+            "TestTenant", "ast_json_001", "landing_page", "acme-rentals"
+        )
+        mock_asset_svc.detach.assert_any_call(
+            "TestTenant", "ast_html_002", "landing_page", "acme-rentals"
+        )
 
         # Verify delete called for orphaned assets
         assert mock_asset_svc.delete_asset.call_count == 2
@@ -368,7 +403,9 @@ class TestLandingPagePublishService:
         # No direct S3 delete calls
         assert mock_s3.delete_object.call_count == 0
 
-    def test_unpublish_with_asset_svc_no_delete_when_still_referenced(self, service, mock_s3):
+    def test_unpublish_with_asset_svc_no_delete_when_still_referenced(
+        self, service, mock_s3
+    ):
         """Test unpublish does not delete assets that still have references."""
         mock_asset_svc = Mock()
         service.asset_svc = mock_asset_svc
@@ -390,7 +427,9 @@ class TestLandingPagePublishService:
         mock_asset_svc.delete_asset.assert_not_called()
         assert mock_s3.delete_object.call_count == 0
 
-    def test_unpublish_with_asset_svc_fallback_when_no_registered_assets(self, service, mock_s3):
+    def test_unpublish_with_asset_svc_fallback_when_no_registered_assets(
+        self, service, mock_s3
+    ):
         """Test unpublish falls back to _delete_raw when no assets in registry."""
         mock_asset_svc = Mock()
         service.asset_svc = mock_asset_svc
@@ -592,7 +631,9 @@ class TestLandingPagePublishService:
 
         assert result["canonical_url"] == "https://myadmin.app/p/my-slug"
 
-    def test_resolve_seo_canonical_url_jabaki_enabled(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+    def test_resolve_seo_canonical_url_jabaki_enabled(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
+    ):
         """Test canonical URL uses Jabaki subdomain when jabaki_enabled is true."""
         mock_param_svc.get_param.return_value = None
         mock_db = Mock()
@@ -630,7 +671,9 @@ class TestLandingPagePublishService:
         assert result["canonical_url"] == "https://acme-rentals.jabaki.nl/"
         assert result["alternate_urls"] == ["https://myadmin.app/p/acme-rentals"]
 
-    def test_resolve_seo_canonical_url_jabaki_disabled(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+    def test_resolve_seo_canonical_url_jabaki_disabled(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
+    ):
         """Test canonical URL falls back to default when jabaki_enabled is false."""
         mock_param_svc.get_param.return_value = None
         mock_db = Mock()
@@ -679,7 +722,9 @@ class TestLandingPagePublishService:
         assert result["canonical_url"] == "https://myadmin.app/p/my-slug"
         assert result["alternate_urls"] == []
 
-    def test_resolve_seo_custom_domain_takes_priority(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+    def test_resolve_seo_custom_domain_takes_priority(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
+    ):
         """Test custom domain takes highest priority for canonical URL."""
         mock_param_svc.get_param.return_value = None
         mock_db = Mock()
@@ -719,7 +764,9 @@ class TestLandingPagePublishService:
         assert "https://myadmin.app/p/acme-rentals" in result["alternate_urls"]
         assert "https://www.acme-rentals.nl/" not in result["alternate_urls"]
 
-    def test_resolve_seo_custom_domain_without_jabaki(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+    def test_resolve_seo_custom_domain_without_jabaki(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
+    ):
         """Test custom domain as canonical with jabaki disabled."""
         mock_param_svc.get_param.return_value = None
         mock_db = Mock()
@@ -757,7 +804,9 @@ class TestLandingPagePublishService:
         assert result["canonical_url"] == "https://www.acme-rentals.nl/"
         assert result["alternate_urls"] == ["https://myadmin.app/p/acme-rentals"]
 
-    def test_resolve_seo_custom_domain_db_error_graceful(self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3):
+    def test_resolve_seo_custom_domain_db_error_graceful(
+        self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
+    ):
         """Test graceful degradation when custom domain query fails."""
         mock_param_svc.get_param.return_value = None
         mock_db = Mock()
@@ -1292,7 +1341,10 @@ class TestPublishWithAssetService:
         mock_asset_svc.store_and_register.side_effect = [
             {
                 "success": True,
-                "asset": {"id": "ast_1", "s3_key": "TestTenant/landing-pages/ast_1_landing.json"},
+                "asset": {
+                    "id": "ast_1",
+                    "s3_key": "TestTenant/landing-pages/ast_1_landing.json",
+                },
                 "duplicate_of": None,
             },
             {"success": False, "error": "S3 upload failed"},
@@ -1314,7 +1366,9 @@ class TestPublishWithAssetService:
         call_2 = mock_asset_svc.store_and_register.call_args_list[1]
         assert isinstance(call_2[1]["file_data"], bytes)
 
-    def test_publish_uses_slug_as_entity_id(self, service, mock_asset_svc, mock_slug_svc):
+    def test_publish_uses_slug_as_entity_id(
+        self, service, mock_asset_svc, mock_slug_svc
+    ):
         """Test that entity_id is the slug (not a numeric page ID)."""
         mock_slug_svc.get_slug.return_value = "my-custom-slug"
 
@@ -1322,7 +1376,6 @@ class TestPublishWithAssetService:
 
         call_1 = mock_asset_svc.store_and_register.call_args_list[0]
         assert call_1[1]["entity_id"] == "my-custom-slug"
-
 
 
 class TestThemePresetBranding:
@@ -1462,10 +1515,12 @@ class TestThemePresetBranding:
 
     def test_theme_override_merging(self, _make_service):
         """Override replaces only specified fields; preset fills the rest."""
-        theme = json.dumps({
-            "preset": "professional",
-            "overrides": {"color_accent": "#custom123"},
-        })
+        theme = json.dumps(
+            {
+                "preset": "professional",
+                "overrides": {"color_accent": "#custom123"},
+            }
+        )
         svc = _make_service(theme_json=theme)
 
         branding = svc.resolve_branding("TestTenant")
@@ -1487,7 +1542,7 @@ class TestThemePresetBranding:
         branding = dict(LandingPageStyles.THEME_PRESETS["professional"])
         font_links = LandingPageStyles.build_font_links(branding)
 
-        assert "fonts.googleapis.com" in font_links
+        assert "fonts.googleapis.com" in _link_hosts(font_links)
         assert "Inter" in font_links
 
     def test_theme_luxury_font_links(self):
@@ -1499,7 +1554,7 @@ class TestThemePresetBranding:
 
         assert "Playfair+Display" in font_links
         assert "Lato" in font_links
-        assert "fonts.googleapis.com" in font_links
+        assert "fonts.googleapis.com" in _link_hosts(font_links)
 
     def test_theme_minimal_no_font_links(self):
         """Theme 'minimal' preset data → system fonts → no Google Font links."""
@@ -1519,7 +1574,7 @@ class TestThemePresetBranding:
 
         assert "Lora" in font_links
         assert "Nunito" in font_links
-        assert "fonts.googleapis.com" in font_links
+        assert "fonts.googleapis.com" in _link_hosts(font_links)
 
     def test_theme_modern_font_links(self):
         """Theme 'modern' preset data → Poppins font link."""
@@ -1529,7 +1584,7 @@ class TestThemePresetBranding:
         font_links = LandingPageStyles.build_font_links(branding)
 
         assert "Poppins" in font_links
-        assert "fonts.googleapis.com" in font_links
+        assert "fonts.googleapis.com" in _link_hosts(font_links)
 
     def test_theme_nature_font_links(self):
         """Theme 'nature' preset data → Nunito font link."""
@@ -1539,7 +1594,7 @@ class TestThemePresetBranding:
         font_links = LandingPageStyles.build_font_links(branding)
 
         assert "Nunito" in font_links
-        assert "fonts.googleapis.com" in font_links
+        assert "fonts.googleapis.com" in _link_hosts(font_links)
 
     # ────────────────────────────────────────────────────────────────────────
     # Font fields resolved from theme presets via resolve_branding
@@ -1611,10 +1666,12 @@ class TestThemePresetBranding:
 
     def test_theme_override_font_heading_only(self, _make_service):
         """Override font_heading only; preset fills the rest."""
-        theme = json.dumps({
-            "preset": "luxury",
-            "overrides": {"font_heading": "Montserrat"},
-        })
+        theme = json.dumps(
+            {
+                "preset": "luxury",
+                "overrides": {"font_heading": "Montserrat"},
+            }
+        )
         svc = _make_service(theme_json=theme)
 
         branding = svc.resolve_branding("TestTenant")

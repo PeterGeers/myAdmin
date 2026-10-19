@@ -233,7 +233,21 @@ class FileCleanupManager:
             file_url = cleanup_context["file_url"]
             if not self._actions.is_google_drive_url(file_url):
                 local_path = self._actions.get_file_path_from_url(file_url)
-                if (
+                # Canonicalize and confirm the derived path stays inside an allowed
+                # base dir BEFORE touching the filesystem. A traversal/symlink path
+                # that escapes the storage roots is logged and skipped (matching this
+                # helper's log-and-continue semantics) so os.path.exists / os.access /
+                # os.chmod are never reached for an out-of-base path. (CodeQL
+                # py/path-injection — file_cleanup_manager.py)
+                if local_path and not self._is_within_allowed_base(local_path):
+                    logger.warning(
+                        f"[{operation_id}] Path outside allowed storage rejected, "
+                        f"skipping permission fix: {local_path}"
+                    )
+                    cleanup_context["recovery_actions"].append(
+                        f"unsafe_path_rejected_attempt_{failed_attempt}"
+                    )
+                elif (
                     local_path
                     and os.path.exists(local_path)
                     and not os.access(local_path, os.W_OK)
@@ -262,6 +276,33 @@ class FileCleanupManager:
             cleanup_context["recovery_actions"].append(
                 f"recovery_failed_{failed_attempt}"
             )
+
+    def _is_within_allowed_base(self, local_path: str) -> bool:
+        """
+        Confirm a derived local path stays inside an allowed storage base dir.
+
+        Canonicalizes both the candidate path and the allowed base dirs with
+        ``os.path.realpath`` (resolving symlinks and ``..`` segments), then checks
+        containment against ``base_storage_path`` / ``temp_storage_path`` using a
+        path-separator boundary so a sibling like ``/storage_evil`` cannot satisfy a
+        ``/storage`` prefix. Returns False (reject) on any resolution error.
+
+        This guards the filesystem calls in ``_attempt_cleanup_recovery`` against
+        path injection via an attacker-influenceable ``file_url`` (CodeQL
+        py/path-injection).
+        """
+        try:
+            real_path = os.path.realpath(local_path)
+            allowed_bases = (
+                os.path.realpath(self.base_storage_path),
+                os.path.realpath(self.temp_storage_path),
+            )
+            for base in allowed_bases:
+                if real_path == base or real_path.startswith(base + os.sep):
+                    return True
+            return False
+        except Exception:
+            return False
 
     # ── Logging & Metrics ────────────────────────────────────
 
