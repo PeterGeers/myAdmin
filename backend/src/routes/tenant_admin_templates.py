@@ -28,6 +28,7 @@ from auth.tenant_context import (
     is_tenant_admin,
 )
 from database import DatabaseManager
+from routes.error_responses import error_payload
 from routes.tenant_admin_template_constants import (
     TEMPLATE_TYPE_TO_LOCAL_KEY as _TEMPLATE_TYPE_TO_LOCAL_KEY,
 )
@@ -126,13 +127,7 @@ def get_current_template_endpoint(
                 template_content = drive_service.download_file_content(file_id)
         except Exception as e:
             logger.error(f"Error fetching template content: {e}")
-            return jsonify(
-                {
-                    "success": False,
-                    "error": "Failed to fetch template content",
-                    "details": str(e),
-                }
-            ), 500
+            return jsonify(error_payload(e, "Failed to fetch template content")), 500
 
         # Parse field mappings (stored as JSON)
         field_mappings = template_metadata.get("field_mappings")
@@ -168,7 +163,9 @@ def get_current_template_endpoint(
 
     except Exception as e:
         logger.error(f"Error getting current template: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Internal server error", include_success=False)
+        ), 500
 
 
 @tenant_admin_templates_bp.route(
@@ -246,7 +243,9 @@ def get_default_template_endpoint(
 
     except Exception as e:
         logger.error(f"Error getting default template: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Internal server error", include_success=False)
+        ), 500
 
 
 @tenant_admin_templates_bp.route(
@@ -305,7 +304,9 @@ def preview_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error generating template preview: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Internal server error", include_success=False)
+        ), 500
 
 
 @tenant_admin_templates_bp.route(
@@ -361,7 +362,9 @@ def validate_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error validating template: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Internal server error", include_success=False)
+        ), 500
 
 
 @tenant_admin_templates_bp.route(
@@ -432,7 +435,9 @@ def approve_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error approving template: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Internal server error", include_success=False)
+        ), 500
 
 
 @tenant_admin_templates_bp.route("/api/tenant-admin/templates/reject", methods=["POST"])
@@ -473,7 +478,9 @@ def reject_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error rejecting template: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Internal server error", include_success=False)
+        ), 500
 
 
 # Lazy re-export for backward compatibility with tests.
