@@ -7,6 +7,8 @@ missing table/region var throws rather than silently defaulting.
 Feature: s3-claims-and-projection
 """
 
+from urllib.parse import urlparse
+
 import pytest
 
 from services.dynamodb_client import (
@@ -95,8 +97,13 @@ def test_get_dynamodb_resource_no_local_endpoint_uses_real_aws(monkeypatch):
     monkeypatch.setenv("AWS_REGION", "eu-west-1")
     resource = get_dynamodb_resource()
     endpoint = resource.meta.client.meta.endpoint_url
-    assert "localhost" not in endpoint
-    assert "amazonaws.com" in endpoint
+    # Parse + compare the HOST, not a substring of the whole URL: a substring
+    # check (`"amazonaws.com" in endpoint`) would also accept a hostile host
+    # like ``amazonaws.com.attacker.net`` and reject nothing that merely
+    # contains "localhost" as a label.
+    host = urlparse(endpoint).hostname or ""
+    assert host != "localhost"
+    assert host == "amazonaws.com" or host.endswith(".amazonaws.com")
 
 
 def test_get_dynamodb_resource_region_override_bypasses_env(monkeypatch):

@@ -37,9 +37,7 @@ def client(app):
 @pytest.fixture
 def mock_slug_service():
     """Mock the TenantSlugService to resolve slugs."""
-    with patch(
-        "routes.landing_page_routes._get_slug_service"
-    ) as mock_factory:
+    with patch("routes.landing_page_routes._get_slug_service") as mock_factory:
         mock_svc = Mock()
         mock_svc.resolve_slug.return_value = "TestTenant"
         mock_factory.return_value = mock_svc
@@ -60,16 +58,16 @@ def mock_db():
 @pytest.fixture
 def mock_notification():
     """Mock the _send_contact_notification helper."""
-    with patch(
-        "routes.landing_page_routes._send_contact_notification"
-    ) as mock_fn:
+    with patch("routes.landing_page_routes._send_contact_notification") as mock_fn:
         yield mock_fn
 
 
 class TestHoneypot:
     """Task 3.5: Honeypot field rejects bots silently."""
 
-    def test_honeypot_filled_returns_200_success(self, client, mock_slug_service, mock_db):
+    def test_honeypot_filled_returns_200_success(
+        self, client, mock_slug_service, mock_db
+    ):
         """If honeypot field is filled, return 200 success (fool bots) without storing."""
         response = client.post(
             "/api/public/landing/test-slug/contact",
@@ -96,7 +94,7 @@ class TestHoneypot:
         mock_db.execute_query.side_effect = [
             [{"cnt": 0}],  # email rate limit check
             [{"cnt": 0}],  # IP rate limit check
-            None,          # INSERT
+            None,  # INSERT
         ]
 
         response = client.post(
@@ -140,7 +138,7 @@ class TestEmailValidation:
         mock_db.execute_query.side_effect = [
             [{"cnt": 0}],  # email rate limit
             [{"cnt": 0}],  # IP rate limit
-            None,          # INSERT
+            None,  # INSERT
         ]
 
         response = client.post(
@@ -195,7 +193,7 @@ class TestRateLimiting:
     def test_ip_rate_limit_exceeded(self, client, mock_slug_service, mock_db):
         """10+ submissions from same IP in 1 hour returns 429."""
         mock_db.execute_query.side_effect = [
-            [{"cnt": 4}],   # email check: under limit
+            [{"cnt": 4}],  # email check: under limit
             [{"cnt": 10}],  # IP check: at limit
         ]
 
@@ -219,7 +217,7 @@ class TestRateLimiting:
         mock_db.execute_query.side_effect = [
             [{"cnt": 3}],  # email check: under limit
             [{"cnt": 7}],  # IP check: under limit
-            None,          # INSERT
+            None,  # INSERT
         ]
 
         response = client.post(
@@ -246,7 +244,7 @@ class TestStoreSubmission:
         mock_db.execute_query.side_effect = [
             [{"cnt": 0}],  # email rate limit
             [{"cnt": 0}],  # IP rate limit
-            None,          # INSERT
+            None,  # INSERT
         ]
 
         response = client.post(
@@ -269,15 +267,13 @@ class TestStoreSubmission:
         params = insert_call[0][1]
         assert "INSERT INTO landing_page_submissions" in query
         assert params[0] == "TestTenant"  # administration
-        assert params[1] == "Alice"       # visitor_name
+        assert params[1] == "Alice"  # visitor_name
         assert params[2] == "alice@example.com"  # visitor_email
-        assert params[3] == "Hello!"      # message
+        assert params[3] == "Hello!"  # message
 
     def test_slug_not_found_returns_404(self, client):
         """Unknown slug returns 404."""
-        with patch(
-            "routes.landing_page_routes._get_slug_service"
-        ) as mock_factory:
+        with patch("routes.landing_page_routes._get_slug_service") as mock_factory:
             mock_svc = Mock()
             mock_svc.resolve_slug.return_value = None
             mock_factory.return_value = mock_svc
@@ -366,7 +362,7 @@ class TestSESNotification:
         mock_db.execute_query.side_effect = [
             [{"cnt": 0}],  # email rate limit
             [{"cnt": 0}],  # IP rate limit
-            None,          # INSERT
+            None,  # INSERT
         ]
 
         response = client.post(
@@ -437,11 +433,10 @@ class TestSendContactNotificationHelper:
 
         # ParameterService / SESEmailService are imported inside the function
         # body from their defining modules, so patch them there.
-        with patch(
-            "services.parameter_service.ParameterService"
-        ) as MockParam, patch(
-            "services.ses_email_service.SESEmailService"
-        ) as MockSES:
+        with (
+            patch("services.parameter_service.ParameterService") as MockParam,
+            patch("services.ses_email_service.SESEmailService") as MockSES,
+        ):
             mock_param = Mock()
             mock_param.get_param.return_value = None
             MockParam.return_value = mock_param
@@ -458,16 +453,12 @@ class TestSendContactNotificationHelper:
         """SES errors are caught and logged, not raised."""
         from routes.landing_page_routes import _send_contact_notification
 
-        with patch(
-            "services.parameter_service.ParameterService"
-        ) as MockParam:
+        with patch("services.parameter_service.ParameterService") as MockParam:
             mock_p = Mock()
             mock_p.get_param.return_value = "tenant@example.com"
             MockParam.return_value = mock_p
 
-            with patch(
-                "services.ses_email_service.SESEmailService"
-            ) as MockSES:
+            with patch("services.ses_email_service.SESEmailService") as MockSES:
                 mock_ses = Mock()
                 mock_ses.send_email.side_effect = Exception("SES down")
                 MockSES.return_value = mock_ses
@@ -476,3 +467,150 @@ class TestSendContactNotificationHelper:
                 _send_contact_notification(
                     "TestTenant", "Alice", "alice@example.com", "Hello"
                 )
+
+
+class TestSanitizeInput:
+    """Task 1 (security-assessment-2026-10-19): linear, ReDoS-safe input sanitizer.
+
+    The contact-form sanitizer previously used a backtracking regex
+    (``re.sub(r"<[^>]*>", "", value)``) flagged by CodeQL as
+    ``py/polynomial-redos`` on this public, unauthenticated endpoint. It is
+    now backed by a linear ``html.parser`` stripper. These tests pin the
+    stripping contract (same tags removed, text preserved) AND assert the
+    sanitizer stays fast on pathological input (no catastrophic backtracking).
+    """
+
+    def test_strips_script_tag_keeps_text(self):
+        from routes.landing_page_routes.public_endpoints import _sanitize_input
+
+        result = _sanitize_input('<script>alert("xss")</script>Hello')
+        assert "<script>" not in result
+        assert "</script>" not in result
+        assert "Hello" in result
+
+    def test_strips_all_html_tags(self):
+        from routes.landing_page_routes.public_endpoints import _sanitize_input
+
+        result = _sanitize_input("<p>Para</p><b>Bold</b><i>Italic</i>")
+        assert "<" not in result
+        assert ">" not in result
+        assert "Para" in result
+        assert "Bold" in result
+        assert "Italic" in result
+
+    def test_strips_tags_hidden_behind_html_entities(self):
+        from routes.landing_page_routes.public_endpoints import _sanitize_input
+
+        # Entity-encoded tag should be decoded then stripped on the 2nd pass.
+        result = _sanitize_input("&lt;script&gt;evil()&lt;/script&gt;")
+        assert "<script>" not in result
+        assert "</script>" not in result
+
+    def test_normalizes_horizontal_whitespace(self):
+        from routes.landing_page_routes.public_endpoints import _sanitize_input
+
+        result = _sanitize_input("Hello     \t   World")
+        assert result == "Hello World"
+
+    def test_preserves_newlines(self):
+        from routes.landing_page_routes.public_endpoints import _sanitize_input
+
+        result = _sanitize_input("Line one\nLine two")
+        assert result == "Line one\nLine two"
+
+    def test_plain_text_unchanged(self):
+        from routes.landing_page_routes.public_endpoints import _sanitize_input
+
+        assert _sanitize_input("Just a normal message.") == "Just a normal message."
+
+    def test_pathological_input_completes_quickly(self):
+        """A crafted pathological input must sanitize in well under 50ms (no ReDoS).
+
+        A backtracking tag-strip regex degrades super-linearly on inputs like
+        a long run of '<' with no closing '>'. The linear parser finishes
+        near-instantly. 20k chars of this worst-case shape is a severe attack
+        payload yet stays far under 50ms with the linear parser; the old
+        ``<[^>]*>`` regex exhibited polynomial blow-up on the same shape.
+        """
+        import time
+
+        from routes.landing_page_routes.public_endpoints import _sanitize_input
+
+        # Worst-case shape for ``<[^>]*>``-style patterns: a long unterminated
+        # run of '<'. 20k chars dwarfs any legitimate contact-form field
+        # (name <= 200 chars) while remaining a realistic request-sized payload.
+        pathological = "<" * 10_000 + "a" * 10_000
+        start = time.perf_counter()
+        _sanitize_input(pathological)
+        elapsed = time.perf_counter() - start
+
+        assert elapsed < 0.05, f"sanitizer took {elapsed * 1000:.1f}ms (ReDoS risk)"
+
+        # A second worst-case shape: many *complete* tags interleaved with text.
+        # These ARE real tags, so they must be stripped — and still fast.
+        many_tags = "<a>x</a>" * 10_000
+        start = time.perf_counter()
+        result = _sanitize_input(many_tags)
+        elapsed = time.perf_counter() - start
+
+        assert elapsed < 0.05, f"sanitizer took {elapsed * 1000:.1f}ms (ReDoS risk)"
+        # Real tags are stripped; only the text content 'x' survives.
+        assert "<a>" not in result
+        assert "</a>" not in result
+        assert set(result) <= {"x"}
+
+    def test_sanitizer_scales_linearly(self):
+        """Doubling input size must not more than ~triple the time (no ReDoS).
+
+        This is the core anti-ReDoS guarantee: runtime grows (roughly) linearly
+        with input length, not super-linearly. A backtracking regex on the
+        worst-case shape would blow up far past a 3x factor.
+        """
+        import time
+
+        from routes.landing_page_routes.public_endpoints import _sanitize_input
+
+        def _time(n: int) -> float:
+            payload = "<" * n + "a" * n
+            start = time.perf_counter()
+            _sanitize_input(payload)
+            return time.perf_counter() - start
+
+        # Warm up (import / parser setup) so the ratio reflects steady state.
+        _time(1_000)
+        small = _time(10_000)
+        large = _time(20_000)
+
+        # Guard against a zero/near-zero small measurement on fast machines.
+        if small < 1e-4:
+            return
+        assert large < small * 3, (
+            f"runtime scaled super-linearly: {small * 1000:.1f}ms -> "
+            f"{large * 1000:.1f}ms (possible ReDoS)"
+        )
+
+    def test_contact_endpoint_strips_html_from_stored_fields(
+        self, client, mock_slug_service, mock_db, mock_notification
+    ):
+        """End-to-end: HTML in name/message is stripped before storage."""
+        mock_db.execute_query.side_effect = [
+            [{"cnt": 0}],  # email rate limit
+            [{"cnt": 0}],  # IP rate limit
+            None,  # INSERT
+        ]
+
+        response = client.post(
+            "/api/public/landing/test-slug/contact",
+            json={
+                "name": "<b>Alice</b>",
+                "email": "alice@example.com",
+                "message": "<script>alert(1)</script>Hello",
+            },
+        )
+
+        assert response.status_code == 200
+        insert_call = mock_db.execute_query.call_args_list[2]
+        params = insert_call[0][1]
+        assert params[1] == "Alice"  # visitor_name, tags stripped
+        assert "<script>" not in params[3]  # message
+        assert "Hello" in params[3]

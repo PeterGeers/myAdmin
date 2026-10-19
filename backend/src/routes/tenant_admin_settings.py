@@ -19,6 +19,7 @@ from flask_babel import gettext as _
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
 from database import DatabaseManager
+from routes.error_responses import error_response
 from services.tenant_settings_service import TenantSettingsService
 
 # Initialize logger
@@ -57,11 +58,12 @@ def get_settings(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "tenant": tenant, "settings": settings})
 
     except Exception as e:
-        logger.error(f"Error getting settings: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant settings request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_settings_bp.route("/settings", methods=["PUT"])
@@ -119,11 +121,12 @@ def update_settings(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        logger.error(f"Error updating settings: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant settings request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_settings_bp.route("/activity", methods=["GET"])
@@ -169,11 +172,12 @@ def get_activity(user_email, user_roles) -> ResponseReturnValue:
         return jsonify({"success": True, "tenant": tenant, "activity": activity})
 
     except Exception as e:
-        logger.error(f"Error getting activity: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant settings request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 # ============================================================================

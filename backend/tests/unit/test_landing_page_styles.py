@@ -6,7 +6,9 @@ for the landing page publish pipeline.
 """
 
 import os
+import re
 import sys
+from urllib.parse import urlparse
 
 import pytest
 
@@ -16,13 +18,31 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 from services.landing_page_styles import LandingPageStyles
 
 
+def _link_hosts(html: str) -> set[str]:
+    """Return the set of parsed hostnames from every href="..." in an HTML fragment.
+
+    Used instead of a bare substring check (`"fonts.googleapis.com" in html`) so
+    the assertion compares the real URL HOST — a substring test would also match
+    a spoofed host such as ``fonts.googleapis.com.evil.example``.
+    """
+    return {
+        urlparse(href).hostname
+        for href in re.findall(r'href="([^"]+)"', html)
+        if urlparse(href).hostname
+    }
+
+
 class TestBuildSectionStyle:
     """Tests for build_section_style."""
 
     def test_empty_settings_returns_empty(self):
         """Empty or None settings returns empty string."""
-        assert LandingPageStyles.build_section_style({}, "https://cdn.example.com") == ""
-        assert LandingPageStyles.build_section_style(None, "https://cdn.example.com") == ""
+        assert (
+            LandingPageStyles.build_section_style({}, "https://cdn.example.com") == ""
+        )
+        assert (
+            LandingPageStyles.build_section_style(None, "https://cdn.example.com") == ""
+        )
 
     def test_background_color(self):
         """Color background type generates background-color."""
@@ -51,8 +71,12 @@ class TestBuildSectionStyle:
             "background_type": "image",
             "background_image_key": "uploads/bg.jpg",
         }
-        result = LandingPageStyles.build_section_style(settings, "https://cdn.example.com")
-        assert "background-image: url('https://cdn.example.com/uploads/bg.jpg')" in result
+        result = LandingPageStyles.build_section_style(
+            settings, "https://cdn.example.com"
+        )
+        assert (
+            "background-image: url('https://cdn.example.com/uploads/bg.jpg')" in result
+        )
         assert "background-size: cover" in result
         assert "background-position: center" in result
 
@@ -62,7 +86,9 @@ class TestBuildSectionStyle:
             "background_type": "image",
             "background_image_key": "https://other.com/bg.png",
         }
-        result = LandingPageStyles.build_section_style(settings, "https://cdn.example.com")
+        result = LandingPageStyles.build_section_style(
+            settings, "https://cdn.example.com"
+        )
         assert "url('https://other.com/bg.png')" in result
 
     def test_padding_compact(self):
@@ -311,7 +337,7 @@ class TestBuildFontLinks:
         """Custom font name produces Google Fonts link."""
         branding = {"font_heading": "Inter", "font_body": "system"}
         result = LandingPageStyles.build_font_links(branding)
-        assert "fonts.googleapis.com" in result
+        assert "fonts.googleapis.com" in _link_hosts(result)
         assert "Inter" in result
         assert "preconnect" in result
 
@@ -360,41 +386,65 @@ class TestBuildCssVariables:
 
     def test_spacing_compact(self):
         """Compact spacing produces correct variables."""
-        branding = {"font_heading": "system", "font_body": "system", "base_spacing": "compact"}
+        branding = {
+            "font_heading": "system",
+            "font_body": "system",
+            "base_spacing": "compact",
+        }
         result = LandingPageStyles.build_css_variables(branding)
         assert "--spacing-section: 1.5rem" in result
         assert "--spacing-element: 0.75rem" in result
 
     def test_spacing_relaxed(self):
         """Relaxed spacing produces correct variables."""
-        branding = {"font_heading": "system", "font_body": "system", "base_spacing": "relaxed"}
+        branding = {
+            "font_heading": "system",
+            "font_body": "system",
+            "base_spacing": "relaxed",
+        }
         result = LandingPageStyles.build_css_variables(branding)
         assert "--spacing-section: 3rem" in result
         assert "--spacing-element: 1.5rem" in result
 
     def test_radius_sharp(self):
         """Sharp border radius produces zero values."""
-        branding = {"font_heading": "system", "font_body": "system", "border_radius_global": "sharp"}
+        branding = {
+            "font_heading": "system",
+            "font_body": "system",
+            "border_radius_global": "sharp",
+        }
         result = LandingPageStyles.build_css_variables(branding)
         assert "--radius-sm: 0" in result
         assert "--radius-md: 0" in result
 
     def test_radius_pill(self):
         """Pill border radius produces large values."""
-        branding = {"font_heading": "system", "font_body": "system", "border_radius_global": "pill"}
+        branding = {
+            "font_heading": "system",
+            "font_body": "system",
+            "border_radius_global": "pill",
+        }
         result = LandingPageStyles.build_css_variables(branding)
         assert "--radius-lg: 9999px" in result
 
     def test_shadow_dramatic(self):
         """Dramatic shadow style produces heavy shadow values."""
-        branding = {"font_heading": "system", "font_body": "system", "shadow_style": "dramatic"}
+        branding = {
+            "font_heading": "system",
+            "font_body": "system",
+            "shadow_style": "dramatic",
+        }
         result = LandingPageStyles.build_css_variables(branding)
         assert "--shadow-card:" in result
         assert "0 8px 24px" in result
 
     def test_shadow_none(self):
         """None shadow style produces 'none' values."""
-        branding = {"font_heading": "system", "font_body": "system", "shadow_style": "none"}
+        branding = {
+            "font_heading": "system",
+            "font_body": "system",
+            "shadow_style": "none",
+        }
         result = LandingPageStyles.build_css_variables(branding)
         assert "--shadow-card: none" in result
         assert "--shadow-hover: none" in result

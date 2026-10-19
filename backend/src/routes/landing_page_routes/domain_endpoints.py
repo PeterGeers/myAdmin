@@ -13,6 +13,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from routes import landing_page_routes as pkg
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,12 @@ def get_domains(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         return jsonify({"success": True, "data": result}), 200
 
     except Exception as e:
-        logger.error(f"Error getting domains for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error getting domains",
+            status=500,
+            log_context="Error getting domains",
+        )
 
 
 @landing_page_bp.route("/api/landing/domains/jabaki/enable", methods=["POST"])
@@ -71,8 +76,12 @@ def enable_jabaki(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Error enabling Jabaki for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error enabling Jabaki",
+            status=500,
+            log_context="Error enabling Jabaki",
+        )
 
 
 @landing_page_bp.route("/api/landing/domains/jabaki/disable", methods=["POST"])
@@ -102,8 +111,12 @@ def disable_jabaki(user_email, user_roles, tenant, user_tenants) -> ResponseRetu
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Error disabling Jabaki for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error disabling Jabaki",
+            status=500,
+            log_context="Error disabling Jabaki",
+        )
 
 
 @landing_page_bp.route("/api/landing/domains/custom", methods=["POST"])
@@ -153,8 +166,12 @@ def register_custom_domain(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Error registering custom domain for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error registering custom domain",
+            status=500,
+            log_context="Error registering custom domain",
+        )
 
 
 @landing_page_bp.route("/api/landing/domains/custom/verify", methods=["POST"])
@@ -189,8 +206,12 @@ def verify_custom_domain(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Error verifying custom domain for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error verifying custom domain",
+            status=500,
+            log_context="Error verifying custom domain",
+        )
 
 
 @landing_page_bp.route("/api/landing/domains/custom", methods=["DELETE"])
@@ -222,5 +243,9 @@ def delete_custom_domain(
             return jsonify(result), 400
 
     except Exception as e:
-        logger.error(f"Error removing custom domain for tenant {tenant}: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Error removing custom domain",
+            status=500,
+            log_context="Error removing custom domain",
+        )

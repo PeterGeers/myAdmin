@@ -18,6 +18,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import get_current_tenant
 from database import DatabaseManager
+from routes.error_responses import error_response
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -82,8 +83,12 @@ def list_configs(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        logger.error(f"Error listing configs: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant config request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_config_bp.route("/config", methods=["POST"])
@@ -153,8 +158,12 @@ def create_config(user_email, user_roles) -> ResponseReturnValue:
         ), 201
 
     except Exception as e:
-        logger.error(f"Error creating config: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant config request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_config_bp.route("/config/<int:config_id>", methods=["PUT"])
@@ -234,8 +243,12 @@ def update_config(user_email, user_roles, config_id) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        logger.error(f"Error updating config: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant config request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_config_bp.route("/config/<int:config_id>", methods=["DELETE"])
@@ -292,8 +305,12 @@ def delete_config(user_email, user_roles, config_id) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        logger.error(f"Error deleting config: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant config request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 # ============================================================================
@@ -361,8 +378,12 @@ def get_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
         )
 
     except Exception as e:
-        print(f"Error getting tenant config: {e}", flush=True)
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant config request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_config_bp.route(
@@ -425,8 +446,12 @@ def set_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
             return jsonify({"error": "Failed to update configuration"}), 500
 
     except Exception as e:
-        print(f"Error setting tenant config: {e}", flush=True)
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant config request failed",
+            status=500,
+            include_success=False,
+        )
 
 
 @tenant_admin_config_bp.route(
@@ -484,5 +509,9 @@ def delete_tenant_config_legacy(
         )
 
     except Exception as e:
-        print(f"Error deleting tenant config: {e}", flush=True)
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e,
+            "Tenant config request failed",
+            status=500,
+            include_success=False,
+        )

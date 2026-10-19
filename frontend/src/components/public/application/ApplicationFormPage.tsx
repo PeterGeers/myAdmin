@@ -101,7 +101,17 @@ const LOCALE_NAMES: Record<SupportedLocale, string> = { nl: 'Nederlands', en: 'E
 function newSessionKey(): string {
   const c = (globalThis as { crypto?: Crypto }).crypto;
   if (c && typeof c.randomUUID === 'function') return c.randomUUID();
-  return `sess-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  // Fallback for environments without `randomUUID` but with Web Crypto: derive the
+  // random suffix from CSPRNG bytes rather than `Math.random()` (CWE-338). Every
+  // browser this public form runs in ships Web Crypto, so this path is defensive.
+  if (c && typeof c.getRandomValues === 'function') {
+    const bytes = c.getRandomValues(new Uint8Array(16));
+    const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    return `sess-${Date.now()}-${hex}`;
+  }
+  // Last resort (no Web Crypto at all): the key is only a submit de-dup token, not a
+  // security credential, so a timestamp suffix is acceptable here.
+  return `sess-${Date.now()}`;
 }
 
 /** Turn a dotted key into the DOM id the renderer assigns (so the summary links can focus it). */
