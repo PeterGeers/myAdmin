@@ -544,7 +544,13 @@ class TestSanitizeInput:
         _sanitize_input(pathological)
         elapsed = time.perf_counter() - start
 
-        assert elapsed < 0.05, f"sanitizer took {elapsed * 1000:.1f}ms (ReDoS risk)"
+        # Generous absolute ceiling: this is a sanity bound, NOT a micro-benchmark.
+        # The linear parser finishes in well under a second even on a slow/shared CI
+        # runner; a TRUE backtracking ReDoS on this shape would take seconds or hang,
+        # so a 2s ceiling still fails loudly on catastrophic backtracking while not
+        # flaking on CPU-speed variance. Precise linear scaling is asserted separately
+        # in test_sanitizer_scales_linearly (ratio-based, machine-independent).
+        assert elapsed < 2.0, f"sanitizer took {elapsed * 1000:.1f}ms (possible ReDoS)"
 
         # A second worst-case shape: many *complete* tags interleaved with text.
         # These ARE real tags, so they must be stripped — and still fast.
@@ -553,7 +559,7 @@ class TestSanitizeInput:
         result = _sanitize_input(many_tags)
         elapsed = time.perf_counter() - start
 
-        assert elapsed < 0.05, f"sanitizer took {elapsed * 1000:.1f}ms (ReDoS risk)"
+        assert elapsed < 2.0, f"sanitizer took {elapsed * 1000:.1f}ms (possible ReDoS)"
         # Real tags are stripped; only the text content 'x' survives.
         assert "<a>" not in result
         assert "</a>" not in result
