@@ -184,6 +184,7 @@ def get_activity(user_email, user_roles) -> ResponseReturnValue:
 # Tenant Language Endpoints (i18n)
 # ============================================================================
 
+from routes.error_responses import error_payload
 from services.tenant_language_service import (
     get_tenant_language,
     update_tenant_language,
@@ -221,8 +222,12 @@ def get_tenant_language_preference(user_email, user_roles) -> ResponseReturnValu
         logger.error(f"Error in get_tenant_language_preference: {e}")
         return jsonify(
             {
+                **error_payload(
+                    e,
+                    "Failed to retrieve tenant language preference",
+                    include_success=False,
+                ),
                 "error": _("Failed to retrieve tenant language preference"),
-                "details": str(e),
             }
         ), 500
 
@@ -291,5 +296,7 @@ def update_tenant_language_preference(user_email, user_roles) -> ResponseReturnV
     except Exception as e:
         logger.error(f"Error in update_tenant_language_preference: {e}")
         return jsonify(
-            {"error": "Failed to update tenant language preference", "details": str(e)}
+            error_payload(
+                e, "Failed to update tenant language preference", include_success=False
+            )
         ), 500

@@ -10,6 +10,8 @@ import os
 from flask import Blueprint, jsonify, request, send_from_directory
 from flask.typing import ResponseReturnValue
 
+from routes.error_responses import error_payload
+
 # Create blueprint
 static_bp = Blueprint("static", __name__)
 
@@ -87,7 +89,9 @@ def serve_index() -> ResponseReturnValue:
     try:
         return send_from_directory(build_folder, "index.html")
     except Exception as e:
-        return jsonify({"error": "Frontend not built", "details": str(e)}), 404
+        return jsonify(
+            error_payload(e, "Frontend not built", include_success=False)
+        ), 404
 
 
 @static_bp.app_errorhandler(404)

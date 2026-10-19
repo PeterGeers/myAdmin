@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 tenant_admin_template_ai_bp = Blueprint("tenant_admin_template_ai", __name__)
 
 # Import valid types from shared constants (avoids circular import)
+from routes.error_responses import error_payload
 from routes.tenant_admin_template_constants import VALID_TEMPLATE_TYPES
 
 
@@ -124,7 +125,9 @@ def ai_help_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
                 }
             ), 200
         except Exception:
-            return jsonify({"error": "Internal server error", "details": str(e)}), 500
+            return jsonify(
+                error_payload(e, "Internal server error", include_success=False)
+            ), 500
 
 
 @tenant_admin_template_ai_bp.route(
@@ -187,7 +190,9 @@ def apply_ai_fixes_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
     except Exception as e:
         logger.error(f"Error applying AI fixes: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Internal server error", include_success=False)
+        ), 500
 
 
 @tenant_admin_template_ai_bp.route(
@@ -265,7 +270,9 @@ def delete_tenant_template_endpoint(
 
     except Exception as e:
         logger.error(f"Error deleting tenant template: {e}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        return jsonify(
+            error_payload(e, "Internal server error", include_success=False)
+        ), 500
 
 
 # ============================================================================
