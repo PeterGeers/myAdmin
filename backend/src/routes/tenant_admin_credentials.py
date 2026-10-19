@@ -12,7 +12,6 @@ Endpoints:
 - POST /api/tenant-admin/credentials/oauth/callback - OAuth callback
 """
 
-import html
 import json
 import logging
 import os
@@ -434,23 +433,22 @@ def oauth_callback_public() -> ResponseReturnValue:
         error = request.args.get("error")
 
         if error:
-            # OAuth was denied or failed. `error` is attacker-controllable (query param),
-            # so escape it for the HTML context and JSON-encode it for the JS-string
-            # context (CodeQL js reflected-XSS). Never interpolate it raw.
-            safe_error_html = html.escape(error)
-            safe_error_js = json.dumps(error)
+            # OAuth was denied or failed. Do NOT reflect the attacker-controllable
+            # `error` query param into the page at all (reflected-XSS defense): the
+            # parent window only needs a fixed `oauth_error` signal, and the real
+            # reason is logged server-side. A static page carries no user input.
+            logger.warning("OAuth callback returned error for tenant")
             return (
-                f"""
+                """
             <html>
                 <body>
                     <h2>Authorization Failed</h2>
-                    <p>Error: {safe_error_html}</p>
-                    <p>You can close this window.</p>
+                    <p>Authorization was not completed. You can close this window.</p>
                     <script>
-                        window.opener.postMessage({{
+                        window.opener.postMessage({
                             type: 'oauth_error',
-                            error: {safe_error_js}
-                        }}, '*');
+                            error: 'authorization_failed'
+                        }, '*');
                         setTimeout(() => window.close(), 2000);
                     </script>
                 </body>
