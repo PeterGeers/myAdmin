@@ -18,6 +18,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 from routes.service_accessors import make_db_service_accessor
 from services.asset_service import AssetService
 from services.function_guard import function_guard
@@ -47,7 +48,9 @@ def list_assets(user_email, user_roles, tenant, user_tenants) -> ResponseReturnV
         return jsonify({"success": True, "assets": assets, "count": len(assets)})
     except Exception as e:
         logger.error(f"Error listing assets: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Asset request failed", status=500, include_success=False
+        )
 
 
 @asset_bp.route("", methods=["POST"])
@@ -92,7 +95,9 @@ def create_asset(user_email, user_roles, tenant, user_tenants) -> ResponseReturn
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         logger.error(f"Error creating asset: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Asset request failed", status=500, include_success=False
+        )
 
 
 @asset_bp.route("/<int:asset_id>", methods=["GET"])
@@ -111,7 +116,9 @@ def get_asset(
         return jsonify({"success": True, "asset": asset})
     except Exception as e:
         logger.error(f"Error getting asset {asset_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Asset request failed", status=500, include_success=False
+        )
 
 
 @asset_bp.route("/<int:asset_id>", methods=["PUT"])
@@ -143,7 +150,9 @@ def update_asset(
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error updating asset {asset_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Asset request failed", status=500, include_success=False
+        )
 
 
 @asset_bp.route("/<int:asset_id>/dispose", methods=["POST"])
@@ -182,7 +191,9 @@ def dispose_asset(
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error disposing asset {asset_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Asset request failed", status=500, include_success=False
+        )
 
 
 @asset_bp.route("/generate-depreciation", methods=["POST"])
@@ -215,7 +226,9 @@ def generate_depreciation(
         return jsonify(result)
     except Exception as e:
         logger.error(f"Error generating depreciation: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Asset request failed", status=500, include_success=False
+        )
 
 
 @asset_bp.route("/reports/register", methods=["GET"])
@@ -267,7 +280,9 @@ def asset_register_report(
         )
     except Exception as e:
         logger.error(f"Error generating asset register: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Asset request failed", status=500, include_success=False
+        )
 
 
 @asset_bp.route("/reports/depreciation-schedule", methods=["GET"])
@@ -321,7 +336,9 @@ def depreciation_schedule_report(
         )
     except Exception as e:
         logger.error(f"Error generating depreciation schedule: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Asset request failed", status=500, include_success=False
+        )
 
 
 def import_datetime() -> datetime:
@@ -367,4 +384,6 @@ def delete_asset(
         return jsonify({"success": True, "message": f"Asset {asset_id} deleted"})
     except Exception as e:
         logger.error(f"Error deleting asset {asset_id}: {e}")
-        return jsonify({"error": str(e)}), 500
+        return error_response(
+            e, "Asset request failed", status=500, include_success=False
+        )
