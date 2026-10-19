@@ -759,9 +759,15 @@ class TestLandingPagePublishService:
             result = svc.resolve_seo("TestTenant", "acme-rentals", {})
 
         assert result["canonical_url"] == "https://www.acme-rentals.nl/"
-        assert "https://acme-rentals.jabaki.nl/" in result["alternate_urls"]
-        assert "https://myadmin.app/p/acme-rentals" in result["alternate_urls"]
-        assert "https://www.acme-rentals.nl/" not in result["alternate_urls"]
+        assert any(
+            u == "https://acme-rentals.jabaki.nl/" for u in result["alternate_urls"]
+        )
+        assert any(
+            u == "https://myadmin.app/p/acme-rentals" for u in result["alternate_urls"]
+        )
+        assert all(
+            u != "https://www.acme-rentals.nl/" for u in result["alternate_urls"]
+        )
 
     def test_resolve_seo_custom_domain_without_jabaki(
         self, mock_landing_page_svc, mock_param_svc, mock_slug_svc, mock_s3
