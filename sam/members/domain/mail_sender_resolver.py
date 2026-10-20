@@ -10,8 +10,10 @@ at the SAM edge BEFORE any mail is enqueued (design §Components / Error Handlin
 It resolves From = ``<mail_local_part|noreply>@<mail_domain>`` from the projected ``config#mail``
 row and runs the §5c "allowed to send" gate, returning EITHER a usable-From value OR a TYPED
 not-certified / not-enabled reason (a structured result + enum, never a raw English string the
-caller has to sniff). Reply-To is NOT this resolver's concern: the resolver resolves From; the
-Reply-To is the triggering user's verified email, passed by the caller (R4.3, design §Overview).
+caller has to sniff). Reply-To for an INTERACTIVE send is the triggering user's verified email,
+passed by the caller (R4.3). For a SCHEDULED / unattended send (no triggering user) the resolver
+also resolves the tenant-authored Reply-To default via :meth:`resolve_scheduled_reply_to`, falling
+back to the composed From when none is authored (spec 02 Task 5.1).
 
 Where it sits (steering 35)
 ---------------------------
@@ -71,10 +73,10 @@ from typing import Protocol, runtime_checkable
 __all__ = [
     "DEFAULT_MAIL_LOCAL_PART",
     "MailConfigReader",
-    "SesIdentityPort",
+    "MailSenderResolver",
     "NotCertifiedReason",
     "SenderResolution",
-    "MailSenderResolver",
+    "SesIdentityPort",
 ]
 
 #: The default From local-part when a tenant has not authored ``mail_local_part`` — mirrors the
@@ -111,6 +113,10 @@ class MailConfigReader(Protocol):
 
     def is_mail_enabled(self, tenant_id: str) -> bool:
         """Return the projected ``mail_enabled`` gate (fail-closed → ``False``)."""
+        ...
+
+    def get_mail_reply_to_default(self, tenant_id: str) -> str | None:
+        """Return the projected scheduled-send Reply-To default, or ``None`` when absent."""
         ...
 
 
@@ -188,12 +194,12 @@ class SenderResolution:
         return self.from_address is not None
 
     @classmethod
-    def usable(cls, from_address: str) -> "SenderResolution":
+    def usable(cls, from_address: str) -> SenderResolution:
         """Build a usable resolution carrying the composed From address."""
         return cls(from_address=from_address, reason=None)
 
     @classmethod
-    def refused(cls, reason: NotCertifiedReason) -> "SenderResolution":
+    def refused(cls, reason: NotCertifiedReason) -> SenderResolution:
         """Build a refused resolution carrying the typed not-certified reason."""
         return cls(from_address=None, reason=reason)
 
@@ -260,5 +266,31 @@ class MailSenderResolver:
         # 4. Compose From = <mail_local_part|noreply>@<mail_domain>. The reader already defaults a
         #    blank/absent local-part to "noreply"; belt-and-suspenders here too so a seam that
         #    returned an empty string can never yield a hostless/`@`-leading address.
-        local_part = self._reader.get_mail_local_part(tenant_id) or DEFAULT_MAIL_LOCAL_PART
+        local_part = (
+            self._reader.get_mail_local_part(tenant_id) or DEFAULT_MAIL_LOCAL_PART
+        )
         return SenderResolution.usable(f"{local_part}@{domain}")
+
+    def resolve_scheduled_reply_to(self, tenant_id: str, from_address: str) -> str:
+        """Resolve the Reply-To for a SCHEDULED / unattended send (spec 02 Task 5.1).
+
+        A scheduled run has no triggering user, so its Reply-To is the tenant-authored
+        ``config#mail.mail_reply_to_default`` when present, FALLING BACK to the composed From
+        address (``from_address``) when the tenant authored none. (An INTERACTIVE send does not
+        call this — its Reply-To is the invoking user's verified email, passed by the caller.)
+
+        Never guesses: a missing/blank projected default yields the From, never a fabricated or
+        foreign address (same fail-safe spirit as the From resolution). Reads only the injected
+        :class:`MailConfigReader` seam; ``tenant_id`` is authoritative.
+
+        Args:
+            tenant_id: the AUTHORITATIVE active tenant.
+            from_address: the already-resolved composed From — the fallback Reply-To.
+
+        Returns:
+            The tenant's ``mail_reply_to_default`` when authored (non-blank), else ``from_address``.
+        """
+        default = self._reader.get_mail_reply_to_default(tenant_id)
+        if isinstance(default, str) and default.strip():
+            return default
+        return from_address
