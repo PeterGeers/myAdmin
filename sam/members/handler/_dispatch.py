@@ -25,6 +25,7 @@ from services import projection_schema as schema
 
 from sam.members.domain.config_write_service import ConfigWriteValidationError
 from sam.members.domain.execute_and_deliver import AdHocMailBody
+from sam.members.repository.members_cursor import CursorError
 from sam.members.handler._http import AcceptedResult, ParsedRequest
 from sam.members.handler.routes import CAP_MEMBERS_ADMIN, RouteSpec
 from sam.shared.auth_utils import has_capability
@@ -488,6 +489,55 @@ def _query_flag(query: Mapping[str, Any], name: str) -> bool:
     return str(raw).strip().lower() in {"true", "1", "yes", "on"}
 
 
+# ── Rows-per-page selector + cursor paging (Req 25, Task 1.17) ─────────────────────────
+#
+# The Members table READ path accepts a per-user runtime page-size selector (NOT tenant config
+# — `default_page_size` is retired, R25.9) and DynamoDB-native cursor paging. The FIXED options
+# apply the value as the DynamoDB Query `Limit`; the `Max` option OMITS the `Limit` so DynamoDB
+# returns one page up to its natural ~1 MB boundary (`Max` = one Query page, NOT all rows,
+# R25.3). Prev/next walk the `LastEvaluatedKey` cursor the read path returns for EVERY option
+# incl. `Max` (R25.4); there is no SQL-style offset / jump-to-page.
+
+#: The fixed Rows_Per_Page_Selector options (R25.1) — each applied as the DynamoDB Query
+#: `Limit`. `Max` (the fifth option) is expressed as the sentinel string and carries NO limit.
+_FIXED_PAGE_SIZES = frozenset({50, 100, 250, 500})
+
+#: The wire token for the `Max` option (one Query page up to ~1 MB, no `Limit`).
+_PAGE_SIZE_MAX = "max"
+
+
+def _parse_page_size(query: Mapping[str, Any]) -> tuple[bool, int | None]:
+    """Parse the `?page_size=` Rows_Per_Page selector param (Req 25).
+
+    Returns ``(paging_requested, limit)``:
+
+    - no `page_size` param → ``(False, None)``: the LEGACY list path (the full scope-narrowed
+      list, backward-compatible with callers that do not opt into cursor paging).
+    - `page_size=max` (any case) → ``(True, None)``: the `Max` option — one DynamoDB Query page
+      with NO `Limit`, bounded by the natural ~1 MB response boundary (R25.3).
+    - `page_size=50|100|250|500` → ``(True, <int>)``: a fixed option applied as the Query
+      `Limit` (R25.2).
+
+    An unrecognised value (not `max` and not one of the fixed options) falls back to the
+    platform-default fixed option (50) rather than erroring — a stray/garbled selector value
+    must never 500 a plain list read; the frontend only ever sends the known tokens (R25.10).
+    """
+    raw = query.get("page_size") if isinstance(query, Mapping) else None
+    if raw is None:
+        return False, None
+    token = str(raw).strip().lower()
+    if token == _PAGE_SIZE_MAX:
+        return True, None
+    try:
+        value = int(token)
+    except (TypeError, ValueError):
+        return True, 50
+    if value in _FIXED_PAGE_SIZES:
+        return True, value
+    # Unknown numeric selector → platform fallback fixed option (never all-rows, never a raise).
+    return True, 50
+
+
 def _write_body(request: ParsedRequest) -> Mapping[str, Any]:
     """The parsed request body for a WRITE route, as a mapping (empty when absent/non-JSON).
 
@@ -530,7 +580,22 @@ def dispatch_route(
 
     # ── Group MEMBER (reads) ──────────────────────────────────────────────────────────
     if name == "list_members":
-        return service.list_members(tenant_id, scopes)
+        # Rows-per-page selector + DynamoDB cursor paging (Req 25, Task 1.17). When the caller
+        # opts into paging (`?page_size=`), return ONE DynamoDB page + the opaque next-page
+        # cursor: a fixed option (50/100/250/500) is the Query `Limit`; `Max` omits the `Limit`
+        # (one page up to ~1 MB). `?cursor=` resumes a prior page; the domain decodes it with a
+        # tenant check (a cross-tenant / tampered cursor raises CursorError → 400 at the edge).
+        # Without `page_size`, the LEGACY full scope-narrowed list is returned unchanged
+        # (backward compatible with callers that do not page). `page_size` + `cursor` are
+        # per-user RUNTIME params on the read query — never tenant config (R25.9).
+        paging, limit = _parse_page_size(request.query)
+        if not paging:
+            return service.list_members(tenant_id, scopes)
+        cursor = request.query.get("cursor") if isinstance(request.query, Mapping) else None
+        rows, next_cursor = service.list_members_page(
+            tenant_id, scopes, page_size=limit, cursor=cursor
+        )
+        return {"items": rows, "cursor": next_cursor}
 
     if name == "list_members_filtered":
         filters = request.body if isinstance(request.body, Mapping) else None
@@ -988,8 +1053,10 @@ def dispatch_route(
 
 __all__ = [
     "ConfigWriteValidationError",
+    "CursorError",
     "MailRunNotFound",
     "RouteNotImplemented",
+    "_parse_page_size",
     "_query_flag",
     "_require_path_param",
     "_write_body",

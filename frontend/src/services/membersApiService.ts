@@ -50,6 +50,10 @@ export type { MembersRequestOptions } from './members/membersApiClient';
 // --- Members resource group (CRUD, memberships, analytics-sets, mail, schedules, preferred list) ---
 export {
   listMembers,
+  listMembersPage,
+  MEMBERS_FIXED_PAGE_SIZES,
+  MEMBERS_PAGE_SIZE_MAX,
+  MEMBERS_DEFAULT_PAGE_SIZE,
   searchMembers,
   getMember,
   createMember,
@@ -82,7 +86,12 @@ export {
   getPreferredList,
   savePreferredList,
 } from './members/membersResourceApi';
-export type { AdHocMailBody } from './members/membersResourceApi';
+export type {
+  AdHocMailBody,
+  MembersPageSize,
+  MembersCursorPage,
+  ListMembersPageOptions,
+} from './members/membersResourceApi';
 
 // --- Column-preferences resource group (Session Columns, R6) ---
 export {

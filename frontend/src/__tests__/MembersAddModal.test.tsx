@@ -132,6 +132,9 @@ describe('MembersAddModal (Add / application) — broadened over the resolved fi
     vi.clearAllMocks();
     currentRoles = ['Members_CRUD'];
     mockListMembers.mockResolvedValue(mockMembers as never);
+    vi.mocked(membersApiService.listMembersPage).mockResolvedValue(
+      { items: mockMembers, cursor: null } as never,
+    );
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockMembers[0] as never);
     mockCreateMember.mockResolvedValue({ member_id: 'm-new' } as never);
@@ -217,14 +220,17 @@ describe('MembersAddModal (Add / application) — broadened over the resolved fi
 
   describe('success closes the modal and refreshes the list', () => {
     it('closes the modal and reloads members after a successful create', async () => {
+      // The Members table now reloads through the cursor-paging read
+      // (`listMembersPage`, Req 25) — the first page is re-fetched after a create.
+      const mockListMembersPage = vi.mocked(membersApiService.listMembersPage);
       const dialog = await openAddModal();
-      const callsBeforeSubmit = mockListMembers.mock.calls.length;
+      const callsBeforeSubmit = mockListMembersPage.mock.calls.length;
       await fillValidForm(dialog);
       fireEvent.click(within(dialog).getByText('addModal.save'));
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
       await waitFor(() =>
-        expect(mockListMembers.mock.calls.length).toBeGreaterThan(callsBeforeSubmit),
+        expect(mockListMembersPage.mock.calls.length).toBeGreaterThan(callsBeforeSubmit),
       );
     });
   });
