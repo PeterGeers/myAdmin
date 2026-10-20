@@ -283,7 +283,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       (tenant-wide); never author `all_wildcard` / `multi_valued`
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 22.1_
 
-  - [ ] 3.1a Implement the frontend scope-save MIRROR (SAM `config#scope` authoritative → Flask `members.scope_dimensions` derived mirror)
+  - [x] 3.1a Implement the frontend scope-save MIRROR (SAM `config#scope` authoritative → Flask `members.scope_dimensions` derived mirror)
     - FRONTEND-MIRROR model (supersedes redirect/verify-before-retire): SAM `config#scope` (derived from
       the per-field `scope` attribute) is authoritative; Flask `members.scope_dimensions` is KEPT as a
       frontend-written DERIVED MIRROR — NOT deleted, NOT redirected
@@ -303,15 +303,24 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_user_tenant_scope_service.py -q`
     - _Requirements: 22.1, 22.2, 22.3, 22.4, 22.5, 22.6, 26.1, 26.2, 26.3_
 
-  - [ ] 3.2 SAM scope equivalence + round-trip test
+  - [x] 3.2 SAM scope equivalence + round-trip test
     - Update/create `sam/tests/test_scope_equivalence_props.py`
     - **Property 1: Round-trip write/read equivalence (config#scope)** — after `put_config('scope', ...)`,
       `get_scope_config` returns equivalent dimensions; empty-dimensions resolves tenant-wide
     - **Validates: Requirements 8.1, 8.2, 8.3, 8.5, 1.5**
 
   - [ ] 3.3 Deploy scope write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
-    - Ship Task 3.1 through `deploy-sam-members.yml` (OIDC, no secrets); CodeQL + GitGuardian green;
-      verify live in TEST
+    - CODE GAP CLOSED (done): the `scope` body validator is now wired into
+      `ConfigWriteService` — `_validate_scope_body` shape-checks `{dimensions: [...]}` (empty =
+      tenant-wide, R8.5) and is registered under `schema.CONFIG_ID_SCOPE`. So
+      `PUT /members/config/scope` now round-trips the FULL edge → service → repository path (it
+      previously 500'd at the unwired-validator branch). Pinned by new tests in
+      `test_config_write_service.py` (service-level: shaped/stamped/delegated, empty=tenant-wide,
+      malformed→400) and `test_config_write_dispatch.py` (edge end-to-end: scope persists, empty
+      persists, malformed→caller-safe 400). The repository-direct round-trip of 3.2 and the
+      frontend mock of 3.1a did not exercise this seam — this closes that.
+    - REMAINING (operational): ship through `deploy-sam-members.yml` (OIDC, no secrets); CodeQL +
+      GitGuardian green; verify `PUT /members/config/scope` is live in the TEST stack.
     - _Requirements: 19.1, 19.3_
 
   - [ ] 3.4 Migrate `config#scope` per tenant + read-back verify + seed the Flask mirror (operational, PRE builder removal)
@@ -324,14 +333,20 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       verify of `config#scope` is required
     - _Requirements: 10.1, 10.2, 10.4, 10.5, 10.6, 14.2, 22.4, 26.3_
 
-  - [ ] 3.5 Repoint `config#scope` save in `membersConfigService.ts`
-    - Repoint scope save to `PUT /members/config/scope`; authoritative write, no pending-projection state
+  - [x] 3.5 Repoint `config#scope` save in `membersConfigService.ts`
+    - SUBSUMED BY 3.1a: the scope save in `membersConfigService.ts` was repointed to
+      `PUT /members/config/scope` (authoritative, no pending-projection state) as the first,
+      authoritative leg of the 3.1a frontend-mirror model (then it mirrors to Flask). No separate
+      work remains — 3.1a is the superset. See commit `f61c87920`.
     - _Requirements: 13.1, 13.2, 13.3_
 
-  - [ ] 3.6 Update frontend tests for the repointed scope save
+  - [x] 3.6 Update frontend tests for the repointed scope save
+    - SUBSUMED BY 3.1a: `membersConfigService.test.ts` was updated with the SAM-first mirror
+      tests that assert the PUT to `/members/config/scope` and authoritative handling (plus the
+      mirror + retry cases). No separate work remains. See commit `f61c87920`.
     - **Validates: Requirements 13.1, 13.2, 13.4**
 
-  - [ ] 3.7 Remove `build_config_scope_row` from ProjectionSync (ProjectionSync stops authoring scope; param persists as the frontend mirror) (merge to main ONLY after 3.4 PROD-verified)
+  - [x] 3.7 Remove `build_config_scope_row` from ProjectionSync (ProjectionSync stops authoring scope; param persists as the frontend mirror) (merge to main ONLY after 3.4 PROD-verified)
     - Remove the `build_config_scope_row(...)` append in `ProjectionSync.sync_administration` — ProjectionSync
       stops emitting `config#scope` AND stops being the writer of the scope dimensions; keep public surface
       unchanged
@@ -341,7 +356,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       validator mirror the grant readers consume
     - _Requirements: 10.3, 11.1, 11.2, 11.4, 11.5, 17.3, 22.4, 26.3_
 
-  - [ ] 3.8 Update ProjectionSync tests to assert config#scope NOT emitted (change-with-tests)
+  - [x] 3.8 Update ProjectionSync tests to assert config#scope NOT emitted (change-with-tests)
     - **Property 4: ProjectionSync no longer emits config#scope** and **Property 5: Delete-sweep safety**
       for the `config#scope` prefix. The delete-sweep guardrail is VERIFIED / regression-locked by
       Requirement 12 (12.5: `config#*` rows are UPSERT-ONLY, only the `config#views`-only residue cleanup
