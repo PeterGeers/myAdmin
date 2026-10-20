@@ -377,7 +377,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirements 11.2, 11.3, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6**
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_projection_sync.py -q`
 
-  - [ ] 3.9 Cross-plane scope-grant reconciliation (two-tier: routine auto-mirror + reminder / orphaning block + contact-SysAdmin)
+  - [x] 3.9 Cross-plane scope-grant reconciliation (two-tier: routine auto-mirror + reminder / orphaning block + contact-SysAdmin)
     - Implement detection that compares a PROPOSED scope-dimension change (SAM/overlay — `config#scope`
       derived from the per-field `scope` attributes) against the existing Flask `user_tenant_scope` grants
       for the tenant, BEFORE applying the change. This is Flask-plane work at the
@@ -397,7 +397,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_user_tenant_scope_service.py -q`
     - _Requirements: 23.1, 23.2, 23.3, 23.4, 23.5, 23.6, 23.7, 23.8, 22.5, 26.1_
 
-  - [ ] 3.10 Property test for scope-grant reconciliation (detection + block + no-silent-stale-grant)
+  - [x] 3.10 Property test for scope-grant reconciliation (detection + block + no-silent-stale-grant)
     - Assert the reconciliation detection + block behavior and the no-silent-stale-grant invariant: a
       proposed change that would orphan an existing grant is detected and BLOCKED (not applied); a
       new-tenant / no-grants change applies with no gate; no applied change leaves a grant referencing a
