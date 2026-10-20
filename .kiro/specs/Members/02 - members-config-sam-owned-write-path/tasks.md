@@ -310,18 +310,17 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirements 8.1, 8.2, 8.3, 8.5, 1.5**
 
   - [ ] 3.3 Deploy scope write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
-    - GAP FOUND (reconciliation pass): the SAM config-write service
-      (`sam/members/domain/config_write_service.py`) wires ONLY the `fields` body validator —
-      the `scope` validator is NOT registered. So `PUT /members/config/scope` currently reaches
-      the "no validator wired" branch and 500s end-to-end. The frontend mirror (3.1a) and the
-      round-trip test (3.2) did NOT catch this: 3.1a is only exercised against a mock, and 3.2
-      calls the repository directly, bypassing the service validator. BEFORE this deploy/verify
-      can pass, wire a `_validate_scope_body` (shape-check `{dimensions: [...]}`) into the
-      `ConfigWriteService` validator registry — this is the scope equivalent of the task 1.5
-      `fields` validator and belongs with authoring config#scope through the write path.
-    - Then ship through `deploy-sam-members.yml` (OIDC, no secrets); CodeQL + GitGuardian green;
-      verify `PUT /members/config/scope` is live in TEST (round-trips through the edge+service,
-      not just the repository).
+    - CODE GAP CLOSED (done): the `scope` body validator is now wired into
+      `ConfigWriteService` — `_validate_scope_body` shape-checks `{dimensions: [...]}` (empty =
+      tenant-wide, R8.5) and is registered under `schema.CONFIG_ID_SCOPE`. So
+      `PUT /members/config/scope` now round-trips the FULL edge → service → repository path (it
+      previously 500'd at the unwired-validator branch). Pinned by new tests in
+      `test_config_write_service.py` (service-level: shaped/stamped/delegated, empty=tenant-wide,
+      malformed→400) and `test_config_write_dispatch.py` (edge end-to-end: scope persists, empty
+      persists, malformed→caller-safe 400). The repository-direct round-trip of 3.2 and the
+      frontend mock of 3.1a did not exercise this seam — this closes that.
+    - REMAINING (operational): ship through `deploy-sam-members.yml` (OIDC, no secrets); CodeQL +
+      GitGuardian green; verify `PUT /members/config/scope` is live in the TEST stack.
     - _Requirements: 19.1, 19.3_
 
   - [ ] 3.4 Migrate `config#scope` per tenant + read-back verify + seed the Flask mirror (operational, PRE builder removal)
