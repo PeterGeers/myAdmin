@@ -218,26 +218,77 @@ def test_iam_scopes_to_table_name_parameters_only(template):
     assert referenced_params == {"MembersTableName", "GovernanceProjectionTableName"}
 
 
-def test_governance_projection_access_is_read_only(template):
-    """The projection is a one-way read; the role must not grant writes to it."""
-    write_actions = {
-        "dynamodb:PutItem",
+def _projection_statements(statements: list) -> list:
+    """Every IAM statement whose Resource touches the governance_projection table ARN."""
+    out = []
+    for stmt in statements:
+        resources = stmt["Resource"]
+        if not isinstance(resources, list):
+            resources = [resources]
+        if any(
+            isinstance(r, _CfnTag) and "${GovernanceProjectionTableName}" in r.value
+            for r in resources
+        ):
+            out.append(stmt)
+    return out
+
+
+def test_governance_projection_read_grant_stays_read_only(template):
+    """The READ grant on the projection is one-way (Query/GetItem) — unchanged by the write path.
+
+    members-config-sam-owned-write-path (R4.2): the SAM write path adds a SEPARATE, least-
+    privilege write grant (asserted below) but MUST leave the existing
+    ``MembersReadGovernanceProjection`` read statement intact and read-only. This pins that the
+    read Sid never silently grows a write verb.
+    """
+    read_stmt = _statement_by_sid(
+        _iam_statements(template), "MembersReadGovernanceProjection"
+    )
+    assert set(_actions_list(read_stmt)) == {"dynamodb:Query", "dynamodb:GetItem"}
+
+
+def test_governance_projection_write_is_a_single_scoped_putitem(template):
+    """The projection's ONLY write grant is the config write path: PutItem, tenant-pinned (R4).
+
+    members-config-sam-owned-write-path (R4.1/R4.3/R4.5): Phase 1 makes DynamoDB
+    governance_projection the system-of-record for the three SAM-owned ``config#*`` rows, so the
+    Members role now holds EXACTLY ONE write statement on the projection —
+    ``MembersWriteGovernanceProjectionConfig`` — granting ONLY ``dynamodb:PutItem`` (no
+    Update/Delete/BatchWrite anywhere on the projection — least privilege, R4.5), scoped to the
+    exact projection table ARN in this account/region, and pinned to the caller's tenant via a
+    ``dynamodb:LeadingKeys`` condition (R4.3). This REPLACES the old read-only invariant: the
+    projection is no longer a one-way read, but its write surface is a single, audited,
+    tenant-scoped PutItem.
+    """
+    destructive = {
         "dynamodb:UpdateItem",
         "dynamodb:DeleteItem",
         "dynamodb:BatchWriteItem",
     }
-    for stmt in _iam_statements(template):
-        resources = stmt["Resource"]
-        if not isinstance(resources, list):
-            resources = [resources]
-        touches_projection = any(
-            isinstance(r, _CfnTag) and "${GovernanceProjectionTableName}" in r.value
-            for r in resources
+    projection_stmts = _projection_statements(_iam_statements(template))
+
+    # No destructive write verb is granted on the projection by ANY statement.
+    for stmt in projection_stmts:
+        assert not (set(_actions_list(stmt)) & destructive), (
+            "the projection must never grant Update/Delete/BatchWrite (least privilege, R4.5)"
         )
-        if touches_projection:
-            assert not (set(stmt["Action"]) & write_actions), (
-                "projection access must be read-only (Query/GetItem)"
-            )
+
+    # Exactly one statement grants PutItem on the projection — the config write grant.
+    put_stmts = [
+        s for s in projection_stmts if "dynamodb:PutItem" in _actions_list(s)
+    ]
+    assert len(put_stmts) == 1, (
+        "expected exactly one PutItem grant on the projection (the config write path)"
+    )
+    write_stmt = put_stmts[0]
+    assert write_stmt["Sid"] == "MembersWriteGovernanceProjectionConfig"
+    # PutItem ONLY — no other verb rides along on the write grant (R4.5).
+    assert set(_actions_list(write_stmt)) == {"dynamodb:PutItem"}
+    # Tenant pin (R4.3): LeadingKeys constrains the partition to the caller's tenant.
+    leading_keys = write_stmt["Condition"]["ForAllValues:StringEquals"][
+        "dynamodb:LeadingKeys"
+    ]
+    assert leading_keys == ["${aws:PrincipalTag/tenant_id}"]
 
 
 # -----------------------------------------------------------------------------

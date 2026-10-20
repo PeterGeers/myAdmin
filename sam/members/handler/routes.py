@@ -196,6 +196,39 @@ ROUTES: tuple[RouteSpec, ...] = (
             "membership_type dropdown = the tenant's active catalog entries."
         ),
     ),
+    # ── Config write — SAM-owned config#* rows (spec 02, Task 1.6) ───────────────────
+    #
+    # The single WRITE entry point for the three SAM-owned governance_projection config rows
+    # (`config#fields` / `config#scope` / `config#mail`). The frontend PUTs
+    # `/members/config/{configId}`; the edge verifies the bearer JWT, resolves `tenant_id` from
+    # the verified token (NEVER the body), enforces the Tenant_Admin entitlement, and the
+    # dispatch validates `configId ∈ {fields, scope, mail}` (reject `views`/unknown with a 400,
+    # no write) before delegating to the config-write domain service (Component 1/2, design §API).
+    #
+    # Gate (design §API contract): Tenant_Admin for the resolved tenant_id → `members:admin`
+    # (CAP_MEMBERS_ADMIN), the module's admin capability. A single-capability gate, NOT an
+    # any-of and NOT self-service — authoring tenant config is an administrative concern (like
+    # the catalog writes / delete_member, which are also admin-gated). Authoring the row is
+    # never something a plain member/write caller may do.
+    #
+    # The literal `/members/config` prefix (two segments past `/members/`) is disjoint from the
+    # single-segment `/members/{member_id}` and from every other `/members/...` literal route
+    # (analytics-sets / templates / schedules / mail / field-config / column-preferences / me /
+    # search / export), so there is no (method, path) collision or shadowing. DECLARED BEFORE
+    # the `{member_id}` routes so the literal prefix matches first (the router returns the first
+    # matching route in declaration order for a method).
+    RouteSpec(
+        name="write_config",
+        method=HttpMethod.PUT,
+        path="/members/config/{configId}",
+        group=RouteGroup.MEMBER,
+        capability=CAP_MEMBERS_ADMIN,
+        self_service=False,
+        summary=(
+            "Write a SAM-owned config row (configId ∈ {fields, scope, mail}); rejects "
+            "views/unknown with 400, no write. Gate: members:admin (Tenant_Admin)."
+        ),
+    ),
     # ── Column preferences — per-user overview columns (session-columns R6) ──────────
     #
     # The per-user chosen-column list for the Members overview, mirroring the preferred-list
