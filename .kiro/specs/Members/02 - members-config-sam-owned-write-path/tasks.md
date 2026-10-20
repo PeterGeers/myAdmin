@@ -283,7 +283,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       (tenant-wide); never author `all_wildcard` / `multi_valued`
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 22.1_
 
-  - [ ] 3.1a Implement the frontend scope-save MIRROR (SAM `config#scope` authoritative → Flask `members.scope_dimensions` derived mirror)
+  - [x] 3.1a Implement the frontend scope-save MIRROR (SAM `config#scope` authoritative → Flask `members.scope_dimensions` derived mirror)
     - FRONTEND-MIRROR model (supersedes redirect/verify-before-retire): SAM `config#scope` (derived from
       the per-field `scope` attribute) is authoritative; Flask `members.scope_dimensions` is KEPT as a
       frontend-written DERIVED MIRROR — NOT deleted, NOT redirected
