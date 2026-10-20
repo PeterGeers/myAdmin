@@ -415,11 +415,11 @@ class FileCleanupManager:
 
             return health_status
 
-        except Exception as e:
-            logger.error(f"Failed to get cleanup health status: {e}")
+        except Exception:
+            logger.exception("Failed to get cleanup health status")
             return {
                 "status": "unknown",
-                "error": str(e),
+                "error": "An internal error occurred. Please try again later.",
                 "last_check": datetime.now().isoformat(),
             }
 

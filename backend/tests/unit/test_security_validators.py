@@ -18,10 +18,10 @@ from security_validators import (
     validate_input,
 )
 
-
 # ---------------------------------------------------------------------------
 # validate_input
 # ---------------------------------------------------------------------------
+
 
 class TestValidateInput:
     def test_valid_username_passes(self):
@@ -52,7 +52,9 @@ class TestValidateInput:
         assert "username" in result["error"].lower()
 
     def test_max_length_enforced(self):
-        result = validate_input("averylongemailprefix@example.com", "email", max_length=5)
+        result = validate_input(
+            "averylongemailprefix@example.com", "email", max_length=5
+        )
         assert result["valid"] is False
         assert "length" in result["error"].lower()
 
@@ -60,6 +62,7 @@ class TestValidateInput:
 # ---------------------------------------------------------------------------
 # sanitize_input
 # ---------------------------------------------------------------------------
+
 
 class TestSanitizeInput:
     def test_empty_returns_empty(self):
@@ -77,7 +80,10 @@ class TestSanitizeInput:
         assert sanitize_input("not-an-email", "email") == ""
 
     def test_url_field_passes_valid_url(self):
-        assert sanitize_input("https://example.com/path", "url") == "https://example.com/path"
+        assert (
+            sanitize_input("https://example.com/path", "url")
+            == "https://example.com/path"
+        )
 
     def test_text_field_strips_control_chars_and_tags(self):
         out = sanitize_input("hello\x00<b>there</b>", "text")
@@ -89,6 +95,7 @@ class TestSanitizeInput:
 # ---------------------------------------------------------------------------
 # check_sql_injection
 # ---------------------------------------------------------------------------
+
 
 class TestCheckSqlInjection:
     def test_parameterized_query_is_safe(self):
@@ -114,10 +121,39 @@ class TestCheckSqlInjection:
         result = check_sql_injection("INSERT INTO t VALUES (1, 'x')", params=None)
         assert result["safe"] is False
 
+    def test_pathological_values_query_completes_fast(self):
+        """A crafted query that never closes its VALUES paren must not hang.
+
+        The inline-VALUES scan used a backtracking pattern (py/polynomial-redos);
+        bounding the audited length keeps a multi-megabyte adversarial input from
+        driving the regex engine into super-linear backtracking. The audit must
+        still return quickly and preserve the full original query in the result.
+        """
+        import time
+
+        # "VALUES (" followed by a long run of non-")" chars and no closing paren
+        # is the worst case for the `VALUES\s*\([^)]*\)` pattern.
+        pathological = "SELECT 1 FROM t WHERE x = 'VALUES (" + "a" * 200000
+        start = time.perf_counter()
+        result = check_sql_injection(pathological, params=None)
+        elapsed = time.perf_counter() - start
+
+        assert elapsed < 1.0, f"audit took too long ({elapsed:.3f}s) — possible ReDoS"
+        # Original (untruncated) query is still returned to the caller.
+        assert result["query"] == pathological
+
+    def test_long_query_still_detects_injection_near_start(self):
+        """Truncation must not blind the audit to a real pattern within bounds."""
+        malicious = "SELECT * FROM users WHERE 1=1 -- " + "x" * 50000
+        result = check_sql_injection(malicious)
+        assert result["safe"] is False
+        assert result["recommendations"]
+
 
 # ---------------------------------------------------------------------------
 # validate_file_upload
 # ---------------------------------------------------------------------------
+
 
 class _FakeUpload:
     """Minimal stand-in for a Werkzeug FileStorage."""
@@ -180,10 +216,13 @@ class TestValidateFileUpload:
 # check_xss_vulnerabilities
 # ---------------------------------------------------------------------------
 
+
 class TestCheckXssVulnerabilities:
     def test_static_template_without_interpolation_is_safe(self):
         """A template with no {{ }} interpolation and explicit escaping is safe."""
-        result = check_xss_vulnerabilities("<div>{% autoescape true %}static{% endautoescape %}</div>")
+        result = check_xss_vulnerabilities(
+            "<div>{% autoescape true %}static{% endautoescape %}</div>"
+        )
         assert result["safe"] is True
 
     def test_any_interpolation_is_flagged_unsafe(self):
@@ -197,7 +236,9 @@ class TestCheckXssVulnerabilities:
         assert result["recommendations"]
 
     def test_autoescape_false_flagged(self):
-        result = check_xss_vulnerabilities("{% autoescape false %}{{ x }}{% endautoescape %}")
+        result = check_xss_vulnerabilities(
+            "{% autoescape false %}{{ x }}{% endautoescape %}"
+        )
         assert result["safe"] is False
 
     def test_long_template_is_truncated_in_report(self):
@@ -209,6 +250,7 @@ class TestCheckXssVulnerabilities:
 # ---------------------------------------------------------------------------
 # check_password_strength
 # ---------------------------------------------------------------------------
+
 
 class TestCheckPasswordStrength:
     def test_strong_password(self):

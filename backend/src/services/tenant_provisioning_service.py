@@ -165,15 +165,18 @@ class TenantProvisioningService:
                     f"'{contact_email}' (tenant: {administration}): "
                     f"{verification_result.get('error')}"
                 )
-        except Exception as e:
+        except Exception:
             logger.warning(
-                f"Email verification initiation failed for '{contact_email}' "
-                f"(tenant: {administration}): {e} — provisioning continues"
+                "Email verification initiation failed for '%s' "
+                "(tenant: %s) — provisioning continues",
+                contact_email,
+                administration,
+                exc_info=True,
             )
             results["email_verification"] = {
                 "success": False,
                 "status": "failed",
-                "error": str(e),
+                "error": "Email verification could not be initiated.",
             }
 
         # Step 3: Load chart of accounts from JSON template

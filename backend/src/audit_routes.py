@@ -18,6 +18,7 @@ from flask.typing import ResponseReturnValue
 from audit_logger import AuditLogger
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
+from routes.error_responses import error_payload
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -458,15 +459,14 @@ def audit_health_check(user_email, user_roles) -> ResponseReturnValue:
         ), 200
 
     except Exception as e:
-        logger.error(f"Audit system health check failed: {e}")
-        return jsonify(
-            {
-                "success": False,
-                "status": "unhealthy",
-                "error": str(e),
-                "timestamp": datetime.now().isoformat(),
-            }
-        ), 500
+        body = error_payload(
+            e,
+            "Audit system health check failed",
+            log_context="audit_health_check",
+        )
+        body["status"] = "unhealthy"
+        body["timestamp"] = datetime.now().isoformat()
+        return jsonify(body), 500
 
 
 # Error handlers

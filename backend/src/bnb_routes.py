@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
+from routes.error_responses import error_response
 from utils.date_utils import normalize_dates
 
 logger = logging.getLogger(__name__)
@@ -497,5 +498,9 @@ def generate_country_report(user_email, user_roles, tenant, user_tenants):
         return response
 
     except Exception as e:
-        logger.error(f"Error generating country report: {e!s}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Report request failed",
+            status=500,
+            log_context="generate_country_report",
+        )

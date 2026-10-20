@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import warnings
 from datetime import datetime, timedelta
@@ -9,6 +10,8 @@ from business_pricing_model import BusinessPricingModel
 from database import DatabaseManager
 from services.ai_model_registry import RegistryError, resolver
 from services.ai_usage_tracker import AIUsageTracker
+
+logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore", message="pandas only supports SQLAlchemy connectable")
 
@@ -339,14 +342,14 @@ Generate 30 days from today. Use historical ADR as reference for all variance ca
                 "listing": f"All listings ({len(listings)})",
             }
 
-        except Exception as e:
-            print(f"Error generating all listings pricing: {e}")
+        except Exception:
+            logger.exception("Error generating all listings pricing")
             return {
                 "daily_prices_count": 0,
                 "ai_insights_saved": False,
                 "months_generated": months,
                 "listing": None,
-                "error": str(e),
+                "error": "An internal error occurred. Please try again later.",
             }
 
     def _save_pricing_to_database(self, daily_prices, listing):

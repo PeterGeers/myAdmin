@@ -714,10 +714,10 @@ class DatabaseManager(DatabaseBankingQueriesMixin):
                 "scalability_impact": "2-3x improvement in concurrent performance",
             }
 
-        except Exception as e:
-            logger.error(f"❌ Error checking database optimization: {e}")
+        except Exception:
+            logger.exception("Error checking database optimization")
             return {
-                "error": str(e),
+                "error": "An internal error occurred. Please try again later.",
                 "optimizations_available": 0,
                 "recommendations": [],
             }

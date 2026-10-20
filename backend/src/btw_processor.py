@@ -1,4 +1,5 @@
 import html
+import logging
 import os
 import tempfile
 from datetime import datetime
@@ -6,6 +7,12 @@ from datetime import datetime
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
 from mutaties_cache import get_cache
+
+logger = logging.getLogger(__name__)
+
+# Generic, caller-safe message returned instead of raw exception text; the full
+# exception is logged server-side (CodeQL py/stack-trace-exposure).
+_GENERIC_ERROR = "An internal error occurred. Please try again later."
 
 
 class BTWProcessor:
@@ -113,8 +120,9 @@ class BTWProcessor:
                 "quarter_end_date": quarter_end_date,
             }
 
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Error generating BTW report")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def _get_balance_data(self, administration, end_date):
         """
@@ -541,8 +549,9 @@ class BTWProcessor:
 
             return {"success": True, "transaction_id": transaction_id}
 
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Error saving BTW transaction")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def upload_report_to_drive(self, html_content, filename, administration):
         """Upload HTML report to Google Drive BTW folder
@@ -590,5 +599,6 @@ class BTWProcessor:
                 # Clean up temp file
                 os.unlink(temp_path)
 
-        except Exception as e:
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Error uploading BTW report to Drive")
+            return {"success": False, "error": _GENERIC_ERROR}
