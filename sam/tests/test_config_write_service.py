@@ -161,12 +161,21 @@ def test_put_config_fields_malformed_body_raises_validation_error(body):
     assert repo.calls == []  # nothing persisted on a validation failure
 
 
-def test_put_config_unwired_config_id_raises_before_persist():
+def test_put_config_all_three_sam_owned_ids_are_wired():
+    """All three closed-set ids have a wired validator now: fields (1.5), scope (3.3), mail (5.1).
+    None reaches the defensive 'no validator wired' branch — each writes its own shaped row."""
+    for config_id in ("fields", "scope", "mail"):
+        repo = FakeWriteRepository()
+        _service(repo).put_config(_TENANT, config_id, {})
+        assert repo.calls[0]["config_id"] == config_id
+
+
+def test_put_config_truly_unknown_id_raises_before_persist():
+    """Defense in depth: an id with NO wired validator (the edge rejects these first, so this is
+    unreachable in normal flow) still fails loudly and writes nothing."""
     repo = FakeWriteRepository()
-    # The `mail` validator is not wired yet (Task 5) — fail loudly, write nothing. (`scope` IS
-    # wired as of Task 3.3; `fields` since Task 1.5.)
     with pytest.raises(ValueError):
-        _service(repo).put_config(_TENANT, "mail", {})
+        _service(repo).put_config(_TENANT, "views", {})
     assert repo.calls == []
 
 
@@ -314,3 +323,122 @@ def test_put_config_scope_malformed_body_raises_validation_error(body):
     with pytest.raises(ConfigWriteValidationError):
         _service(repo).put_config(_TENANT, "scope", body)
     assert repo.calls == []  # nothing persisted on a validation failure
+
+
+# ── config#mail branch (Task 5.1 / Requirement 9) — the service path PUT /members/config/mail ──
+#
+# Shape + fail-closed discipline for the mail scalars the reader's accessors read back:
+# mail_enabled / mail_certified / application_scope_copy (bool, only explicit True), mail_local_part
+# (default noreply), mail_domain (NO safe default — omit when blank), mail_reply_to_default (NEW,
+# optional — omit when blank), consent_notice (well-formed shape or omit). Mirrors the Flask
+# build_config_mail_row so writer and builder cannot drift.
+
+
+def test_put_config_mail_shapes_the_reader_attributes_and_stamps_version():
+    repo = FakeWriteRepository()
+    svc = _service(repo, version="2026-10-20T11:00:00+00:00")
+    body = {
+        "mail_enabled": True,
+        "mail_certified": True,
+        "application_scope_copy": True,
+        "mail_domain": "h-dcn.nl",
+        "mail_local_part": "info",
+        "mail_reply_to_default": "reply@h-dcn.nl",
+    }
+
+    result = svc.put_config(_TENANT, "mail", body)
+
+    assert result == {
+        "success": True,
+        "configId": "mail",
+        "version": "2026-10-20T11:00:00+00:00",
+    }
+    attrs = repo.calls[0]["attributes"]
+    assert attrs["mail_enabled"] is True
+    assert attrs["mail_certified"] is True
+    assert attrs["application_scope_copy"] is True
+    assert attrs["mail_domain"] == "h-dcn.nl"
+    assert attrs["mail_local_part"] == "info"
+    assert attrs["mail_reply_to_default"] == "reply@h-dcn.nl"
+
+
+def test_put_config_mail_gates_are_fail_closed():
+    """Only an explicit boolean True opens a gate — truthy non-True collapses to False (R0/R5.2)."""
+    repo = FakeWriteRepository()
+    body = {
+        "mail_enabled": "true",
+        "mail_certified": 1,
+        "application_scope_copy": "yes",
+    }
+    _service(repo).put_config(_TENANT, "mail", body)
+    attrs = repo.calls[0]["attributes"]
+    assert attrs["mail_enabled"] is False
+    assert attrs["mail_certified"] is False
+    assert attrs["application_scope_copy"] is False
+
+
+def test_put_config_mail_empty_body_is_fail_closed_defaults():
+    """An empty body authors fail-closed gates + the noreply local-part, no domain/reply-to."""
+    repo = FakeWriteRepository()
+    _service(repo).put_config(_TENANT, "mail", {})
+    attrs = repo.calls[0]["attributes"]
+    assert attrs["mail_enabled"] is False
+    assert attrs["mail_certified"] is False
+    assert attrs["mail_local_part"] == "noreply"
+    assert "mail_domain" not in attrs
+    assert "mail_reply_to_default" not in attrs
+    assert "consent_notice" not in attrs
+
+
+def test_put_config_mail_domain_omitted_when_blank_no_safe_default():
+    """R4.2: a blank/non-string domain is OMITTED (never a guessed host) — reader → None."""
+    for bad in ("", "   ", None, 123):
+        repo = FakeWriteRepository()
+        _service(repo).put_config(_TENANT, "mail", {"mail_domain": bad})
+        assert "mail_domain" not in repo.calls[0]["attributes"]
+
+
+def test_put_config_mail_reply_to_default_omitted_when_blank():
+    """mail_reply_to_default is optional — omitted when blank so the send path falls back to From."""
+    for bad in ("", "  ", None):
+        repo = FakeWriteRepository()
+        _service(repo).put_config(_TENANT, "mail", {"mail_reply_to_default": bad})
+        assert "mail_reply_to_default" not in repo.calls[0]["attributes"]
+
+
+def test_put_config_mail_local_part_defaults_to_noreply_when_blank():
+    for bad in ("", "   ", None, 5):
+        repo = FakeWriteRepository()
+        _service(repo).put_config(_TENANT, "mail", {"mail_local_part": bad})
+        assert repo.calls[0]["attributes"]["mail_local_part"] == "noreply"
+
+
+def test_put_config_mail_consent_notice_shaped_when_well_formed():
+    repo = FakeWriteRepository()
+    notice = {"version": "v1", "text": {"nl": "Akkoord", "en": "Consent", "de": "  "}}
+    _service(repo).put_config(_TENANT, "mail", {"consent_notice": notice})
+    written = repo.calls[0]["attributes"]["consent_notice"]
+    # Blank locale dropped; well-formed version + non-blank locales kept.
+    assert written == {"version": "v1", "text": {"nl": "Akkoord", "en": "Consent"}}
+
+
+def test_put_config_mail_consent_notice_omitted_when_malformed():
+    """A malformed consent notice (no version, blank text, non-mapping) is OMITTED (R12.1)."""
+    for bad in (
+        {"text": {"nl": "x"}},  # no version
+        {"version": "v1"},  # no text
+        {"version": "v1", "text": {}},  # empty text
+        {"version": "  ", "text": {"nl": "x"}},  # blank version
+        {"version": True, "text": {"nl": "x"}},  # bool version rejected
+        "not-a-mapping",
+    ):
+        repo = FakeWriteRepository()
+        _service(repo).put_config(_TENANT, "mail", {"consent_notice": bad})
+        assert "consent_notice" not in repo.calls[0]["attributes"]
+
+
+def test_put_config_mail_non_object_body_raises_validation_error():
+    repo = FakeWriteRepository()
+    with pytest.raises(ConfigWriteValidationError):
+        _service(repo).put_config(_TENANT, "mail", "not-an-object")
+    assert repo.calls == []
