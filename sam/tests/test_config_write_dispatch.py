@@ -283,6 +283,34 @@ def test_write_config_scope_malformed_body_is_caller_safe_400_no_write(repo):
     assert repo.calls == []
 
 
+def test_write_config_mail_is_persisted_end_to_end(repo):
+    # Task 5.1: with the mail validator wired, a config#mail body round-trips the FULL
+    # edge → service → repository path. A valid mail write returns 200 and persists the
+    # fail-closed-shaped scalars with config_id=mail.
+    body = {
+        "mail_enabled": True,
+        "mail_certified": True,
+        "mail_domain": "h-dcn.nl",
+        "mail_local_part": "info",
+        "mail_reply_to_default": "reply@h-dcn.nl",
+    }
+    resp = app.handler(_event("mail", body=body))
+    assert resp["statusCode"] == 200
+    assert repo.calls[0]["config_id"] == "mail"
+    attrs = repo.calls[0]["attributes"]
+    assert attrs["mail_enabled"] is True
+    assert attrs["mail_domain"] == "h-dcn.nl"
+    assert attrs["mail_reply_to_default"] == "reply@h-dcn.nl"
+
+
+def test_write_config_mail_empty_body_persists_fail_closed(repo):
+    # An empty mail body is valid (fail-closed defaults) → 200, persisted.
+    resp = app.handler(_event("mail", body={}))
+    assert resp["statusCode"] == 200
+    assert repo.calls[0]["config_id"] == "mail"
+    assert repo.calls[0]["attributes"]["mail_enabled"] is False
+
+
 def test_write_config_views_is_rejected_with_no_write(repo):
     # `views` is RETIRED — the write surface is closed to exactly {fields, scope, mail}; `views`
     # is rejected at the route with a 400 and NO write (Config_Views_Residue is never authored,
