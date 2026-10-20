@@ -108,6 +108,9 @@ beforeEach(() => {
   currentRoles = ['Members_CRUD'];
   toastSpy.mockReset();
   mockListMembers.mockResolvedValue(mockMembers as never);
+  vi.mocked(membersApiService.listMembersPage).mockResolvedValue(
+    { items: mockMembers, cursor: null } as never,
+  );
   mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
   mockGetMember.mockResolvedValue(mockMembers[0] as never);
   mockListMembershipTypes.mockResolvedValue([
