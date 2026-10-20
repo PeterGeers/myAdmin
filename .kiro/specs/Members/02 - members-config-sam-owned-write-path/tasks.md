@@ -331,7 +331,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
   - [ ] 3.6 Update frontend tests for the repointed scope save
     - **Validates: Requirements 13.1, 13.2, 13.4**
 
-  - [ ] 3.7 Remove `build_config_scope_row` from ProjectionSync (ProjectionSync stops authoring scope; param persists as the frontend mirror) (merge to main ONLY after 3.4 PROD-verified)
+  - [x] 3.7 Remove `build_config_scope_row` from ProjectionSync (ProjectionSync stops authoring scope; param persists as the frontend mirror) (merge to main ONLY after 3.4 PROD-verified)
     - Remove the `build_config_scope_row(...)` append in `ProjectionSync.sync_administration` — ProjectionSync
       stops emitting `config#scope` AND stops being the writer of the scope dimensions; keep public surface
       unchanged
@@ -341,7 +341,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       validator mirror the grant readers consume
     - _Requirements: 10.3, 11.1, 11.2, 11.4, 11.5, 17.3, 22.4, 26.3_
 
-  - [ ] 3.8 Update ProjectionSync tests to assert config#scope NOT emitted (change-with-tests)
+  - [x] 3.8 Update ProjectionSync tests to assert config#scope NOT emitted (change-with-tests)
     - **Property 4: ProjectionSync no longer emits config#scope** and **Property 5: Delete-sweep safety**
       for the `config#scope` prefix. The delete-sweep guardrail is VERIFIED / regression-locked by
       Requirement 12 (12.5: `config#*` rows are UPSERT-ONLY, only the `config#views`-only residue cleanup

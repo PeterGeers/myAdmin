@@ -410,9 +410,8 @@ def test_build_config_fields_projects_died_in_status_like_gender_concrete(sam_mo
 # Validates: Requirements 1.2, 1.3, 1.5, 1.6, 1.7
 # ===========================================================================
 
-from services.projection_sync import build_config_mail_row, build_config_scope_row
+from services.projection_sync import build_config_mail_row
 
-_SCOPE_SK = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_SCOPE)
 _MAIL_SK = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_MAIL)
 
 # A stable per-param revision stamped on the source param that drives each row.
@@ -420,139 +419,19 @@ _MAIL_SK = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_MAI
 # carrying STALE content, so the strict-greater version gate can never heal it —
 # only the content-gate can. (Same mechanism as the config#fields wedge above,
 # but for a DIFFERENT row type, which is the whole point of generality.)
-_SCOPE_REVISION = "2026-02-01T00:00:00"
 _MAIL_REVISION = "2026-03-01T00:00:00"
 
 
-# --- config#scope wedge setup (driven by the `members.field_overlay` scope axis) ---
+# --- config#scope generality: retired here, preserved by the config#mail twins ---
 #
-# Task 3.1: config#scope derives SOLELY from the per-field `scope` attribute on the
-# `members.field_overlay` overlay (the standalone `members.scope_dimensions` fallback is
-# removed). The wedge therefore drives the builder through the overlay param — the
-# generic content-gate heal proof is unchanged (a different `config#*` row type still
-# heals on CONTENT at an equal version), only the authoring source moved onto the overlay.
-
-
-def _scope_dimension(values):
-    """The config#scope `dimensions` entry the builder DERIVES from the overlay scope
-    axis below — the shape the content-gate compares. STALE vs FRESH differ only in this
-    value list, at the SAME param revision, so the wedge is a pure content change at an
-    equal version."""
-    return {
-        "key": "region",
-        "field": "region",
-        "label": {"nl": "Regio", "en": "Region"},
-        "enabled": True,
-        "values": list(values),
-        "required_for": ["Members_CRUD"],
-    }
-
-
-def _scope_overlay(values):
-    """A `members.field_overlay` whose `personal.region` fixed-override declares a `scope`
-    axis with enum `values` — the SINGLE authoring source the builder derives config#scope
-    from (task 3.1). Maps 1:1 onto `_scope_dimension(values)`."""
-    return {
-        "fixed_overrides": {
-            "personal.region": {
-                "scope": {
-                    "enabled": True,
-                    "values": list(values),
-                    "label": {"nl": "Regio", "en": "Region"},
-                    "required_for": ["Members_CRUD"],
-                }
-            }
-        }
-    }
-
-
-def _scope_params(tenant_id, values):
-    """A FakeParameterService serving a one-axis `members.field_overlay` scope attribute
-    whose enum values are `values`, stamped at the fixed scope wedge revision (the stored
-    row will be stamped at the SAME revision — the overlay param drives the row version)."""
-    return FakeParameterService(
-        params={("members", "field_overlay", tenant_id): _scope_overlay(values)},
-        revisions={("members", "field_overlay", tenant_id): _SCOPE_REVISION},
-    )
-
-
-def _scope_values_in(table, tenant_id):
-    """The region dimension `values` currently stored on the tenant's config#scope row."""
-    stored = table.store.get((tenant_id, _SCOPE_SK))
-    assert stored is not None, "expected a stored config#scope row"
-    return stored["dimensions"][0]["values"]
-
-
-_SCOPE_STALE = ["Noord", "Zuid"]
-_SCOPE_FRESH = ["Noord", "Zuid", "Oost", "West"]
-
-
-def test_sync_heals_wedged_config_scope_when_content_differs_at_equal_version(
-    sam_module,
-):
-    """R1.2/R1.7 GENERALITY — the SAME wedge-and-heal as config#fields, but for
-    `config#scope`: a stored `config#scope` row holds STALE dimension values at
-    version V; the source authors a DIFFERENT (wider) value set at the SAME
-    version V. A sync MUST write the fresh content (content differs → heal),
-    EVEN THOUGH the incoming version is not strictly greater than the stored one.
-
-    This proves the content-gate is NOT a status/config#fields special-case: the
-    decision lives in the shared `ProjectionSync._conditional_put` / `_content_key`
-    seam over the generic `to_dynamodb_item()` payload, so a different `config#*`
-    row type heals identically (R1.7).
-    """
-    tenant_id = "h-dcn"
-    table = FakeTable()
-    params = _scope_params(tenant_id, _SCOPE_FRESH)
-
-    # Pre-seed the WEDGED stored row: STALE 2-value content, stamped at the SAME
-    # version the builder computes for this source (the param's own revision).
-    stale_item = build_config_scope_row(
-        {"administration": tenant_id}, _scope_params(tenant_id, _SCOPE_STALE)
-    )
-    assert stale_item.version == _SCOPE_REVISION  # stored version == source version V
-    table.store[(tenant_id, _SCOPE_SK)] = stale_item.to_dynamodb_item()
-    assert _scope_values_in(table, tenant_id) == _SCOPE_STALE
-
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
-
-    sync.sync_administration(tenant_id)
-
-    # The heal: the stored row now carries the fresh (wider) value set, proving
-    # the write followed CONTENT, not the (equal) version — for config#scope.
-    healed = _scope_values_in(table, tenant_id)
-    assert healed == _SCOPE_FRESH, (
-        "GENERALITY WEDGE (config#scope): the stored row still carries the stale "
-        f"dimension values {healed!r} — the content-gate failed to heal a non-status "
-        "row, so the fix is a config#fields/status special-case, not general (R1.7)."
-    )
-
-
-def test_sync_rerun_unchanged_config_scope_is_noop(sam_module):
-    """R1.3/R1.6 GENERALITY (idempotence) — for config#scope too, a re-sync against
-    an UNCHANGED source writes nothing and leaves the row byte-identical (equal
-    content → skip), the mirror of the heal above."""
-    tenant_id = "h-dcn"
-    table = FakeTable()
-    params = _scope_params(tenant_id, _SCOPE_FRESH)
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
-
-    first = sync.sync_administration(tenant_id)
-    assert first.written > 0
-    assert _scope_values_in(table, tenant_id) == _SCOPE_FRESH
-    snapshot = {k: dict(v) for k, v in table.store.items()}
-    put_calls_after_first = len(table.put_calls)
-
-    second = sync.sync_administration(tenant_id)
-
-    assert second.written == 0, (
-        f"idempotence VIOLATED (config#scope): re-sync wrote {second.written} row(s)."
-    )
-    assert len(table.put_calls) == put_calls_after_first
-    assert {k: dict(v) for k, v in table.store.items()} == snapshot
-
+# Task 3.7 removed config#scope from ProjectionSync's emission (SAM owns it). The content-gate
+# GENERALITY guarantee (R1.2/R1.7 — the content-gate heals ANY config#* row type on a content
+# change at an equal version, not just config#fields/status) was formerly proven here using
+# config#scope as a second vehicle. config#scope is no longer sync-emitted, so it can no longer
+# be a vehicle; the guarantee is PRESERVED by the config#mail twins below
+# (`test_sync_heals_wedged_config_mail_*` / `test_sync_rerun_unchanged_config_mail_is_noop`) —
+# a DISTINCT non-status config#* row healing through the same `_conditional_put` / `_content_key`
+# seam — plus the original config#fields wedge above. No generality coverage is lost.
 
 # --- config#mail wedge setup (driven by the `members.mail_domain` param) ---------
 
