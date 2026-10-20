@@ -96,12 +96,12 @@ __all__ = [
     "AdHocMailBody",
     "AdHocMailInvalid",
     "DeliveryNotConfigured",
+    "DeliveryOutcome",
     "ExecuteAndDeliverService",
     "MailJob",
-    "MailQueue",
     "MailNotCertified",
+    "MailQueue",
     "PivotRunner",
-    "DeliveryOutcome",
 ]
 
 
@@ -166,8 +166,10 @@ class ExecuteAndDeliverService:
                 supplies it). Shared by every job of a fan-out and folded into the stable
                 job id, so re-enqueuing the same run is idempotent downstream.
             reply_to: the TRIGGERING USER's verified email (R4.3), stamped onto every job as the
-                Reply-To so replies reach the real sender. ``None`` for an unattended (scheduled)
-                run with no triggering user — the From still carries the tenant identity.
+                Reply-To so replies reach the real sender (an INTERACTIVE send). ``None`` for an
+                unattended (scheduled) run — the service then resolves the tenant-authored
+                ``config#mail.mail_reply_to_default``, falling back to the composed From when none
+                is authored (Task 5.1). The From always carries the tenant identity.
 
         Returns:
             A :class:`DeliveryOutcome` describing what was enqueued.
@@ -199,6 +201,13 @@ class ExecuteAndDeliverService:
         if not resolution.ok:
             raise MailNotCertified(tenant_id, set_id, resolution.reason)
         from_address = resolution.from_address
+
+        # 2b. Reply-To (spec 02 Task 5.1): an INTERACTIVE send passes the triggering user's
+        #     verified email as ``reply_to`` (used verbatim). An UNATTENDED/scheduled run passes
+        #     no ``reply_to`` — resolve the tenant-authored ``mail_reply_to_default``, falling back
+        #     to the composed From when the tenant authored none (never a guessed address).
+        if not (isinstance(reply_to, str) and reply_to.strip()):
+            reply_to = self._sender.resolve_scheduled_reply_to(tenant_id, from_address)
 
         # 3. Re-fetch the member rows FRESH through the repository (tenant pinned — Property 1;
         #    this is list_members keyed by tenant_id, NEVER a .scan()).
@@ -349,7 +358,9 @@ class ExecuteAndDeliverService:
         outcome) rather than enqueued with no destination.
         """
         template_id = delivery.get("template_id")
-        template_ref = template_id if isinstance(template_id, str) and template_id else None
+        template_ref = (
+            template_id if isinstance(template_id, str) and template_id else None
+        )
         recipient_field = self._recipient_field(delivery)
 
         job_ids: list[str] = []
@@ -429,7 +440,9 @@ class ExecuteAndDeliverService:
             raise DeliveryNotConfigured(tenant_id, set_id)
 
         template_id = delivery.get("template_id")
-        template_ref = template_id if isinstance(template_id, str) and template_id else None
+        template_ref = (
+            template_id if isinstance(template_id, str) and template_id else None
+        )
 
         attachment_kind = delivery.get("attachment")
         attachment: dict[str, Any] | None = None

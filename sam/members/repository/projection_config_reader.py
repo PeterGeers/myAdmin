@@ -182,7 +182,9 @@ class MembersProjectionReader:
 
         raw_dimensions = row.get("dimensions") or []
         dimensions = tuple(
-            self._build_dimension(raw) for raw in raw_dimensions if isinstance(raw, dict)
+            self._build_dimension(raw)
+            for raw in raw_dimensions
+            if isinstance(raw, dict)
         )
         return ScopeConfig(tenant_id=tenant_id, dimensions=dimensions)
 
@@ -451,9 +453,9 @@ class MembersProjectionReader:
         # fallback a tenant-authored status value (e.g. `died`) was silently dropped: `_build_options`
         # only saw `options`, so the override carried no values and the resolver fell back to the
         # fixed field's base choices (the config#fields enum-choices data-loss on read).
-        override_options = cls._build_options(spec.get("options")) or cls._build_options(
-            spec.get("choices")
-        )
+        override_options = cls._build_options(
+            spec.get("options")
+        ) or cls._build_options(spec.get("choices"))
         return FixedFieldOverride(
             label=dict(label) if isinstance(label, dict) else None,
             visible=bool(visible) if visible is not None else None,
@@ -637,6 +639,31 @@ class MembersProjectionReader:
         if row is None:
             return False
         return row.get("mail_certified") is True
+
+    def get_mail_reply_to_default(self, tenant_id: str) -> str | None:
+        """Return the tenant's projected ``mail_reply_to_default`` from ``config#mail`` (Task 5.1).
+
+        The OPTIONAL tenant-authored Reply-To for SCHEDULED / unattended sends (a scheduled send
+        has no invoking user). The send path uses this when present, and FALLS BACK to the
+        composed From address when it is absent (an interactive send instead uses the invoking
+        user's verified email at runtime). There is no fabricated default here — an **absent**
+        ``config#mail`` row, a missing attribute, or a non-string/blank value all resolve to
+        ``None`` so the caller applies the From fallback. Never raises on missing/empty data
+        (empty-is-valid, same discipline as ``get_mail_domain``).
+
+        Args:
+            tenant_id: The tenant (partition key) whose scheduled-send Reply-To to resolve.
+
+        Returns:
+            The projected non-blank ``mail_reply_to_default`` string, or ``None`` when absent.
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_MAIL)
+        if row is None:
+            return None
+        reply_to = row.get("mail_reply_to_default")
+        if isinstance(reply_to, str) and reply_to.strip():
+            return reply_to
+        return None
 
     # ── Tenant consent notice (Member Application Form D26/R12.1a/R12.1c, task 2.6) ────
     #
