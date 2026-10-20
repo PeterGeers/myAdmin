@@ -407,12 +407,18 @@ class ProjectionSync:
         # builder itself is KEPT (still imported/exported) because the one-off migration script
         # (`backend/scripts/migrate_config_fields_to_sam.py`) and the builder-unit-tests consume
         # it directly — only the EMISSION from sync_administration is removed here.
-        # R0 (pivot-output-actions, design §6.3): the per-tenant mail-enabled gate.
-        # Projected as config#mail so the Members edge reads the flag via the
-        # projection reader (no live MySQL at request time); fail-closed to False.
-        config_mail = build_config_mail_row(source.tenant, param_svc)
-        if config_mail is not None:
-            items.append(config_mail)
+        # config#mail is NO LONGER emitted by ProjectionSync (spec 02 Task 5.8). The SAM write
+        # path (MembersConfigWriteRepository via PUT /members/config/mail) is now the AUTHORITATIVE
+        # author of the `config#mail` row; the mail params (members.mail_enabled / mail_domain /
+        # mail_local_part / mail_certified / application_consent_notice) are SAM-owned after the
+        # per-tenant migration (Task 5.5), and the NEW mail_reply_to_default is SAM-only. With
+        # config#fields (1.15) + config#scope (3.7) + config#mail (5.8) all removed, ProjectionSync
+        # now emits ZERO config#* rows — the split-ownership end-state (Req 11.1/11.2): the SAM
+        # plane owns every config#* row, ProjectionSync owns tenant/module/role/scopegrant only.
+        # The `build_config_mail_row` builder itself is KEPT (still imported/exported) because the
+        # builder-unit-tests + the migration script consume it directly — only the EMISSION from
+        # sync_administration is removed here (the builder is deleted by the end-of-band cleanup
+        # once the mail migration is complete).
         # The scopegrant rows are the DESIRED per-user grant set for this tenant.
         # Kept in a named list (not just extended into ``items``) so the ODx4b
         # diff-and-delete reconcile below can compute which STORED ``scopegrant#…``
