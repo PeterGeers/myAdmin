@@ -92,6 +92,13 @@ _MAIL_LOCAL_PART_PARAM_KEY = "mail_local_part"
 #: ``mail_enabled``.
 _MAIL_CERTIFIED_PARAM_KEY = "mail_certified"
 
+#: The OPTIONAL tenant-authored Reply-To default for SCHEDULED / unattended sends
+#: (``members.mail_reply_to_default``, spec 02 Task 5.1). A scheduled send has no invoking
+#: user, so its Reply-To is this authored address, falling back to the composed From when it
+#: is absent (an interactive send instead uses the invoking user's verified email at runtime).
+#: Projected onto ``config#mail`` ONLY when authored as a non-blank string.
+_MAIL_REPLY_TO_DEFAULT_PARAM_KEY = "mail_reply_to_default"
+
 #: The default From local-part projected when a tenant has authored no (or a blank)
 #: ``members.mail_local_part``. MUST match the SAM reader's ``_DEFAULT_MAIL_LOCAL_PART``
 #: so builder and reader agree on the composed-From local-part.
@@ -963,6 +970,11 @@ def build_config_mail_row(
         _MAIL_CERTIFIED_PARAM_KEY,
         tenant=tenant_id,
     )
+    raw_reply_to_default = parameter_service.get_param(
+        _MEMBERS_PARAM_NAMESPACE,
+        _MAIL_REPLY_TO_DEFAULT_PARAM_KEY,
+        tenant=tenant_id,
+    )
     raw_scope_copy = parameter_service.get_param(
         _MEMBERS_PARAM_NAMESPACE,
         _APPLICATION_SCOPE_COPY_PARAM_KEY,
@@ -1009,6 +1021,12 @@ def build_config_mail_row(
     if isinstance(raw_domain, str) and raw_domain:
         attributes["mail_domain"] = raw_domain
 
+    # Reply-To default (Task 5.1): the SCHEDULED/unattended-send Reply-To. Project ONLY when
+    # authored as a non-blank string; omit otherwise so the send path falls back to the From
+    # address (an interactive send uses the invoking user's verified email at runtime instead).
+    if isinstance(raw_reply_to_default, str) and raw_reply_to_default.strip():
+        attributes["mail_reply_to_default"] = raw_reply_to_default
+
     # Member Application Form (D26): the versioned bilingual consent notice is projected
     # ONLY when well-formed (non-blank version + at least one locale text); otherwise it
     # is OMITTED so a tenant that authored none projects a back-compatible row (the public
@@ -1022,11 +1040,11 @@ def build_config_mail_row(
         sort_key=schema.build_sort_key(
             schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_MAIL
         ),
-        # config#mail is driven by SIX params — the four mail params PLUS the two Member
-        # Application Form params (the D9a scope-copy toggle + the D26 consent notice) that
-        # now ride this row — so an edit to ANY must bump the row (version-bump trap fix):
-        # the version is the max of their per-param revisions, falling back to the tenant row
-        # only when none is authored.
+        # config#mail is driven by SEVEN params — the four mail params + the NEW
+        # mail_reply_to_default (Task 5.1) + the two Member Application Form params (the D9a
+        # scope-copy toggle + the D26 consent notice) that ride this row — so an edit to ANY
+        # must bump the row (version-bump trap fix): the version is the max of their per-param
+        # revisions, falling back to the tenant row only when none is authored.
         version=_config_row_version(
             tenant,
             parameter_service,
@@ -1036,6 +1054,7 @@ def build_config_mail_row(
                 _MAIL_DOMAIN_PARAM_KEY,
                 _MAIL_LOCAL_PART_PARAM_KEY,
                 _MAIL_CERTIFIED_PARAM_KEY,
+                _MAIL_REPLY_TO_DEFAULT_PARAM_KEY,
                 _APPLICATION_SCOPE_COPY_PARAM_KEY,
                 _APPLICATION_CONSENT_NOTICE_PARAM_KEY,
             ),
@@ -1058,6 +1077,7 @@ __all__ = [
     "_MAIL_ENABLED_PARAM_KEY",
     "_MAIL_LOCAL_PART_DEFAULT",
     "_MAIL_LOCAL_PART_PARAM_KEY",
+    "_MAIL_REPLY_TO_DEFAULT_PARAM_KEY",
     "_MEMBERS_PARAM_NAMESPACE",
     "_OVERLAY_FIELD_DEFAULTS",
     "_SCOPE_DIMENSIONS_PARAM_KEY",
