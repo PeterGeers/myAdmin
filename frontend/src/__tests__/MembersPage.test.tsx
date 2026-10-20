@@ -40,6 +40,7 @@ vi.mock('../context/AuthContext', () => ({
 }));
 
 const mockListMembers = vi.mocked(membersApiService.listMembers);
+const mockListMembersPage = vi.mocked(membersApiService.listMembersPage);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
 const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes);
@@ -157,6 +158,10 @@ describe('MembersPage (Leden Overzicht)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListMembers.mockResolvedValue(mockMembers as never);
+    // The Members table now loads ONE DynamoDB cursor page via `listMembersPage`
+    // (Req 25). Return all mock rows as a single page with no next cursor (final
+    // page → Next disabled) so these table-focused tests render the full set.
+    mockListMembersPage.mockResolvedValue({ items: mockMembers, cursor: null } as never);
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockMembers[0] as never);
     // The membership-type catalog feed (R5.8) — the page fetches it for the modals'
@@ -524,18 +529,13 @@ describe('MembersPage (Leden Overzicht)', () => {
   //    precedence rule (Members config redesign Phase 2 step b — task 3.3) ───────
   //
   // Phase 2 step b retired the view-context dropdown: the single generic table
-  // renders over the resolved `FieldConfig` visible fields directly, and the
-  // rows-per-page is the precedence `userPreference ?? default_page_size ??
-  // platformDefault` (resolver `resolvePageSize`, PLATFORM_DEFAULT_PAGE_SIZE =
-  // 25). This block exercises the no-dropdown render + each pagination leg over
-  // the REAL page (not the resolver unit, which `membersPagination.test.ts`
-  // covers) by asserting the number of rendered table body rows.
+  // renders over the resolved `FieldConfig` visible fields directly. This block
+  // verifies that visible-fields gate still holds under the Req-25 cursor-paging
+  // read path (the former client-side `default_page_size` precedence pagination
+  // was RETIRED — rows-per-page is now the runtime selector tested below).
   //
-  // **Validates: Requirements 3.2, 2.2, 2.3, 2.4**
-  describe('visible-fields render + pagination precedence (no view-context dropdown)', () => {
-    // 30 members (> the platform default of 25) so a page-size cap is observable
-    // as a cut in the rendered body-row count. Each carries a unique name so the
-    // name column stays a stable per-row cell.
+  // **Validates: Requirements 3.2**
+  describe('visible-fields render (no view-context dropdown)', () => {
     const manyMembers: Member[] = Array.from({ length: 30 }, (_, i) => ({
       member_id: `mm-${i + 1}`,
       name: `Lid ${String(i + 1).padStart(2, '0')}`,
@@ -545,9 +545,6 @@ describe('MembersPage (Leden Overzicht)', () => {
       region: 'Noord',
     }));
 
-    /** Count rendered table BODY rows (all <tr> role=row minus the header row). */
-    const bodyRowCount = (): number => screen.getAllByRole('row').length - 1;
-
     const waitForManyRows = async () => {
       await waitFor(() => {
         expect(screen.getByText('Lid 01')).toBeInTheDocument();
@@ -555,7 +552,9 @@ describe('MembersPage (Leden Overzicht)', () => {
     };
 
     beforeEach(() => {
-      mockListMembers.mockResolvedValue(manyMembers as never);
+      // The page now loads a DynamoDB cursor page (Req 25); return all 30 rows as
+      // one page with no next cursor.
+      mockListMembersPage.mockResolvedValue({ items: manyMembers, cursor: null } as never);
       mockGetMember.mockResolvedValue(manyMembers[0] as never);
     });
 
@@ -582,189 +581,167 @@ describe('MembersPage (Leden Overzicht)', () => {
       expect(screen.getByText('lid1@h-dcn.example')).toBeInTheDocument();
       expect(screen.queryByText('Verborgen')).not.toBeInTheDocument();
     });
-
-    it('paginates by the platform default (25) when neither user pref nor tenant default is set', async () => {
-      // Default beforeEach: column prefs page_size absent, field config carries no
-      // default_page_size → the resolver falls through to PLATFORM_DEFAULT (25).
-      mockGetFieldConfig.mockResolvedValue({
-        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
-      } as never);
-
-      render(<MembersPage />);
-      await waitForManyRows();
-
-      // 30 rows available, capped to the platform default of 25.
-      await waitFor(() => expect(bodyRowCount()).toBe(25));
-    });
-
-    it('paginates by the tenant default_page_size leg when no user preference is set', async () => {
-      // No user page_size → the tenant field-config default (10) wins over the
-      // platform default (middle tier of the precedence).
-      mockGetFieldConfig.mockResolvedValue({
-        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
-        default_page_size: 10,
-      } as never);
-
-      render(<MembersPage />);
-      await waitForManyRows();
-
-      await waitFor(() => expect(bodyRowCount()).toBe(10));
-    });
-
-    it('paginates by the per-user column_preferences page_size leg (highest precedence)', async () => {
-      // A user preference (5) wins over BOTH the tenant default (10) and the
-      // platform default (25) — the top tier of the precedence.
-      mockGetFieldConfig.mockResolvedValue({
-        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
-        default_page_size: 10,
-      } as never);
-      mockGetColumnPreferences.mockResolvedValue(
-        { sub: 'u-1', columns: [], page_size: 5, updated_at: '2024-01-01T00:00:00Z' } as never,
-      );
-
-      render(<MembersPage />);
-      await waitForManyRows();
-
-      await waitFor(() => expect(bodyRowCount()).toBe(5));
-    });
   });
 
-  // ── Client-side prev/next pager (in-memory pagination over processedData) ─────
+  // ── Rows-per-page selector + DynamoDB cursor prev/next (spec 02, Task 1.17) ───
   //
-  // All scope-authorized rows are already loaded; the pager slices the
-  // filtered/sorted set by (pageIndex * pageSize). The FIRST page still shows
-  // `pageSize` rows (the pre-existing page-size tests above remain valid); these
-  // cases exercise navigating to later pages, the boundary-disabled states, and
-  // the reset-to-page-1 when a filter collapses the set. In the test env
-  // `useTypedTranslation` returns raw i18n keys, so the controls are queried by
-  // their stable `data-testid`s, not label text.
-  describe('prev/next pagination (client-side, in-memory)', () => {
-    const manyMembers: Member[] = Array.from({ length: 30 }, (_, i) => ({
-      member_id: `pg-${i + 1}`,
-      name: `Lid ${String(i + 1).padStart(2, '0')}`,
-      email: `lid${i + 1}@h-dcn.example`,
-      status: 'active',
-      membership_type: 'regulier',
-      region: 'Noord',
-    }));
-
-    const bodyRowCount = (): number => screen.getAllByRole('row').length - 1;
-
-    const waitForManyRows = async () => {
-      await waitFor(() => {
-        expect(screen.getByText('Lid 01')).toBeInTheDocument();
-      });
-    };
+  // REPLACES the former client-side pageIndex/pageCount pager. The Members table
+  // now loads ONE server page via `listMembersPage({ pageSize, cursor })` and
+  // prev/next walk the opaque `LastEvaluatedKey` cursor the read path returns —
+  // no SQL-style offset / jump-to-page (Req 25). The runtime Rows_Per_Page_Selector
+  // offers 50/100/250/500/Max; `Max` is the `'max'` sentinel (one Query page, no
+  // Limit). There is NO tenant/user `default_page_size` precedence (retired, R25.9).
+  // The test env's `useTypedTranslation` returns raw i18n keys, so controls are
+  // queried by their stable `data-testid`s.
+  //
+  // **Validates: Requirement 25** (25.1, 25.2, 25.3, 25.4, 25.5, 25.6, 25.9, 25.10)
+  describe('rows-per-page selector + cursor prev/next (Req 25)', () => {
+    const pageRows = (prefix: string, n: number): Member[] =>
+      Array.from({ length: n }, (_, i) => ({
+        member_id: `${prefix}-${i + 1}`,
+        name: `${prefix} ${String(i + 1).padStart(2, '0')}`,
+        email: `${prefix}${i + 1}@h-dcn.example`,
+        status: 'active',
+        membership_type: 'regulier',
+        region: 'Noord',
+      }));
 
     beforeEach(() => {
-      mockListMembers.mockResolvedValue(manyMembers as never);
-      mockGetMember.mockResolvedValue(manyMembers[0] as never);
-    });
-
-    it('shows the first page capped to the page size, with prev disabled and next enabled', async () => {
-      // 30 rows, platform default 25 → page 1 of 2.
       mockGetFieldConfig.mockResolvedValue({
         fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
       } as never);
+    });
+
+    const selector = () => screen.getByTestId('members-page-size-select') as HTMLSelectElement;
+
+    it('renders the Rows_Per_Page_Selector with 50/100/250/500/Max, defaulting to 50 (platform fallback)', async () => {
+      mockListMembersPage.mockResolvedValue({ items: pageRows('A', 3), cursor: null } as never);
 
       render(<MembersPage />);
-      await waitForManyRows();
+      await waitFor(() => expect(screen.getByText('A 01')).toBeInTheDocument());
 
-      await waitFor(() => expect(bodyRowCount()).toBe(25));
-      expect(screen.getByTestId('members-pagination-status')).toBeInTheDocument();
+      const options = Array.from(selector().querySelectorAll('option')).map(o => o.textContent);
+      // The fixed numeric options + the Max sentinel (raw i18n key in test env).
+      expect(options).toEqual(['50', '100', '250', '500', 'pagination.max']);
+      // The initial pre-selected option is the platform fallback (50), R25.9.
+      expect(selector().value).toBe('50');
+      // The first request used page_size=50 and no cursor (first page).
+      expect(mockListMembersPage).toHaveBeenCalledWith({ pageSize: 50, cursor: null });
+    });
+
+    it('a fixed option re-queries with that page_size as the Query Limit (R25.2)', async () => {
+      mockListMembersPage.mockResolvedValue({ items: pageRows('A', 3), cursor: null } as never);
+
+      render(<MembersPage />);
+      await waitFor(() => expect(screen.getByText('A 01')).toBeInTheDocument());
+
+      fireEvent.change(selector(), { target: { value: '250' } });
+
+      await waitFor(() =>
+        expect(mockListMembersPage).toHaveBeenCalledWith({ pageSize: 250, cursor: null }),
+      );
+      expect(selector().value).toBe('250');
+    });
+
+    it('Max re-queries with the "max" sentinel (one page, NO Limit — R25.3)', async () => {
+      mockListMembersPage.mockResolvedValue({ items: pageRows('A', 3), cursor: null } as never);
+
+      render(<MembersPage />);
+      await waitFor(() => expect(screen.getByText('A 01')).toBeInTheDocument());
+
+      fireEvent.change(selector(), { target: { value: 'max' } });
+
+      await waitFor(() =>
+        expect(mockListMembersPage).toHaveBeenCalledWith({ pageSize: 'max', cursor: null }),
+      );
+      expect(selector().value).toBe('max');
+    });
+
+    it('first page: Prev disabled, Next enabled only when a cursor was returned (R25.5/R25.6)', async () => {
+      // A next-page cursor is returned → Next enabled; the first page → Prev disabled.
+      mockListMembersPage.mockResolvedValue({ items: pageRows('A', 3), cursor: 'CUR-1' } as never);
+
+      render(<MembersPage />);
+      await waitFor(() => expect(screen.getByText('A 01')).toBeInTheDocument());
+
       expect(screen.getByTestId('members-pagination-prev')).toBeDisabled();
       expect(screen.getByTestId('members-pagination-next')).not.toBeDisabled();
     });
 
-    it('next advances to the remaining rows on the last page; next then disabled, prev enabled', async () => {
-      mockGetFieldConfig.mockResolvedValue({
-        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
-      } as never);
+    it('Next is disabled when the read path returns no cursor (final page, R25.5)', async () => {
+      mockListMembersPage.mockResolvedValue({ items: pageRows('A', 3), cursor: null } as never);
 
       render(<MembersPage />);
-      await waitForManyRows();
-      await waitFor(() => expect(bodyRowCount()).toBe(25));
+      await waitFor(() => expect(screen.getByText('A 01')).toBeInTheDocument());
 
-      fireEvent.click(screen.getByTestId('members-pagination-next'));
-
-      // Page 2 of 2 → the trailing 5 rows (30 - 25).
-      await waitFor(() => expect(bodyRowCount()).toBe(5));
       expect(screen.getByTestId('members-pagination-next')).toBeDisabled();
-      expect(screen.getByTestId('members-pagination-prev')).not.toBeDisabled();
-      // The last member is now visible; the first is not.
-      expect(screen.getByText('Lid 30')).toBeInTheDocument();
-      expect(screen.queryByText('Lid 01')).not.toBeInTheDocument();
-    });
-
-    it('prev returns to the first page', async () => {
-      mockGetFieldConfig.mockResolvedValue({
-        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
-      } as never);
-
-      render(<MembersPage />);
-      await waitForManyRows();
-      await waitFor(() => expect(bodyRowCount()).toBe(25));
-
-      fireEvent.click(screen.getByTestId('members-pagination-next'));
-      await waitFor(() => expect(bodyRowCount()).toBe(5));
-
-      fireEvent.click(screen.getByTestId('members-pagination-prev'));
-      await waitFor(() => expect(bodyRowCount()).toBe(25));
-      expect(screen.getByText('Lid 01')).toBeInTheDocument();
       expect(screen.getByTestId('members-pagination-prev')).toBeDisabled();
     });
 
-    it('walks three pages with a tenant default_page_size of 10 (10/10/10)', async () => {
-      mockGetFieldConfig.mockResolvedValue({
-        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
-        default_page_size: 10,
-      } as never);
+    // A cursor-keyed fake: page 1 (cursor null) → P1 rows + CUR-1; resume at
+    // CUR-1 → P2 rows + no further cursor (final). Keyed on the ARGUMENT rather
+    // than a call-order `once` chain, so a benign effect re-run (e.g. a new toast
+    // identity) cannot consume the queue out of order.
+    const twoPageFake = () =>
+      mockListMembersPage.mockImplementation((({ cursor }: { cursor?: string | null }) =>
+        Promise.resolve(
+          cursor === 'CUR-1'
+            ? { items: pageRows('P2', 2), cursor: null }
+            : { items: pageRows('P1', 2), cursor: 'CUR-1' },
+        )) as never);
+
+    it('Next walks the cursor forward and surfaces the next page (R25.4)', async () => {
+      twoPageFake();
 
       render(<MembersPage />);
-      await waitForManyRows();
-      await waitFor(() => expect(bodyRowCount()).toBe(10));
-      expect(screen.getByText('Lid 01')).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText('P1 01')).toBeInTheDocument());
 
-      // → page 2
       fireEvent.click(screen.getByTestId('members-pagination-next'));
-      await waitFor(() => expect(screen.getByText('Lid 11')).toBeInTheDocument());
-      expect(bodyRowCount()).toBe(10);
-      expect(screen.queryByText('Lid 01')).not.toBeInTheDocument();
 
-      // → page 3 (last)
-      fireEvent.click(screen.getByTestId('members-pagination-next'));
-      await waitFor(() => expect(screen.getByText('Lid 21')).toBeInTheDocument());
-      expect(bodyRowCount()).toBe(10);
-      expect(screen.getByText('Lid 30')).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByText('P2 01')).toBeInTheDocument());
+      // Resumed with the opaque cursor the first page returned.
+      expect(mockListMembersPage).toHaveBeenLastCalledWith({ pageSize: 50, cursor: 'CUR-1' });
+      // Page 1 rows are gone; this is a server page, not an in-memory slice.
+      expect(screen.queryByText('P1 01')).not.toBeInTheDocument();
+      // Final page → Next disabled, Prev now enabled.
       expect(screen.getByTestId('members-pagination-next')).toBeDisabled();
+      expect(screen.getByTestId('members-pagination-prev')).not.toBeDisabled();
     });
 
-    it('resets to page 1 and hides the pager when a filter collapses the set to one page', async () => {
-      // Give rows distinct regions so a region filter can collapse to a single row.
-      const mixed: Member[] = manyMembers.map((m, i) => ({
-        ...m,
-        region: i === 0 ? 'Zuid' : 'Noord',
-      }));
-      mockListMembers.mockResolvedValue(mixed as never);
-      mockGetFieldConfig.mockResolvedValue({
-        fields: [{ key: 'name', label: 'Naam', compact: true, order: 1 }],
-      } as never);
+    it('Prev returns to the previous page by walking the cursor stack (R25.6)', async () => {
+      twoPageFake();
 
       render(<MembersPage />);
-      await waitForManyRows();
-      await waitFor(() => expect(bodyRowCount()).toBe(25));
+      await waitFor(() => expect(screen.getByText('P1 01')).toBeInTheDocument());
 
-      // Navigate to page 2 first so the reset is observable.
       fireEvent.click(screen.getByTestId('members-pagination-next'));
-      await waitFor(() => expect(bodyRowCount()).toBe(5));
+      await waitFor(() => expect(screen.getByText('P2 01')).toBeInTheDocument());
 
-      // Filter region to the single 'Zuid' row → one page, pager removed.
-      const regionFilter = screen.getByLabelText('Filter by filters.region') as HTMLInputElement;
-      fireEvent.change(regionFilter, { target: { value: 'Zuid' } });
+      fireEvent.click(screen.getByTestId('members-pagination-prev'));
+      await waitFor(() => expect(screen.getByText('P1 01')).toBeInTheDocument());
+      // Back on the first page → Prev disabled again.
+      expect(screen.getByTestId('members-pagination-prev')).toBeDisabled();
+    });
 
-      await waitFor(() => expect(bodyRowCount()).toBe(1));
-      expect(screen.queryByTestId('members-pagination-next')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('members-pagination-prev')).not.toBeInTheDocument();
+    it('changing the page size resets to the first page (cursor is page-size relative)', async () => {
+      mockListMembersPage.mockResolvedValue({ items: pageRows('A', 3), cursor: 'CUR-1' } as never);
+
+      render(<MembersPage />);
+      await waitFor(() => expect(screen.getByText('A 01')).toBeInTheDocument());
+
+      // Advance to page 2 first (so a reset is observable as a cursor-less re-query).
+      fireEvent.click(screen.getByTestId('members-pagination-next'));
+      await waitFor(() =>
+        expect(mockListMembersPage).toHaveBeenLastCalledWith({ pageSize: 50, cursor: 'CUR-1' }),
+      );
+
+      fireEvent.change(selector(), { target: { value: '100' } });
+
+      // The size change re-queries from the FIRST page (cursor null), never with
+      // the stale page-50 cursor.
+      await waitFor(() =>
+        expect(mockListMembersPage).toHaveBeenLastCalledWith({ pageSize: 100, cursor: null }),
+      );
     });
   });
 

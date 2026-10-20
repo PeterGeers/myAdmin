@@ -5,29 +5,30 @@
  * same order, same dependency arrays, same defensive `Promise.resolve(...)`
  * wrappers — so the page's observable load behaviour is identical.
  *
- * Owns: the members list, the resolved field config, the active membership-type
- * catalog, the loading flag, the user's chosen-column keys + per-user page-size
- * preference (seeded from the persisted column preferences), and the optimistic
+ * Owns: the resolved field config, the active membership-type catalog, the
+ * config-loading flag, the user's chosen-column keys, and the optimistic
  * column-save handler.
+ *
+ * NOTE (spec 02, Task 1.17 / Req 25): the MEMBERS LIST is no longer loaded here.
+ * It moved to `useMembersCursorPaging` (DynamoDB cursor paging driven by the
+ * rows-per-page selector). The per-user `page_size` PREFERENCE is retired (R25.9
+ * — rows-per-page is a runtime selector with a platform fallback, not a persisted
+ * tenant/user default), so it is no longer read off the column-preferences record.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@chakra-ui/react';
 import {
-  listMembers, getFieldConfig, listMembershipTypes,
+  getFieldConfig, listMembershipTypes,
   getColumnPreferences, saveColumnPreferences,
 } from '../../../services/membersApiService';
 import { ALWAYS_ON_COLUMN_KEY } from '../ColumnChooser';
-import type { Member, FieldConfig, MembershipType } from '../../../types/members';
+import type { FieldConfig, MembershipType } from '../../../types/members';
 
 export interface UseMembersDataReturn {
-  members: Member[];
   fieldConfig: FieldConfig | null;
   membershipTypes: MembershipType[] | null;
-  loading: boolean;
   chosenKeys: string[];
-  userPageSize: number | null;
-  loadMembers: () => Promise<void>;
   handleColumnsChange: (nextKeys: string[]) => void;
 }
 
@@ -37,13 +38,11 @@ export interface UseMembersDataReturn {
 export function useMembersData(t: (key: string) => string): UseMembersDataReturn {
   const toast = useToast();
 
-  const [members, setMembers] = useState<Member[]>([]);
   const [fieldConfig, setFieldConfig] = useState<FieldConfig | null>(null);
   // The tenant's ACTIVE Lidmaatschap Beheer catalog entries (R5.8), fetched via
   // listMembershipTypes(true). Feed the add/edit modals' membership_type dropdown with
   // active-only types; the domain re-validates the chosen type authoritatively.
   const [membershipTypes, setMembershipTypes] = useState<MembershipType[] | null>(null);
-  const [loading, setLoading] = useState(true);
 
   // The user's own ordered chosen-column keys (session-columns R3.1). This is the
   // single source of which non-fixed columns show; member_number is implied +
@@ -51,29 +50,6 @@ export function useMembersData(t: (key: string) => string): UseMembersDataReturn
   // mount from the persisted `getColumnPreferences()` once the field config
   // resolves (C8) — empty for a first-time user (R6.4).
   const [chosenKeys, setChosenKeys] = useState<string[]>([]);
-
-  // The user's own per-user rows-per-page preference (Members config redesign
-  // Phase 2, step (a) — the pagination re-home). Seeded from the SAME per-user
-  // column/table preference record (`getColumnPreferences`) that seeds
-  // `chosenKeys`, so it is the HIGHEST-precedence input to the page-size resolver
-  // (`userPreference ?? default_page_size ?? platformDefault`, R2.3). `null` =
-  // the user has no explicit preference → fall through to the tenant default.
-  const [userPageSize, setUserPageSize] = useState<number | null>(null);
-
-  const loadMembers = useCallback(async () => {
-    try {
-      setLoading(true);
-      const rows = await listMembers<Member[]>();
-      setMembers(Array.isArray(rows) ? rows : []);
-    } catch {
-      toast({ title: t('table.empty'), status: 'error' });
-      setMembers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [toast, t]);
-
-  useEffect(() => { loadMembers(); }, [loadMembers]);
 
   useEffect(() => {
     getFieldConfig<FieldConfig>()
@@ -107,12 +83,9 @@ export function useMembersData(t: (key: string) => string): UseMembersDataReturn
           key => key !== ALWAYS_ON_COLUMN_KEY && resolvable.has(key),
         );
         setChosenKeys(seeded);
-        // Seed the per-user page-size preference (R2.3). The resolver guards for
-        // positivity, so a null/absent/non-positive stored value simply falls
-        // through to the tenant default — pass it through verbatim here.
-        setUserPageSize(
-          typeof prefs.page_size === 'number' ? prefs.page_size : null,
-        );
+        // The per-user `page_size` preference is RETIRED (Req 25.9): rows-per-page
+        // is now a runtime selector (`useMembersCursorPaging`) with a platform
+        // fallback, not a persisted default — so it is no longer read here.
       })
       .catch(() => {
         // Non-fatal: keep the empty first-time default; the user can still choose.
@@ -145,13 +118,9 @@ export function useMembersData(t: (key: string) => string): UseMembersDataReturn
   }, []);
 
   return {
-    members,
     fieldConfig,
     membershipTypes,
-    loading,
     chosenKeys,
-    userPageSize,
-    loadMembers,
     handleColumnsChange,
   };
 }

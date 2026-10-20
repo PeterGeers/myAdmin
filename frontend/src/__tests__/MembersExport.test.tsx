@@ -113,6 +113,9 @@ describe('MembersPage export action (R5.6, R8.7)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListMembers.mockResolvedValue(mockMembers as never);
+    vi.mocked(membersApiService.listMembersPage).mockResolvedValue(
+      { items: mockMembers, cursor: null } as never,
+    );
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockMembers[0] as never);
     // The authoritative export action returns the scope-narrowed rows server-side.

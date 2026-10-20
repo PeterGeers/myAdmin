@@ -200,6 +200,11 @@ describe('MembersPage — session columns (user column chooser)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListMembers.mockResolvedValue(mockMembers as never);
+    // The Members table loads ONE DynamoDB cursor page via `listMembersPage`
+    // (Req 25). Return all mock rows as a single final page (no next cursor).
+    vi.mocked(membersApiService.listMembersPage).mockResolvedValue(
+      { items: mockMembers, cursor: null } as never,
+    );
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockMembers[0] as never);
     mockListMembershipTypes.mockResolvedValue([] as never);

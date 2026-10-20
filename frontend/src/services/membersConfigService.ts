@@ -22,7 +22,8 @@ import type {
 } from '../types/members';
 import { authenticatedGet } from './apiService';
 import { getParameters, createParameter, updateParameter } from './parameterService';
-import { getFieldConfig } from './membersApiService';
+import { getFieldConfig, writeFieldConfig } from './membersApiService';
+import { ApiError } from '../shared/api/ApiError';
 
 export const MEMBERS_NAMESPACE = 'members';
 
@@ -315,12 +316,23 @@ export async function getMembersParameters(): Promise<Record<string, Parameter>>
 }
 
 /**
- * Save-once: commit the whole `value` object for one `members.<key>` param in a single
- * request (task 2.6 / R3.5 / Property 8).
+ * Save-once: commit the whole `value` object for one `members.<key>` param in a single request
+ * (task 2.6 / R3.5 / Property 8).
  *
+ * Per-record SAM cutover (Requirement 13): the `field_overlay` save is repointed to the SAM-owned
+ * write path `PUT /members/config/fields` (`config#fields` is now SAM's system-of-record). The SAM
+ * write is **authoritative** — the returned row `version` IS the authored state, there is no
+ * projection step to wait on, so this no longer surfaces a `projected` / `projection_error`
+ * pending-projection signal for `field_overlay`. `scope_dimensions` stays on the Flask
+ * parameter-admin path until its own cutover (task 3.5).
+ *
+ * The public signature and `{ success, error? }` return shape are kept stable so the editor
+ * (`MembersParamSubEditor`) consumes the service unchanged (Requirement 13.3) — only the save
+ * target for `field_overlay` moves.
+ *
+ * Flask path (`scope_dimensions`), unchanged:
  * - If an existing tenant-scope row is supplied, issue ONE `PUT` (update in place).
- * - Otherwise (no row, or a system/code default), issue ONE `POST` creating the
- *   tenant-scope row.
+ * - Otherwise (no row, or a system/code default), issue ONE `POST` creating the tenant-scope row.
  *
  * Never per-field / per-keystroke; the caller passes the entire object exactly once.
  */
@@ -331,10 +343,27 @@ export async function saveMembersParameter(
 ): Promise<{ success: boolean; error?: string; projected?: boolean | null; projection_error?: string }> {
   // A members.* object param is always an object or list; never a bare null.
   // Normalize a nullish value to the right empty container so it satisfies the
-  // parameter request value type (which does not accept null).
+  // request value type (which does not accept null).
   const normalized: Record<string, unknown> | unknown[] =
     value == null ? (key === 'field_overlay' ? {} : []) : (value as Record<string, unknown> | unknown[]);
 
+  // `field_overlay` drives `config#fields` — repointed to the SAM write path (Requirement 13.1).
+  // The request body is the SAM `config#fields` shape (`fields` / `overrides` / `functional_groups`,
+  // which the field_overlay object already carries — NO `default_page_size`, retired per Req 25).
+  if (key === 'field_overlay') {
+    try {
+      const result = await writeFieldConfig(normalized);
+      // The SAM write is authoritative (Requirement 13.2): the returned version is the authored
+      // state — no pending-projection polling, so no `projected`/`projection_error` is surfaced.
+      return { success: result.success !== false };
+    } catch (e) {
+      // Surface a caller-safe message; the Members API throws a structured ApiError on non-2xx.
+      const error = e instanceof ApiError || e instanceof Error ? e.message : String(e);
+      return { success: false, error };
+    }
+  }
+
+  // `scope_dimensions` (and any other key) stays on the Flask parameter-admin path for now.
   // A row with a real numeric id + tenant origin can be updated in place.
   if (existing && existing.id != null && existing.scope_origin === 'tenant') {
     return updateParameter(existing.id, { value: normalized, value_type: 'json' });
