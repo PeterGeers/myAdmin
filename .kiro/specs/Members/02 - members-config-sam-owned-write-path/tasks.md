@@ -303,7 +303,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_user_tenant_scope_service.py -q`
     - _Requirements: 22.1, 22.2, 22.3, 22.4, 22.5, 22.6, 26.1, 26.2, 26.3_
 
-  - [ ] 3.2 SAM scope equivalence + round-trip test
+  - [x] 3.2 SAM scope equivalence + round-trip test
     - Update/create `sam/tests/test_scope_equivalence_props.py`
     - **Property 1: Round-trip write/read equivalence (config#scope)** — after `put_config('scope', ...)`,
       `get_scope_config` returns equivalent dimensions; empty-dimensions resolves tenant-wide
