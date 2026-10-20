@@ -596,7 +596,10 @@
   "pagination": {
     "previous": "Vorige",
     "next": "Volgende",
-    "pageOf": "Pagina {{page}} van {{total}}"
+    "pageOf": "Pagina {{page}} van {{total}}",
+    "rowsPerPage": "Rijen per pagina",
+    "max": "Max",
+    "showing": "{{count}} getoond"
   },
   "publicApplication": {
     "notAvailable": {

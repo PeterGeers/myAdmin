@@ -98,9 +98,12 @@ from sam.members.domain.default_page_size import DefaultPageSizeProvider
 
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
+    ConfigWriteValidationError,
+    CursorError,  # noqa: F401 (surface compat: tests reach app.CursorError)
     MailRunNotFound,
     RouteNotImplemented,
     dispatch_route,
+    get_config_write_service,  # noqa: F401 (surface compat: tests reach app.get_config_write_service)
     get_execute_and_deliver_service,  # noqa: F401 (surface compat: tests reach app.get_execute_and_deliver_service)
     get_mail_run_status_service,  # noqa: F401 (surface compat: tests reach app.get_mail_run_status_service)
     get_template_service,  # noqa: F401 (surface compat: tests reach app.get_template_service)
@@ -1294,6 +1297,25 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             code="errors.validation.failed",
             errors=_field_errors_array(exc.errors),
         )
+    except ConfigWriteValidationError as exc:
+        # A DELIBERATE, caller-safe config-write validation error (spec 02, Task 1.6): a
+        # `configId` outside the closed {fields, scope, mail} set (incl. `views`/unknown), or a
+        # malformed per-`configId` body. The write path was NOT entered. Mapped to a 400 with the
+        # explicit, caller-safe message (SAM-plane conventions, steering 35: a deliberate
+        # validation error keeps its message — only the caught-exception path below echoes
+        # nothing). This precedes the generic `except Exception` so a validation 400 is never
+        # mis-shaped as a 500.
+        return _error(
+            400,
+            str(exc),
+            code="errors.validation.failed",
+        )
+    except CursorError:
+        # A client-supplied paging cursor (Req 25) that is malformed, stale, or does not belong
+        # to the active tenant (a tampered cursor that tries to resume in another tenant's
+        # partition — Property 1). It is a BAD REQUEST, not a server fault, and never a silent
+        # cross-tenant read: a caller-safe 400 with a stable code, no internals.
+        return _error(400, "Invalid paging cursor", code="errors.api.badRequest")
     except KeyError as exc:
         # A resolved route missing an expected path param (defensive — the router only
         # matches when the {param} segments are present).

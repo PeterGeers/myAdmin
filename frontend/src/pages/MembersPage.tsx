@@ -29,9 +29,10 @@
  *
  * STRUCTURE (code-quality-fixes 2026-10-15, task 6): this page was 1161 lines; it
  * now COMPOSES cohesive overview pieces extracted under
- * `components/members/overview/` — the data-loading hook (`useMembersData`), the
- * unified column model (`useMembersColumns`), the client-side pager
- * (`useMembersPagination`), the bulk-selection hook (`useMembersSelection`), and
+ * `components/members/overview/` — the config/prefs hook (`useMembersData`), the
+ * unified column model (`useMembersColumns`), the rows-per-page selector + cursor
+ * pager (`useMembersCursorPaging`, Req 25), the bulk-selection hook
+ * (`useMembersSelection`), and
  * the presentational `MembersToolbar` / `MembersStatsStrip` / `MembersTable` /
  * `MembersPaginationBar`. Behaviour is identical; the default export + import
  * surface are unchanged so routing/consumers are unaffected.
@@ -64,7 +65,7 @@ import { formFields, groupFieldsBySection } from '../components/members/fieldFor
 import { resolveLabel } from '../components/members/overview/membersOverviewModel';
 import { useMembersData } from '../components/members/overview/useMembersData';
 import { useMembersColumns } from '../components/members/overview/useMembersColumns';
-import { useMembersPagination } from '../components/members/overview/useMembersPagination';
+import { useMembersCursorPaging } from '../components/members/overview/useMembersCursorPaging';
 import { useMembersSelection } from '../components/members/overview/useMembersSelection';
 import { MembersToolbar } from '../components/members/overview/MembersToolbar';
 import { MembersInboxBar } from '../components/members/overview/MembersInboxBar';
@@ -80,17 +81,30 @@ const MembersPage: React.FC = () => {
   const { hasAnyRole } = useAuth();
   const lang = (i18n?.language || 'nl').slice(0, 2);
 
-  // ── Data loading (members / field config / membership types / column prefs) ──
+  // ── Config / membership types / column prefs (no longer the members list) ────
   const {
-    members,
     fieldConfig,
     membershipTypes,
-    loading,
     chosenKeys,
-    userPageSize,
-    loadMembers,
     handleColumnsChange,
   } = useMembersData(t);
+
+  // ── Members list: DynamoDB cursor paging driven by the rows-per-page selector ─
+  // (spec 02, Task 1.17 / Req 25). `members` is ONE server page; prev/next walk
+  // the opaque LastEvaluatedKey cursor the read path returns. The filter/sort/
+  // search toolkit below narrows WITHIN the current server page. `reload()`
+  // re-fetches from the first page after a create/edit/delete.
+  const {
+    members,
+    loading,
+    pageSize,
+    setPageSize,
+    canNext,
+    canPrev,
+    goNext,
+    goPrev,
+    reload: loadMembers,
+  } = useMembersCursorPaging(t);
 
   // Global all-fields search (member-field-search Option 1). A single free-text
   // query matched against EVERY candidate field of each row — including nested
@@ -157,14 +171,11 @@ const MembersPage: React.FC = () => {
     onColumnsChange: handleColumnsChange,
   });
 
-  // ── Client-side pagination over the filtered/sorted set ──────────────────────
-  const {
-    pageIndex,
-    setPageIndex,
-    pageSize,
-    pageCount,
-    visibleData,
-  } = useMembersPagination(processedData, userPageSize, fieldConfig);
+  // ── Visible rows = the filtered/sorted CURRENT server page (Req 25) ──────────
+  // With DynamoDB cursor paging the page already holds exactly one server page;
+  // the shared toolkit's filter/sort/search narrows WITHIN that page. There is no
+  // client-side slice — prev/next walk the server cursor (no SQL-style offset).
+  const visibleData = processedData;
 
   const columnSortDirection = (field: string): 'asc' | 'desc' | null =>
     sortField === field ? sortDirection : null;
@@ -335,13 +346,16 @@ const MembersPage: React.FC = () => {
         t={t}
       />
 
-      {/* Client-side prev/next pager (mirrors the ZZPTrips footer pattern). */}
+      {/* Rows-per-page selector (50/100/250/500/Max) + cursor prev/next (Req 25). */}
       <MembersPaginationBar
         loading={loading}
         pageSize={pageSize}
-        pageIndex={pageIndex}
-        pageCount={pageCount}
-        setPageIndex={setPageIndex}
+        onPageSizeChange={setPageSize}
+        canNext={canNext}
+        canPrev={canPrev}
+        onNext={goNext}
+        onPrev={goPrev}
+        pageItemCount={visibleData.length}
         t={t}
       />
 

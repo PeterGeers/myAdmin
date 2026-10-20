@@ -82,6 +82,16 @@ class FakeMembersRepository:
             dict(m) for (t, _mid), m in self.members.items() if t == tenant_id
         ]
 
+    def list_members_page(self, tenant_id, *, limit=None, start_key=None, filters=None):
+        # One in-memory page mirroring list_members; honours `limit`, returns
+        # (members, last_evaluated_key). The fake holds no real cursor state, so the
+        # next-page key is always None (single page) — enough to satisfy the Protocol
+        # and the read tests (cursor-walk behaviour is covered by the SAM repo prop test).
+        rows = [dict(m) for (t, _mid), m in self.members.items() if t == tenant_id]
+        if limit is not None:
+            rows = rows[:limit]
+        return rows, None
+
     def get_membership(self, tenant_id, member_id, membership_id):
         return self.memberships.get((tenant_id, member_id, membership_id))
 

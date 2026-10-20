@@ -11,6 +11,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getCurrentAuthTokens } from './authService';
 import {
   listMembers,
+  listMembersPage,
   searchMembers,
   getMember,
   createMember,
@@ -166,6 +167,107 @@ describe('membersApiService', () => {
         createMockResponse({ body: { data: cfg } }),
       );
       await expect(getFieldConfig()).resolves.toEqual(cfg);
+    });
+  });
+
+  // ── Rows-per-page selector + DynamoDB cursor paging (spec 02, Task 1.17) ──────
+  //
+  // `listMembersPage` is the Req-25 read wrapper: it sends `?page_size=` (a fixed
+  // option → Query Limit, `'max'` → one page no Limit) + an optional `?cursor=`,
+  // unwraps the `{ data: { items, cursor } }` envelope, flattens each record, and
+  // surfaces the opaque next-page cursor (`null` on the final page → Next disabled).
+  //
+  // **Validates: Requirement 25** (25.2, 25.3, 25.4, 25.5, 25.10)
+  describe('listMembersPage (cursor paging, Req 25)', () => {
+    it('sends ?page_size=<fixed> and unwraps {data:{items,cursor}}, flattening rows', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({
+          body: {
+            data: {
+              items: [
+                {
+                  member_id: 'M-1',
+                  personal: { first_name: 'Jan', last_name: 'Jansen', email: 'm1@h-dcn.example' },
+                  membership: { status: 'active', membership_type: 'regulier' },
+                  overlay: { region: 'Noord' },
+                },
+              ],
+              cursor: 'CUR-NEXT',
+            },
+          },
+        }),
+      );
+
+      const page = await listMembersPage({ pageSize: 100 });
+
+      const [url] = fetchCall();
+      expect(url).toBe(`${BASE}/members?page_size=100`);
+      // The opaque next-page cursor is surfaced (Next enabled, R25.5).
+      expect(page.cursor).toBe('CUR-NEXT');
+      // Rows are flattened to the flat `Member` shape like `listMembers`.
+      expect(page.items[0]).toMatchObject({
+        member_id: 'M-1',
+        name: 'Jan Jansen',
+        email: 'm1@h-dcn.example',
+        status: 'active',
+        region: 'Noord',
+      });
+    });
+
+    it('sends page_size=max for the Max option (one page, no Limit — R25.3)', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: { items: [], cursor: null } } }),
+      );
+
+      await listMembersPage({ pageSize: 'max' });
+
+      const [url] = fetchCall();
+      expect(url).toBe(`${BASE}/members?page_size=max`);
+    });
+
+    it('round-trips the opaque cursor back as ?cursor= on the next request (R25.4)', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: { items: [], cursor: null } } }),
+      );
+
+      await listMembersPage({ pageSize: 50, cursor: 'OPAQUE+CUR/=' });
+
+      const [url] = fetchCall();
+      // The cursor is URL-encoded as a query param (opaque to the client).
+      expect(url).toBe(`${BASE}/members?page_size=50&cursor=OPAQUE%2BCUR%2F%3D`);
+    });
+
+    it('omits ?cursor= on the first page (no cursor supplied)', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: { items: [], cursor: null } } }),
+      );
+
+      await listMembersPage({ pageSize: 250, cursor: null });
+
+      const [url] = fetchCall();
+      expect(url).toBe(`${BASE}/members?page_size=250`);
+    });
+
+    it('normalises a non-string cursor to null (final page → Next disabled, R25.5/R25.6)', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: { items: [{ member_id: 'M-9' }], cursor: null } } }),
+      );
+
+      const page = await listMembersPage({ pageSize: 500 });
+
+      expect(page.cursor).toBeNull();
+      expect(page.items).toHaveLength(1);
+    });
+
+    it('normalises a missing/non-array items bucket to [] (defensive on shape)', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        createMockResponse({ body: { data: { cursor: 'C' } } }),
+      );
+
+      const page = await listMembersPage({ pageSize: 50 });
+
+      expect(page.items).toEqual([]);
+      expect(page.cursor).toBe('C');
     });
   });
 });
