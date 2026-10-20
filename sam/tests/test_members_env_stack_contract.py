@@ -255,10 +255,17 @@ def test_governance_projection_write_is_a_single_scoped_putitem(template):
     Members role now holds EXACTLY ONE write statement on the projection —
     ``MembersWriteGovernanceProjectionConfig`` — granting ONLY ``dynamodb:PutItem`` (no
     Update/Delete/BatchWrite anywhere on the projection — least privilege, R4.5), scoped to the
-    exact projection table ARN in this account/region, and pinned to the caller's tenant via a
-    ``dynamodb:LeadingKeys`` condition (R4.3). This REPLACES the old read-only invariant: the
-    projection is no longer a one-way read, but its write surface is a single, audited,
-    tenant-scoped PutItem.
+    exact projection table ARN in this account/region. This REPLACES the old read-only invariant:
+    the projection is no longer a one-way read, but its write surface is a single, audited,
+    least-privilege PutItem.
+
+    Tenant isolation (R4.3) is APPLICATION-LAYER, NOT an IAM ``LeadingKeys`` condition: the
+    write_config route resolves ``tenant_id`` from the verified token and
+    ``MembersConfigWriteRepository.put_config`` pins it as the partition key. A
+    ``${aws:PrincipalTag/tenant_id}`` LeadingKeys pin is unsatisfiable on the single SHARED Members
+    Lambda role (no per-tenant principal tag) — it would deny every PutItem — so this grant is
+    deliberately UNCONDITIONED, matching the sibling read statement and the documented
+    ``LEADING_KEYS_IAM_POLICY_PLAN`` (plan-only, undeployed).
     """
     destructive = {
         "dynamodb:UpdateItem",
@@ -284,11 +291,11 @@ def test_governance_projection_write_is_a_single_scoped_putitem(template):
     assert write_stmt["Sid"] == "MembersWriteGovernanceProjectionConfig"
     # PutItem ONLY — no other verb rides along on the write grant (R4.5).
     assert set(_actions_list(write_stmt)) == {"dynamodb:PutItem"}
-    # Tenant pin (R4.3): LeadingKeys constrains the partition to the caller's tenant.
-    leading_keys = write_stmt["Condition"]["ForAllValues:StringEquals"][
-        "dynamodb:LeadingKeys"
-    ]
-    assert leading_keys == ["${aws:PrincipalTag/tenant_id}"]
+    # Tenant isolation (R4.3) is application-layer, so the grant carries NO IAM Condition. A
+    # `${aws:PrincipalTag/tenant_id}` LeadingKeys pin is unsatisfiable on the shared Members
+    # Lambda role (no per-tenant principal tag) and would deny every PutItem — the route +
+    # repository pin the tenant partition in code instead (matches the sibling read statement).
+    assert "Condition" not in write_stmt
 
 
 # -----------------------------------------------------------------------------
