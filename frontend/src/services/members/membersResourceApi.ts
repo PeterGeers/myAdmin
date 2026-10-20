@@ -37,6 +37,7 @@ import type {
 import type { PivotConfig } from '../../types/pivot';
 import { fromBackendConfig, toBackendConfig } from '../pivotService';
 import { getJson, postJson, putJson, deleteJson, unwrapData } from './membersApiClient';
+import type { MembersPageSize } from './membersPageSize';
 
 // ============================================================================
 // Member flattening
@@ -173,12 +174,84 @@ function flattenMember(raw: unknown): Member {
  * flattens each nested member record to the flat `Member` shape. Returns a
  * `Member[]` regardless of the caller's generic `T` so the page's
  * `Array.isArray` check and flat field reads always resolve.
+ *
+ * LEGACY (no-paging) call shape — kept for every consumer that wants the full
+ * scope-narrowed list without opting into DynamoDB cursor paging. For the
+ * rows-per-page selector + cursor prev/next (Req 25) use {@link listMembersPage}.
  */
 export async function listMembers<T = Member[]>(): Promise<T> {
   const payload = await getJson<unknown>('/members');
   const rows = unwrapData<unknown>(payload);
   const list = Array.isArray(rows) ? rows : [];
   return list.map(flattenMember) as unknown as T;
+}
+
+// ============================================================================
+// Rows-per-page selector + DynamoDB cursor paging (Req 25, Task 1.17)
+// ============================================================================
+
+// The rows-per-page selector constants + type live in a standalone module
+// (`membersPageSize`) so UI code imports them directly even when a test
+// auto-mocks the `membersApiService` barrel. Re-exported here for barrel callers.
+export {
+  MEMBERS_FIXED_PAGE_SIZES,
+  MEMBERS_PAGE_SIZE_MAX,
+  MEMBERS_DEFAULT_PAGE_SIZE,
+} from './membersPageSize';
+export type { MembersPageSize } from './membersPageSize';
+
+/** One cursor page of members + the opaque next-page cursor (`null` on the final page). */
+export interface MembersCursorPage {
+  /** The flattened member rows for this page (scope-narrowed server-side). */
+  items: Member[];
+  /**
+   * The opaque next-page cursor to round-trip back on the NEXT request, or `null`
+   * when this was the final page (no `LastEvaluatedKey` → Next disabled,
+   * R25.5/R25.6). The client never parses it.
+   */
+  cursor: string | null;
+}
+
+/** Options for a cursor-paged members read (Req 25). */
+export interface ListMembersPageOptions {
+  /** The selected rows-per-page option (a fixed size or `'max'`). */
+  pageSize: MembersPageSize;
+  /** The opaque cursor from the previous page, or `null`/omitted for the first page. */
+  cursor?: string | null;
+}
+
+/**
+ * GET /members?page_size=&cursor= — ONE DynamoDB cursor page of members (Req 25).
+ *
+ * The rows-per-page selector + cursor prev/next read path. `pageSize` is sent as
+ * `?page_size=` — a fixed option (50/100/250/500) becomes the DynamoDB Query
+ * `Limit`; `'max'` omits the `Limit` so one page up to the natural ~1 MB boundary
+ * is returned (R25.2/R25.3). `cursor` (an opaque wire string from a prior page)
+ * is sent as `?cursor=` to resume AFTER that page; it is tenant-pinned + validated
+ * server-side (a tampered/foreign cursor is a 400, never a cross-tenant read).
+ *
+ * The paged route returns an enveloped `{ data: { items, cursor } }` object (NOT
+ * the bare array the legacy `listMembers` returns). We unwrap the envelope, flatten
+ * each nested record to the flat `Member` shape, and surface the opaque next-page
+ * `cursor` (`null` on the final page → Next disabled). Defensive on shape: a
+ * missing/non-array `items` normalises to `[]`, a non-string `cursor` to `null`.
+ */
+export async function listMembersPage(
+  options: ListMembersPageOptions
+): Promise<MembersCursorPage> {
+  const params = new URLSearchParams();
+  params.set('page_size', String(options.pageSize));
+  if (options.cursor) {
+    params.set('cursor', options.cursor);
+  }
+  const payload = await getJson<unknown>(`/members?${params.toString()}`);
+  const page = unwrapData<unknown>(payload);
+  const bucket = (page ?? {}) as { items?: unknown; cursor?: unknown };
+  const rows = Array.isArray(bucket.items) ? bucket.items : [];
+  return {
+    items: rows.map(flattenMember),
+    cursor: typeof bucket.cursor === 'string' && bucket.cursor ? bucket.cursor : null,
+  };
 }
 
 /** POST /members/search — filtered member search. */

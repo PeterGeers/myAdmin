@@ -299,6 +299,49 @@ class TestGetOverlay:
 
         assert overlay.overrides["personal.street"].functional_group == "address"
 
+    def test_get_overlay_override_sources_enum_options_from_choices(self):
+        """A fixed-enum override's values authored under ``choices`` reach ``options`` (regression).
+
+        The authoring UI (field_overlay) and the legacy Flask builder write a fixed enum field's
+        value list (e.g. ``membership.status``) under ``choices`` ([{value,label}]), not
+        ``options``. The reader must source the override's ``options`` from ``choices`` when
+        ``options`` is absent — else a tenant-authored value (here ``died``) is silently dropped and
+        ``FieldResolver`` falls back to the fixed field's base choices (the config#fields enum-choices
+        data-loss on read; findings.md).
+        """
+        table = FakeTable()
+        overrides = {
+            "membership.status": {
+                "choices": [
+                    {"value": "active", "label": {"nl": "Actief", "en": "Active"}},
+                    {"value": "died", "label": {"nl": "Overleden", "en": "Died"}},
+                ]
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        overlay = reader.get_overlay("h-dcn")
+
+        opts = overlay.overrides["membership.status"].options
+        assert opts is not None
+        assert tuple(o.value for o in opts) == ("active", "died")
+
+    def test_get_overlay_override_options_takes_precedence_over_choices(self):
+        """When BOTH ``options`` and ``choices`` are present on an override, ``options`` wins."""
+        table = FakeTable()
+        overrides = {
+            "membership.status": {
+                "options": [{"value": "from_options"}],
+                "choices": [{"value": "from_choices"}],
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        opts = reader.get_overlay("h-dcn").overrides["membership.status"].options
+        assert tuple(o.value for o in opts) == ("from_options",)
+
     def test_get_overlay_variable_field_carries_scope_attribute(self):
         """Phase 3 step 9 (R2.1): a projected field `scope` attribute → FieldScope (SAM read repr).
 

@@ -257,6 +257,60 @@ class ReadsMixin:
             if self._in_scope(m, allowed_scopes)
         ]
 
+    def list_members_page(
+        self,
+        tenant_id: str,
+        allowed_scopes: Mapping[str, Sequence[str]],
+        *,
+        page_size: int | None = None,
+        cursor: str | None = None,
+        filters: Mapping[str, Any] | None = None,
+    ) -> tuple[list[Member], str | None]:
+        """One cursor page of the tenant's members + the opaque next-page cursor (Req 25).
+
+        The DynamoDB-native cursor-paging read (distinct from :meth:`list_members`, which drains
+        the whole partition). It:
+
+        1. DECODES ``cursor`` back to a DynamoDB ``ExclusiveStartKey`` via the cursor codec,
+           which ENFORCES tenant isolation — a tampered/stale cursor naming another tenant (or
+           omitting the partition key) raises :class:`CursorError` and never resumes there
+           (Property 1). ``None`` / blank = the first page.
+        2. Asks the repository for ONE page (:meth:`MembersRepository.list_members_page`):
+           ``page_size`` set (a fixed Rows_Per_Page option 50/100/250/500, R25.2) is the Query
+           ``Limit``; ``page_size`` ``None`` (the ``Max`` option, R25.3) omits the ``Limit`` so
+           DynamoDB returns one page up to its natural ~1 MB boundary (``Max`` is one Query
+           page, NOT all rows).
+        3. NARROWS the returned page by ``allowed_scopes`` (the same per-dimension AND rule as
+           :meth:`list_members`, Property 4/6) and enriches calculated fields.
+        4. RE-ENCODES the raw DynamoDB ``LastEvaluatedKey`` to the opaque wire cursor the client
+           round-trips back for the NEXT page — ``None`` on the final page (no ``LastEvaluated
+           Key``), so the frontend's Next control is disabled (R25.5/R25.6). Prev/next walk this
+           cursor; there is no SQL-style offset or jump-to-page.
+
+        The ``Limit`` applies to the RAW DynamoDB page BEFORE the domain scope filter, so a
+        scope-narrowed caller may see fewer than ``page_size`` rows on a page while the cursor
+        still advances by the raw page — that is the honest DynamoDB-native page (prev/next
+        walks the raw cursor, never a post-filter count). A guaranteed-deny scope (empty map or
+        a ``[]`` dimension) returns ``([], None)`` without paging the repository at all.
+        """
+        from sam.members.repository.members_cursor import decode_cursor, encode_cursor
+
+        start_key = decode_cursor(cursor, tenant_id)
+        if not allowed_scopes or any(
+            self._is_deny(values) for values in allowed_scopes.values()
+        ):
+            # Deny-by-default: no scope grant → see nothing, no next page. Do not page the repo.
+            return [], None
+        members, last_key = self._repo.list_members_page(
+            tenant_id, limit=page_size, start_key=start_key, filters=filters
+        )
+        rows = [
+            self._enrich_calculated(m)
+            for m in members
+            if self._in_scope(m, allowed_scopes)
+        ]
+        return rows, encode_cursor(last_key)
+
     def export_members(
         self,
         tenant_id: str,

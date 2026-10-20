@@ -62,6 +62,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from sam.members.domain.config_write_service import ConfigWriteService
 from sam.members.domain.field_resolver import StaticOverlayProvider
 from sam.members.domain.membership_service import MembershipService
 from sam.members.domain.scope_dimensions import StaticScopeConfigProvider
@@ -84,6 +85,9 @@ from sam.members.migration.hdcn_backfill import (
 )
 from sam.members.migration.hdcn_catalog_seed import HDCN_MEMBERSHIP_TYPES
 from sam.members.repository.members_repository import DynamoDbMembersRepository
+from sam.members.repository.projection_config_write_repository import (
+    MembersConfigWriteRepository,
+)
 from sam.members.tenants.hdcn.hooks import register_hdcn_hooks
 
 # The faithful in-memory DynamoDB fake (transactional conditional writes + atomic counter)
@@ -394,10 +398,18 @@ class MembersParityHarness:
             self.mail_queue,
             MailSenderResolver(_CertifiedMailConfig()),
         )
+        # The SAM-owned config-write service (members-config-sam-owned-write-path Task 1.6)
+        # over a write repository backed by the SAME in-memory FakeDynamoTable — mirrors how
+        # production wires ConfigWriteService(MembersConfigWriteRepository()) but with no AWS,
+        # so the write_config walkthrough step writes config#* rows to the fake table.
+        self.config_write_service = ConfigWriteService(
+            MembersConfigWriteRepository(table=self.table)
+        )
         self._original_service_getter: Callable[[], MembershipService] | None = None
         self._original_template_getter: Callable[[], TemplateService] | None = None
         self._original_deliver_getter: Callable[[], Any] | None = None
         self._original_mail_run_status_getter: Callable[[], Any] | None = None
+        self._original_config_write_getter: Callable[[], Any] | None = None
         self._original_scope_config: Any = None
         self._original_overlay: Any = None
         self._original_grants: Any = None
@@ -444,6 +456,12 @@ class MembersParityHarness:
         dispatch_mod.get_execute_and_deliver_service = lambda: self.deliver_service  # type: ignore[assignment]
         self._original_mail_run_status_getter = dispatch_mod.get_mail_run_status_service
         dispatch_mod.get_mail_run_status_service = lambda: MailRunStatusService(self.repo)  # type: ignore[assignment]
+        # The config-write dispatch (members-config-sam-owned-write-path Task 1.6) resolves its
+        # service via dispatch_mod.get_config_write_service; point it at the harness's
+        # fake-table-backed service so the write_config walkthrough writes config#* rows to the
+        # in-memory FakeDynamoTable, never a live projection table.
+        self._original_config_write_getter = dispatch_mod.get_config_write_service
+        dispatch_mod.get_config_write_service = lambda: self.config_write_service  # type: ignore[assignment]
         app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
             {self.tenant_id: SAMPLE_SCOPE_CONFIG}
         )
@@ -466,6 +484,9 @@ class MembersParityHarness:
             if self._original_mail_run_status_getter is not None:
                 dispatch_mod.get_mail_run_status_service = self._original_mail_run_status_getter  # type: ignore[assignment]
                 self._original_mail_run_status_getter = None
+            if self._original_config_write_getter is not None:
+                dispatch_mod.get_config_write_service = self._original_config_write_getter  # type: ignore[assignment]
+                self._original_config_write_getter = None
             app._SCOPE_CONFIG_PROVIDER_OVERRIDE = self._original_scope_config
             app._OVERLAY_PROVIDER_OVERRIDE = self._original_overlay
             app._SCOPE_GRANTS_READER_OVERRIDE = self._original_grants
@@ -966,6 +987,23 @@ class MembersParityHarness:
                 {200},
                 {},
                 "delete a member",
+            ),
+            # ── SAM-owned config WRITE (members-config-sam-owned-write-path Task 1.6) ──
+            # The single write door for the three SAM-owned config#* rows. Gate: members:admin
+            # (Tenant_Admin) — the walkthrough's default admin caller (_ADMIN_CAPS) satisfies
+            # it. A valid configId (fields) + a well-formed body writes config#fields to the
+            # harness's fake table (the config-write service is wired over it in install()) and
+            # answers 200 with {success, configId, version}. The literal /members/config prefix
+            # is declared BEFORE /{member_id}, so it never collides.
+            (
+                "write_config",
+                "PUT",
+                "/members/config/fields",
+                {"fields": {}, "overrides": {}, "functional_groups": []},
+                None,
+                {200},
+                {},
+                "write a SAM-owned config row (config#fields) via the single write door",
             ),
             # ── Membership lifecycle (5 h-dcn behaviours — transition routes retired) ──
             (

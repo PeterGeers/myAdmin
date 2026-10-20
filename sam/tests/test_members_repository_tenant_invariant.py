@@ -85,7 +85,7 @@ class RecordingTable:
         item = self.store.get((Key[td.PARTITION_KEY_ATTR], Key[td.SORT_KEY_ATTR]))
         return {"Item": dict(item)} if item is not None else {}
 
-    def query(self, KeyConditionExpression=None, ExclusiveStartKey=None, IndexName=None):
+    def query(self, KeyConditionExpression=None, ExclusiveStartKey=None, IndexName=None, Limit=None):
         # ``IndexName`` is accepted so a GSI query — e.g. the name+DOB duplicate-flag lookup
         # (task 2.5, ``query_by_name_dob``) — records like any other query for the
         # tenant-partition invariant. The GSI's HASH key is ``tenant_id`` (Property 1), so
@@ -244,6 +244,7 @@ def _all_repository_operations(repo: DynamoDbMembersRepository):
     return {
         "get_member": lambda: repo.get_member(TENANT, "M-1"),
         "list_members": lambda: repo.list_members(TENANT),
+        "list_members_page": lambda: repo.list_members_page(TENANT, limit=50),
         "save_member": lambda: repo.save_member(TENANT, _member("M-1")),
         "delete_member": lambda: repo.delete_member(TENANT, "M-1"),
         "get_membership": lambda: repo.get_membership(TENANT, "M-1", "MS-1"),
