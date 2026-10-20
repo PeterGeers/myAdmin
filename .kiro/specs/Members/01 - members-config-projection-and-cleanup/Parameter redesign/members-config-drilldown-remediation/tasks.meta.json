@@ -1,0 +1,263 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Add/confirm a resolved-config read layer for the drill-down tables: derive the group list": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003265639
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003276948
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003694019
+      }
+    ],
+    "1.2 Label resolution (R4): resolve drill-down field/group labels from the served `label{}`": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003265757
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003771738
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792004284176
+      }
+    ],
+    "1.3 **Steering guardrail — rewrite `38` rule 6 (governance, in THIS change, R4.5).** Update": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003265844
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792004291056
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792004347650
+      }
+    ],
+    "2.1 `MembersFieldModal.formFromField`: seed `type` from the resolved `field.type` (NO silent": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003265928
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792004352968
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792004698614
+      }
+    ],
+    "2.2 Origin-aware write-back: `overlayModel` create/edit targets the right slice by": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003266053
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792004703642
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792005096055
+      }
+    ],
+    "3.1 SAM read-wire: add `scope` to `ResolvedField`; populate it in `_apply_override` /": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003266140
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792005100992
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792005416897
+      }
+    ],
+    "3.2 Flask single-vocabulary change: `_scope_dimensions_from_overlay` derives the dimension": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003266223
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792005422703
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792005850292
+      }
+    ],
+    "3.3 SPA scope section (single vocabulary): add `scope?: {enabled?, required_for?}` to": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003266317
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792005855435
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792006336137
+      }
+    ],
+    "4.1 `_map_fixed_override` / `_FIXED_OVERRIDE_FIELDS` carry `options` (+ coherent `choices`) and": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003266405
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792006341875
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792006605663
+      }
+    ],
+    "5.1 `functional_group` single source of truth: `MembersFieldModal.buildField` STOPS hardcoding": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003266487
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792006610682
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792006848407
+      }
+    ],
+    "6.1 Run the touched suites green: SPA MembersConfig folder + ParameterManagement; SAM": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003266574
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792006853881
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792007067108
+      }
+    ],
+    "6.2 **Properties P1–P5** close-out: display completeness (P1), scope round-trip (P2), scope": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003266655
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792007072240
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792007438258
+      }
+    ],
+    "7.1 Feature branch → PR into `test`; CodeQL + GitGuardian green; preview the prod changeset": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792003266739
+      },
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792007675367
+      }
+    ],
+    "1. Read the resolved `FieldConfig` for display (not the raw overlay)": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792004347775
+      }
+    ],
+    "2. Field modal seeds from the resolved field; writes back to the right overlay slice": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792005096148
+      }
+    ],
+    "3. Scope-as-field-attribute, single-vocabulary (R3)": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792006336292
+      }
+    ],
+    "4. Flask `config#fields` builder carries fixed-override attributes (R5, I-9)": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792006605814
+      }
+    ],
+    "5. Move-to-group persists through save": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792006848533
+      }
+    ],
+    "6. Verification + behaviour/data invariance": [
+      {
+        "executionId": "0155f7ce-814d-467e-9974-bdb9b6bb4da3",
+        "chatSessionId": "sess_af8d0da9-f0e4-457c-93f1-96fa09c91a98",
+        "timestamp": 1792007438360
+      }
+    ]
+  }
+}
