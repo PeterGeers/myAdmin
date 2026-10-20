@@ -143,9 +143,12 @@ def generate_toeristenbelasting_report(
 
         return {"success": True, "template_data": template_data, "raw_data": raw_data}
 
-    except Exception as e:
-        logger.error(f"Failed to generate Toeristenbelasting report: {e}")
-        return {"success": False, "error": str(e)}
+    except Exception:
+        logger.exception("Failed to generate Toeristenbelasting report")
+        return {
+            "success": False,
+            "error": "An internal error occurred. Please try again later.",
+        }
 
 
 def _get_configuration() -> dict[str, Any]:

@@ -117,19 +117,28 @@ def check_sql_injection(query, params=None) -> dict:
     """Check SQL query for potential injection vulnerabilities."""
     audit_result = {"query": query, "safe": True, "issues": [], "recommendations": []}
 
-    if "+" in query or "STRING_CONCAT" in query.upper():
+    # Bound the input before any regex pass. The patterns below (notably the
+    # ``VALUES\s*\(...\)`` scan) can backtrack on pathological inputs
+    # (py/polynomial-redos). Real audited queries are short; anything past a
+    # sane cap is scanned against a truncated copy so a crafted multi-megabyte
+    # string cannot drive the regex engine into super-linear backtracking.
+    # ``query`` in the result keeps the full original value for the caller.
+    _MAX_AUDIT_LEN = 10000
+    scan_query = query if len(query) <= _MAX_AUDIT_LEN else query[:_MAX_AUDIT_LEN]
+
+    if "+" in scan_query or "STRING_CONCAT" in scan_query.upper():
         audit_result["issues"].append(
             "Potential SQL injection: string concatenation detected"
         )
         audit_result["safe"] = False
 
-    if re.search(r"\bFROM\s+\w+\s*\+\s*\w+", query, re.IGNORECASE):
+    if re.search(r"\bFROM\s+\w+\s*\+\s*\w+", scan_query, re.IGNORECASE):
         audit_result["issues"].append(
             "Potential SQL injection: dynamic table name detected"
         )
         audit_result["safe"] = False
 
-    if params is None and re.search(r"VALUES\s*\([^)]*\)", query):
+    if params is None and re.search(r"VALUES\s*\([^)]*\)", scan_query):
         audit_result["issues"].append(
             "Potential SQL injection: inline VALUES detected without parameters"
         )
@@ -148,7 +157,7 @@ def check_sql_injection(query, params=None) -> dict:
     ]
 
     for pattern in injection_patterns:
-        if re.search(pattern, query, re.IGNORECASE):
+        if re.search(pattern, scan_query, re.IGNORECASE):
             audit_result["issues"].append(
                 f"Potential SQL injection pattern detected: {pattern}"
             )

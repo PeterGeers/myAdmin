@@ -1,9 +1,16 @@
 import json
+import logging
 import os
 from datetime import datetime
 
 from database import DatabaseManager
 from dialect_helpers import dialect
+
+logger = logging.getLogger(__name__)
+
+# Generic, caller-safe message returned instead of raw exception text; the full
+# exception is logged server-side (CodeQL py/stack-trace-exposure).
+_GENERIC_ERROR = "An internal error occurred. Please try again later."
 
 
 class DatabaseMigration:
@@ -226,8 +233,11 @@ class DatabaseMigration:
             try:
                 result = self.db.execute_query(query)
                 results.append({"query": query, "success": True, "result": result})
-            except Exception as e:
-                results.append({"query": query, "success": False, "error": str(e)})
+            except Exception:
+                logger.exception("Optimization query failed")
+                results.append(
+                    {"query": query, "success": False, "error": _GENERIC_ERROR}
+                )
 
         return results
 
@@ -258,8 +268,9 @@ class DatabaseMigration:
                         "index_count": len(indexes) if indexes else 0,
                     }
                     index_report.append(table_report)
-            except Exception as e:
-                index_report.append({"table": table, "error": str(e)})
+            except Exception:
+                logger.exception("Failed to read indexes for table %s", table)
+                index_report.append({"table": table, "error": _GENERIC_ERROR})
 
         return index_report
 
@@ -308,14 +319,17 @@ class DatabaseMigration:
                             "status": "exists",
                         }
                     )
-            except Exception as e:
+            except Exception:
+                logger.exception(
+                    "Failed to create index %s on table %s", index_name, table
+                )
                 results.append(
                     {
                         "table": table,
                         "index": index_name,
                         "columns": columns,
                         "status": "failed",
-                        "error": str(e),
+                        "error": _GENERIC_ERROR,
                     }
                 )
 
@@ -351,9 +365,14 @@ class DatabaseMigration:
                         "success": True,
                     }
                 )
-            except Exception as e:
+            except Exception:
+                logger.exception("Cleanup query failed")
                 results.append(
-                    {"query": query[:50] + "...", "success": False, "error": str(e)}
+                    {
+                        "query": query[:50] + "...",
+                        "success": False,
+                        "error": _GENERIC_ERROR,
+                    }
                 )
 
         return results
@@ -440,8 +459,9 @@ class QueryOptimizer:
 
             return analysis
 
-        except Exception as e:
-            return {"query": query, "error": str(e)}
+        except Exception:
+            logger.exception("Query analysis failed")
+            return {"query": query, "error": _GENERIC_ERROR}
 
     def optimize_query(self, query):
         """Suggest optimizations for a query"""

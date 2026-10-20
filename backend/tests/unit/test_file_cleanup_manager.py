@@ -5,14 +5,15 @@ These tests verify the correctness properties of file cleanup functionality
 using property-based testing with hypothesis to generate test cases.
 """
 
-import sys
 import os
-import pytest
-import tempfile
 import shutil
-from unittest.mock import Mock, patch
-from pathlib import Path
-from hypothesis import given, strategies as st, settings, assume
+import sys
+import tempfile
+from unittest.mock import patch
+
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", "src"))
 from file_cleanup_manager import FileCleanupManager
@@ -234,6 +235,58 @@ class TestFileCleanupManager:
             action.startswith("unsafe_path_rejected")
             for action in cleanup_context["recovery_actions"]
         )
+
+    def test_is_safe_path_accepts_in_base_file(
+        self, file_cleanup_manager, temp_storage
+    ):
+        """FileCleanupActions.is_safe_path accepts a path inside the storage base."""
+        in_base = os.path.join(temp_storage, "vendor", "file.pdf")
+        assert file_cleanup_manager._is_safe_path(in_base) is True
+
+    def test_is_safe_path_rejects_traversal_path(
+        self, file_cleanup_manager, temp_storage
+    ):
+        """is_safe_path rejects a ../-traversal path escaping the storage base.
+
+        This is the explicit realpath + base-dir guard that runs before every
+        os.remove / os.path.* call in cleanup_local_file (CodeQL py/path-injection).
+        """
+        escaping = os.path.join(temp_storage, "..", "..", "etc", "passwd")
+        assert file_cleanup_manager._is_safe_path(escaping) is False
+
+    def test_is_safe_path_rejects_sibling_prefix(
+        self, file_cleanup_manager, temp_storage
+    ):
+        """A sibling dir sharing a name prefix must not pass is_safe_path."""
+        sibling = os.path.join(temp_storage + "_evil", "file.pdf")
+        assert file_cleanup_manager._is_safe_path(sibling) is False
+
+    def test_cleanup_local_file_traversal_raises_security_error(
+        self, file_cleanup_manager, temp_storage
+    ):
+        """cleanup_local_file rejects a traversal path with SecurityError.
+
+        The guard short-circuits before os.path.exists / os.remove — the dangerous
+        filesystem sinks are never reached for an out-of-base path.
+        """
+        from file_cleanup_manager import SecurityError
+
+        escaping = os.path.join(temp_storage, "..", "..", "etc", "passwd")
+        with patch("file_cleanup_actions.os.remove") as mock_remove:
+            with pytest.raises(SecurityError):
+                file_cleanup_manager._cleanup_local_file(escaping, "op_traversal")
+            mock_remove.assert_not_called()
+
+    def test_cleanup_empty_parent_directory_skips_out_of_base(
+        self, file_cleanup_manager, temp_storage
+    ):
+        """Empty-parent cleanup never rmdir's a parent outside the storage base."""
+        escaping_file = os.path.join(temp_storage, "..", "..", "tmp", "x.pdf")
+        with patch("file_cleanup_actions.os.rmdir") as mock_rmdir:
+            file_cleanup_manager._cleanup_empty_parent_directory(
+                escaping_file, "op_parent"
+            )
+            mock_rmdir.assert_not_called()
 
     def test_recovery_allows_chmod_for_in_base_path(
         self, file_cleanup_manager, temp_storage

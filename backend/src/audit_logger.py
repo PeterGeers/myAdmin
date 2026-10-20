@@ -360,10 +360,10 @@ class AuditLogger:
             logger.info(f"Compliance report generated for {start_date} to {end_date}")
             return report
 
-        except Exception as e:
-            logger.error(f"Failed to generate compliance report: {e}")
+        except Exception:
+            logger.exception("Failed to generate compliance report")
             return {
-                "error": str(e),
+                "error": "An internal error occurred. Please try again later.",
                 "report_period": {
                     "start_date": start_date,
                     "end_date": end_date,
@@ -453,10 +453,10 @@ class AuditLogger:
             logger.info(f"User activity report generated for user: {user_id}")
             return report
 
-        except Exception as e:
-            logger.error(f"Failed to generate user activity report: {e}")
+        except Exception:
+            logger.exception("Failed to generate user activity report")
             return {
-                "error": str(e),
+                "error": "An internal error occurred. Please try again later.",
                 "user_id": user_id,
                 "report_period": {
                     "start_date": start_date or "all",
