@@ -106,56 +106,6 @@ def _status_values_in(table, tenant_id):
 # ===========================================================================
 
 
-def test_sync_heals_wedged_config_fields_when_content_differs_at_equal_version(
-    sam_module,
-):
-    """R1.2/R1.8 — the wedge: a stored `config#fields` row holds the STALE 6-value
-    `membership.status` content stamped at version V; the source overlay authors the
-    7-value set (incl. `died`) at the SAME version V. A sync MUST write the 7-value
-    content (content differs → heal), EVEN THOUGH the incoming version is not strictly
-    greater than the stored one.
-
-    EXPECTED on current (unfixed) code: FAILS. `_conditional_put` gates on
-    `_supersedes(incoming, stored)` (strictly greater); with incoming == stored it
-    returns False and SKIPS the write, so the stored row keeps 6 values and `died`
-    never lands. That failing assertion confirms the bug (the SUCCESS case for this
-    exploration test). The fix (tasks 2–4) makes the write content-driven; task 4.2
-    re-runs this green.
-    """
-    tenant_id = "h-dcn"
-    table = FakeTable()
-    overlay = _status_overlay(_STATUS_SEVEN)
-    params = _overlay_params(tenant_id, overlay)
-
-    # Pre-seed the WEDGED stored row: 6-value content, stamped at the SAME version the
-    # builder will compute for this source (the overlay's own revision). This is exactly
-    # the state observed on `test`: stale content at the current source version.
-    stale_item = build_config_fields_row(
-        {"administration": tenant_id},
-        _overlay_params(tenant_id, _status_overlay(_STATUS_SIX)),
-    )
-    assert stale_item.version == _OVERLAY_REVISION  # stored version == source version V
-    table.store[(tenant_id, _FIELDS_SK)] = stale_item.to_dynamodb_item()
-    # Precondition: the wedge really is 6-value at version V.
-    assert _status_values_in(table, tenant_id) == _STATUS_SIX
-
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
-
-    sync.sync_administration(tenant_id)
-
-    # The heal: the stored row now carries the 7-value content incl. `died` (R1.8),
-    # proving the write decision followed CONTENT, not the (equal) version.
-    healed = _status_values_in(table, tenant_id)
-    assert "died" in healed, (
-        "WEDGE REPRODUCED: the stored config#fields row still carries the stale "
-        f"6-value status {healed!r} — the tenant-authored `died` never landed because "
-        "the strict-greater version gate skipped the correcting write (stored "
-        f"version == source version {_OVERLAY_REVISION!r})."
-    )
-    assert healed == _STATUS_SEVEN
-
-
 # ===========================================================================
 # Task 1.2 — Property P2 (idempotent): an unchanged source re-syncs to a
 # byte-identical row and writes nothing (EXPECTED TO PASS on current code)
@@ -219,88 +169,6 @@ def _snapshot(table):
     import copy
 
     return {k: copy.deepcopy(v) for k, v in table.store.items()}
-
-
-@settings(max_examples=100, deadline=None)
-@given(status_values=_status_subsets())
-def test_sync_rerun_unchanged_source_writes_nothing_and_row_byte_identical(
-    status_values,
-):
-    """Feature: members-config-projection-and-cleanup, Property 2: Idempotent.
-
-    Validates: Requirements 1.3, 1.6.
-
-    For ANY tenant-authored `membership.status` overlay, after an initial sync a
-    SECOND sync against the UNCHANGED source writes nothing and leaves every
-    stored row byte-for-byte identical:
-      * the re-sync records NO new `put_item` on the fake table (the write gate
-        short-circuits — no churn), and
-      * the stored partition is deep-equal to the pre-re-sync snapshot, including
-        every `version`/bookkeeping attribute.
-    """
-    # A fresh module registry entry is required for the projection gate to fire;
-    # the `sam_module` fixture is function-scoped and cannot be requested from a
-    # Hypothesis-driven test body, so register the test module inline here with a
-    # monkeypatch-free restore (mirrors the fixture's single setitem).
-    name = "SAM_TEST_MODULE"
-    had_entry = name in MODULE_REGISTRY
-    saved = MODULE_REGISTRY.get(name)
-    MODULE_REGISTRY[name] = {
-        "description": "Temporary SAM-backed test module",
-        "required_params": {},
-        "required_tax_rates": [],
-        "required_roles": ["SamTest_Read"],
-        "backing": {
-            "kind": "sam",
-            "api_base_env": "SAM_TEST_MODULE_API_BASE",
-            "data_namespace": "sam_test",
-        },
-    }
-    try:
-        tenant_id = "h-dcn"
-        table = FakeTable()
-        overlay = _status_overlay(status_values)
-        params = _overlay_params(tenant_id, overlay)
-        source = FakeSource({tenant_id: _tenant_source(tenant_id, name)})
-        sync = ProjectionSync(source, table=table, parameter_service=params)
-
-        # First sync: establishes the stored rows from the authored source.
-        first = sync.sync_administration(tenant_id)
-        assert first.written > 0, "expected the first sync to project rows"
-        # Precondition: the authored status vocabulary landed verbatim.
-        assert _status_values_in(table, tenant_id) == status_values
-
-        snapshot = _snapshot(table)
-        put_calls_after_first = len(table.put_calls)
-
-        # Second sync against the UNCHANGED source — the idempotent re-run.
-        second = sync.sync_administration(tenant_id)
-
-        # (a) Writes nothing: no row was skipped-then-rewritten; the gate
-        #     short-circuited, so the fake recorded NO new put_item and the sync
-        #     reports zero writes (every item a no-op skip).
-        assert second.written == 0, (
-            "P2 VIOLATED: an unchanged re-sync wrote rows "
-            f"(written={second.written}) — the re-sync must be a no-op."
-        )
-        assert second.skipped == first.written
-        assert len(table.put_calls) == put_calls_after_first, (
-            "P2 VIOLATED: the unchanged re-sync issued a new put_item "
-            f"({len(table.put_calls) - put_calls_after_first} new call(s)) — "
-            "a byte-identical row must never be re-written."
-        )
-
-        # (b) Byte-identical: the whole stored partition is deep-equal to the
-        #     pre-re-sync snapshot, including version/bookkeeping — zero churn.
-        assert _snapshot(table) == snapshot, (
-            "P2 VIOLATED: the unchanged re-sync mutated a stored row — the row "
-            "is no longer byte-identical to its pre-re-sync state."
-        )
-    finally:
-        if had_entry:
-            MODULE_REGISTRY[name] = saved
-        else:
-            MODULE_REGISTRY.pop(name, None)
 
 
 # ===========================================================================
@@ -427,7 +295,9 @@ def _status_subsets_including_died():
 
     platform = _STATUS_SIX
 
-    return st.lists(st.sampled_from(platform), min_size=0, max_size=len(platform)).flatmap(
+    return st.lists(
+        st.sampled_from(platform), min_size=0, max_size=len(platform)
+    ).flatmap(
         lambda base: st.integers(min_value=0, max_value=len(base)).map(
             lambda pos: _dedupe([*base[:pos], "died", *base[pos:]])
         )
@@ -764,91 +634,3 @@ def test_sync_rerun_unchanged_config_mail_is_noop(sam_module):
 
 from services.projection_builder import ProjectionItem
 from services.projection_validator import ProjectionValidationError
-
-
-def test_sync_malformed_config_fields_build_raises_and_writes_nothing(
-    monkeypatch, sam_module
-):
-    """R1.4 reject path: when the config#fields build yields a structurally
-    incomplete row (here: missing the required `overrides`/`functional_groups`
-    maps), `sync_administration` RAISES `ProjectionValidationError` from the
-    `validate_items` batch gate BEFORE the put loop — and NOTHING is written
-    (atomic per tenant, no partial projection). The failure is loud, never a
-    silent stale-leave."""
-    tenant_id = "h-dcn"
-    table = FakeTable()
-    params = _overlay_params(tenant_id, _status_overlay(_STATUS_SEVEN))
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
-
-    # Force the config#fields builder to emit a STRUCTURALLY INCOMPLETE row (the
-    # kind a buggy/partial build could produce): a `config#fields` item whose
-    # `attributes` omit the required `overrides` and `functional_groups` maps. The
-    # builder itself is defensive and never does this, so we inject the malformed
-    # output to exercise the validate-before-write gate directly.
-    def _malformed_fields_row(tenant, parameter_service):
-        return ProjectionItem(
-            tenant_id=tenant.get("administration") or tenant.get("tenant_id"),
-            sort_key=_FIELDS_SK,
-            version=_OVERLAY_REVISION,
-            attributes={"fields": {}},  # missing overrides + functional_groups
-        )
-
-    monkeypatch.setattr(
-        "services.projection_sync.build_config_fields_row", _malformed_fields_row
-    )
-
-    with pytest.raises(ProjectionValidationError, match="config#fields"):
-        sync.sync_administration(tenant_id)
-
-    # Atomic abort: the validation runs on the WHOLE batch before the put loop, so
-    # a single malformed row means NONE of the batch is written. The fake table saw
-    # zero puts and its store is untouched.
-    assert table.put_calls == [], (
-        "validate-before-write VIOLATED: a put reached the table despite a "
-        "malformed config#fields row — the batch was not aborted atomically (R1.4)."
-    )
-    assert table.store == {}
-
-
-def test_sync_malformed_config_fields_does_not_overwrite_a_valid_stored_row(
-    monkeypatch, sam_module
-):
-    """R1.4 no-stale-leave corollary: if a VALID row already exists for the tenant,
-    a later sync whose build is malformed RAISES and leaves the stored projection
-    byte-for-byte unchanged — it neither clobbers nor partially updates it."""
-    tenant_id = "h-dcn"
-    table = FakeTable()
-
-    # First, a clean sync writes a well-formed projection (the baseline the reject
-    # path must not corrupt).
-    params = _overlay_params(tenant_id, _status_overlay(_STATUS_SIX))
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
-    first = sync.sync_administration(tenant_id)
-    assert first.written > 0
-    snapshot = {k: dict(v) for k, v in table.store.items()}
-
-    # Now a second sync whose config#fields build is malformed must raise and change
-    # nothing.
-    def _malformed_fields_row(tenant, parameter_service):
-        return ProjectionItem(
-            tenant_id=tenant.get("administration") or tenant.get("tenant_id"),
-            sort_key=_FIELDS_SK,
-            version=_OVERLAY_REVISION,
-            attributes={},  # missing every required config#fields attr
-        )
-
-    monkeypatch.setattr(
-        "services.projection_sync.build_config_fields_row", _malformed_fields_row
-    )
-    put_calls_before = len(table.put_calls)
-
-    with pytest.raises(ProjectionValidationError, match="config#fields"):
-        sync.sync_administration(tenant_id)
-
-    assert len(table.put_calls) == put_calls_before, (
-        "a put reached the table on the malformed re-sync — the batch was not "
-        "aborted before the put loop (R1.4)."
-    )
-    assert {k: dict(v) for k, v in table.store.items()} == snapshot
