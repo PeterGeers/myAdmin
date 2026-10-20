@@ -24,7 +24,6 @@ from services.module_registry import MODULE_REGISTRY
 from services.projection_sync import (
     DatabaseSourceProvider,
     ProjectionSync,
-    SyncResult,
     TenantSource,
     _supersedes,
     build_config_fields_row,
@@ -561,10 +560,47 @@ def _hdcn_region_dimension():
     }
 
 
-def test_build_config_scope_row_maps_authored_dimensions_to_row_shape():
-    """Authored members.scope_dimensions param → config#scope dimensions shape."""
+def _region_scope_overlay(values=("Noord", "Zuid", "Oost", "West")):
+    """A `members.field_overlay` whose `personal.region` fixed-override declares a `scope`
+    axis with enum `values` — the SINGLE authoring source config#scope derives from
+    (task 3.1). Used by the sync-level regression tests that formerly drove config#scope
+    through the removed standalone `members.scope_dimensions` param."""
+    return {
+        "fixed_overrides": {
+            "personal.region": {
+                "scope": {
+                    "enabled": True,
+                    "values": list(values),
+                    "label": {"nl": "Regio", "en": "Region"},
+                    "required_for": ["Members_CRUD"],
+                }
+            }
+        }
+    }
+
+
+def _hdcn_region_overlay():
+    """A ``members.field_overlay`` whose ``personal.region`` fixed-override declares a
+    ``scope`` axis equivalent to ``_hdcn_region_dimension()`` — the SINGLE authoring
+    source for config#scope now that the standalone-param fallback is removed (task 3.1)."""
+    return {
+        "fixed_overrides": {
+            "personal.region": {
+                "scope": {
+                    "enabled": True,
+                    "values": ["Noord", "Zuid", "Oost", "West"],
+                    "label": {"nl": "Regio", "en": "Region"},
+                    "required_for": ["Members_CRUD"],
+                }
+            }
+        }
+    }
+
+
+def test_build_config_scope_row_maps_authored_overlay_scope_to_row_shape():
+    """A field ``scope`` axis on the overlay → config#scope dimensions shape (R2.1)."""
     params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
+        {("members", "field_overlay", "h-dcn"): _hdcn_region_overlay()}
     )
 
     item = build_config_scope_row({"administration": "h-dcn", "version": 7}, params)
@@ -580,8 +616,12 @@ def test_build_config_scope_row_maps_authored_dimensions_to_row_shape():
     assert dynamo["dimensions"][0]["values"] == ["Noord", "Zuid", "Oost", "West"]
 
 
-def test_build_config_scope_row_no_param_yields_empty_dimensions():
-    """Empty-is-valid (R1.6): an un-configured tenant → empty dimensions, no raise."""
+def test_build_config_scope_row_no_overlay_scope_yields_empty_dimensions():
+    """Empty-is-valid (R1.6): an overlay with no scope axis → empty dimensions, no raise.
+
+    Task 3.1: the standalone ``members.scope_dimensions`` fallback is removed, so a tenant
+    with no overlay scope axis collapses to a tenant-wide (empty) config — even if a stale
+    standalone param still exists (it is no longer a source here)."""
     params = FakeParameterService({})  # nothing authored
 
     item = build_config_scope_row({"administration": "h-dcn"}, params)
@@ -592,10 +632,14 @@ def test_build_config_scope_row_no_param_yields_empty_dimensions():
     assert item.version == 0  # deterministic fallback when the row has no version
 
 
-def test_build_config_scope_row_partial_dimension_fills_safe_defaults():
-    """A partially-authored dimension still yields a well-formed entry."""
+def test_build_config_scope_row_partial_overlay_scope_fills_safe_defaults():
+    """A partially-authored field ``scope`` axis still yields a well-formed entry."""
     params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): [{"key": "region"}]}
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {"region": {"scope": {}}}
+            }
+        }
     )
 
     item = build_config_scope_row({"administration": "h-dcn"}, params)
@@ -604,33 +648,29 @@ def test_build_config_scope_row_partial_dimension_fills_safe_defaults():
     assert dim["key"] == "region"
     assert dim["enabled"] is True
     assert dim["values"] == []
-    assert dim["label"] == {}
-    assert dim["field"] is None
-    assert dim["required_for"] == []
     # s5d clean break: the Regio_* role encoding is gone — no all_wildcard/multi_valued keys.
     assert "all_wildcard" not in dim
     assert "multi_valued" not in dim
 
 
-def test_build_config_scope_row_issues_zero_writes_and_reads_tenant_scope():
-    """One-directional (Property 1): only tenant-scoped READS, zero writes.
+def test_build_config_scope_row_issues_zero_writes_and_reads_only_the_overlay():
+    """One-directional (Property 1): only a tenant-scoped READ of the overlay, zero writes.
 
-    Phase 3 step 9: the builder reads the field_overlay FIRST (scope-as-field-attribute, the
-    canonical authoring surface) and falls back to the standalone scope_dimensions param — both
-    tenant-scoped READS, both on this tenant's members.* namespace, no writes.
+    Task 3.1: config#scope derives SOLELY from the ``members.field_overlay`` field ``scope``
+    attributes — the standalone ``members.scope_dimensions`` fallback read is REMOVED, so the
+    builder issues exactly ONE tenant-scoped read, on this tenant's ``field_overlay``.
     """
     params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
+        {("members", "field_overlay", "h-dcn"): _hdcn_region_overlay()}
     )
 
     build_config_scope_row({"administration": "h-dcn"}, params)
 
-    # Two reads (overlay-first, then the standalone fallback), both scoped to this tenant's
-    # members.* params. No field scope authored → the fallback drives the row.
+    # Exactly one read — the overlay. The standalone scope_dimensions param is NOT read.
     assert params.calls == [
         {"namespace": "members", "key": "field_overlay", "tenant": "h-dcn"},
-        {"namespace": "members", "key": "scope_dimensions", "tenant": "h-dcn"},
     ]
+    assert not any(c["key"] == "scope_dimensions" for c in params.calls)
 
 
 def test_build_config_scope_row_missing_tenant_key_raises():
@@ -639,10 +679,10 @@ def test_build_config_scope_row_missing_tenant_key_raises():
         build_config_scope_row({}, FakeParameterService({}))
 
 
-def test_build_config_scope_row_non_list_param_treated_as_empty():
-    """A malformed (non-list) authored value degrades to empty, never raises."""
+def test_build_config_scope_row_non_overlay_param_treated_as_empty():
+    """A malformed (non-mapping) overlay value degrades to empty, never raises."""
     params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): "not-a-list"}
+        {("members", "field_overlay", "h-dcn"): "not-a-mapping"}
     )
 
     item = build_config_scope_row({"administration": "h-dcn"}, params)
@@ -652,12 +692,12 @@ def test_build_config_scope_row_non_list_param_treated_as_empty():
 
 # --- Phase 3 step 9 (R2.1/R2.5): scope-binding authored as a field attribute ----------
 #
-# The authoring representation moves from the standalone members.scope_dimensions list onto a
-# `scope` attribute on a members.field_overlay field. The builder DERIVES config#scope from
-# those field attributes, keeping the projected row — and so the resolver's ScopeConfig —
-# SEMANTICALLY EQUIVALENT (Property 2). The standalone param stays the fallback source so the
-# scopegrant grants / grant-validation / picker (which read members.scope_dimensions) are
-# untouched (R2.3/R2.4).
+# Scope-binding is authored as a `scope` attribute on a members.field_overlay field. The
+# builder DERIVES config#scope from those field attributes — the SINGLE authoring source
+# (task 3.1 removed the standalone members.scope_dimensions fallback, the dead-toggle defect).
+# The standalone members.scope_dimensions param is NOT read by the builder anymore and is NOT
+# deleted: it persists as the frontend-written DERIVED MIRROR (task 3.1a) that the scopegrant
+# grants / grant-validation / picker keep reading UNCHANGED (R2.3/R2.4).
 
 
 def test_build_config_scope_row_derives_dimensions_from_fixed_field_scope_attribute():
@@ -684,33 +724,21 @@ def test_build_config_scope_row_derives_dimensions_from_fixed_field_scope_attrib
     assert item.attributes["dimensions"] == [_hdcn_region_dimension()]
 
 
-def test_build_config_scope_row_derived_equals_standalone_scope_dimensions():
-    """Property 2 (semantic equivalence): field-authored scope projects the SAME row as the
-    equivalent standalone members.scope_dimensions."""
+def test_build_config_scope_row_overlay_scope_projects_canonical_dimension_shape():
+    """The field-authored ``scope`` axis is the SINGLE source and projects the canonical
+    ``config#scope`` dimension shape the resolver's ``ScopeConfig`` consumes.
+
+    (Was the Property-2 ``derived == standalone`` equivalence test; the standalone
+    ``members.scope_dimensions`` fallback is removed in task 3.1, so there is now ONE
+    authoring source — the overlay — and equivalence to a second source is moot. The
+    canonical-shape guarantee is preserved here.)"""
     overlay_params = FakeParameterService(
-        {
-            ("members", "field_overlay", "h-dcn"): {
-                "fixed_overrides": {
-                    "personal.region": {
-                        "scope": {
-                            "enabled": True,
-                            "values": ["Noord", "Zuid", "Oost", "West"],
-                            "label": {"nl": "Regio", "en": "Region"},
-                            "required_for": ["Members_CRUD"],
-                        }
-                    }
-                }
-            }
-        }
-    )
-    standalone_params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
+        {("members", "field_overlay", "h-dcn"): _hdcn_region_overlay()}
     )
 
     derived = build_config_scope_row({"administration": "h-dcn"}, overlay_params)
-    standalone = build_config_scope_row({"administration": "h-dcn"}, standalone_params)
 
-    assert derived.attributes["dimensions"] == standalone.attributes["dimensions"]
+    assert derived.attributes["dimensions"] == [_hdcn_region_dimension()]
 
 
 def test_build_config_scope_row_derives_from_variable_field_scope_attribute():
@@ -810,26 +838,34 @@ def test_build_config_scope_row_honours_legacy_scope_values_when_no_enum():
     assert item.attributes["dimensions"][0]["values"] == ["Noord", "Zuid"]
 
 
-def test_build_config_scope_row_falls_back_to_standalone_param_when_no_field_scope():
-    """A tenant that has not moved authoring onto fields still drives config#scope from the
-    standalone members.scope_dimensions param (R2.4 — grant machinery untouched)."""
+def test_build_config_scope_row_ignores_standalone_param_when_no_field_scope():
+    """Task 3.1 (dead-toggle fix): an overlay with NO scope axis collapses to empty
+    (tenant-wide), IGNORING any stale standalone ``members.scope_dimensions`` param.
+
+    The removed fallback used to let a standalone param silently drive the row even when
+    the overlay declared no scope axis — masking the fact that the overlay toggle was the
+    real source. The standalone param is kept only as the frontend-written mirror the grant
+    machinery reads (R2.4); it is NOT a source for config#scope here."""
     params = FakeParameterService(
         {
             # An overlay with NO scope attribute on any field.
             ("members", "field_overlay", "h-dcn"): {
                 "fields": {"motor_type": {"type": "string"}}
             },
+            # A stale standalone param that MUST be ignored now the fallback is removed.
             ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
         }
     )
 
     item = build_config_scope_row({"administration": "h-dcn"}, params)
 
-    assert item.attributes["dimensions"] == [_hdcn_region_dimension()]
+    assert item.attributes["dimensions"] == []
+    assert not any(c["key"] == "scope_dimensions" for c in params.calls)
 
 
-def test_build_config_scope_row_field_scope_takes_precedence_over_standalone_param():
-    """When the overlay declares a scope axis, it drives the row (the two are not merged)."""
+def test_build_config_scope_row_overlay_is_the_only_source():
+    """The overlay scope axis is the SINGLE source: a stale standalone param is IGNORED
+    (never merged, never read) now the fallback is removed (task 3.1)."""
     params = FakeParameterService(
         {
             ("members", "field_overlay", "h-dcn"): {
@@ -839,7 +875,7 @@ def test_build_config_scope_row_field_scope_takes_precedence_over_standalone_par
                     }
                 }
             },
-            # A stale standalone param that must be IGNORED once field scope is authored.
+            # A stale standalone param that must be IGNORED — the overlay is the only source.
             ("members", "scope_dimensions", "h-dcn"): [
                 {"key": "season", "values": ["2024"]}
             ],
@@ -850,6 +886,7 @@ def test_build_config_scope_row_field_scope_takes_precedence_over_standalone_par
 
     keys = [d["key"] for d in item.attributes["dimensions"]]
     assert keys == ["region"]
+    assert not any(c["key"] == "scope_dimensions" for c in params.calls)
 
 
 # --- C2 config#fields builder (S5b design.md C2, R1.3) ---------------------
@@ -1562,12 +1599,13 @@ def test_build_config_fields_row_versions_off_param_revision_when_present():
 
 
 def test_build_config_scope_and_fields_version_off_their_source_params():
-    """Each config row versions off ITS OWN source param set (Phase 3 step 9).
+    """Each config row versions off ITS OWN source param set.
 
-    After scope-as-field-attribute, config#scope is driven by BOTH field_overlay (the new
-    authoring surface) AND scope_dimensions (the fallback source), so an edit to EITHER bumps
-    it — the version is the MAX of their revisions. config#fields is driven by field_overlay
-    (+ default_page_size). A scope_dimensions-only edit must NOT bump config#fields.
+    Task 3.1: config#scope derives SOLELY from field_overlay (the standalone
+    scope_dimensions fallback is removed), so config#scope versions off field_overlay
+    ONLY — a (now-higher) scope_dimensions revision is IGNORED and must NOT bump it.
+    config#fields is likewise driven by field_overlay. A scope_dimensions-only edit must
+    bump NEITHER row.
     """
     params = FakeParameterService(
         params={
@@ -1578,7 +1616,9 @@ def test_build_config_scope_and_fields_version_off_their_source_params():
             },
         },
         revisions={
-            ("members", "scope_dimensions", "h-dcn"): "2026-05-01T00:00:00",
+            # Deliberately HIGHER than field_overlay — if it were still a source the
+            # config#scope version would be 07-01; it must stay at field_overlay's 06-01.
+            ("members", "scope_dimensions", "h-dcn"): "2026-07-01T00:00:00",
             ("members", "field_overlay", "h-dcn"): "2026-06-01T00:00:00",
         },
     )
@@ -1587,14 +1627,16 @@ def test_build_config_scope_and_fields_version_off_their_source_params():
     scope = build_config_scope_row(tenant, params)
     fields = build_config_fields_row(tenant, params)
 
-    # config#scope: max(field_overlay=06-01, scope_dimensions=05-01) = 06-01.
+    # config#scope: field_overlay ONLY = 06-01 (scope_dimensions=07-01 is IGNORED).
     assert scope.version == "2026-06-01T00:00:00"
-    # config#fields: driven by field_overlay (+ default_page_size) = 06-01.
+    # config#fields: driven by field_overlay = 06-01.
     assert fields.version == "2026-06-01T00:00:00"
 
 
-def test_build_config_scope_row_versions_off_scope_dimensions_edit_alone():
-    """A scope_dimensions-only edit still bumps config#scope (the fallback source, R2.4)."""
+def test_build_config_scope_row_ignores_scope_dimensions_revision_for_version():
+    """Task 3.1: a scope_dimensions-only edit must NOT bump config#scope — the standalone
+    param is no longer a source (nor a version driver). With no field_overlay authored the
+    version falls back to the tenant row's own revision, NOT the scope_dimensions revision."""
     params = FakeParameterService(
         params={("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]},
         revisions={("members", "scope_dimensions", "h-dcn"): "2026-05-01T00:00:00"},
@@ -1604,7 +1646,8 @@ def test_build_config_scope_row_versions_off_scope_dimensions_edit_alone():
         {"administration": "h-dcn", "updated_at": "2026-01-01T00:00:00"}, params
     )
 
-    assert item.version == "2026-05-01T00:00:00"
+    # Falls back to the tenant row's updated_at — the scope_dimensions 05-01 is ignored.
+    assert item.version == "2026-01-01T00:00:00"
 
 
 def test_build_config_mail_row_versions_off_max_of_four_param_revisions():
@@ -1644,15 +1687,16 @@ def test_sync_param_edit_alone_projects_the_change(sam_module):
     the fix, re-syncing with a newer param revision supersedes the stored config# row
     version so the conditional put WRITES it — written>0 (impact-analysis acceptance).
 
-    Task 1.16b: the regression is exercised via `members.scope_dimensions` -> config#scope
-    (a STILL-EMITTED builder). It formerly used field_overlay -> config#fields, but
-    ProjectionSync no longer emits config#fields (Task 1.15 — SAM owns it); the version-
-    supersede guarantee is identical for any emitted config# row.
+    Task 1.16b / 3.1: the regression is exercised via the `members.field_overlay`
+    field `scope` axis -> config#scope (a STILL-EMITTED builder; task 3.1 made the
+    overlay the SINGLE scope source). It formerly used field_overlay -> config#fields,
+    but ProjectionSync no longer emits config#fields (Task 1.15 — SAM owns it); the
+    version-supersede guarantee is identical for any emitted config# row.
     """
     table = FakeTable()
     params = FakeParameterService(
-        params={("members", "scope_dimensions", "TenantA"): [_hdcn_region_dimension()]},
-        revisions={("members", "scope_dimensions", "TenantA"): "2026-01-01T00:00:00"},
+        params={("members", "field_overlay", "TenantA"): _region_scope_overlay()},
+        revisions={("members", "field_overlay", "TenantA"): "2026-01-01T00:00:00"},
     )
     source = FakeSource({"TenantA": _tenant_source("TenantA", sam_module)})
     sync = ProjectionSync(source, table=table, parameter_service=params)
@@ -1664,9 +1708,7 @@ def test_sync_param_edit_alone_projects_the_change(sam_module):
     )
 
     # Edit the param ONLY (tenant row untouched): a newer param revision.
-    params._revisions[("members", "scope_dimensions", "TenantA")] = (
-        "2026-10-12T12:00:00"
-    )
+    params._revisions[("members", "field_overlay", "TenantA")] = "2026-10-12T12:00:00"
     result = sync.sync_administration("TenantA")
 
     # The edit propagated: config#scope was re-written with the newer version.
@@ -1792,23 +1834,17 @@ def test_sync_administration_builds_from_fresh_source_not_stale_cache(sam_module
     region_four = [*region_three, "West"]
 
     def _scope(values):
-        return [
-            {
-                "key": "region",
-                "field": "region",
-                "label": {"nl": "Regio", "en": "Region"},
-                "enabled": True,
-                "values": list(values),
-                "required_for": ["Members_CRUD"],
-            }
-        ]
+        # Task 3.1: config#scope derives SOLELY from the overlay field `scope` axis
+        # (the standalone members.scope_dimensions fallback is removed). The A2 fresh-
+        # source guarantee is identical for the overlay source.
+        return _region_scope_overlay(values)
 
     tenant_id = "TenantA"
     scope_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope")
     table = FakeTable()
     params = CachingFakeParameterService(
-        params={("members", "scope_dimensions", tenant_id): _scope(region_three)},
-        revisions={("members", "scope_dimensions", tenant_id): "2026-01-01T00:00:00"},
+        params={("members", "field_overlay", tenant_id): _scope(region_three)},
+        revisions={("members", "field_overlay", tenant_id): "2026-01-01T00:00:00"},
     )
     source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
     sync = ProjectionSync(source, table=table, parameter_service=params)
@@ -1821,8 +1857,8 @@ def test_sync_administration_builds_from_fresh_source_not_stale_cache(sam_module
     # Tenant admin edits the dimension (4-value) via a different service instance: the
     # sync's cache is NOT invalidated by that write, only the source + the uncached
     # revision advance to V2.
-    params.set_source("members", "scope_dimensions", tenant_id, _scope(region_four))
-    params.set_revision("members", "scope_dimensions", tenant_id, "2026-10-12T12:00:00")
+    params.set_source("members", "field_overlay", tenant_id, _scope(region_four))
+    params.set_revision("members", "field_overlay", tenant_id, "2026-10-12T12:00:00")
 
     # Second sync: with task 2.1 the sync evicts the stale cache and re-reads V2's
     # 4-value source — the built row's CONTENT matches its (fresh) VERSION.
@@ -2157,8 +2193,25 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
     )
     params = FakeParameterService(
         {
+            # The scopegrant builder still reads members.scope_dimensions (grant machinery
+            # untouched, R2.4), so it is kept here. config#scope, however, now derives SOLELY
+            # from the overlay field `scope` axis (task 3.1 removed the standalone fallback),
+            # so the overlay must carry the region scope axis for the config#scope assertion.
             ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
-            ("members", "field_overlay", "h-dcn"): _hdcn_field_overlay(),
+            ("members", "field_overlay", "h-dcn"): {
+                **_hdcn_field_overlay(),
+                "fixed_overrides": {
+                    **_hdcn_field_overlay().get("fixed_overrides", {}),
+                    "personal.region": {
+                        "scope": {
+                            "enabled": True,
+                            "values": ["Noord", "Zuid", "Oost", "West"],
+                            "label": {"nl": "Regio", "en": "Region"},
+                            "required_for": ["Members_CRUD"],
+                        }
+                    },
+                },
+            },
         }
     )
     sync = ProjectionSync(source, table=table, parameter_service=params)

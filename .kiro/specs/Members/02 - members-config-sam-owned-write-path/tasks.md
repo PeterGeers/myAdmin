@@ -166,7 +166,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - Assert the service PUTs to `/members/config/fields` and treats the write as authoritative
     - **Validates: Requirements 13.1, 13.2, 13.4**
 
-  - [-] 1.15 Stop ProjectionSync emitting config#fields (builder KEPT until migration retired)
+  - [x] 1.15 Stop ProjectionSync emitting config#fields (builder KEPT until migration retired)
     - Remove ONLY the `build_config_fields_row(...)` call + append in
       `ProjectionSync.sync_administration` (`backend/src/services/projection_sync.py`) so sync no
       longer EMITS `config#fields`; leave scope/mail builders in place
@@ -181,7 +181,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - Flask-plane `error_response` + `error_id` convention (`30`) on any touched Flask caught-exception path
     - _Requirements: 10.3, 11.1, 11.2, 11.4, 11.5, 17.3_
 
-  - [-] 1.16a ProjectionSync emission tests: assert config#fields NOT emitted (change-with-tests)
+  - [x] 1.16a ProjectionSync emission tests: assert config#fields NOT emitted (change-with-tests)
     - In `backend/tests/unit/test_projection_sync.py`, flip the THREE tests that assert sync EMITS
       `config#fields` to assert it is NOT emitted (scope/mail still ARE):
       `test_sync_administration_single_tenant_writes_expected_items`,
@@ -197,7 +197,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirements 11.2, 11.3, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6**
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_projection_sync.py -q`
 
-  - [-] 1.16b Re-home the 3 regression tests incidentally coupled to config#fields emission
+  - [x] 1.16b Re-home the 3 regression tests incidentally coupled to config#fields emission
     - SURFACED by 1.15: three tests assert an unrelated guarantee but used `config#fields`
       emission as the vehicle, so removing the emission broke them. Re-home each onto a
       STILL-EMITTED builder (`config#scope` via `members.scope_dimensions`, or `config#mail`),
@@ -271,7 +271,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
 
 - [ ] 3. `config#scope` cutover (Roadmap Step 2)
 
-  - [ ] 3.1 Author `config#scope` from the single source (OQ-3 RESOLVED) + fix the dead-toggle defect
+  - [x] 3.1 Author `config#scope` from the single source (OQ-3 RESOLVED) + fix the dead-toggle defect
     - OQ-3 is DECIDED (ODD 3): `config#scope` is DERIVED from the per-field `scope` attribute on the
       SAM-owned `config#fields` overlay — the single authoring source. Do NOT author from a standalone
       `members.scope_dimensions` param, and do NOT reintroduce the legacy standalone-list fallback
@@ -655,7 +655,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     { "id": 19, "tasks": ["5.9", "7.1"] },
     { "id": 20, "tasks": ["7.2", "7.4"] },
     { "id": 21, "tasks": ["7.2*", "7.3*", "7.5*", "1.17"] },
-    { "id": 22, "tasks": ["8.1", "1.18"] },
+    { "id": 22, "tasks": ["8.1", "1.19"] },
     { "id": 23, "tasks": ["8.2", "8.3"] }
   ]
 }

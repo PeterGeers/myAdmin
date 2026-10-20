@@ -424,14 +424,20 @@ _SCOPE_REVISION = "2026-02-01T00:00:00"
 _MAIL_REVISION = "2026-03-01T00:00:00"
 
 
-# --- config#scope wedge setup (driven by the `members.scope_dimensions` param) ---
+# --- config#scope wedge setup (driven by the `members.field_overlay` scope axis) ---
+#
+# Task 3.1: config#scope derives SOLELY from the per-field `scope` attribute on the
+# `members.field_overlay` overlay (the standalone `members.scope_dimensions` fallback is
+# removed). The wedge therefore drives the builder through the overlay param — the
+# generic content-gate heal proof is unchanged (a different `config#*` row type still
+# heals on CONTENT at an equal version), only the authoring source moved onto the overlay.
 
 
 def _scope_dimension(values):
-    """A single authored `members.scope_dimensions` entry whose enum `values` are
-    `values` — the shape the builder maps 1:1 into the `config#scope` row's
-    `dimensions`. STALE vs FRESH differ only in this value list, at the SAME
-    param revision, so the wedge is a pure content change at an equal version."""
+    """The config#scope `dimensions` entry the builder DERIVES from the overlay scope
+    axis below — the shape the content-gate compares. STALE vs FRESH differ only in this
+    value list, at the SAME param revision, so the wedge is a pure content change at an
+    equal version."""
     return {
         "key": "region",
         "field": "region",
@@ -442,13 +448,31 @@ def _scope_dimension(values):
     }
 
 
+def _scope_overlay(values):
+    """A `members.field_overlay` whose `personal.region` fixed-override declares a `scope`
+    axis with enum `values` — the SINGLE authoring source the builder derives config#scope
+    from (task 3.1). Maps 1:1 onto `_scope_dimension(values)`."""
+    return {
+        "fixed_overrides": {
+            "personal.region": {
+                "scope": {
+                    "enabled": True,
+                    "values": list(values),
+                    "label": {"nl": "Regio", "en": "Region"},
+                    "required_for": ["Members_CRUD"],
+                }
+            }
+        }
+    }
+
+
 def _scope_params(tenant_id, values):
-    """A FakeParameterService serving a one-dimension `members.scope_dimensions`
-    whose values are `values`, stamped at the fixed scope wedge revision (the
-    stored row will be stamped at the SAME revision)."""
+    """A FakeParameterService serving a one-axis `members.field_overlay` scope attribute
+    whose enum values are `values`, stamped at the fixed scope wedge revision (the stored
+    row will be stamped at the SAME revision — the overlay param drives the row version)."""
     return FakeParameterService(
-        params={("members", "scope_dimensions", tenant_id): [_scope_dimension(values)]},
-        revisions={("members", "scope_dimensions", tenant_id): _SCOPE_REVISION},
+        params={("members", "field_overlay", tenant_id): _scope_overlay(values)},
+        revisions={("members", "field_overlay", tenant_id): _SCOPE_REVISION},
     )
 
 
@@ -631,6 +655,3 @@ def test_sync_rerun_unchanged_config_mail_is_noop(sam_module):
 # cannot produce a valid row never silently stale-leaves — the raise surfaces
 # through the save route's `_project_tenant_change` outcome.
 # ===========================================================================
-
-from services.projection_builder import ProjectionItem
-from services.projection_validator import ProjectionValidationError
