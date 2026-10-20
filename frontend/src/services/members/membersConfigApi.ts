@@ -65,6 +65,19 @@ export async function writeFieldConfig(body: unknown): Promise<MembersConfigWrit
 }
 
 /**
+ * PUT /members/config/scope — author the `config#scope` row (Requirement 8 / 22).
+ *
+ * Thin convenience over {@link writeConfig} pinning the `scope` config id. `body` MUST be the SAM
+ * `config#scope` shape — `{ dimensions: [...] }` in the ScopeDimension shape `get_scope_config`
+ * reads (empty `dimensions` is valid = tenant-wide). SAM `config#scope` is the AUTHORITATIVE scope
+ * source (Requirement 22.1); the frontend writes it FIRST, then mirrors the dimension set into the
+ * Flask `members.scope_dimensions` validator copy (Requirement 22.5 / 26.2).
+ */
+export async function writeScopeConfig(dimensions: unknown[]): Promise<MembersConfigWriteResult> {
+  return writeConfig('scope', { dimensions });
+}
+
+/**
  * GET /membership-types — the membership-type catalog.
  * @param activeOnly - when true, appends `?active_only=true`.
  */

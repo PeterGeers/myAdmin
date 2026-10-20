@@ -108,6 +108,7 @@ export {
   deactivateMembershipType,
   writeConfig,
   writeFieldConfig,
+  writeScopeConfig,
 } from './members/membersConfigApi';
 export type {
   MembersWritableConfigId,
