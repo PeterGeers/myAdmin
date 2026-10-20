@@ -310,8 +310,18 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirements 8.1, 8.2, 8.3, 8.5, 1.5**
 
   - [ ] 3.3 Deploy scope write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
-    - Ship Task 3.1 through `deploy-sam-members.yml` (OIDC, no secrets); CodeQL + GitGuardian green;
-      verify live in TEST
+    - GAP FOUND (reconciliation pass): the SAM config-write service
+      (`sam/members/domain/config_write_service.py`) wires ONLY the `fields` body validator —
+      the `scope` validator is NOT registered. So `PUT /members/config/scope` currently reaches
+      the "no validator wired" branch and 500s end-to-end. The frontend mirror (3.1a) and the
+      round-trip test (3.2) did NOT catch this: 3.1a is only exercised against a mock, and 3.2
+      calls the repository directly, bypassing the service validator. BEFORE this deploy/verify
+      can pass, wire a `_validate_scope_body` (shape-check `{dimensions: [...]}`) into the
+      `ConfigWriteService` validator registry — this is the scope equivalent of the task 1.5
+      `fields` validator and belongs with authoring config#scope through the write path.
+    - Then ship through `deploy-sam-members.yml` (OIDC, no secrets); CodeQL + GitGuardian green;
+      verify `PUT /members/config/scope` is live in TEST (round-trips through the edge+service,
+      not just the repository).
     - _Requirements: 19.1, 19.3_
 
   - [ ] 3.4 Migrate `config#scope` per tenant + read-back verify + seed the Flask mirror (operational, PRE builder removal)
@@ -324,11 +334,17 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       verify of `config#scope` is required
     - _Requirements: 10.1, 10.2, 10.4, 10.5, 10.6, 14.2, 22.4, 26.3_
 
-  - [ ] 3.5 Repoint `config#scope` save in `membersConfigService.ts`
-    - Repoint scope save to `PUT /members/config/scope`; authoritative write, no pending-projection state
+  - [x] 3.5 Repoint `config#scope` save in `membersConfigService.ts`
+    - SUBSUMED BY 3.1a: the scope save in `membersConfigService.ts` was repointed to
+      `PUT /members/config/scope` (authoritative, no pending-projection state) as the first,
+      authoritative leg of the 3.1a frontend-mirror model (then it mirrors to Flask). No separate
+      work remains — 3.1a is the superset. See commit `f61c87920`.
     - _Requirements: 13.1, 13.2, 13.3_
 
-  - [ ] 3.6 Update frontend tests for the repointed scope save
+  - [x] 3.6 Update frontend tests for the repointed scope save
+    - SUBSUMED BY 3.1a: `membersConfigService.test.ts` was updated with the SAM-first mirror
+      tests that assert the PUT to `/members/config/scope` and authoritative handling (plus the
+      mirror + retry cases). No separate work remains. See commit `f61c87920`.
     - **Validates: Requirements 13.1, 13.2, 13.4**
 
   - [x] 3.7 Remove `build_config_scope_row` from ProjectionSync (ProjectionSync stops authoring scope; param persists as the frontend mirror) (merge to main ONLY after 3.4 PROD-verified)
