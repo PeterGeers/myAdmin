@@ -387,9 +387,17 @@ class ProjectionSync:
         # the current value and the built content always matches its version. No MySQL
         # I/O (read-only cache maintenance) → the one-directional guarantee holds.
         self._invalidate_members_cache(param_svc, administration)
-        config_scope = build_config_scope_row(source.tenant, param_svc)
-        if config_scope is not None:
-            items.append(config_scope)
+        # config#scope is NO LONGER emitted by ProjectionSync (spec 02 Task 3.7).
+        # The SAM write path (MembersConfigWriteRepository via PUT /members/config/scope) is now
+        # the AUTHORITATIVE author of the `config#scope` row; the frontend writes it first and
+        # mirrors the dimension set into Flask `members.scope_dimensions` (the frontend-mirror
+        # model, Req 22/26). ProjectionSync must not co-author `config#scope` (split-ownership,
+        # Req 11.1/11.2). `members.scope_dimensions` persists ONLY as the frontend-written mirror
+        # the grant validators read (R22.3/22.4) — it is no longer a ProjectionSync source. The
+        # `build_config_scope_row` builder itself is KEPT (still imported/exported) because the
+        # builder-unit-tests + the round-trip/equivalence tests consume it directly — only the
+        # EMISSION from sync_administration is removed here (the builder is deleted by a later
+        # end-of-band cleanup task once the scope migration is complete).
         # config#fields is NO LONGER emitted by ProjectionSync (spec 02 Task 1.15).
         # The SAM write path (MembersConfigWriteRepository via PUT /members/config/fields) is
         # now the AUTHORITATIVE author of the `config#fields` row in both TEST and PROD (the
