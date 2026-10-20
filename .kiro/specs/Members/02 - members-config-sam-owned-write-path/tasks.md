@@ -309,7 +309,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       `get_scope_config` returns equivalent dimensions; empty-dimensions resolves tenant-wide
     - **Validates: Requirements 8.1, 8.2, 8.3, 8.5, 1.5**
 
-  - [ ] 3.3 Deploy scope write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
+  - [x] 3.3 Deploy scope write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
     - CODE GAP CLOSED (done): the `scope` body validator is now wired into
       `ConfigWriteService` — `_validate_scope_body` shape-checks `{dimensions: [...]}` (empty =
       tenant-wide, R8.5) and is registered under `schema.CONFIG_ID_SCOPE`. So
@@ -319,8 +319,10 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       malformed→400) and `test_config_write_dispatch.py` (edge end-to-end: scope persists, empty
       persists, malformed→caller-safe 400). The repository-direct round-trip of 3.2 and the
       frontend mock of 3.1a did not exercise this seam — this closes that.
-    - REMAINING (operational): ship through `deploy-sam-members.yml` (OIDC, no secrets); CodeQL +
-      GitGuardian green; verify `PUT /members/config/scope` is live in the TEST stack.
+    - DONE (operational): shipped via `deploy-sam-members.yml` on the merge of PR #137 to `test`
+      (run 39499307228, conclusion success); the `test-sam-members` stack settled UPDATE_COMPLETE;
+      CodeQL + GitGuardian were green on the PR. `PUT /members/config/scope` is live in the TEST
+      SAM stack. (PROD goes live on the later `test -> main` promotion, Task 8.)
     - _Requirements: 19.1, 19.3_
 
   - [ ] 3.4 Migrate `config#scope` per tenant + read-back verify + seed the Flask mirror (operational, PRE builder removal)
