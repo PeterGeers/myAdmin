@@ -325,7 +325,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       SAM stack. (PROD goes live on the later `test -> main` promotion, Task 8.)
     - _Requirements: 19.1, 19.3_
 
-  - [ ] 3.4 Migrate `config#scope` per tenant + read-back verify + seed the Flask mirror (operational, PRE builder removal)
+  - [x] 3.4 Migrate `config#scope` per tenant + read-back verify + seed the Flask mirror (operational, PRE builder removal)
     - Copy every live tenant's scope source into the SAM-owned `config#scope` row (min `h-dcn`); read back
       via the reader to verify `config#scope`
     - `members.scope_dimensions` is NOT deleted — it is KEPT as the frontend-written Flask mirror. Seed /
@@ -334,6 +334,13 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - No verify-before-retire-delete gate applies to this key under the mirror model — only the read-back
       verify of `config#scope` is required
     - _Requirements: 10.1, 10.2, 10.4, 10.5, 10.6, 14.2, 22.4, 26.3_
+    - DONE (TEST): new idempotent script `backend/scripts/migrate_config_scope_to_sam.py` derives
+      each tenant's `config#scope` body via `build_config_scope_row` (overlay scope axes), writes it
+      through `MembersConfigWriteRepository`, read-back verifies via `get_scope_config`, and seeds
+      the Flask `members.scope_dimensions` mirror (`--seed-mirror`, best-effort; NOT deleted). Pure
+      helpers unit-tested in `backend/tests/unit/test_migrate_config_scope_to_sam.py` (9 passed).
+      Ran against TEST for `h-dcn`: STS=506221081911, read-back verify OK, mirror seeded. PROD run
+      happens at the TEST->PROD promotion (Task 8) with `--prod`.
 
   - [x] 3.5 Repoint `config#scope` save in `membersConfigService.ts`
     - SUBSUMED BY 3.1a: the scope save in `membersConfigService.ts` was repointed to
