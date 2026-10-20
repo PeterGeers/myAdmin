@@ -122,11 +122,12 @@ class ConfigWriteService:
     def _validate_body(self, config_id: str, body: Mapping) -> dict:
         """Dispatch to the per-``configId`` body validator.
 
-        Each SAM-owned id shapes + validates only its own attributes. ``fields`` is implemented
-        here (Task 1.5); ``scope`` and ``mail`` are wired in their own cutover steps (Tasks 3/5).
+        Each SAM-owned id shapes + validates only its own attributes. ``fields`` (Task 1.5) and
+        ``scope`` (Task 3.3) are implemented here; ``mail`` is wired in its own cutover step (Task 5).
         """
         validators = {
             schema.CONFIG_ID_FIELDS: self._validate_fields_body,
+            schema.CONFIG_ID_SCOPE: self._validate_scope_body,
         }
         validator = validators.get(config_id)
         if validator is None:
@@ -178,7 +179,9 @@ class ConfigWriteService:
         if overrides_in is None:
             overrides_in = body.get("fixed_overrides")
         overrides = self._validate_overrides_map(overrides_in)
-        functional_groups = self._validate_functional_groups(body.get("functional_groups"))
+        functional_groups = self._validate_functional_groups(
+            body.get("functional_groups")
+        )
 
         # Author exactly the three reader-read attributes — no default_page_size (R7.2).
         return {
@@ -219,7 +222,9 @@ class ConfigWriteService:
         if raw is None:
             return {}
         if not isinstance(raw, Mapping):
-            raise ConfigWriteValidationError("config#fields 'overrides' must be an object")
+            raise ConfigWriteValidationError(
+                "config#fields 'overrides' must be an object"
+            )
         for dotted, spec in raw.items():
             if not isinstance(spec, Mapping):
                 raise ConfigWriteValidationError(
@@ -254,3 +259,51 @@ class ConfigWriteService:
                 )
             groups.append(dict(entry))
         return groups
+
+    # ── config#scope validator (Task 3.3 / Requirement 8 / 22) ──────────────────────────
+
+    def _validate_scope_body(self, body: Mapping) -> dict:
+        """Validate + shape a ``config#scope`` body into the reader's ``get_scope_config`` shape.
+
+        The SAM-owned ``config#scope`` row is ``{"dimensions": [ <ScopeDimension dict>, … ]}`` —
+        the exact shape ``MembersProjectionReader.get_scope_config`` reads back (R8.1). The frontend
+        scope-save mirror (task 3.1a) writes the already-derived dimension set here as the
+        AUTHORITATIVE source; this service shape-checks it and authors the ``dimensions`` attribute
+        ONLY. Validation is SHAPE-ONLY, mirroring ``_validate_fields_body`` (the reader degrades an
+        individual malformed dimension gracefully, so the service checks the container shape, not
+        every leaf):
+
+        - ``dimensions`` — ``None`` / absent → ``[]`` (EMPTY is valid: a tenant-wide scope config,
+          R8.5 / R1.6 — the reader resolves an empty list to tenant-wide, never an error);
+        - otherwise a list whose every entry is a mapping (one dimension spec), carried through
+          verbatim so the reader maps each onto a ``ScopeDimension`` 1:1.
+
+        It never authors ``all_wildcard`` / ``multi_valued`` (s5d clean break, R8.1) — it does not
+        add keys, it only passes the authored dimension specs through.
+        """
+        if not isinstance(body, Mapping):
+            raise ConfigWriteValidationError(
+                "config#scope body must be an object with a 'dimensions' list"
+            )
+        dimensions = self._validate_scope_dimensions(body.get("dimensions"))
+        return {"dimensions": dimensions}
+
+    @staticmethod
+    def _validate_scope_dimensions(raw) -> list:
+        """Validate the ``dimensions`` list; preserve each dimension spec verbatim.
+
+        ``None`` / absent → ``[]`` (empty is valid = tenant-wide). Must be a list; each entry must
+        be a mapping (a dimension spec: ``key`` / ``field`` / ``enabled`` / ``values`` / ``label`` /
+        ``required_for``). Each spec is carried through unchanged — the reader normalizes defaults
+        and ignores unknown keys, so the service does not reshape a dimension.
+        """
+        if raw is None:
+            return []
+        if not isinstance(raw, (list, tuple)):
+            raise ConfigWriteValidationError("config#scope 'dimensions' must be a list")
+        for entry in raw:
+            if not isinstance(entry, Mapping):
+                raise ConfigWriteValidationError(
+                    "config#scope 'dimensions' entries must be objects"
+                )
+        return [dict(entry) for entry in raw]

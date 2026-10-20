@@ -37,6 +37,7 @@ vi.mock('./apiService', () => ({
 // Requirement 13.1); mock that seam so we can assert the PUT target + authoritative handling.
 vi.mock('./membersApiService', () => ({
   writeFieldConfig: vi.fn(),
+  writeScopeConfig: vi.fn(),
   getFieldConfig: vi.fn(),
 }));
 
@@ -94,41 +95,119 @@ describe('membersConfigService', () => {
     });
   });
 
-  describe('saveMembersParameter — scope_dimensions on Flask (save-once, Property 8)', () => {
-    it('issues exactly ONE update (PUT) when a tenant row exists', async () => {
+  // -------------------------------------------------------------------------
+  // scope_dimensions is the frontend cross-plane MIRROR (Requirement 22.5/26.2): the frontend
+  // writes SAM `config#scope` FIRST (authoritative, PUT /members/config/scope), THEN mirrors the
+  // same dimension set into Flask `members.scope_dimensions` (best-effort). A failed SAM write
+  // mirrors nothing; a failed mirror write surfaces a retry while SAM stays authoritative.
+  // Validates: Requirements 22.1, 22.5, 22.6, 26.2, 26.4, 26.5
+  // -------------------------------------------------------------------------
+  describe('saveMembersParameter — scope_dimensions SAM-first mirror (R22/R26)', () => {
+    it('writes SAM config#scope FIRST, THEN mirrors to Flask (update when a tenant row exists)', async () => {
+      vi.mocked(membersApiService.writeScopeConfig).mockResolvedValue({
+        success: true, configId: 'scope', version: '2026-10-20T10:00:00+00:00',
+      });
       vi.mocked(parameterService.updateParameter).mockResolvedValue({ success: true });
       const existing = {
         id: 42, namespace: 'members', key: 'scope_dimensions',
         value: [], value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false,
       };
-      const res = await saveMembersParameter('scope_dimensions', [{ key: 'region' }], existing);
+      const dims = [{ key: 'region', values: ['Noord'] }];
+
+      const res = await saveMembersParameter('scope_dimensions', dims, existing);
 
       expect(res.success).toBe(true);
+      expect(res.version).toBe('2026-10-20T10:00:00+00:00');
+      // SAM config#scope written first with the dimension set.
+      expect(membersApiService.writeScopeConfig).toHaveBeenCalledTimes(1);
+      expect(membersApiService.writeScopeConfig).toHaveBeenCalledWith(dims);
+      // THEN the Flask mirror (update in place for an existing tenant row).
       expect(parameterService.updateParameter).toHaveBeenCalledTimes(1);
       expect(parameterService.updateParameter).toHaveBeenCalledWith(42, {
-        value: [{ key: 'region' }],
-        value_type: 'json',
+        value: dims, value_type: 'json',
       });
       expect(parameterService.createParameter).not.toHaveBeenCalled();
     });
 
-    it('issues exactly ONE create (POST) when no tenant row exists', async () => {
+    it('mirrors via create (POST) when no tenant row exists (new tenant auto-mirror, R22.7)', async () => {
+      vi.mocked(membersApiService.writeScopeConfig).mockResolvedValue({
+        success: true, configId: 'scope', version: '2026-10-20T10:05:00+00:00',
+      });
       vi.mocked(parameterService.createParameter).mockResolvedValue({ success: true });
-      const res = await saveMembersParameter('scope_dimensions', [{ key: 'overview' }], null);
+      const dims = [{ key: 'overview' }];
+
+      const res = await saveMembersParameter('scope_dimensions', dims, null);
 
       expect(res.success).toBe(true);
+      expect(membersApiService.writeScopeConfig).toHaveBeenCalledTimes(1);
       expect(parameterService.createParameter).toHaveBeenCalledTimes(1);
       expect(parameterService.createParameter).toHaveBeenCalledWith({
-        scope: 'tenant',
-        namespace: 'members',
-        key: 'scope_dimensions',
-        value: [{ key: 'overview' }],
-        value_type: 'json',
-        is_secret: false,
+        scope: 'tenant', namespace: 'members', key: 'scope_dimensions',
+        value: dims, value_type: 'json', is_secret: false,
       });
       expect(parameterService.updateParameter).not.toHaveBeenCalled();
     });
 
+    it('normalizes a nullish scope value to an empty list for BOTH the SAM write and the mirror', async () => {
+      vi.mocked(membersApiService.writeScopeConfig).mockResolvedValue({
+        success: true, configId: 'scope', version: '2026-10-20T10:07:00+00:00',
+      });
+      vi.mocked(parameterService.createParameter).mockResolvedValue({ success: true });
+
+      await saveMembersParameter('scope_dimensions', null, null);
+
+      expect(membersApiService.writeScopeConfig).toHaveBeenCalledWith([]);
+      expect(parameterService.createParameter).toHaveBeenCalledWith(
+        expect.objectContaining({ value: [] }),
+      );
+    });
+
+    it('fails WITHOUT mirroring when the authoritative SAM write rejects (R22.5)', async () => {
+      vi.mocked(membersApiService.writeScopeConfig).mockRejectedValue(
+        new ApiError(403, { error: 'Access denied' }),
+      );
+
+      const res = await saveMembersParameter('scope_dimensions', [{ key: 'region' }], null);
+
+      expect(res.success).toBe(false);
+      expect(res.error).toBe('Access denied');
+      // SAM write failed → nothing authoritative → the Flask mirror must NOT be written.
+      expect(parameterService.createParameter).not.toHaveBeenCalled();
+      expect(parameterService.updateParameter).not.toHaveBeenCalled();
+    });
+
+    it('surfaces a mirror retry (SAM stays authoritative) when the Flask mirror write throws (R22.6/26.5)', async () => {
+      vi.mocked(membersApiService.writeScopeConfig).mockResolvedValue({
+        success: true, configId: 'scope', version: '2026-10-20T10:10:00+00:00',
+      });
+      vi.mocked(parameterService.createParameter).mockRejectedValue(
+        new ApiError(500, { error: 'Mirror DB unavailable' }),
+      );
+
+      const res = await saveMembersParameter('scope_dimensions', [{ key: 'region' }], null);
+
+      // SAM is authoritative (version present) but the mirror failed → surfaced for retry.
+      expect(res.success).toBe(false);
+      expect(res.version).toBe('2026-10-20T10:10:00+00:00');
+      expect(res.mirrorError).toBe('Mirror DB unavailable');
+    });
+
+    it('surfaces a mirror retry when the Flask mirror returns success:false', async () => {
+      vi.mocked(membersApiService.writeScopeConfig).mockResolvedValue({
+        success: true, configId: 'scope', version: '2026-10-20T10:12:00+00:00',
+      });
+      vi.mocked(parameterService.updateParameter).mockResolvedValue({ success: false, error: 'conflict' });
+      const existing = {
+        id: 7, namespace: 'members', key: 'scope_dimensions',
+        value: [], value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false,
+      };
+
+      const res = await saveMembersParameter('scope_dimensions', [{ key: 'region' }], existing);
+
+      expect(res.success).toBe(false);
+      expect(res.version).toBe('2026-10-20T10:12:00+00:00');
+      expect(res.mirrorError).toBe('conflict');
+    });
   });
 
   // -------------------------------------------------------------------------
