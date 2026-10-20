@@ -24,7 +24,6 @@ from services.module_registry import MODULE_REGISTRY
 from services.projection_sync import (
     DatabaseSourceProvider,
     ProjectionSync,
-    SyncResult,
     TenantSource,
     _supersedes,
     build_config_fields_row,
@@ -199,9 +198,15 @@ class SpyDb:
 # --- helpers ----------------------------------------------------------------
 
 
-def _tenant_source(admin, module_name, *, module_version=1, tenant_version=1, roles=None):
+def _tenant_source(
+    admin, module_name, *, module_version=1, tenant_version=1, roles=None
+):
     return TenantSource(
-        tenant={"administration": admin, "display_name": f"{admin} Ltd", "version": tenant_version},
+        tenant={
+            "administration": admin,
+            "display_name": f"{admin} Ltd",
+            "version": tenant_version,
+        },
         tenant_modules=[
             {"module_name": module_name, "is_active": True, "version": module_version}
         ],
@@ -242,14 +247,16 @@ def test_sync_administration_single_tenant_writes_expected_items(sam_module):
     # + the always-present config rows (empty/fail-closed when un-configured,
     # R1.6/R1.7/R5.1/R0):
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") in written
-    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") in written
+    # Property 4 (spec 02 Task 1.15/1.16a): ProjectionSync NO LONGER emits config#fields — the
+    # SAM write path is the authoritative author. scope/mail are still emitted by ProjectionSync.
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") not in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
     # Phase 2 (R5.3): the config#views row is no longer emitted.
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views") not in written
-    # tenant + module + role + config#scope + config#fields +
-    # config#mail = 6 (no scopegrant: no scope_dimensions authored in the empty
+    # tenant + module + role + config#scope + config#mail = 5 (config#fields now SAM-owned,
+    # no scopegrant: no scope_dimensions authored in the empty
     # FakeParameterService).
-    assert result.written == 6
+    assert result.written == 5
     assert result.skipped == 0
 
 
@@ -324,7 +331,9 @@ def test_sync_higher_version_overwrites(sam_module):
 
 def test_sync_equal_version_does_not_overwrite(sam_module):
     table = FakeTable()
-    source = FakeSource({"TenantA": _tenant_source("TenantA", sam_module, module_version=3)})
+    source = FakeSource(
+        {"TenantA": _tenant_source("TenantA", sam_module, module_version=3)}
+    )
     sync = ProjectionSync(source, table=table, parameter_service=FakeParameterService())
     sync.sync_administration("TenantA")
 
@@ -478,7 +487,9 @@ def test_database_source_provider_issues_zero_mysql_writes(sam_module):
     )
     provider = DatabaseSourceProvider(db)
     table = FakeTable()
-    sync = ProjectionSync(provider, table=table, parameter_service=FakeParameterService())
+    sync = ProjectionSync(
+        provider, table=table, parameter_service=FakeParameterService()
+    )
 
     sync.sync_all()
 
@@ -522,9 +533,7 @@ class FakeParameterService:
         self.revision_calls: list[dict] = []
 
     def get_param(self, namespace, key, tenant=None, role=None, user=None):
-        self.calls.append(
-            {"namespace": namespace, "key": key, "tenant": tenant}
-        )
+        self.calls.append({"namespace": namespace, "key": key, "tenant": tenant})
         return self._params.get((namespace, key, tenant))
 
     def get_param_revision(self, namespace, key, tenant=None, role=None, user=None):
@@ -551,10 +560,47 @@ def _hdcn_region_dimension():
     }
 
 
-def test_build_config_scope_row_maps_authored_dimensions_to_row_shape():
-    """Authored members.scope_dimensions param → config#scope dimensions shape."""
+def _region_scope_overlay(values=("Noord", "Zuid", "Oost", "West")):
+    """A `members.field_overlay` whose `personal.region` fixed-override declares a `scope`
+    axis with enum `values` — the SINGLE authoring source config#scope derives from
+    (task 3.1). Used by the sync-level regression tests that formerly drove config#scope
+    through the removed standalone `members.scope_dimensions` param."""
+    return {
+        "fixed_overrides": {
+            "personal.region": {
+                "scope": {
+                    "enabled": True,
+                    "values": list(values),
+                    "label": {"nl": "Regio", "en": "Region"},
+                    "required_for": ["Members_CRUD"],
+                }
+            }
+        }
+    }
+
+
+def _hdcn_region_overlay():
+    """A ``members.field_overlay`` whose ``personal.region`` fixed-override declares a
+    ``scope`` axis equivalent to ``_hdcn_region_dimension()`` — the SINGLE authoring
+    source for config#scope now that the standalone-param fallback is removed (task 3.1)."""
+    return {
+        "fixed_overrides": {
+            "personal.region": {
+                "scope": {
+                    "enabled": True,
+                    "values": ["Noord", "Zuid", "Oost", "West"],
+                    "label": {"nl": "Regio", "en": "Region"},
+                    "required_for": ["Members_CRUD"],
+                }
+            }
+        }
+    }
+
+
+def test_build_config_scope_row_maps_authored_overlay_scope_to_row_shape():
+    """A field ``scope`` axis on the overlay → config#scope dimensions shape (R2.1)."""
     params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
+        {("members", "field_overlay", "h-dcn"): _hdcn_region_overlay()}
     )
 
     item = build_config_scope_row({"administration": "h-dcn", "version": 7}, params)
@@ -570,8 +616,12 @@ def test_build_config_scope_row_maps_authored_dimensions_to_row_shape():
     assert dynamo["dimensions"][0]["values"] == ["Noord", "Zuid", "Oost", "West"]
 
 
-def test_build_config_scope_row_no_param_yields_empty_dimensions():
-    """Empty-is-valid (R1.6): an un-configured tenant → empty dimensions, no raise."""
+def test_build_config_scope_row_no_overlay_scope_yields_empty_dimensions():
+    """Empty-is-valid (R1.6): an overlay with no scope axis → empty dimensions, no raise.
+
+    Task 3.1: the standalone ``members.scope_dimensions`` fallback is removed, so a tenant
+    with no overlay scope axis collapses to a tenant-wide (empty) config — even if a stale
+    standalone param still exists (it is no longer a source here)."""
     params = FakeParameterService({})  # nothing authored
 
     item = build_config_scope_row({"administration": "h-dcn"}, params)
@@ -582,10 +632,14 @@ def test_build_config_scope_row_no_param_yields_empty_dimensions():
     assert item.version == 0  # deterministic fallback when the row has no version
 
 
-def test_build_config_scope_row_partial_dimension_fills_safe_defaults():
-    """A partially-authored dimension still yields a well-formed entry."""
+def test_build_config_scope_row_partial_overlay_scope_fills_safe_defaults():
+    """A partially-authored field ``scope`` axis still yields a well-formed entry."""
     params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): [{"key": "region"}]}
+        {
+            ("members", "field_overlay", "h-dcn"): {
+                "fixed_overrides": {"region": {"scope": {}}}
+            }
+        }
     )
 
     item = build_config_scope_row({"administration": "h-dcn"}, params)
@@ -594,33 +648,29 @@ def test_build_config_scope_row_partial_dimension_fills_safe_defaults():
     assert dim["key"] == "region"
     assert dim["enabled"] is True
     assert dim["values"] == []
-    assert dim["label"] == {}
-    assert dim["field"] is None
-    assert dim["required_for"] == []
     # s5d clean break: the Regio_* role encoding is gone — no all_wildcard/multi_valued keys.
     assert "all_wildcard" not in dim
     assert "multi_valued" not in dim
 
 
-def test_build_config_scope_row_issues_zero_writes_and_reads_tenant_scope():
-    """One-directional (Property 1): only tenant-scoped READS, zero writes.
+def test_build_config_scope_row_issues_zero_writes_and_reads_only_the_overlay():
+    """One-directional (Property 1): only a tenant-scoped READ of the overlay, zero writes.
 
-    Phase 3 step 9: the builder reads the field_overlay FIRST (scope-as-field-attribute, the
-    canonical authoring surface) and falls back to the standalone scope_dimensions param — both
-    tenant-scoped READS, both on this tenant's members.* namespace, no writes.
+    Task 3.1: config#scope derives SOLELY from the ``members.field_overlay`` field ``scope``
+    attributes — the standalone ``members.scope_dimensions`` fallback read is REMOVED, so the
+    builder issues exactly ONE tenant-scoped read, on this tenant's ``field_overlay``.
     """
     params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
+        {("members", "field_overlay", "h-dcn"): _hdcn_region_overlay()}
     )
 
     build_config_scope_row({"administration": "h-dcn"}, params)
 
-    # Two reads (overlay-first, then the standalone fallback), both scoped to this tenant's
-    # members.* params. No field scope authored → the fallback drives the row.
+    # Exactly one read — the overlay. The standalone scope_dimensions param is NOT read.
     assert params.calls == [
         {"namespace": "members", "key": "field_overlay", "tenant": "h-dcn"},
-        {"namespace": "members", "key": "scope_dimensions", "tenant": "h-dcn"},
     ]
+    assert not any(c["key"] == "scope_dimensions" for c in params.calls)
 
 
 def test_build_config_scope_row_missing_tenant_key_raises():
@@ -629,10 +679,10 @@ def test_build_config_scope_row_missing_tenant_key_raises():
         build_config_scope_row({}, FakeParameterService({}))
 
 
-def test_build_config_scope_row_non_list_param_treated_as_empty():
-    """A malformed (non-list) authored value degrades to empty, never raises."""
+def test_build_config_scope_row_non_overlay_param_treated_as_empty():
+    """A malformed (non-mapping) overlay value degrades to empty, never raises."""
     params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): "not-a-list"}
+        {("members", "field_overlay", "h-dcn"): "not-a-mapping"}
     )
 
     item = build_config_scope_row({"administration": "h-dcn"}, params)
@@ -642,12 +692,12 @@ def test_build_config_scope_row_non_list_param_treated_as_empty():
 
 # --- Phase 3 step 9 (R2.1/R2.5): scope-binding authored as a field attribute ----------
 #
-# The authoring representation moves from the standalone members.scope_dimensions list onto a
-# `scope` attribute on a members.field_overlay field. The builder DERIVES config#scope from
-# those field attributes, keeping the projected row — and so the resolver's ScopeConfig —
-# SEMANTICALLY EQUIVALENT (Property 2). The standalone param stays the fallback source so the
-# scopegrant grants / grant-validation / picker (which read members.scope_dimensions) are
-# untouched (R2.3/R2.4).
+# Scope-binding is authored as a `scope` attribute on a members.field_overlay field. The
+# builder DERIVES config#scope from those field attributes — the SINGLE authoring source
+# (task 3.1 removed the standalone members.scope_dimensions fallback, the dead-toggle defect).
+# The standalone members.scope_dimensions param is NOT read by the builder anymore and is NOT
+# deleted: it persists as the frontend-written DERIVED MIRROR (task 3.1a) that the scopegrant
+# grants / grant-validation / picker keep reading UNCHANGED (R2.3/R2.4).
 
 
 def test_build_config_scope_row_derives_dimensions_from_fixed_field_scope_attribute():
@@ -674,33 +724,21 @@ def test_build_config_scope_row_derives_dimensions_from_fixed_field_scope_attrib
     assert item.attributes["dimensions"] == [_hdcn_region_dimension()]
 
 
-def test_build_config_scope_row_derived_equals_standalone_scope_dimensions():
-    """Property 2 (semantic equivalence): field-authored scope projects the SAME row as the
-    equivalent standalone members.scope_dimensions."""
+def test_build_config_scope_row_overlay_scope_projects_canonical_dimension_shape():
+    """The field-authored ``scope`` axis is the SINGLE source and projects the canonical
+    ``config#scope`` dimension shape the resolver's ``ScopeConfig`` consumes.
+
+    (Was the Property-2 ``derived == standalone`` equivalence test; the standalone
+    ``members.scope_dimensions`` fallback is removed in task 3.1, so there is now ONE
+    authoring source — the overlay — and equivalence to a second source is moot. The
+    canonical-shape guarantee is preserved here.)"""
     overlay_params = FakeParameterService(
-        {
-            ("members", "field_overlay", "h-dcn"): {
-                "fixed_overrides": {
-                    "personal.region": {
-                        "scope": {
-                            "enabled": True,
-                            "values": ["Noord", "Zuid", "Oost", "West"],
-                            "label": {"nl": "Regio", "en": "Region"},
-                            "required_for": ["Members_CRUD"],
-                        }
-                    }
-                }
-            }
-        }
-    )
-    standalone_params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
+        {("members", "field_overlay", "h-dcn"): _hdcn_region_overlay()}
     )
 
     derived = build_config_scope_row({"administration": "h-dcn"}, overlay_params)
-    standalone = build_config_scope_row({"administration": "h-dcn"}, standalone_params)
 
-    assert derived.attributes["dimensions"] == standalone.attributes["dimensions"]
+    assert derived.attributes["dimensions"] == [_hdcn_region_dimension()]
 
 
 def test_build_config_scope_row_derives_from_variable_field_scope_attribute():
@@ -800,26 +838,34 @@ def test_build_config_scope_row_honours_legacy_scope_values_when_no_enum():
     assert item.attributes["dimensions"][0]["values"] == ["Noord", "Zuid"]
 
 
-def test_build_config_scope_row_falls_back_to_standalone_param_when_no_field_scope():
-    """A tenant that has not moved authoring onto fields still drives config#scope from the
-    standalone members.scope_dimensions param (R2.4 — grant machinery untouched)."""
+def test_build_config_scope_row_ignores_standalone_param_when_no_field_scope():
+    """Task 3.1 (dead-toggle fix): an overlay with NO scope axis collapses to empty
+    (tenant-wide), IGNORING any stale standalone ``members.scope_dimensions`` param.
+
+    The removed fallback used to let a standalone param silently drive the row even when
+    the overlay declared no scope axis — masking the fact that the overlay toggle was the
+    real source. The standalone param is kept only as the frontend-written mirror the grant
+    machinery reads (R2.4); it is NOT a source for config#scope here."""
     params = FakeParameterService(
         {
             # An overlay with NO scope attribute on any field.
             ("members", "field_overlay", "h-dcn"): {
                 "fields": {"motor_type": {"type": "string"}}
             },
+            # A stale standalone param that MUST be ignored now the fallback is removed.
             ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
         }
     )
 
     item = build_config_scope_row({"administration": "h-dcn"}, params)
 
-    assert item.attributes["dimensions"] == [_hdcn_region_dimension()]
+    assert item.attributes["dimensions"] == []
+    assert not any(c["key"] == "scope_dimensions" for c in params.calls)
 
 
-def test_build_config_scope_row_field_scope_takes_precedence_over_standalone_param():
-    """When the overlay declares a scope axis, it drives the row (the two are not merged)."""
+def test_build_config_scope_row_overlay_is_the_only_source():
+    """The overlay scope axis is the SINGLE source: a stale standalone param is IGNORED
+    (never merged, never read) now the fallback is removed (task 3.1)."""
     params = FakeParameterService(
         {
             ("members", "field_overlay", "h-dcn"): {
@@ -829,7 +875,7 @@ def test_build_config_scope_row_field_scope_takes_precedence_over_standalone_par
                     }
                 }
             },
-            # A stale standalone param that must be IGNORED once field scope is authored.
+            # A stale standalone param that must be IGNORED — the overlay is the only source.
             ("members", "scope_dimensions", "h-dcn"): [
                 {"key": "season", "values": ["2024"]}
             ],
@@ -840,6 +886,7 @@ def test_build_config_scope_row_field_scope_takes_precedence_over_standalone_par
 
     keys = [d["key"] for d in item.attributes["dimensions"]]
     assert keys == ["region"]
+    assert not any(c["key"] == "scope_dimensions" for c in params.calls)
 
 
 # --- C2 config#fields builder (S5b design.md C2, R1.3) ---------------------
@@ -984,7 +1031,10 @@ def test_build_config_fields_row_malformed_entries_are_skipped():
         {
             ("members", "field_overlay", "h-dcn"): {
                 "fields": {"bad": "not-a-mapping", "motor_type": {"type": "string"}},
-                "fixed_overrides": {"personal.name": "nope", "personal.email": {"order": 2}},
+                "fixed_overrides": {
+                    "personal.name": "nope",
+                    "personal.email": {"order": 2},
+                },
             }
         }
     )
@@ -1038,8 +1088,14 @@ def test_build_config_fields_row_fixed_override_enum_relabel_survives_projection
                     "personal.status": {
                         "label": {"nl": "Status", "en": "Status"},
                         "options": [
-                            {"value": "active", "label": {"nl": "Actief", "en": "Active"}},
-                            {"value": "lapsed", "label": {"nl": "Verlopen", "en": "Lapsed"}},
+                            {
+                                "value": "active",
+                                "label": {"nl": "Actief", "en": "Active"},
+                            },
+                            {
+                                "value": "lapsed",
+                                "label": {"nl": "Verlopen", "en": "Lapsed"},
+                            },
                         ],
                     }
                 }
@@ -1204,8 +1260,16 @@ def test_build_config_fields_row_projects_functional_groups_catalog():
         {
             ("members", "field_overlay", "h-dcn"): {
                 "functional_groups": [
-                    {"key": "personal", "label": {"nl": "Persoonlijk", "en": "Personal"}, "order": 1},
-                    {"key": "membership", "label": {"nl": "Lidmaatschap", "en": "Membership"}, "order": 3},
+                    {
+                        "key": "personal",
+                        "label": {"nl": "Persoonlijk", "en": "Personal"},
+                        "order": 1,
+                    },
+                    {
+                        "key": "membership",
+                        "label": {"nl": "Lidmaatschap", "en": "Membership"},
+                        "order": 3,
+                    },
                 ]
             }
         }
@@ -1434,7 +1498,9 @@ def test_build_config_fields_row_fixed_override_application_attributes_additive(
     params = FakeParameterService(
         {
             ("members", "field_overlay", "h-dcn"): {
-                "fixed_overrides": {"personal.name": {"label": {"nl": "Naam"}, "order": 1}}
+                "fixed_overrides": {
+                    "personal.name": {"label": {"nl": "Naam"}, "order": 1}
+                }
             }
         }
     )
@@ -1451,9 +1517,7 @@ def test_build_config_fields_row_fixed_override_application_attributes_additive(
 
 def test_build_config_fields_row_projects_authored_default_page_size():
     """An authored positive members.default_page_size is carried onto config#fields (R2.1)."""
-    params = FakeParameterService(
-        {("members", "default_page_size", "h-dcn"): 50}
-    )
+    params = FakeParameterService({("members", "default_page_size", "h-dcn"): 50})
 
     item = build_config_fields_row({"administration": "h-dcn"}, params)
 
@@ -1483,11 +1547,11 @@ def test_build_config_fields_row_non_positive_or_malformed_default_page_size_yie
     default that would violate the resolver's positive-int guarantee (R2.4).
     """
     for raw in (0, -5, "25", 3.5, True, False, [], {}, None):
-        params = FakeParameterService(
-            {("members", "default_page_size", "h-dcn"): raw}
-        )
+        params = FakeParameterService({("members", "default_page_size", "h-dcn"): raw})
         item = build_config_fields_row({"administration": "h-dcn"}, params)
-        assert item.attributes["default_page_size"] is None, f"raw={raw!r} must collapse to None"
+        assert item.attributes["default_page_size"] is None, (
+            f"raw={raw!r} must collapse to None"
+        )
 
 
 def test_build_config_fields_row_versions_off_default_page_size_param_revision():
@@ -1535,20 +1599,26 @@ def test_build_config_fields_row_versions_off_param_revision_when_present():
 
 
 def test_build_config_scope_and_fields_version_off_their_source_params():
-    """Each config row versions off ITS OWN source param set (Phase 3 step 9).
+    """Each config row versions off ITS OWN source param set.
 
-    After scope-as-field-attribute, config#scope is driven by BOTH field_overlay (the new
-    authoring surface) AND scope_dimensions (the fallback source), so an edit to EITHER bumps
-    it — the version is the MAX of their revisions. config#fields is driven by field_overlay
-    (+ default_page_size). A scope_dimensions-only edit must NOT bump config#fields.
+    Task 3.1: config#scope derives SOLELY from field_overlay (the standalone
+    scope_dimensions fallback is removed), so config#scope versions off field_overlay
+    ONLY — a (now-higher) scope_dimensions revision is IGNORED and must NOT bump it.
+    config#fields is likewise driven by field_overlay. A scope_dimensions-only edit must
+    bump NEITHER row.
     """
     params = FakeParameterService(
         params={
             ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
-            ("members", "field_overlay", "h-dcn"): {"fields": {}, "fixed_overrides": {}},
+            ("members", "field_overlay", "h-dcn"): {
+                "fields": {},
+                "fixed_overrides": {},
+            },
         },
         revisions={
-            ("members", "scope_dimensions", "h-dcn"): "2026-05-01T00:00:00",
+            # Deliberately HIGHER than field_overlay — if it were still a source the
+            # config#scope version would be 07-01; it must stay at field_overlay's 06-01.
+            ("members", "scope_dimensions", "h-dcn"): "2026-07-01T00:00:00",
             ("members", "field_overlay", "h-dcn"): "2026-06-01T00:00:00",
         },
     )
@@ -1557,14 +1627,16 @@ def test_build_config_scope_and_fields_version_off_their_source_params():
     scope = build_config_scope_row(tenant, params)
     fields = build_config_fields_row(tenant, params)
 
-    # config#scope: max(field_overlay=06-01, scope_dimensions=05-01) = 06-01.
+    # config#scope: field_overlay ONLY = 06-01 (scope_dimensions=07-01 is IGNORED).
     assert scope.version == "2026-06-01T00:00:00"
-    # config#fields: driven by field_overlay (+ default_page_size) = 06-01.
+    # config#fields: driven by field_overlay = 06-01.
     assert fields.version == "2026-06-01T00:00:00"
 
 
-def test_build_config_scope_row_versions_off_scope_dimensions_edit_alone():
-    """A scope_dimensions-only edit still bumps config#scope (the fallback source, R2.4)."""
+def test_build_config_scope_row_ignores_scope_dimensions_revision_for_version():
+    """Task 3.1: a scope_dimensions-only edit must NOT bump config#scope — the standalone
+    param is no longer a source (nor a version driver). With no field_overlay authored the
+    version falls back to the tenant row's own revision, NOT the scope_dimensions revision."""
     params = FakeParameterService(
         params={("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]},
         revisions={("members", "scope_dimensions", "h-dcn"): "2026-05-01T00:00:00"},
@@ -1574,7 +1646,8 @@ def test_build_config_scope_row_versions_off_scope_dimensions_edit_alone():
         {"administration": "h-dcn", "updated_at": "2026-01-01T00:00:00"}, params
     )
 
-    assert item.version == "2026-05-01T00:00:00"
+    # Falls back to the tenant row's updated_at — the scope_dimensions 05-01 is ignored.
+    assert item.version == "2026-01-01T00:00:00"
 
 
 def test_build_config_mail_row_versions_off_max_of_four_param_revisions():
@@ -1608,30 +1681,40 @@ def test_build_config_row_falls_back_to_tenant_version_without_param_revision():
 
 
 def test_sync_param_edit_alone_projects_the_change(sam_module):
-    """End-to-end: a field_overlay edit with an UNCHANGED tenant row still writes.
+    """End-to-end: a members.* param edit with an UNCHANGED tenant row still writes.
 
     This is the exact #6/#7/#8 symptom the trap caused (written=0 skipped=N). After
-    the fix, re-syncing with a newer param revision supersedes the stored config#fields
+    the fix, re-syncing with a newer param revision supersedes the stored config# row
     version so the conditional put WRITES it — written>0 (impact-analysis acceptance).
+
+    Task 1.16b / 3.1: the regression is exercised via the `members.field_overlay`
+    field `scope` axis -> config#scope (a STILL-EMITTED builder; task 3.1 made the
+    overlay the SINGLE scope source). It formerly used field_overlay -> config#fields,
+    but ProjectionSync no longer emits config#fields (Task 1.15 — SAM owns it); the
+    version-supersede guarantee is identical for any emitted config# row.
     """
     table = FakeTable()
     params = FakeParameterService(
-        params={("members", "field_overlay", "TenantA"): {"fields": {}}},
+        params={("members", "field_overlay", "TenantA"): _region_scope_overlay()},
         revisions={("members", "field_overlay", "TenantA"): "2026-01-01T00:00:00"},
     )
     source = FakeSource({"TenantA": _tenant_source("TenantA", sam_module)})
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
     sync.sync_administration("TenantA")
-    fields_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields")
-    assert table.store[("TenantA", fields_sk)][schema.VERSION_ATTR] == "2026-01-01T00:00:00"
+    scope_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope")
+    assert (
+        table.store[("TenantA", scope_sk)][schema.VERSION_ATTR] == "2026-01-01T00:00:00"
+    )
 
     # Edit the param ONLY (tenant row untouched): a newer param revision.
     params._revisions[("members", "field_overlay", "TenantA")] = "2026-10-12T12:00:00"
     result = sync.sync_administration("TenantA")
 
-    # The edit propagated: config#fields was re-written with the newer version.
-    assert table.store[("TenantA", fields_sk)][schema.VERSION_ATTR] == "2026-10-12T12:00:00"
+    # The edit propagated: config#scope was re-written with the newer version.
+    assert (
+        table.store[("TenantA", scope_sk)][schema.VERSION_ATTR] == "2026-10-12T12:00:00"
+    )
     assert result.written >= 1
 
 
@@ -1695,7 +1778,8 @@ class CachingFakeParameterService:
         keys_to_remove = [
             k
             for k in self._cache
-            if k[2] == namespace and (tenant is None or (k[0] == "tenant" and k[1] == tenant))
+            if k[2] == namespace
+            and (tenant is None or (k[0] == "tenant" and k[1] == tenant))
         ]
         for k in keys_to_remove:
             del self._cache[k]
@@ -1740,47 +1824,49 @@ def test_sync_administration_builds_from_fresh_source_not_stale_cache(sam_module
     already-wedged-row heal (a pre-seeded stale STORED row at an equal version) — that is
     task 3's content-gate and remains the one expected failure until then.
     """
-    status_six = ["active", "inactive", "pending", "suspended", "honorary", "lapsed"]
-    status_seven = [*status_six, "died"]
+    # Task 1.16b: the fresh-source/no-stale-cache regression is exercised via
+    # `members.scope_dimensions` -> config#scope (a STILL-EMITTED builder). It formerly used
+    # field_overlay -> config#fields and the membership.status 6->7 (`died`) set, but
+    # ProjectionSync no longer emits config#fields (Task 1.15 — SAM owns it). The A2 guarantee
+    # (sync re-reads the CURRENT source, never stale cache) is identical for any emitted
+    # config# row; here the region dimension's `values` list grows 3 -> 4 across an edit.
+    region_three = ["Noord", "Zuid", "Oost"]
+    region_four = [*region_three, "West"]
 
-    def _overlay(values):
-        return {
-            "fixed_overrides": {
-                "membership.status": {
-                    "label": {"nl": "Status", "en": "Status"},
-                    "choices": list(values),
-                }
-            }
-        }
+    def _scope(values):
+        # Task 3.1: config#scope derives SOLELY from the overlay field `scope` axis
+        # (the standalone members.scope_dimensions fallback is removed). The A2 fresh-
+        # source guarantee is identical for the overlay source.
+        return _region_scope_overlay(values)
 
     tenant_id = "TenantA"
-    fields_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields")
+    scope_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope")
     table = FakeTable()
     params = CachingFakeParameterService(
-        params={("members", "field_overlay", tenant_id): _overlay(status_six)},
+        params={("members", "field_overlay", tenant_id): _scope(region_three)},
         revisions={("members", "field_overlay", tenant_id): "2026-01-01T00:00:00"},
     )
     source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
-    # First sync: caches + projects the 6-value content at V1.
+    # First sync: caches + projects the 3-value content at V1.
     sync.sync_administration(tenant_id)
-    stored = table.store[(tenant_id, fields_sk)]
-    assert stored["overrides"]["membership.status"]["choices"] == status_six
+    stored = table.store[(tenant_id, scope_sk)]
+    assert stored["dimensions"][0]["values"] == region_three
 
-    # Tenant admin edits the overlay (7-value, incl. `died`) via a different service
-    # instance: the sync's cache is NOT invalidated by that write, only the source +
-    # the uncached revision advance to V2.
-    params.set_source("members", "field_overlay", tenant_id, _overlay(status_seven))
+    # Tenant admin edits the dimension (4-value) via a different service instance: the
+    # sync's cache is NOT invalidated by that write, only the source + the uncached
+    # revision advance to V2.
+    params.set_source("members", "field_overlay", tenant_id, _scope(region_four))
     params.set_revision("members", "field_overlay", tenant_id, "2026-10-12T12:00:00")
 
     # Second sync: with task 2.1 the sync evicts the stale cache and re-reads V2's
-    # 7-value source — the built row's CONTENT matches its (fresh) VERSION.
+    # 4-value source — the built row's CONTENT matches its (fresh) VERSION.
     sync.sync_administration(tenant_id)
-    stored = table.store[(tenant_id, fields_sk)]
-    assert stored["overrides"]["membership.status"]["choices"] == status_seven, (
-        "A2 VIOLATED: the sync re-serialized STALE cached content (6-value status) "
-        "while the source + version advanced to the 7-value set — the version/content "
+    stored = table.store[(tenant_id, scope_sk)]
+    assert stored["dimensions"][0]["values"] == region_four, (
+        "A2 VIOLATED: the sync re-serialized STALE cached content (3-value region) "
+        "while the source + version advanced to the 4-value set — the version/content "
         "desync the non-stale read must prevent."
     )
     assert stored[schema.VERSION_ATTR] == "2026-10-12T12:00:00"
@@ -1808,7 +1894,9 @@ def test_build_scopegrant_rows_all_access_sentinel_maps_to_wildcard():
     params = _scope_params([_hdcn_region_dimension()])
     scope = [_scope_row("boss@h-dcn.example", {"region": ["*"]})]
 
-    items = build_scopegrant_rows({"administration": "h-dcn", "version": 7}, scope, params)
+    items = build_scopegrant_rows(
+        {"administration": "h-dcn", "version": 7}, scope, params
+    )
 
     assert len(items) == 1
     item = items[0]
@@ -1840,8 +1928,13 @@ def test_build_scopegrant_rows_accepts_already_parsed_scopes_dict():
     """The scopes column may arrive already parsed (dict) — handled directly."""
     params = _scope_params([_hdcn_region_dimension()])
     # scopes as a dict, NOT a JSON string (some drivers deserialize JSON columns).
-    scope = [{"email": "alice@h-dcn.example", "module": "MEMBERS",
-              "scopes": {"region": ["Oost"]}}]
+    scope = [
+        {
+            "email": "alice@h-dcn.example",
+            "module": "MEMBERS",
+            "scopes": {"region": ["Oost"]},
+        }
+    ]
 
     items = build_scopegrant_rows({"administration": "h-dcn"}, scope, params)
 
@@ -1935,15 +2028,21 @@ def test_build_scopegrant_rows_multiple_users_and_dimensions():
     items = build_scopegrant_rows({"administration": "h-dcn"}, scope, params)
 
     by_sk = {i.sort_key: i.attributes for i in items}
-    assert by_sk[schema.build_sort_key(
-        schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "region"
-    )] == {"dimension": "region", "values": ["Noord"]}
-    assert by_sk[schema.build_sort_key(
-        schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "season"
-    )] == {"dimension": "season", "values": ["S1"]}
-    assert by_sk[schema.build_sort_key(
-        schema.RECORD_TYPE_SCOPEGRANT, "boss@h-dcn.example", "region"
-    )] == {"dimension": "region", "values": ["*"]}
+    assert by_sk[
+        schema.build_sort_key(
+            schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "region"
+        )
+    ] == {"dimension": "region", "values": ["Noord"]}
+    assert by_sk[
+        schema.build_sort_key(
+            schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "season"
+        )
+    ] == {"dimension": "season", "values": ["S1"]}
+    assert by_sk[
+        schema.build_sort_key(
+            schema.RECORD_TYPE_SCOPEGRANT, "boss@h-dcn.example", "region"
+        )
+    ] == {"dimension": "region", "values": ["*"]}
     # nobody@ has a scope record but no grants → no rows.
     assert not any("nobody@h-dcn.example" in sk for sk in by_sk)
 
@@ -2018,10 +2117,16 @@ def test_build_scopegrant_rows_malformed_scopes_json_row_is_skipped():
     params = _scope_params([_hdcn_region_dimension()])
     scope = [
         "not-a-mapping",
-        {"email": "bad-json@h-dcn.example", "module": "MEMBERS",
-         "scopes": "{not valid json"},        # unparseable string → skipped
-        {"email": "bad-shape@h-dcn.example", "module": "MEMBERS",
-         "scopes": "[\"region\"]"},           # valid JSON but not a dict → skipped
+        {
+            "email": "bad-json@h-dcn.example",
+            "module": "MEMBERS",
+            "scopes": "{not valid json",
+        },  # unparseable string → skipped
+        {
+            "email": "bad-shape@h-dcn.example",
+            "module": "MEMBERS",
+            "scopes": '["region"]',
+        },  # valid JSON but not a dict → skipped
         {"module": "MEMBERS", "scopes": "{}"},  # missing email → skipped
         _scope_row("alice@h-dcn.example", {"region": ["Zuid"]}),  # well-formed
     ]
@@ -2048,13 +2153,17 @@ def test_build_scopegrant_rows_non_list_param_treated_as_empty():
 # --- sync_administration emits the S5b C2 rows alongside base rows (T6.1, R5.3/R5.5) ---
 
 
-def _sam_source_with_scope(admin, module_name, *, roles=None, scope=None, tenant_version=1):
+def _sam_source_with_scope(
+    admin, module_name, *, roles=None, scope=None, tenant_version=1
+):
     """A SAM-backed TenantSource carrying a scoped user (for scopegrant emission)."""
     return TenantSource(
-        tenant={"administration": admin, "display_name": f"{admin} Ltd", "version": tenant_version},
-        tenant_modules=[
-            {"module_name": module_name, "is_active": True, "version": 1}
-        ],
+        tenant={
+            "administration": admin,
+            "display_name": f"{admin} Ltd",
+            "version": tenant_version,
+        },
+        tenant_modules=[{"module_name": module_name, "is_active": True, "version": 1}],
         user_tenant_roles=roles or [],
         user_tenant_scope=scope or [],
     )
@@ -2072,8 +2181,11 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
                     {"email": "alice@h-dcn.example", "role": "SamTest_Read"},
                 ],
                 scope=[
-                    {"email": "alice@h-dcn.example", "module": "MEMBERS",
-                     "scopes": json.dumps({"region": ["Noord"]})},
+                    {
+                        "email": "alice@h-dcn.example",
+                        "module": "MEMBERS",
+                        "scopes": json.dumps({"region": ["Noord"]}),
+                    },
                 ],
                 tenant_version=7,
             )
@@ -2081,8 +2193,25 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
     )
     params = FakeParameterService(
         {
+            # The scopegrant builder still reads members.scope_dimensions (grant machinery
+            # untouched, R2.4), so it is kept here. config#scope, however, now derives SOLELY
+            # from the overlay field `scope` axis (task 3.1 removed the standalone fallback),
+            # so the overlay must carry the region scope axis for the config#scope assertion.
             ("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()],
-            ("members", "field_overlay", "h-dcn"): _hdcn_field_overlay(),
+            ("members", "field_overlay", "h-dcn"): {
+                **_hdcn_field_overlay(),
+                "fixed_overrides": {
+                    **_hdcn_field_overlay().get("fixed_overrides", {}),
+                    "personal.region": {
+                        "scope": {
+                            "enabled": True,
+                            "values": ["Noord", "Zuid", "Oost", "West"],
+                            "label": {"nl": "Regio", "en": "Region"},
+                            "required_for": ["Members_CRUD"],
+                        }
+                    },
+                },
+            },
         }
     )
     sync = ProjectionSync(source, table=table, parameter_service=params)
@@ -2094,12 +2223,15 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
     assert schema.build_sort_key(schema.RECORD_TYPE_TENANT) in written
     assert schema.build_sort_key(schema.RECORD_TYPE_MODULE, sam_module) in written
     assert (
-        schema.build_sort_key(schema.RECORD_TYPE_ROLE, "alice@h-dcn.example", "SamTest_Read")
+        schema.build_sort_key(
+            schema.RECORD_TYPE_ROLE, "alice@h-dcn.example", "SamTest_Read"
+        )
         in written
     )
-    # New C2 rows emitted alongside them.
+    # New C2 rows emitted alongside them. Property 4 (Task 1.15/1.16a): config#fields is NO
+    # LONGER emitted by ProjectionSync (SAM owns it); scope/mail still are.
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") in written
-    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") in written
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") not in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
     # Phase 2 (R5.3): the config#views row is no longer emitted.
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views") not in written
@@ -2112,9 +2244,9 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
     # The config#scope row carries the authored region dimension.
     scope_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope")
     assert written[scope_sk]["dimensions"][0]["key"] == "region"
-    # tenant + module + 1 role + config#scope + config#fields +
-    # config#mail + scopegrant = 7.
-    assert result.written == 7
+    # tenant + module + 1 role + config#scope + config#mail + scopegrant = 6
+    # (config#fields now SAM-owned, no longer emitted by ProjectionSync).
+    assert result.written == 6
 
 
 def test_sync_administration_non_sam_tenant_emits_no_c2_rows(sam_module):
@@ -2145,7 +2277,9 @@ def test_sync_administration_non_sam_tenant_emits_no_c2_rows(sam_module):
     assert params.calls == []
 
 
-def test_sync_administration_malformed_c2_item_aborts_before_any_write(sam_module, monkeypatch):
+def test_sync_administration_malformed_c2_item_aborts_before_any_write(
+    sam_module, monkeypatch
+):
     """A malformed C2 item aborts the whole combined batch with no partial write (R5.5)."""
     import services.projection_sync as sync_module
     from services.projection_builder import ProjectionItem
@@ -2165,17 +2299,20 @@ def test_sync_administration_malformed_c2_item_aborts_before_any_write(sam_modul
     )
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
-    # Force the config#fields C2 builder to yield a malformed item (version=None,
-    # which the validator rejects) so the combined batch fails validation.
-    def _bad_fields(tenant, parameter_service):
+    # Force a STILL-EMITTED C2 builder (config#scope) to yield a malformed item (version=None,
+    # which the validator rejects) so the combined batch fails validation. (Task 1.16b: the
+    # test formerly patched build_config_fields_row, but ProjectionSync no longer emits
+    # config#fields (Task 1.15) — so the batch-abort guarantee R5.5 is now exercised via a
+    # still-emitted builder; config#scope is emitted and validated in the same batch.)
+    def _bad_scope(tenant, parameter_service):
         return ProjectionItem(
             tenant_id=tenant.get("administration"),
-            sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+            sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope"),
             version=None,  # malformed -> validator rejects
-            attributes={"fields": {}, "overrides": {}},
+            attributes={"dimensions": []},
         )
 
-    monkeypatch.setattr(sync_module, "build_config_fields_row", _bad_fields)
+    monkeypatch.setattr(sync_module, "build_config_scope_row", _bad_scope)
 
     with pytest.raises(ProjectionValidationError):
         sync.sync_administration("h-dcn")
@@ -2206,9 +2343,7 @@ def test_build_config_mail_row_true_flag_projects_enabled():
     ``mail_certified`` gate (fail-closed False here, as none authored); ``mail_domain``
     is omitted when none authored (task 0.2 extended shape, design Data Models).
     """
-    params = FakeParameterService(
-        {("members", "mail_enabled", "h-dcn"): True}
-    )
+    params = FakeParameterService({("members", "mail_enabled", "h-dcn"): True})
 
     item = build_config_mail_row({"administration": "h-dcn", "version": 7}, params)
 
@@ -2228,9 +2363,7 @@ def test_build_config_mail_row_true_flag_projects_enabled():
 
 def test_build_config_mail_row_false_flag_projects_disabled():
     """An explicit False flag projects a present-but-disabled gate (R0)."""
-    params = FakeParameterService(
-        {("members", "mail_enabled", "h-dcn"): False}
-    )
+    params = FakeParameterService({("members", "mail_enabled", "h-dcn"): False})
 
     item = build_config_mail_row({"administration": "h-dcn"}, params)
 
@@ -2358,13 +2491,9 @@ def test_build_config_mail_row_malformed_values_fail_closed_to_false():
     gate — only an explicit boolean True enables sending.
     """
     for raw in ("true", "True", 1, "yes", [], {}, None):
-        params = FakeParameterService(
-            {("members", "mail_enabled", "h-dcn"): raw}
-        )
+        params = FakeParameterService({("members", "mail_enabled", "h-dcn"): raw})
         item = build_config_mail_row({"administration": "h-dcn"}, params)
-        assert item.attributes["mail_enabled"] is False, (
-            f"raw={raw!r} must fail closed"
-        )
+        assert item.attributes["mail_enabled"] is False, f"raw={raw!r} must fail closed"
 
 
 def test_build_config_mail_row_issues_zero_writes_and_reads_tenant_scope():
@@ -2374,9 +2503,7 @@ def test_build_config_mail_row_issues_zero_writes_and_reads_tenant_scope():
     never a cross-tenant or unscoped read. application-app task 8.2 added two params that
     ride the SAME config#mail row (the D9a scope-copy toggle + the D26 consent notice).
     """
-    params = FakeParameterService(
-        {("members", "mail_enabled", "h-dcn"): True}
-    )
+    params = FakeParameterService({("members", "mail_enabled", "h-dcn"): True})
 
     build_config_mail_row({"administration": "h-dcn"}, params)
 
@@ -2440,9 +2567,7 @@ def test_build_config_mail_row_scope_copy_fails_closed_to_false():
 
 def test_build_config_mail_row_scope_copy_always_present_even_unauthored():
     """The scope-copy toggle ALWAYS rides the row (present-but-False ≠ not projected)."""
-    item = build_config_mail_row(
-        {"administration": "h-dcn"}, FakeParameterService({})
-    )
+    item = build_config_mail_row({"administration": "h-dcn"}, FakeParameterService({}))
 
     assert item.attributes["application_scope_copy"] is False
 
@@ -2579,11 +2704,16 @@ def _scope_row_at(email, scopes, updated_at, *, module="MEMBERS"):
 def test_build_scopegrant_rows_version_derived_from_updated_at():
     """The emitted row version is the row's ``updated_at`` (ODx4a), not the tenant version."""
     params = _scope_params([_hdcn_region_dimension()])
-    scope = [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]},
-                           "2026-08-20T12:00:00")]
+    scope = [
+        _scope_row_at(
+            "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00"
+        )
+    ]
 
     # Tenant version is 7 — but the scopegrant row must carry the row's updated_at.
-    items = build_scopegrant_rows({"administration": "h-dcn", "version": 7}, scope, params)
+    items = build_scopegrant_rows(
+        {"administration": "h-dcn", "version": 7}, scope, params
+    )
 
     assert len(items) == 1
     assert items[0].version == "2026-08-20T12:00:00"
@@ -2600,13 +2730,22 @@ def test_build_scopegrant_rows_changed_grant_yields_higher_version():
 
     before = build_scopegrant_rows(
         {"administration": "h-dcn"},
-        [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00")],
+        [
+            _scope_row_at(
+                "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00"
+            )
+        ],
         params,
     )
     after = build_scopegrant_rows(
         {"administration": "h-dcn"},
-        [_scope_row_at("alice@h-dcn.example", {"region": ["Oost", "Friesland"]},
-                       "2026-08-20T13:30:00")],
+        [
+            _scope_row_at(
+                "alice@h-dcn.example",
+                {"region": ["Oost", "Friesland"]},
+                "2026-08-20T13:30:00",
+            )
+        ],
         params,
     )
 
@@ -2620,7 +2759,9 @@ def test_build_scopegrant_rows_changed_grant_yields_higher_version():
 def test_build_scopegrant_rows_unchanged_grant_reproduces_same_version():
     """An UNCHANGED re-sync reproduces the SAME version (idempotence, no churn)."""
     params = _scope_params([_hdcn_region_dimension()])
-    row = _scope_row_at("alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00")
+    row = _scope_row_at(
+        "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00"
+    )
 
     first = build_scopegrant_rows({"administration": "h-dcn"}, [row], params)
     second = build_scopegrant_rows({"administration": "h-dcn"}, [dict(row)], params)
@@ -2635,7 +2776,9 @@ def test_build_scopegrant_rows_falls_back_to_tenant_version_when_no_updated_at()
     # No updated_at on the row (e.g. a legacy/fixture row) → tenant version 5.
     scope = [_scope_row("alice@h-dcn.example", {"region": ["Oost"]})]
 
-    items = build_scopegrant_rows({"administration": "h-dcn", "version": 5}, scope, params)
+    items = build_scopegrant_rows(
+        {"administration": "h-dcn", "version": 5}, scope, params
+    )
 
     assert len(items) == 1
     assert items[0].version == 5
@@ -2647,8 +2790,11 @@ def test_build_scopegrant_rows_falls_back_to_tenant_version_when_no_updated_at()
 def _sam_source_with_scope_rows(admin, module_name, scope_rows, *, tenant_version=7):
     """A SAM-backed TenantSource carrying explicit scope rows (with updated_at)."""
     return TenantSource(
-        tenant={"administration": admin, "display_name": f"{admin} Ltd",
-                "version": tenant_version},
+        tenant={
+            "administration": admin,
+            "display_name": f"{admin} Ltd",
+            "version": tenant_version,
+        },
         tenant_modules=[{"module_name": module_name, "is_active": True, "version": 1}],
         user_tenant_roles=[{"email": "alice@h-dcn.example", "role": "SamTest_Read"}],
         user_tenant_scope=scope_rows,
@@ -2668,15 +2814,17 @@ def test_sync_updated_grant_supersedes_stored_scopegrant_row(sam_module):
         schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "region"
     )
     region = dict(_hdcn_region_dimension(), values=["Oost", "Friesland", "Noord"])
-    params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): [region]}
-    )
+    params = FakeParameterService({("members", "scope_dimensions", "h-dcn"): [region]})
 
     sources = {
         "h-dcn": _sam_source_with_scope_rows(
-            "h-dcn", sam_module,
-            [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]},
-                           "2026-08-20T12:00:00")],
+            "h-dcn",
+            sam_module,
+            [
+                _scope_row_at(
+                    "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00"
+                )
+            ],
         )
     }
     source = FakeSource(sources)
@@ -2688,9 +2836,15 @@ def test_sync_updated_grant_supersedes_stored_scopegrant_row(sam_module):
     # Edit the grant (Oost → Oost+Friesland) with a LATER updated_at; tenant version
     # is UNCHANGED (still 7) — the pre-ODx4a hazard.
     sources["h-dcn"] = _sam_source_with_scope_rows(
-        "h-dcn", sam_module,
-        [_scope_row_at("alice@h-dcn.example", {"region": ["Oost", "Friesland"]},
-                       "2026-08-20T13:30:00")],
+        "h-dcn",
+        sam_module,
+        [
+            _scope_row_at(
+                "alice@h-dcn.example",
+                {"region": ["Oost", "Friesland"]},
+                "2026-08-20T13:30:00",
+            )
+        ],
     )
     result = sync.sync_administration("h-dcn")
 
@@ -2705,8 +2859,11 @@ def test_sync_unchanged_grant_resync_is_noop(sam_module):
     params = FakeParameterService(
         {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
     )
-    scope_rows = [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]},
-                                "2026-08-20T12:00:00")]
+    scope_rows = [
+        _scope_row_at(
+            "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00"
+        )
+    ]
     source = FakeSource(
         {"h-dcn": _sam_source_with_scope_rows("h-dcn", sam_module, scope_rows)}
     )
@@ -2743,8 +2900,13 @@ def test_sync_new_grant_writes(sam_module):
 
     # Grant alice a NEW region scope.
     sources["h-dcn"] = _sam_source_with_scope_rows(
-        "h-dcn", sam_module,
-        [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T14:00:00")],
+        "h-dcn",
+        sam_module,
+        [
+            _scope_row_at(
+                "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T14:00:00"
+            )
+        ],
     )
     result = sync.sync_administration("h-dcn")
 
@@ -2776,15 +2938,19 @@ def _scopegrant_sk(email, dimension):
     return schema.build_sort_key(schema.RECORD_TYPE_SCOPEGRANT, email, dimension)
 
 
-def _sam_source_multi_dim_scope(admin, module_name, scope_rows, *, roles=None,
-                                tenant_version=7):
+def _sam_source_multi_dim_scope(
+    admin, module_name, scope_rows, *, roles=None, tenant_version=7
+):
     """A SAM-backed TenantSource carrying explicit multi-dimension scope rows."""
     return TenantSource(
-        tenant={"administration": admin, "display_name": f"{admin} Ltd",
-                "version": tenant_version},
+        tenant={
+            "administration": admin,
+            "display_name": f"{admin} Ltd",
+            "version": tenant_version,
+        },
         tenant_modules=[{"module_name": module_name, "is_active": True, "version": 1}],
-        user_tenant_roles=roles or [{"email": "alice@h-dcn.example",
-                                     "role": "SamTest_Read"}],
+        user_tenant_roles=roles
+        or [{"email": "alice@h-dcn.example", "role": "SamTest_Read"}],
         user_tenant_scope=scope_rows,
     )
 
@@ -2805,9 +2971,13 @@ def test_sync_cleared_grant_deletes_stale_scopegrant_row(sam_module):
     # 1) Alice is scoped to Oost → the row is projected.
     sources = {
         "h-dcn": _sam_source_multi_dim_scope(
-            "h-dcn", sam_module,
-            [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]},
-                           "2026-08-20T12:00:00")],
+            "h-dcn",
+            sam_module,
+            [
+                _scope_row_at(
+                    "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00"
+                )
+            ],
         )
     }
     source = FakeSource(sources)
@@ -2831,8 +3001,12 @@ def test_sync_dropped_dimension_deletes_only_that_rows(sam_module):
     wipe the user.
     """
     table = FakeTable()
-    season = {"key": "season", "field": "season", "enabled": True,
-              "values": ["S1", "S2"]}
+    season = {
+        "key": "season",
+        "field": "season",
+        "enabled": True,
+        "values": ["S1", "S2"],
+    }
     params = FakeParameterService(
         {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension(), season]}
     )
@@ -2842,10 +3016,15 @@ def test_sync_dropped_dimension_deletes_only_that_rows(sam_module):
     # 1) Alice scoped on BOTH region + season.
     sources = {
         "h-dcn": _sam_source_multi_dim_scope(
-            "h-dcn", sam_module,
-            [_scope_row_at("alice@h-dcn.example",
-                           {"region": ["Oost"], "season": ["S1"]},
-                           "2026-08-20T12:00:00")],
+            "h-dcn",
+            sam_module,
+            [
+                _scope_row_at(
+                    "alice@h-dcn.example",
+                    {"region": ["Oost"], "season": ["S1"]},
+                    "2026-08-20T12:00:00",
+                )
+            ],
         )
     }
     source = FakeSource(sources)
@@ -2856,15 +3035,19 @@ def test_sync_dropped_dimension_deletes_only_that_rows(sam_module):
 
     # 2) Alice DROPS season (keeps region) → re-sync.
     sources["h-dcn"] = _sam_source_multi_dim_scope(
-        "h-dcn", sam_module,
-        [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]},
-                       "2026-08-20T13:00:00")],
+        "h-dcn",
+        sam_module,
+        [
+            _scope_row_at(
+                "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T13:00:00"
+            )
+        ],
     )
     result = sync.sync_administration("h-dcn")
 
     stored = _items_in(table, "h-dcn")
-    assert region_sk in stored          # retained dimension survives
-    assert season_sk not in stored      # dropped dimension deleted
+    assert region_sk in stored  # retained dimension survives
+    assert season_sk not in stored  # dropped dimension deleted
     assert result.deleted == 1
 
 
@@ -2877,17 +3060,21 @@ def test_sync_downgraded_grant_supersedes_and_does_not_delete_desired_row(sam_mo
     """
     table = FakeTable()
     region = dict(_hdcn_region_dimension(), values=["Oost", "Friesland", "Noord"])
-    params = FakeParameterService(
-        {("members", "scope_dimensions", "h-dcn"): [region]}
-    )
+    params = FakeParameterService({("members", "scope_dimensions", "h-dcn"): [region]})
     sk = _scopegrant_sk("alice@h-dcn.example", "region")
 
     # 1) Alice scoped Oost+Friesland.
     sources = {
         "h-dcn": _sam_source_multi_dim_scope(
-            "h-dcn", sam_module,
-            [_scope_row_at("alice@h-dcn.example", {"region": ["Oost", "Friesland"]},
-                           "2026-08-20T12:00:00")],
+            "h-dcn",
+            sam_module,
+            [
+                _scope_row_at(
+                    "alice@h-dcn.example",
+                    {"region": ["Oost", "Friesland"]},
+                    "2026-08-20T12:00:00",
+                )
+            ],
         )
     }
     source = FakeSource(sources)
@@ -2897,16 +3084,20 @@ def test_sync_downgraded_grant_supersedes_and_does_not_delete_desired_row(sam_mo
 
     # 2) DOWNGRADE to Oost only (later updated_at) → re-sync.
     sources["h-dcn"] = _sam_source_multi_dim_scope(
-        "h-dcn", sam_module,
-        [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]},
-                       "2026-08-20T13:30:00")],
+        "h-dcn",
+        sam_module,
+        [
+            _scope_row_at(
+                "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T13:30:00"
+            )
+        ],
     )
     result = sync.sync_administration("h-dcn")
 
     stored = _items_in(table, "h-dcn")
-    assert sk in stored                             # still-desired row NOT deleted
-    assert stored[sk]["values"] == ["Oost"]         # superseded to the downgraded set
-    assert result.deleted == 0                      # nothing obsolete for this tenant
+    assert sk in stored  # still-desired row NOT deleted
+    assert stored[sk]["values"] == ["Oost"]  # superseded to the downgraded set
+    assert result.deleted == 0  # nothing obsolete for this tenant
 
 
 def test_sync_reconcile_is_tenant_scoped_never_touches_other_tenant(sam_module):
@@ -2927,15 +3118,23 @@ def test_sync_reconcile_is_tenant_scoped_never_touches_other_tenant(sam_module):
 
     sources = {
         "TenantA": _sam_source_multi_dim_scope(
-            "TenantA", sam_module,
-            [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]},
-                           "2026-08-20T12:00:00")],
+            "TenantA",
+            sam_module,
+            [
+                _scope_row_at(
+                    "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00"
+                )
+            ],
             roles=[{"email": "alice@h-dcn.example", "role": "SamTest_Read"}],
         ),
         "TenantB": _sam_source_multi_dim_scope(
-            "TenantB", sam_module,
-            [_scope_row_at("bob@h-dcn.example", {"region": ["Oost"]},
-                           "2026-08-20T12:00:00")],
+            "TenantB",
+            sam_module,
+            [
+                _scope_row_at(
+                    "bob@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00"
+                )
+            ],
             roles=[{"email": "bob@h-dcn.example", "role": "SamTest_Read"}],
         ),
     }
@@ -2948,13 +3147,15 @@ def test_sync_reconcile_is_tenant_scoped_never_touches_other_tenant(sam_module):
 
     # Clear TenantA's grant only, then re-sync TenantA.
     sources["TenantA"] = _sam_source_multi_dim_scope(
-        "TenantA", sam_module, [],
+        "TenantA",
+        sam_module,
+        [],
         roles=[{"email": "alice@h-dcn.example", "role": "SamTest_Read"}],
     )
     result = sync.sync_administration("TenantA")
 
     assert a_sk not in _items_in(table, "TenantA")  # TenantA's stale row deleted
-    assert b_sk in _items_in(table, "TenantB")      # TenantB untouched
+    assert b_sk in _items_in(table, "TenantB")  # TenantB untouched
     assert result.deleted == 1
     # Every delete issued targeted TenantA's partition only (never TenantB's).
     assert all(
@@ -2968,8 +3169,11 @@ def test_sync_unchanged_resync_deletes_nothing_and_writes_nothing(sam_module):
     params = FakeParameterService(
         {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
     )
-    scope_rows = [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]},
-                                "2026-08-20T12:00:00")]
+    scope_rows = [
+        _scope_row_at(
+            "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00"
+        )
+    ]
     sources = {"h-dcn": _sam_source_multi_dim_scope("h-dcn", sam_module, scope_rows)}
     source = FakeSource(sources)
     sync = ProjectionSync(source, table=table, parameter_service=params)
@@ -3003,9 +3207,13 @@ def test_sync_reconcile_never_deletes_non_scopegrant_rows(sam_module):
     )
     sources = {
         "h-dcn": _sam_source_multi_dim_scope(
-            "h-dcn", sam_module,
-            [_scope_row_at("alice@h-dcn.example", {"region": ["Oost"]},
-                           "2026-08-20T12:00:00")],
+            "h-dcn",
+            sam_module,
+            [
+                _scope_row_at(
+                    "alice@h-dcn.example", {"region": ["Oost"]}, "2026-08-20T12:00:00"
+                )
+            ],
         )
     }
     source = FakeSource(sources)
@@ -3118,7 +3326,9 @@ def test_build_scopegrant_rows_ignores_user_tenant_roles_regio_role():
     assert items == []
 
 
-def test_build_scopegrant_rows_grant_comes_from_scope_not_role_for_same_user(sam_module):
+def test_build_scopegrant_rows_grant_comes_from_scope_not_role_for_same_user(
+    sam_module,
+):
     """A user holding a Regio_* role but NO scope row gets NO grant (axis independence, P5).
 
     Even end-to-end through the sync: alice holds a legacy ``Regio_Noord`` role
@@ -3132,8 +3342,11 @@ def test_build_scopegrant_rows_grant_comes_from_scope_not_role_for_same_user(sam
     source = FakeSource(
         {
             "h-dcn": TenantSource(
-                tenant={"administration": "h-dcn", "display_name": "h-dcn Ltd",
-                        "version": 7},
+                tenant={
+                    "administration": "h-dcn",
+                    "display_name": "h-dcn Ltd",
+                    "version": 7,
+                },
                 tenant_modules=[
                     {"module_name": sam_module, "is_active": True, "version": 1}
                 ],
@@ -3157,9 +3370,12 @@ def test_build_scopegrant_rows_grant_comes_from_scope_not_role_for_same_user(sam
     # No scopegrant row from the Regio_* role — scope only comes from user_tenant_scope.
     assert scope_sk not in written
     # But the capability role IS still projected (roles axis untouched — P5).
-    assert schema.build_sort_key(
-        schema.RECORD_TYPE_ROLE, "alice@h-dcn.example", "SamTest_Read"
-    ) in written
+    assert (
+        schema.build_sort_key(
+            schema.RECORD_TYPE_ROLE, "alice@h-dcn.example", "SamTest_Read"
+        )
+        in written
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════
@@ -3207,18 +3423,23 @@ def test_sync_does_not_recreate_config_views_once_builder_removed(sam_module):
         }
     )
     source = FakeSource(
-        {"h-dcn": _tenant_source("h-dcn", sam_module,
-                                 roles=[{"email": "a@b.example",
-                                         "role": "SamTest_Read"}])}
+        {
+            "h-dcn": _tenant_source(
+                "h-dcn",
+                sam_module,
+                roles=[{"email": "a@b.example", "role": "SamTest_Read"}],
+            )
+        }
     )
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
     sync.sync_administration("h-dcn")
     written = _items_in(table, "h-dcn")
 
-    # The surviving config rows are emitted...
+    # The surviving config rows are emitted (scope/mail). config#fields is NO LONGER emitted
+    # by ProjectionSync (Task 1.15/1.16a — SAM owns it).
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") in written
-    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") in written
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") not in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
     # ...but config#views is never produced (the builder is gone — R2.6).
     assert _config_views_sk() not in written
@@ -3246,12 +3467,16 @@ def test_delete_config_views_residue_apply_deletes_only_views_row(sam_module):
     fields_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields")
     scope_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope")
     table.store[("h-dcn", fields_sk)] = {
-        schema.PARTITION_KEY_ATTR: "h-dcn", schema.SORT_KEY_ATTR: fields_sk,
-        schema.VERSION_ATTR: 1, "overrides": {},
+        schema.PARTITION_KEY_ATTR: "h-dcn",
+        schema.SORT_KEY_ATTR: fields_sk,
+        schema.VERSION_ATTR: 1,
+        "overrides": {},
     }
     table.store[("h-dcn", scope_sk)] = {
-        schema.PARTITION_KEY_ATTR: "h-dcn", schema.SORT_KEY_ATTR: scope_sk,
-        schema.VERSION_ATTR: 1, "dimensions": [],
+        schema.PARTITION_KEY_ATTR: "h-dcn",
+        schema.SORT_KEY_ATTR: scope_sk,
+        schema.VERSION_ATTR: 1,
+        "dimensions": [],
     }
     sync = ProjectionSync(FakeSource({}), table=table)
 
@@ -3259,8 +3484,8 @@ def test_delete_config_views_residue_apply_deletes_only_views_row(sam_module):
 
     assert summary == {"scanned": 1, "deleted": 1}
     written = _items_in(table, "h-dcn")
-    assert _config_views_sk() not in written          # residue gone
-    assert fields_sk in written                        # survivors untouched
+    assert _config_views_sk() not in written  # residue gone
+    assert fields_sk in written  # survivors untouched
     assert scope_sk in written
     # The single delete targeted exactly the config#views key.
     assert table.delete_calls == [schema.build_key("h-dcn", _config_views_sk())]
@@ -3276,7 +3501,7 @@ def test_delete_config_views_residue_is_idempotent_noop_on_rerun(sam_module):
     second = sync.delete_config_views_residue(["h-dcn"], dry_run=False)
 
     assert first == {"scanned": 1, "deleted": 1}
-    assert second == {"scanned": 0, "deleted": 0}      # no-op second time
+    assert second == {"scanned": 0, "deleted": 0}  # no-op second time
 
 
 def test_delete_config_views_residue_is_tenant_scoped(sam_module):
@@ -3297,6 +3522,4 @@ def test_delete_config_views_residue_is_tenant_scoped(sam_module):
     # Only h-dcn's residue was removed; other-tenant's row is untouched.
     assert _config_views_sk() not in _items_in(table, "h-dcn")
     assert _config_views_sk() in _items_in(table, "other-tenant")
-    assert all(
-        key[schema.PARTITION_KEY_ATTR] == "h-dcn" for key in table.delete_calls
-    )
+    assert all(key[schema.PARTITION_KEY_ATTR] == "h-dcn" for key in table.delete_calls)

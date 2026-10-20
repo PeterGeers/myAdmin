@@ -390,9 +390,15 @@ class ProjectionSync:
         config_scope = build_config_scope_row(source.tenant, param_svc)
         if config_scope is not None:
             items.append(config_scope)
-        config_fields = build_config_fields_row(source.tenant, param_svc)
-        if config_fields is not None:
-            items.append(config_fields)
+        # config#fields is NO LONGER emitted by ProjectionSync (spec 02 Task 1.15).
+        # The SAM write path (MembersConfigWriteRepository via PUT /members/config/fields) is
+        # now the AUTHORITATIVE author of the `config#fields` row in both TEST and PROD (the
+        # per-tenant migration ran + read-back verified). ProjectionSync must not co-author it
+        # (split-ownership, Req 11.1/11.2). `members.field_overlay` is SAM-owned; the retired
+        # `members.default_page_size` (Req 25) is projected nowhere. The `build_config_fields_row`
+        # builder itself is KEPT (still imported/exported) because the one-off migration script
+        # (`backend/scripts/migrate_config_fields_to_sam.py`) and the builder-unit-tests consume
+        # it directly — only the EMISSION from sync_administration is removed here.
         # R0 (pivot-output-actions, design §6.3): the per-tenant mail-enabled gate.
         # Projected as config#mail so the Members edge reads the flag via the
         # projection reader (no live MySQL at request time); fail-closed to False.
