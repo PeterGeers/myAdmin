@@ -189,6 +189,11 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505578805
+      },
+      {
+        "executionId": "8bddd055-59ff-49f5-a732-98b069637986",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792508867270
       }
     ],
     "1.12 Migrate `config#fields` per tenant + read-back verify + delete migrated MySQL rows (operational, PRE builder removal)": [
@@ -196,6 +201,11 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505578963
+      },
+      {
+        "executionId": "8bddd055-59ff-49f5-a732-98b069637986",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792508874372
       }
     ],
     "1.13 Repoint `config#fields` save in `membersConfigService.ts` + simplify UX": [
@@ -203,6 +213,16 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505579085
+      },
+      {
+        "executionId": "eeb12860-30f4-44f0-a38b-bff1f7639915",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792509559548
+      },
+      {
+        "executionId": "eeb12860-30f4-44f0-a38b-bff1f7639915",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792510078877
       }
     ],
     "1.14 Update frontend tests for the repointed fields save": [
@@ -210,6 +230,16 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505579206
+      },
+      {
+        "executionId": "eeb12860-30f4-44f0-a38b-bff1f7639915",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792509563400
+      },
+      {
+        "executionId": "eeb12860-30f4-44f0-a38b-bff1f7639915",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792510080397
       }
     ],
     "1.15 Remove `build_config_fields_row` from ProjectionSync + retire MySQL params (merge to main ONLY after 1.12 PROD-verified)": [
@@ -217,6 +247,21 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505579319
+      },
+      {
+        "executionId": "4ee65cc2-f292-4380-acce-29c34c5f49d9",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792524343932
+      },
+      {
+        "executionId": "3ae0c8c7-0ffc-46b0-8b7c-918c8a9020c0",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792525703004
+      },
+      {
+        "executionId": "dfca3905-ea82-4e1b-99c0-4101fb415f6d",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792525895857
       }
     ],
     "1.16 Update ProjectionSync tests to assert config#fields NOT emitted (change-with-tests)": [
@@ -224,6 +269,16 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505579427
+      },
+      {
+        "executionId": "4ee65cc2-f292-4380-acce-29c34c5f49d9",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792524348661
+      },
+      {
+        "executionId": "3ae0c8c7-0ffc-46b0-8b7c-918c8a9020c0",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792525707789
       }
     ],
     "1.17 Members table rows-per-page runtime selector + DynamoDB cursor paging (OQ-6 RESOLVED, Component 10 / Req 25)": [
@@ -231,6 +286,21 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505579534
+      },
+      {
+        "executionId": "e391ada1-81bb-4fff-949a-3222caa0e718",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792514982929
+      },
+      {
+        "executionId": "e96a4dd4-7bac-405a-9d20-705cc390668f",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792517882484
+      },
+      {
+        "executionId": "671fd9d8-2b07-40a0-89e2-423775ddb477",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792519366889
       }
     ],
     "1.18 Property test for rows-per-page selector + cursor paging (change-with-tests)": [
@@ -238,6 +308,16 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505579647
+      },
+      {
+        "executionId": "e391ada1-81bb-4fff-949a-3222caa0e718",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792514988445
+      },
+      {
+        "executionId": "e96a4dd4-7bac-405a-9d20-705cc390668f",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792517886758
       }
     ],
     "2. Checkpoint — config#fields cutover complete": [
@@ -469,6 +549,27 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505583799
+      }
+    ],
+    "1.15 Stop ProjectionSync emitting config#fields (builder KEPT until migration retired)": [
+      {
+        "executionId": "34cee165-3ca5-401f-aaed-4ad089c2ca9c",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792527089652
+      }
+    ],
+    "1.16a ProjectionSync emission tests: assert config#fields NOT emitted (change-with-tests)": [
+      {
+        "executionId": "34cee165-3ca5-401f-aaed-4ad089c2ca9c",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792527095587
+      }
+    ],
+    "1.16b Re-home the 3 regression tests incidentally coupled to config#fields emission": [
+      {
+        "executionId": "34cee165-3ca5-401f-aaed-4ad089c2ca9c",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792527100704
       }
     ]
   }
