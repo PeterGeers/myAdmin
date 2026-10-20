@@ -36,9 +36,11 @@ def set_config(app_config) -> None:
 @folder_bp.route("/api/folders", methods=["GET"])
 @cognito_required(required_permissions=["invoices_read"])
 def get_folders(user_email, user_roles) -> ResponseReturnValue:
-    """Return available vendor folders with an optional case-insensitive
-    substring filter (the ``regex`` query param is matched literally, not as a
-    regular expression — see the ReDoS mitigation note below)."""
+    """Return available vendor folders with an optional case-insensitive regex
+    filter (the ``regex`` query param). The pattern is compiled with the RE2
+    engine (``google-re2``), a non-backtracking engine that matches in linear
+    time, so a user-supplied pattern cannot cause catastrophic backtracking
+    (ReDoS / CodeQL ``py/regex-injection``) the way stdlib ``re`` can."""
     try:
         # Get tenant from request header
         from auth.tenant_context import get_current_tenant
@@ -56,9 +58,9 @@ def get_folders(user_email, user_roles) -> ResponseReturnValue:
             flush=True,
         )
 
-        # Deliberate validation guard: cap the filter length before any matching.
-        # A user-supplied value is attacker-controllable, so bound its size to keep
-        # the (now substring-only) match cheap and avoid pathological inputs.
+        # Deliberate validation guard: cap the pattern length before any matching.
+        # A user-supplied value is attacker-controllable; bound its size as defence
+        # in depth (the RE2 engine already guarantees linear-time matching).
         if filter_pattern is not None and len(filter_pattern) > 128:
             return jsonify({"error": "Invalid regex pattern: too long"}), 400
 
@@ -126,18 +128,25 @@ def get_folders(user_email, user_roles) -> ResponseReturnValue:
             folders = list(config.vendor_folders.values())
             print(f"Fallback: returning {len(folders)} local folders", flush=True)
 
-        # Apply a case-insensitive substring filter if provided.
-        # No real caller passes a regex (the frontend fetches the full list and
-        # filters client-side), so a user-supplied `re.compile` is pure ReDoS /
-        # regex-injection surface (CodeQL py/regex-injection). A plain substring
-        # match covers the only legitimate need and runs in linear time.
+        # Apply a case-insensitive REGEX filter if provided, using the RE2 engine.
+        # RE2 (google-re2) is non-backtracking and matches in GUARANTEED linear
+        # time, so compiling a user-supplied pattern is safe against catastrophic
+        # backtracking (ReDoS) — unlike stdlib `re`, which CodeQL flags as
+        # py/regex-injection on attacker-controlled input. An invalid pattern is a
+        # caller error -> 400 (re2.error), never a 500.
         if filter_pattern:
-            needle = filter_pattern.lower()
-            filtered_folders = [
-                folder for folder in folders if needle in folder.lower()
-            ]
+            import re2
+
+            try:
+                # Case-insensitive via the inline RE2 flag (portable across
+                # google-re2 versions; `(?i)` applies to the whole pattern).
+                compiled = re2.compile("(?i)" + filter_pattern)
+            except re2.error as exc:
+                print(f"Invalid regex pattern '{filter_pattern}': {exc}", flush=True)
+                return jsonify({"error": "Invalid regex pattern"}), 400
+            filtered_folders = [folder for folder in folders if compiled.search(folder)]
             print(
-                f"Filter '{filter_pattern}' narrowed {len(folders)} folders to {len(filtered_folders)}",
+                f"Regex '{filter_pattern}' narrowed {len(folders)} folders to {len(filtered_folders)}",
                 flush=True,
             )
             folders = filtered_folders
