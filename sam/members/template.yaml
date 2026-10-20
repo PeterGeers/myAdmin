@@ -560,6 +560,49 @@ Resources:
                 - dynamodb:GetItem
               Resource:
                 - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${GovernanceProjectionTableName}"
+            # --- governance_projection — WRITE: the SAM-owned config write path (members-config
+            # SAM-owned write path spec, R4). The config-write domain service writes exactly the
+            # three SAM-owned tenant-level config rows (`config#fields`, `config#scope`,
+            # `config#mail`) via `MembersConfigWriteRepository.put_config` — the net-new writer
+            # sibling of the read-only `MembersProjectionReader`. This statement is the
+            # least-privilege WRITE grant that pairs with (and is kept SEPARATE from) the
+            # read-only `MembersReadGovernanceProjection` above, so an audit can see exactly what
+            # the write path may do while the read grant stays intact (R4.1, R4.2).
+            #
+            # ACTION (R4.5): `dynamodb:PutItem` ONLY — the write path is a single versioned
+            # `put_item` per config row. No `UpdateItem`/`DeleteItem`/`BatchWriteItem` — no write
+            # verb beyond the versioned put is granted (least privilege).
+            #
+            # RESOURCE (R4.1): the EXACT governance_projection table ARN — same ARN reference the
+            # read statement uses, in THIS account/region. No wildcard table, no cross-account.
+            #
+            # TENANT PIN (R4.3): a `dynamodb:LeadingKeys` Condition pins the partition the role may
+            # PutItem to EXACTLY the caller's tenant (`${aws:PrincipalTag/tenant_id}`) — the
+            # credential-level tenancy backstop for the write path. The partition key is
+            # `tenant_id` (`PARTITION_KEY_ATTR`), so LeadingKeys bars a write to any other tenant's
+            # partition. `dynamodb:LeadingKeys` is a multi-valued condition key, hence
+            # `ForAllValues:StringEquals`.
+            #
+            # SORT-KEY SCOPE (R4.4): no first-class IAM condition key constrains writes by a
+            # composite sort-key prefix, so IAM CANNOT enforce that only `config#{fields,scope,mail}`
+            # sort keys are written. That guarantee is enforced in the APPLICATION layer — the route
+            # `configId ∈ {fields,scope,mail}` check plus the `MembersConfigWriteRepository`
+            # closed-set guard (`_WRITABLE_CONFIG_IDS`) — which is the PRIMARY enforcement; this IAM
+            # tenant pin is the credential-level backstop, not the sort-key gate.
+            - Sid: MembersWriteGovernanceProjectionConfig
+              Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource:
+                - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${GovernanceProjectionTableName}"
+              Condition:
+                ForAllValues:StringEquals:
+                  # IAM POLICY VARIABLE — a plain string literal, NOT a CloudFormation
+                  # `!Sub`. IAM resolves `${aws:PrincipalTag/tenant_id}` at request time to
+                  # the caller's tenant session tag; wrapping it in `!Sub` would make
+                  # CloudFormation try (and fail) to interpolate it as a template parameter.
+                  "dynamodb:LeadingKeys":
+                    - "${aws:PrincipalTag/tenant_id}"
             - Sid: MembersCrudMembersTable
               Effect: Allow
               Action:

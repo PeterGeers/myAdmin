@@ -21,6 +21,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
+from services import projection_schema as schema
+
+from sam.members.domain.config_write_service import ConfigWriteValidationError
 from sam.members.domain.execute_and_deliver import AdHocMailBody
 from sam.members.handler._http import AcceptedResult, ParsedRequest
 from sam.members.handler.routes import CAP_MEMBERS_ADMIN, RouteSpec
@@ -241,6 +244,53 @@ def get_mail_run_status_service() -> Any:
 
         _MAIL_RUN_STATUS_SERVICE = MailRunStatusService(DynamoDbMembersRepository())
     return _MAIL_RUN_STATUS_SERVICE
+
+
+# ── Config-write service seam (spec 02, Task 1.6 — design C1/C2) ──────────────────────
+#
+# The `write_config` route (`PUT /members/config/{configId}`) is backed by the standalone
+# :class:`~sam.members.domain.config_write_service.ConfigWriteService` (Component 2 — NOT the
+# MembershipService). It validates the per-`configId` body shape, stamps the row-level version,
+# and delegates the versioned put to the
+# :class:`~sam.members.repository.projection_config_write_repository.MembersConfigWriteRepository`
+# (Component 3). It is resolved lazily once (warm-reuse), mirroring
+# :func:`get_template_service` / :func:`get_execute_and_deliver_service`. A test replaces
+# :data:`_CONFIG_WRITE_SERVICE` (or patches :func:`get_config_write_service`) with a service over
+# an in-memory fake repo, so no AWS is touched. Kept HERE (not on the ``app`` facade) because the
+# config-write dispatch lives here; the accessor is module-global so warm invocations reuse one
+# service.
+
+#: The CLOSED set of writable config ids the ROUTE accepts (R2.2/R2.5). The repository re-checks
+#: this (defense in depth), but the edge rejects an id outside the set FIRST, before any write —
+#: so `views`/unknown is a 400 and the write path is never entered (Config_Views_Residue never
+#: authored). The tokens come from the shared projection schema so route, repo, and reader agree.
+_WRITABLE_CONFIG_IDS = frozenset(
+    {schema.CONFIG_ID_FIELDS, schema.CONFIG_ID_SCOPE, schema.CONFIG_ID_MAIL}
+)
+
+#: The module-global config-write service, built once at cold start (``None`` until first use).
+_CONFIG_WRITE_SERVICE: Any = None
+
+
+def get_config_write_service() -> Any:
+    """Return the module-global config-write service, building it once at cold start (Task 1.6).
+
+    Wires the :class:`~sam.members.domain.config_write_service.ConfigWriteService` (Component 2)
+    over the net-new :class:`~sam.members.repository.projection_config_write_repository.MembersConfigWriteRepository`
+    (Component 3). The write repository resolves its table lazily + fail-fast on first real
+    ``put_item`` (``GOVERNANCE_PROJECTION_TABLE``, no default), so importing the module (and the
+    auth-only tests) never touches AWS. Tests patch this accessor (or set ``_CONFIG_WRITE_SERVICE``)
+    to inject a service over an in-memory fake repo.
+    """
+    global _CONFIG_WRITE_SERVICE
+    if _CONFIG_WRITE_SERVICE is None:
+        from sam.members.domain.config_write_service import ConfigWriteService
+        from sam.members.repository.projection_config_write_repository import (
+            MembersConfigWriteRepository,
+        )
+
+        _CONFIG_WRITE_SERVICE = ConfigWriteService(MembersConfigWriteRepository())
+    return _CONFIG_WRITE_SERVICE
 
 
 def _caller_is_tenant_admin(ctx: RequestContext) -> bool:
@@ -761,6 +811,35 @@ def dispatch_route(
         # drops blank/dupe/non-candidate keys (R6.5).
         return service.save_column_preferences(tenant_id, ctx.sub, _write_body(request))
 
+    # ── Config write — SAM-owned config#* rows (spec 02, Task 1.6) ───────────────────
+    #
+    # The single WRITE entry point for the three SAM-owned config rows. The edge has already
+    # verified the bearer JWT, resolved `tenant_id` from the verified token (never the body —
+    # verify-before-trust, Property 2), and enforced the Tenant_Admin entitlement (the route's
+    # members:admin gate) BEFORE reaching here. This branch:
+    #   1. Closes the write surface: `configId` MUST be in {fields, scope, mail}. An id outside
+    #      the set (incl. `views`) raises ConfigWriteValidationError → 400 at the edge, and the
+    #      write path is NEVER entered (no put_item), so Config_Views_Residue is never authored
+    #      (R2.2/R2.5). This is the PRIMARY route-level close; the repository re-checks the same
+    #      closed set as defense in depth (R2.3).
+    #   2. Delegates to the config-write domain service (Component 2), which validates the
+    #      per-`configId` body shape (raising ConfigWriteValidationError → 400 on a malformed
+    #      body), stamps the monotonic row-level version, and persists via the write repository.
+    # `tenant_id` is AUTHORITATIVE from the verified context; the body carries ONLY the per-id
+    # attributes. On success the service returns `{success, configId, version}` which the edge
+    # shapes into a 200 (R1.3).
+    if name == "write_config":
+        config_id = _require_path_param(ctx, "configId")
+        if config_id not in _WRITABLE_CONFIG_IDS:
+            # Reject `views`/unknown at the route — no write, deliberate caller-safe 400
+            # (the write surface is closed to exactly the three SAM-owned ids, R2.2/R2.5).
+            raise ConfigWriteValidationError(
+                f"configId must be one of {sorted(_WRITABLE_CONFIG_IDS)}; "
+                f"{config_id!r} is not writable"
+            )
+        config_write_service = get_config_write_service()
+        return config_write_service.put_config(tenant_id, config_id, _write_body(request))
+
     # ── Group MEMBER (writes — task 5.2) ──────────────────────────────────────────────
     if name == "create_member":
         return service.create_member(
@@ -908,12 +987,14 @@ def dispatch_route(
 
 
 __all__ = [
+    "ConfigWriteValidationError",
     "MailRunNotFound",
     "RouteNotImplemented",
     "_query_flag",
     "_require_path_param",
     "_write_body",
     "dispatch_route",
+    "get_config_write_service",
     "get_execute_and_deliver_service",
     "get_mail_run_status_service",
     "get_template_service",
