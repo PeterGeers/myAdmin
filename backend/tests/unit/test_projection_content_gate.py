@@ -31,7 +31,9 @@ from tests.unit.test_projection_sync import (
     FakeParameterService,
     FakeSource,
     FakeTable,
-    _tenant_source,
+    _region_dim_with_values,
+    _sam_source_with_scope_rows,
+    _scope_row_at,
 )
 
 # A stable per-param revision for the `members.field_overlay` param. The WEDGE is that
@@ -410,118 +412,140 @@ def test_build_config_fields_projects_died_in_status_like_gender_concrete(sam_mo
 # Validates: Requirements 1.2, 1.3, 1.5, 1.6, 1.7
 # ===========================================================================
 
-from services.projection_sync import build_config_mail_row
+from services.projection_sync import build_scopegrant_rows
 
-_MAIL_SK = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_MAIL)
+_GRANT_SK = schema.build_sort_key(
+    schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "region"
+)
 
-# A stable per-param revision stamped on the source param that drives each row.
-# The WEDGE is that the stored row is stamped at THIS SAME revision while
-# carrying STALE content, so the strict-greater version gate can never heal it —
-# only the content-gate can. (Same mechanism as the config#fields wedge above,
-# but for a DIFFERENT row type, which is the whole point of generality.)
-_MAIL_REVISION = "2026-03-01T00:00:00"
+# A stable per-param revision stamped on the source param that drives the scopegrant row. The
+# WEDGE is that the stored row is stamped at THIS SAME revision while carrying STALE content, so
+# the strict-greater version gate can never heal it — only the content-gate can.
+_GRANT_REVISION = "2026-03-01T00:00:00"
 
 
-# --- config#scope generality: retired here, preserved by the config#mail twins ---
+# --- content-gate GENERALITY: re-homed onto the scopegrant row (spec 02 Task 5.8) -----------
 #
-# Task 3.7 removed config#scope from ProjectionSync's emission (SAM owns it). The content-gate
-# GENERALITY guarantee (R1.2/R1.7 — the content-gate heals ANY config#* row type on a content
-# change at an equal version, not just config#fields/status) was formerly proven here using
-# config#scope as a second vehicle. config#scope is no longer sync-emitted, so it can no longer
-# be a vehicle; the guarantee is PRESERVED by the config#mail twins below
-# (`test_sync_heals_wedged_config_mail_*` / `test_sync_rerun_unchanged_config_mail_is_noop`) —
-# a DISTINCT non-status config#* row healing through the same `_conditional_put` / `_content_key`
-# seam — plus the original config#fields wedge above. No generality coverage is lost.
-
-# --- config#mail wedge setup (driven by the `members.mail_domain` param) ---------
+# After Task 5.8, ProjectionSync emits NO config#* row (config#fields/scope/mail all SAM-owned),
+# so the content-gate GENERALITY guarantee (R1.2/R1.7 — the content-gate heals ANY emitted row on
+# a content change at an equal version, not just a status/config#fields special-case) is now
+# proven on the ONE remaining ProjectionSync-emitted, members.*-backed, content-gated row: the
+# `scopegrant#` row, written through the SAME `_conditional_put` / `_content_key` seam. The row's
+# content is the grant's `values` list (validated against the declared dimension vocabulary); the
+# wedge grows that vocabulary at an EQUAL param revision, so only the content-gate can heal it.
 
 
-def _mail_params(tenant_id, domain):
-    """A FakeParameterService authoring `members.mail_domain = domain` (mail
-    enabled), stamped at the fixed mail wedge revision. STALE vs FRESH differ only
-    in the domain string, at the SAME revision — a pure content change at an equal
-    version for the config#mail row type."""
+def _grant_params(tenant_id, declared_values):
+    """A FakeParameterService declaring the region `members.scope_dimensions` vocabulary as
+    `declared_values` (the grant validates against this). The scopegrant row VERSION comes from
+    the grant's own `updated_at` (_scopegrant_version), NOT this param — so the wedge holds the
+    version fixed (via a fixed grant `updated_at`) while the DECLARED vocabulary changes the
+    scopegrant row's CONTENT (its `values`). A pure content change at an EQUAL version."""
     return FakeParameterService(
-        params={
-            ("members", "mail_enabled", tenant_id): True,
-            ("members", "mail_domain", tenant_id): domain,
-        },
-        revisions={("members", "mail_domain", tenant_id): _MAIL_REVISION},
+        {
+            ("members", "scope_dimensions", tenant_id): [
+                _region_dim_with_values(declared_values)
+            ]
+        }
     )
 
 
-def _mail_domain_in(table, tenant_id):
-    """The `mail_domain` currently stored on the tenant's config#mail row."""
-    stored = table.store.get((tenant_id, _MAIL_SK))
-    assert stored is not None, "expected a stored config#mail row"
-    return stored["mail_domain"]
+def _grant_source(tenant_id, sam_module, granted_values):
+    """A SAM source whose user holds a region grant for `granted_values` at the fixed wedge
+    `updated_at` (so the scopegrant row is stamped at _GRANT_REVISION). The projected grant
+    `values` are the granted values that are ALSO declared by the dimension."""
+    return FakeSource(
+        {
+            tenant_id: _sam_source_with_scope_rows(
+                tenant_id,
+                sam_module,
+                [
+                    _scope_row_at(
+                        "alice@h-dcn.example",
+                        {"region": list(granted_values)},
+                        _GRANT_REVISION,
+                    )
+                ],
+            )
+        }
+    )
 
 
-_MAIL_STALE_DOMAIN = "old-domain.example"
-_MAIL_FRESH_DOMAIN = "h-dcn.nl"
+def _grant_values_in(table, tenant_id):
+    """The `values` currently stored on the tenant's scopegrant row."""
+    stored = table.store.get((tenant_id, _GRANT_SK))
+    assert stored is not None, "expected a stored scopegrant row"
+    return stored["values"]
 
 
-def test_sync_heals_wedged_config_mail_when_content_differs_at_equal_version(
-    sam_module,
-):
-    """R1.2/R1.7 GENERALITY — the SAME wedge-and-heal for `config#mail`: a stored
-    `config#mail` row holds a STALE `mail_domain` at version V; the source authors
-    a DIFFERENT domain at the SAME version V. A sync MUST write the fresh domain
-    (content differs → heal), EVEN THOUGH the incoming version is not strictly
-    greater than the stored one.
+_GRANT_STALE = ["Noord"]
+_GRANT_FRESH = ["Noord", "Zuid"]
 
-    A THIRD distinct `config#*` row type healing through the SAME shared seam
-    (`_conditional_put` / `_content_key`) confirms the content-gate is row-type-
-    agnostic, not a status/config#fields special-case (R1.7).
-    """
+
+def test_sync_heals_wedged_scopegrant_when_content_differs_at_equal_version(sam_module):
+    """R1.2/R1.7 GENERALITY — a stored `scopegrant#` row holds STALE `values` at version V; the
+    source declares a WIDER vocabulary (so the same grant validates to more values) at the SAME
+    version V. A sync MUST write the fresh values (content differs → heal), EVEN THOUGH the
+    incoming version is not strictly greater than the stored one — proving the content-gate is
+    row-type-agnostic (the SAME `_conditional_put` / `_content_key` seam), now that NO config#*
+    row is emitted (Task 5.8 end-state)."""
     tenant_id = "h-dcn"
     table = FakeTable()
-    params = _mail_params(tenant_id, _MAIL_FRESH_DOMAIN)
+    # The user is granted both values; STALE vs FRESH differ in what the dimension DECLARES
+    # (the grant validates to only the declared subset). The grant's updated_at is the row version.
+    params = _grant_params(tenant_id, _GRANT_FRESH)
 
-    # Pre-seed the WEDGED stored row: STALE domain, stamped at the SAME version the
-    # builder computes for this source (the mail_domain param's own revision).
-    stale_item = build_config_mail_row(
-        {"administration": tenant_id}, _mail_params(tenant_id, _MAIL_STALE_DOMAIN)
+    # Pre-seed the WEDGED stored row: STALE 1-value content, stamped at the SAME version (the
+    # grant's updated_at = _GRANT_REVISION) the sync computes for this source — so the
+    # strict-greater version gate can NEVER heal it, only the content-gate can.
+    stale_items = build_scopegrant_rows(
+        {"administration": tenant_id},
+        [
+            _scope_row_at(
+                "alice@h-dcn.example", {"region": _GRANT_FRESH}, _GRANT_REVISION
+            )
+        ],
+        _grant_params(tenant_id, _GRANT_STALE),
     )
-    assert stale_item.version == _MAIL_REVISION  # stored version == source version V
-    table.store[(tenant_id, _MAIL_SK)] = stale_item.to_dynamodb_item()
-    assert _mail_domain_in(table, tenant_id) == _MAIL_STALE_DOMAIN
+    assert len(stale_items) == 1
+    assert (
+        stale_items[0].version == _GRANT_REVISION
+    )  # stored version == source version V
+    table.store[(tenant_id, _GRANT_SK)] = stale_items[0].to_dynamodb_item()
+    assert _grant_values_in(table, tenant_id) == _GRANT_STALE
 
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
+    source = _grant_source(tenant_id, sam_module, _GRANT_FRESH)
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
     sync.sync_administration(tenant_id)
 
-    # The heal: the stored row now carries the fresh domain, proving the write
-    # followed CONTENT, not the (equal) version — for config#mail.
-    healed = _mail_domain_in(table, tenant_id)
-    assert healed == _MAIL_FRESH_DOMAIN, (
-        "GENERALITY WEDGE (config#mail): the stored row still carries the stale "
-        f"mail_domain {healed!r} — the content-gate failed to heal a config#mail "
-        "row, so the fix is a config#fields/status special-case, not general (R1.7)."
+    healed = _grant_values_in(table, tenant_id)
+    assert healed == _GRANT_FRESH, (
+        "GENERALITY WEDGE (scopegrant): the stored row still carries the stale grant "
+        f"values {healed!r} — the content-gate failed to heal a non-config# row, so the "
+        "fix is a config#fields/status special-case, not general (R1.7)."
     )
 
 
-def test_sync_rerun_unchanged_config_mail_is_noop(sam_module):
-    """R1.3/R1.6 GENERALITY (idempotence) — for config#mail too, a re-sync against
-    an UNCHANGED source writes nothing and leaves the row byte-identical (equal
-    content → skip), the mirror of the heal above."""
+def test_sync_rerun_unchanged_scopegrant_is_noop(sam_module):
+    """R1.3/R1.6 GENERALITY (idempotence) — for the scopegrant row too, a re-sync against an
+    UNCHANGED source writes nothing and leaves the row byte-identical (equal content → skip)."""
     tenant_id = "h-dcn"
     table = FakeTable()
-    params = _mail_params(tenant_id, _MAIL_FRESH_DOMAIN)
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
+    params = _grant_params(tenant_id, _GRANT_FRESH)
+    source = _grant_source(tenant_id, sam_module, _GRANT_FRESH)
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
     first = sync.sync_administration(tenant_id)
     assert first.written > 0
-    assert _mail_domain_in(table, tenant_id) == _MAIL_FRESH_DOMAIN
+    assert _grant_values_in(table, tenant_id) == _GRANT_FRESH
     snapshot = {k: dict(v) for k, v in table.store.items()}
     put_calls_after_first = len(table.put_calls)
 
     second = sync.sync_administration(tenant_id)
 
     assert second.written == 0, (
-        f"idempotence VIOLATED (config#mail): re-sync wrote {second.written} row(s)."
+        f"idempotence VIOLATED (scopegrant): re-sync wrote {second.written} row(s)."
     )
     assert len(table.put_calls) == put_calls_after_first
     assert {k: dict(v) for k, v in table.store.items()} == snapshot

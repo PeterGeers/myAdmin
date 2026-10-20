@@ -244,21 +244,18 @@ def test_sync_administration_single_tenant_writes_expected_items(sam_module):
         schema.build_sort_key(schema.RECORD_TYPE_ROLE, "a@b.example", "SamTest_Read")
         in written
     )
-    # + the always-present config rows (empty/fail-closed when un-configured, R1.6/R5.1/R0).
-    # Property 4 (spec 02 Task 3.7): config#scope is NO LONGER emitted by ProjectionSync (the
-    # SAM write path is authoritative; the frontend mirrors to members.scope_dimensions) — only
-    # config#mail remains emitted by ProjectionSync (config#fields SAM-owned since 1.15).
+    # Property 4 — END STATE (spec 02 Task 1.15 + 3.7 + 5.8): ProjectionSync emits NO config#*
+    # rows at all. config#fields (1.15), config#scope (3.7), and config#mail (5.8) are ALL
+    # SAM-owned via the write path; ProjectionSync owns only tenant/module/role/scopegrant. This
+    # is the split-ownership end-state — the SAM plane is the sole author of every config#* row.
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") not in written
-    # Property 4 (spec 02 Task 1.15/1.16a): ProjectionSync NO LONGER emits config#fields — the
-    # SAM write path is the authoritative author. scope/mail are still emitted by ProjectionSync.
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") not in written
-    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") not in written
     # Phase 2 (R5.3): the config#views row is no longer emitted.
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views") not in written
-    # tenant + module + role + config#mail = 4 (config#fields AND config#scope now SAM-owned,
-    # emitted by neither ProjectionSync path; no scopegrant: no scope_dimensions authored in the
-    # empty FakeParameterService).
-    assert result.written == 4
+    # tenant + module + role = 3 — NO config#* row emitted (all three SAM-owned), no scopegrant
+    # (no scope_dimensions authored in the empty FakeParameterService).
+    assert result.written == 3
     assert result.skipped == 0
 
 
@@ -558,6 +555,21 @@ def _hdcn_region_dimension():
         "label": {"nl": "Regio", "en": "Region"},
         "enabled": True,
         "values": ["Noord", "Zuid", "Oost", "West"],
+        "required_for": ["Members_CRUD"],
+    }
+
+
+def _region_dim_with_values(values):
+    """The region `members.scope_dimensions` entry with an explicit declared `values` list —
+    used by the scopegrant fresh-source regression test to grow the declared vocabulary across
+    an edit (the content a scopegrant row carries derives from the grant validated against these
+    declared values)."""
+    return {
+        "key": "region",
+        "field": "region",
+        "label": {"nl": "Regio", "en": "Region"},
+        "enabled": True,
+        "values": list(values),
         "required_for": ["Members_CRUD"],
     }
 
@@ -1689,33 +1701,60 @@ def test_sync_param_edit_alone_projects_the_change(sam_module):
     the fix, re-syncing with a newer param revision supersedes the stored config# row
     version so the conditional put WRITES it — written>0 (impact-analysis acceptance).
 
-    Task 3.7: the regression is now exercised via `members.mail_enabled` -> config#mail
-    (the ONE remaining ProjectionSync-emitted members.*-backed builder; config#fields was
-    SAM-owned from Task 1.15 and config#scope from Task 3.7). The version-supersede guarantee
-    is identical for any emitted config# row — a param edit with an UNCHANGED tenant row still
-    bumps the row version so the conditional put WRITES it.
+    Task 5.8 END STATE: ProjectionSync emits NO config#* row (fields/scope/mail all SAM-owned),
+    so the version-supersede regression is now exercised via the ONE remaining members.*-backed,
+    version-bumped, content-gated emitted row: the `scopegrant#` row (built from
+    `members.scope_dimensions` + a user grant, written through the SAME _conditional_put /
+    _supersedes seam). A param edit (a newer scope_dimensions revision) with an UNCHANGED tenant
+    row still bumps the scopegrant row version so the conditional put WRITES it.
     """
     table = FakeTable()
     params = FakeParameterService(
-        params={("members", "mail_enabled", "TenantA"): True},
-        revisions={("members", "mail_enabled", "TenantA"): "2026-01-01T00:00:00"},
+        {("members", "scope_dimensions", "TenantA"): [_hdcn_region_dimension()]}
     )
-    source = FakeSource({"TenantA": _tenant_source("TenantA", sam_module)})
+    # The scopegrant row versions off the GRANT's own `updated_at` (per-user freshness,
+    # _scopegrant_version), NOT the tenant row — so a grant edit alone (unchanged tenant row)
+    # still bumps the scopegrant version and the conditional put WRITES it.
+    source = FakeSource(
+        {
+            "TenantA": _sam_source_with_scope_rows(
+                "TenantA",
+                sam_module,
+                [
+                    _scope_row_at(
+                        "alice@tenanta.example",
+                        {"region": ["Noord"]},
+                        "2026-01-01T00:00:00",
+                    )
+                ],
+            )
+        }
+    )
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
     sync.sync_administration("TenantA")
-    mail_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail")
+    grant_sk = schema.build_sort_key(
+        schema.RECORD_TYPE_SCOPEGRANT, "alice@tenanta.example", "region"
+    )
     assert (
-        table.store[("TenantA", mail_sk)][schema.VERSION_ATTR] == "2026-01-01T00:00:00"
+        table.store[("TenantA", grant_sk)][schema.VERSION_ATTR] == "2026-01-01T00:00:00"
     )
 
-    # Edit the param ONLY (tenant row untouched): a newer param revision.
-    params._revisions[("members", "mail_enabled", "TenantA")] = "2026-10-12T12:00:00"
+    # Edit the GRANT ONLY (tenant row untouched): a newer grant `updated_at`.
+    source._sources["TenantA"] = _sam_source_with_scope_rows(
+        "TenantA",
+        sam_module,
+        [
+            _scope_row_at(
+                "alice@tenanta.example", {"region": ["Noord"]}, "2026-10-12T12:00:00"
+            )
+        ],
+    )
     result = sync.sync_administration("TenantA")
 
-    # The edit propagated: config#mail was re-written with the newer version.
+    # The edit propagated: the scopegrant row was re-written with the newer version.
     assert (
-        table.store[("TenantA", mail_sk)][schema.VERSION_ATTR] == "2026-10-12T12:00:00"
+        table.store[("TenantA", grant_sk)][schema.VERSION_ATTR] == "2026-10-12T12:00:00"
     )
     assert result.written >= 1
 
@@ -1826,41 +1865,71 @@ def test_sync_administration_builds_from_fresh_source_not_stale_cache(sam_module
     already-wedged-row heal (a pre-seeded stale STORED row at an equal version) — that is
     task 3's content-gate and remains the one expected failure until then.
     """
-    # Task 3.7: the fresh-source/no-stale-cache regression is now exercised via
-    # `members.mail_local_part` -> config#mail (the ONE remaining ProjectionSync-emitted
-    # members.*-backed builder; config#fields was SAM-owned from Task 1.15 and config#scope
-    # from Task 3.7). The A2 guarantee (sync re-reads the CURRENT source, never stale cache)
-    # is identical for any emitted config# row; here the mail_local_part CONTENT changes
-    # across an edit while the uncached revision advances.
-    local_v1 = "info"
-    local_v2 = "onderhoud"
+    # Task 5.8 END STATE: ProjectionSync emits NO config#* row, so the fresh-source/no-stale-cache
+    # regression is now exercised via the `scopegrant#` row (the one remaining members.*-backed
+    # emitted row, written through the SAME _conditional_put seam). The dimension's declared
+    # `values` list is the config content the scopegrant row carries; here it grows 1 -> 2 values
+    # across an edit while the uncached revision advances. The A2 guarantee (sync re-reads the
+    # CURRENT source, never stale cache) is identical for any emitted row.
+    dims_v1 = [_region_dim_with_values(["Noord"])]
+    dims_v2 = [_region_dim_with_values(["Noord", "Zuid"])]
 
     tenant_id = "TenantA"
-    mail_sk = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail")
+    grant_sk = schema.build_sort_key(
+        schema.RECORD_TYPE_SCOPEGRANT, "alice@tenanta.example", "region"
+    )
     table = FakeTable()
     params = CachingFakeParameterService(
-        params={("members", "mail_local_part", tenant_id): local_v1},
-        revisions={("members", "mail_local_part", tenant_id): "2026-01-01T00:00:00"},
+        params={("members", "scope_dimensions", tenant_id): dims_v1},
+        revisions={("members", "scope_dimensions", tenant_id): "2026-01-01T00:00:00"},
     )
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
+    source = FakeSource(
+        {
+            tenant_id: _sam_source_with_scope_rows(
+                tenant_id,
+                sam_module,
+                [
+                    _scope_row_at(
+                        "alice@tenanta.example",
+                        {"region": ["Noord", "Zuid"]},
+                        "2026-01-01T00:00:00",
+                    )
+                ],
+            )
+        }
+    )
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
-    # First sync: caches + projects the V1 local-part at V1.
+    # First sync: caches + projects the V1 dimension (only "Noord" declared, so the grant
+    # projects values ["Noord"]) at V1 (the grant's updated_at).
     sync.sync_administration(tenant_id)
-    stored = table.store[(tenant_id, mail_sk)]
-    assert stored["mail_local_part"] == local_v1
+    stored = table.store[(tenant_id, grant_sk)]
+    assert stored["values"] == ["Noord"]
 
-    # Tenant admin edits the local-part via a different service instance: the sync's cache is
-    # NOT invalidated by that write, only the source + the uncached revision advance to V2.
-    params.set_source("members", "mail_local_part", tenant_id, local_v2)
-    params.set_revision("members", "mail_local_part", tenant_id, "2026-10-12T12:00:00")
+    # Tenant admin widens the dimension (declare "Zuid" too) via a different service instance:
+    # the sync's cache is NOT invalidated by that write, only the source advances. The grant's
+    # updated_at also advances to V2 (a grant re-save rides the same change), so the row version
+    # bumps while the DECLARED-value content it re-reads must be the FRESH (2-value) set.
+    params.set_source("members", "scope_dimensions", tenant_id, dims_v2)
+    params.set_revision("members", "scope_dimensions", tenant_id, "2026-10-12T12:00:00")
+    source._sources[tenant_id] = _sam_source_with_scope_rows(
+        tenant_id,
+        sam_module,
+        [
+            _scope_row_at(
+                "alice@tenanta.example",
+                {"region": ["Noord", "Zuid"]},
+                "2026-10-12T12:00:00",
+            )
+        ],
+    )
 
     # Second sync: with task 2.1 the sync evicts the stale cache and re-reads the V2 source —
-    # the built row's CONTENT matches its (fresh) VERSION.
+    # the built row's CONTENT (now ["Noord", "Zuid"]) matches its (fresh) VERSION.
     sync.sync_administration(tenant_id)
-    stored = table.store[(tenant_id, mail_sk)]
-    assert stored["mail_local_part"] == local_v2, (
-        "A2 VIOLATED: the sync re-serialized STALE cached content (the V1 local-part) "
+    stored = table.store[(tenant_id, grant_sk)]
+    assert stored["values"] == ["Noord", "Zuid"], (
+        "A2 VIOLATED: the sync re-serialized STALE cached content (the V1 single-value grant) "
         "while the source + version advanced to V2 — the version/content desync the "
         "non-stale read must prevent."
     )
@@ -2223,13 +2292,13 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
         )
         in written
     )
-    # Property 4 (Task 1.15 + 3.7): config#fields AND config#scope are NO LONGER emitted by
-    # ProjectionSync — both SAM-owned. Only config#mail remains ProjectionSync-emitted. The
-    # SCOPEGRANT rows ARE still emitted (the scopegrant builder reads members.scope_dimensions,
-    # the frontend-written mirror, UNCHANGED — R22.3/22.4), which is the real point of this test.
+    # Property 4 — END STATE (Task 1.15 + 3.7 + 5.8): ProjectionSync emits NO config#* row
+    # (fields/scope/mail all SAM-owned). The SCOPEGRANT rows ARE still emitted (the scopegrant
+    # builder reads members.scope_dimensions, the frontend-written mirror, UNCHANGED — R22.3/22.4),
+    # which is the real point of this test.
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") not in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") not in written
-    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") not in written
     # Phase 2 (R5.3): the config#views row is no longer emitted.
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "views") not in written
     scopegrant_sk = schema.build_sort_key(
@@ -2239,9 +2308,9 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
     # The scoped user's user_tenant_scope region grant projects values ["Noord"] — the grant is
     # validated against the members.scope_dimensions mirror, which is still authored here.
     assert written[scopegrant_sk]["values"] == ["Noord"]
-    # tenant + module + 1 role + config#mail + scopegrant = 5 (config#fields AND config#scope
-    # now SAM-owned, no longer emitted by ProjectionSync).
-    assert result.written == 5
+    # tenant + module + 1 role + scopegrant = 4 — NO config#* row emitted (fields/scope/mail
+    # all SAM-owned); the scopegrant row is still emitted.
+    assert result.written == 4
 
 
 def test_sync_administration_non_sam_tenant_emits_no_c2_rows(sam_module):
@@ -2286,6 +2355,7 @@ def test_sync_administration_malformed_c2_item_aborts_before_any_write(
                 "h-dcn",
                 sam_module,
                 roles=[{"email": "alice@h-dcn.example", "role": "SamTest_Read"}],
+                scope=[_scope_row("alice@h-dcn.example", {"region": ["Noord"]})],
             )
         }
     )
@@ -2294,21 +2364,25 @@ def test_sync_administration_malformed_c2_item_aborts_before_any_write(
     )
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
-    # Force a STILL-EMITTED C2 builder (config#mail) to yield a malformed item (version=None,
-    # which the validator rejects) so the combined batch fails validation. (Task 3.7: the test
-    # formerly patched build_config_scope_row, but ProjectionSync no longer emits config#scope
-    # (Task 3.7) nor config#fields (Task 1.15) — both SAM-owned. The batch-abort guarantee R5.5
-    # is now exercised via config#mail, the ONE remaining ProjectionSync-emitted builder,
-    # validated in the same combined batch.)
-    def _bad_mail(tenant, parameter_service):
-        return ProjectionItem(
-            tenant_id=tenant.get("administration"),
-            sort_key=schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail"),
-            version=None,  # malformed -> validator rejects
-            attributes={"mail_enabled": False},
-        )
+    # Force a STILL-EMITTED C2 builder to yield a malformed item (version=None, which the
+    # validator rejects) so the combined batch fails validation. (Task 5.8 END STATE: ProjectionSync
+    # no longer emits ANY config#* row — config#fields/scope/mail are all SAM-owned — so the
+    # batch-abort guarantee R5.5 is now exercised via the ONE remaining ProjectionSync-emitted
+    # C2 builder, `build_scopegrant_rows`, which returns a LIST validated in the same combined
+    # batch. The source carries a scope grant so a scopegrant row is emitted.)
+    def _bad_scopegrants(tenant, scope, parameter_service):
+        return [
+            ProjectionItem(
+                tenant_id=tenant.get("administration"),
+                sort_key=schema.build_sort_key(
+                    schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "region"
+                ),
+                version=None,  # malformed -> validator rejects
+                attributes={"dimension": "region", "values": ["Noord"]},
+            )
+        ]
 
-    monkeypatch.setattr(sync_module, "build_config_mail_row", _bad_mail)
+    monkeypatch.setattr(sync_module, "build_scopegrant_rows", _bad_scopegrants)
 
     with pytest.raises(ProjectionValidationError):
         sync.sync_administration("h-dcn")
@@ -2413,7 +2487,7 @@ def test_build_config_mail_row_projects_all_four_fields_into_single_row():
 
 def test_build_config_mail_row_local_part_defaults_to_noreply_when_unset_or_blank():
     """mail_local_part DEFAULTS to ``noreply`` when unset or blank (design Data Models)."""
-    for raw in (None, "", "   " and "", 0, [], {}):
+    for raw in (None, "", 0, [], {}):
         params = FakeParameterService(
             {
                 ("members", "mail_enabled", "h-dcn"): True,
@@ -2495,22 +2569,24 @@ def test_build_config_mail_row_malformed_values_fail_closed_to_false():
 def test_build_config_mail_row_issues_zero_writes_and_reads_tenant_scope():
     """One-directional (Property 1): only tenant-scope READS of the members.* params.
 
-    The builder reads each of the six params for this tenant and issues ZERO writes —
+    The builder reads each of the seven params for this tenant and issues ZERO writes —
     never a cross-tenant or unscoped read. application-app task 8.2 added two params that
-    ride the SAME config#mail row (the D9a scope-copy toggle + the D26 consent notice).
+    ride the SAME config#mail row (the D9a scope-copy toggle + the D26 consent notice); spec 02
+    task 5.1 added mail_reply_to_default — SEVEN reads total.
     """
     params = FakeParameterService({("members", "mail_enabled", "h-dcn"): True})
 
     build_config_mail_row({"administration": "h-dcn"}, params)
 
     # Every call is a read scoped to THIS tenant on the members namespace — no write.
-    assert len(params.calls) == 6
+    assert len(params.calls) == 7
     read_keys = {call["key"] for call in params.calls}
     assert read_keys == {
         "mail_enabled",
         "mail_domain",
         "mail_local_part",
         "mail_certified",
+        "mail_reply_to_default",
         "application_scope_copy",
         "application_consent_notice",
     }
@@ -3464,11 +3540,12 @@ def test_sync_does_not_recreate_config_views_once_builder_removed(sam_module):
     sync.sync_administration("h-dcn")
     written = _items_in(table, "h-dcn")
 
-    # The surviving config row is config#mail only. config#fields (Task 1.15) AND config#scope
-    # (Task 3.7) are NO LONGER emitted by ProjectionSync — both SAM-owned.
+    # END STATE: ProjectionSync emits NO config#* row (fields 1.15 + scope 3.7 + mail 5.8 all
+    # SAM-owned), and crucially NO config#views either — so once the views residue is deleted it
+    # is never re-created by a subsequent sync (R2.6, the point of this test).
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope") not in written
     assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields") not in written
-    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") in written
+    assert schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "mail") not in written
     # ...but config#views is never produced (the builder is gone — R2.6).
     assert _config_views_sk() not in written
 
