@@ -12,6 +12,8 @@ import os
 import re
 from urllib.parse import urlparse
 
+from utils.path_security import is_within_base
+
 logger = logging.getLogger(__name__)
 
 
@@ -246,13 +248,23 @@ class FileCleanupActions:
             raise FileSystemError(f"Unexpected error removing file {file_path}: {e}")
 
     def cleanup_empty_parent_directory(self, file_path: str, operation_id: str) -> None:
-        """Attempt to remove empty parent directory if it's within storage."""
+        """Attempt to remove empty parent directory if it's within storage.
+
+        Containment is confirmed with the explicit ``realpath`` + base-dir guard
+        (``is_within_base``) BEFORE the ``os.listdir`` / ``os.rmdir`` calls, and the
+        parent must not itself be a storage root — so a traversal/symlink escape or
+        a sibling-prefix dir can never reach the directory-removal sink (CodeQL
+        py/path-injection).
+        """
         try:
             parent_dir = os.path.dirname(file_path)
 
+            real_parent = os.path.realpath(parent_dir)
+            real_storage = os.path.realpath(self.base_storage_path)
+
             if (
-                parent_dir != self.base_storage_path
-                and parent_dir.startswith(self.base_storage_path)
+                real_parent != real_storage
+                and is_within_base(parent_dir, self.base_storage_path)
                 and os.path.exists(parent_dir)
             ):
                 if not os.listdir(parent_dir):
@@ -300,15 +312,18 @@ class FileCleanupActions:
         )
 
     def is_safe_path(self, file_path: str) -> bool:
-        """Check if file path is within allowed storage directories."""
-        try:
-            abs_path = os.path.abspath(file_path)
-            abs_storage = os.path.abspath(self.base_storage_path)
-            abs_temp = os.path.abspath(self.temp_storage_path)
+        """Check if file path is contained within an allowed storage directory.
 
-            return abs_path.startswith((abs_storage, abs_temp))
-        except Exception:
-            return False
+        Containment is made explicit via ``os.path.realpath`` + a path-separator
+        boundary (``utils.path_security.is_within_base``): the candidate is
+        canonicalized (resolving ``..`` traversal and symlinks) and must equal, or
+        sit strictly beneath, ``base_storage_path`` / ``temp_storage_path``. A
+        sibling sharing a name prefix (e.g. ``/storage_evil`` vs ``/storage``) and
+        any ``../`` escape are rejected. This is the guard that runs before every
+        ``os.remove`` / ``os.path.*`` filesystem call in ``cleanup_local_file``
+        (CodeQL py/path-injection).
+        """
+        return is_within_base(file_path, self.base_storage_path, self.temp_storage_path)
 
     def _is_development_mode(self) -> bool:
         """Check if application is running in development mode."""

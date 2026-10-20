@@ -162,6 +162,27 @@ describe('useTransactions', () => {
     openSpy.mockRestore();
   });
 
+  it('handleRef3Click does not treat a spoofed drive.google.com host as a Drive link', async () => {
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    const { result } = renderHook(() => useTransactions());
+    await waitFor(() => expect(result.current.mutaties.length).toBe(1));
+
+    // A host like drive.google.com.evil.com must NOT be opened as a Drive URL.
+    // It starts with http, so it is neither opened nor sent to presigned-url:
+    // it falls through to the clipboard-copy branch.
+    await act(async () => {
+      await result.current.handleRef3Click('https://drive.google.com.evil.com/steal');
+    });
+
+    expect(openSpy).not.toHaveBeenCalled();
+    const presigned = mockGet.mock.calls.find((c) => String(c[0]).includes('presigned-url'));
+    expect(presigned).toBeUndefined();
+    expect(writeText).toHaveBeenCalledWith('https://drive.google.com.evil.com/steal');
+    openSpy.mockRestore();
+  });
+
   it('handleRef3Click resolves a storage key via presigned-url and opens it', async () => {
     const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
     const { result } = renderHook(() => useTransactions());

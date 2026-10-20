@@ -135,8 +135,7 @@ def execute_pivot(user_email, user_roles, tenant, user_tenants) -> ResponseRetur
             return jsonify({"success": False, "error": error_msg}), 404
         return jsonify({"success": False, "error": error_msg}), 400
     except RuntimeError as e:
-        logger.error("Pivot query execution failed: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)
     except Exception as e:
         logger.error("Unexpected error executing pivot: %s", e)
         return error_response(e, "Pivot request failed", status=500)
@@ -413,8 +412,7 @@ def export_underlying(
     except ValueError as e:
         return jsonify({"success": False, "error": str(e)}), 400
     except RuntimeError as e:
-        logger.error("Export execution failed: %s", e)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pivot request failed", status=500)
     except Exception as e:
         logger.error("Unexpected error exporting pivot data: %s", e)
         return error_response(e, "Pivot request failed", status=500)

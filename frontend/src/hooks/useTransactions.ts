@@ -249,7 +249,14 @@ export function useTransactions(): UseTransactionsReturn {
 
   const handleRef3Click = useCallback(
     async (ref3: string) => {
-      if (ref3.startsWith('https://drive.goo')) {
+      const isDriveUrl = (() => {
+        try {
+          return new URL(ref3).hostname === 'drive.google.com';
+        } catch {
+          return false;
+        }
+      })();
+      if (isDriveUrl) {
         window.open(ref3, '_blank');
       } else if (ref3 && !ref3.startsWith('http')) {
         try {

@@ -9,9 +9,16 @@ Provides:
 - update_mutatie(): Single record update with tenant validation
 """
 
+import logging
 from typing import Any
 
 from database import DatabaseManager
+
+logger = logging.getLogger(__name__)
+
+# Generic, caller-safe message returned instead of raw exception text; the full
+# exception is logged server-side (CodeQL py/stack-trace-exposure).
+_GENERIC_ERROR = "An internal error occurred. Please try again later."
 
 
 class BankingMutatieService:
@@ -131,9 +138,9 @@ class BankingMutatieService:
                 "table": table_name,
             }
 
-        except Exception as e:
-            print(f"Get mutaties error: {e}", flush=True)
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Get mutaties error")
+            return {"success": False, "error": _GENERIC_ERROR}
 
     def update_mutatie(
         self, mutatie_id: int, data: dict[str, Any], tenant: str
@@ -231,9 +238,6 @@ class BankingMutatieService:
                 "message": f"Record {mutatie_id} updated successfully",
             }
 
-        except Exception as e:
-            print(f"Update error: {e}", flush=True)
-            import traceback
-
-            traceback.print_exc()
-            return {"success": False, "error": str(e)}
+        except Exception:
+            logger.exception("Update mutatie error")
+            return {"success": False, "error": _GENERIC_ERROR}

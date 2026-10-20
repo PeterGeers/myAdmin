@@ -7,6 +7,7 @@ from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required
 from database import DatabaseManager
 from mutaties_cache import get_cache
+from routes.error_responses import error_response
 from utils.closure_helpers import get_closure_aware_start_year
 
 logger = logging.getLogger(__name__)
@@ -121,8 +122,9 @@ def get_actuals_balance(user_email, user_roles, tenant, user_tenants):
             return jsonify({"success": True, "data": results})
 
     except Exception as e:
-        logger.exception("Error in get_actuals_balance")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e, "Actuals request failed", status=500, log_context="get_actuals_balance"
+        )
 
 
 def _get_closed_years(db, administration):
@@ -222,5 +224,9 @@ def get_actuals_profitloss(user_email, user_roles, tenant, user_tenants):
         return jsonify({"success": True, "data": results})
 
     except Exception as e:
-        logger.exception("Error in get_actuals_profitloss")
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(
+            e,
+            "Actuals request failed",
+            status=500,
+            log_context="get_actuals_profitloss",
+        )

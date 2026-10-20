@@ -19,6 +19,7 @@ from flask.typing import ResponseReturnValue
 from auth.cognito_utils import cognito_required
 from routes.error_responses import error_response
 from services.invoice_test_service import InvoiceTestService
+from utils.path_security import is_within_base
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -150,9 +151,28 @@ def process_file(user_email, user_roles) -> ResponseReturnValue:
 
         administration = request.form.get("administration")
 
-        # Save uploaded file to temp location
+        # Save uploaded file to temp location.
+        # The extension is derived from the user-supplied filename; constrain it to
+        # the validated allowlist so it can never carry path separators / traversal
+        # into the mkstemp suffix. Then make containment explicit: canonicalize the
+        # mkstemp-returned path (realpath resolves symlinks like macOS /tmp ->
+        # /private/tmp) and confirm it stays inside the system temp dir before the
+        # file.save / os.remove sinks run (CodeQL py/path-injection).
         extension = file.filename.rsplit(".", 1)[1].lower()
-        fd, temp_file_path = tempfile.mkstemp(suffix=f".{extension}")
+        if extension not in ALLOWED_EXTENSIONS:
+            return jsonify({"success": False, "error": "Unsupported file type"}), 400
+
+        temp_base = tempfile.gettempdir()
+        fd, temp_file_path = tempfile.mkstemp(suffix=f".{extension}", dir=temp_base)
+        if not is_within_base(temp_file_path, temp_base):
+            os.close(fd)
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+            return error_response(
+                RuntimeError("temp path escaped base dir"),
+                "Test-tool request failed",
+                status=500,
+            )
         try:
             os.close(fd)
             file.save(temp_file_path)

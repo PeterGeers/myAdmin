@@ -112,9 +112,12 @@ def generate_btw_report(
             "success": True,
         }
 
-    except Exception as e:
-        logger.error(f"Failed to generate BTW report: {e}")
-        return {"success": False, "error": str(e)}
+    except Exception:
+        logger.exception("Failed to generate BTW report")
+        return {
+            "success": False,
+            "error": "An internal error occurred. Please try again later.",
+        }
 
 
 def _calculate_quarter_end_date(year: int, quarter: int) -> str:
