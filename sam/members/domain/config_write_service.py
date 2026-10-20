@@ -166,7 +166,18 @@ class ConfigWriteService:
             )
 
         fields = self._validate_fields_map(body.get("fields"))
-        overrides = self._validate_overrides_map(body.get("overrides"))
+        # Fixed-field overrides: the canonical stored attribute is ``overrides`` (what
+        # ``MembersProjectionReader.get_overlay`` reads). The frontend field_overlay object and the
+        # legacy Flask ``build_config_fields_row`` builder author this map under the INPUT ALIAS
+        # ``fixed_overrides``. Accept either on the wire and normalize to ``overrides`` so the
+        # established frontend shape writes through unchanged (R13.3) WITHOUT silently dropping the
+        # fixed-field overrides (the I-x data-loss bug: an alias-only body persisted zero
+        # overrides, wiping membership.status / personal.* presentation). Canonical ``overrides``
+        # wins if a body somehow carries both; the alias is read only when ``overrides`` is absent.
+        overrides_in = body.get("overrides")
+        if overrides_in is None:
+            overrides_in = body.get("fixed_overrides")
+        overrides = self._validate_overrides_map(overrides_in)
         functional_groups = self._validate_functional_groups(body.get("functional_groups"))
 
         # Author exactly the three reader-read attributes — no default_page_size (R7.2).

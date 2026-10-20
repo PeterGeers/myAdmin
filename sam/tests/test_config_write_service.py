@@ -165,3 +165,56 @@ def test_put_config_uses_injected_version_and_is_monotonic():
 
     v1, v2 = repo.calls[0]["version"], repo.calls[1]["version"]
     assert v1 < v2  # a later write yields a lexicographically-greater stamp
+
+
+# ── fixed_overrides INPUT ALIAS → canonical overrides (data-loss regression, findings.md) ──
+#
+# The frontend field_overlay object (and the legacy Flask build_config_fields_row builder) author
+# the fixed-field override map under the key ``fixed_overrides``, while the SAM row's canonical
+# attribute — what MembersProjectionReader.get_overlay reads — is ``overrides``. A live TEST save
+# proved that an alias-only body silently persisted ZERO overrides, wiping membership.status /
+# personal.* (the config#fields data-loss bug). The write service now accepts the alias and
+# normalizes it to ``overrides``; these pin that contract.
+
+
+def test_put_config_fields_accepts_fixed_overrides_alias():
+    """A body authoring fixed-field overrides under ``fixed_overrides`` writes them to ``overrides``."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {"motor_brand": {"type": "string"}},
+        "fixed_overrides": {
+            "membership.status": {"type": "enum", "functional_group": "membership"},
+            "personal.first_name": {"required": True},
+        },
+    }
+
+    _service(repo).put_config(_TENANT, "fields", body)
+
+    attrs = repo.calls[0]["attributes"]
+    assert set(attrs["overrides"]) == {"membership.status", "personal.first_name"}
+    # The alias key is NOT carried onto the stored row — only the canonical ``overrides`` is.
+    assert "fixed_overrides" not in attrs
+
+
+def test_put_config_fields_canonical_overrides_wins_over_alias():
+    """If a body carries BOTH keys, the canonical ``overrides`` wins and the alias is ignored."""
+    repo = FakeWriteRepository()
+    body = {
+        "overrides": {"membership.status": {"type": "enum"}},
+        "fixed_overrides": {"personal.city": {"functional_group": "address"}},
+    }
+
+    _service(repo).put_config(_TENANT, "fields", body)
+
+    assert set(repo.calls[0]["attributes"]["overrides"]) == {"membership.status"}
+
+
+def test_put_config_fields_alias_preserves_override_scope_verbatim():
+    """A per-override ``scope`` rides through the alias verbatim (R7.3)."""
+    repo = FakeWriteRepository()
+    scope = {"enabled": True, "values": ["A"]}
+    body = {"fixed_overrides": {"membership.region": {"scope": scope}}}
+
+    _service(repo).put_config(_TENANT, "fields", body)
+
+    assert repo.calls[0]["attributes"]["overrides"]["membership.region"]["scope"] == scope
