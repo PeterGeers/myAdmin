@@ -443,12 +443,24 @@ class MembersProjectionReader:
         application_visible = spec.get("application_visible")
         application_required = spec.get("application_required")
         application_choices = spec.get("application_choices")
+        # Enum values on an OVERRIDE of a fixed enum (e.g. membership.status): the authoring UI
+        # (field_overlay) and the legacy Flask builder write the rich value list under `choices`
+        # (a list of {value,label[,roles]}), while a few producers use `options`. Accept EITHER,
+        # preferring `options` when present, else sourcing from `choices` — both map onto the
+        # override's `options` (EnumOption tuple) the resolver applies. Without the `choices`
+        # fallback a tenant-authored status value (e.g. `died`) was silently dropped: `_build_options`
+        # only saw `options`, so the override carried no values and the resolver fell back to the
+        # fixed field's base choices (the config#fields enum-choices data-loss on read).
+        override_options = cls._build_options(spec.get("options")) or cls._build_options(
+            spec.get("choices")
+        )
         return FixedFieldOverride(
             label=dict(label) if isinstance(label, dict) else None,
             visible=bool(visible) if visible is not None else None,
             required=bool(required) if required is not None else None,
             order=int(order) if order is not None else None,
             functional_group=str(functional_group) if functional_group else None,
+            options=override_options,
             # Phase 3 step 9 (R2.1): carry a fixed field's scope-axis attribute (SAM read repr).
             scope=cls._build_field_scope(spec.get("scope")),
             application_visible=(
