@@ -122,6 +122,27 @@ class MembersRepository(Protocol):
         """
         ...
 
+    def list_members_page(
+        self,
+        tenant_id: str,
+        *,
+        limit: int | None = None,
+        start_key: Mapping[str, Any] | None = None,
+        filters: Mapping[str, Any] | None = None,
+    ) -> tuple[Sequence[Member], Mapping[str, Any] | None]:
+        """Return ONE DynamoDB page of the tenant's members + the resume cursor (Req 25).
+
+        The cursor-paging read path. A SINGLE tenant-pinned ``Query`` (no ``LastEvaluatedKey``
+        loop): ``limit`` set → passed as the Query ``Limit`` (a fixed Rows_Per_Page option);
+        ``limit`` ``None`` → no ``Limit`` (the ``Max`` option = one page up to the natural
+        ~1 MB boundary, not all rows). ``start_key`` resumes a prior page (the decoded
+        ``ExclusiveStartKey``, already tenant-checked). Returns ``(members, last_evaluated_key)``
+        where ``last_evaluated_key`` is ``None`` on the final page. Scope narrowing stays a
+        domain-layer concern applied on top; isolation (``tenant_id`` partition key) is enforced
+        here regardless (Property 1).
+        """
+        ...
+
     def save_member(self, tenant_id: str, member: Member) -> Member:
         """Create or update a member for ``tenant_id``.
 
@@ -431,6 +452,9 @@ class _StubMembersRepository:
     def list_members(self, tenant_id: str, *, filters=None):
         raise NotImplementedError(self._PENDING)
 
+    def list_members_page(self, tenant_id: str, *, limit=None, start_key=None, filters=None):
+        raise NotImplementedError(self._PENDING)
+
     def save_member(self, tenant_id: str, member):
         raise NotImplementedError(self._PENDING)
 
@@ -683,6 +707,62 @@ class DynamoDbMembersRepository:
             if len(segments) == 2 and segments[0] == td.RECORD_TYPE_MEMBER:
                 members.append(item)
         return members
+
+    def list_members_page(
+        self,
+        tenant_id: str,
+        *,
+        limit: int | None = None,
+        start_key: Mapping[str, Any] | None = None,
+        filters: Mapping[str, Any] | None = None,
+    ) -> tuple[list[Member], dict[str, Any] | None]:
+        """Query ONE DynamoDB page of the tenant's members + the resume cursor (Req 25).
+
+        The cursor-paging read path (distinct from :meth:`list_members`, which drains the whole
+        partition). This issues a SINGLE tenant-pinned ``Query`` — it does NOT loop over
+        ``LastEvaluatedKey`` — so the result is exactly one DynamoDB page:
+
+        - ``limit`` set (a fixed Rows_Per_Page option 50/100/250/500, R25.2) → passed as the
+          Query ``Limit`` so DynamoDB returns at most that many items;
+        - ``limit`` ``None`` (the ``Max`` option, R25.3) → NO ``Limit`` is passed, so DynamoDB
+          returns one page up to its natural ~1 MB response boundary (``Max`` is one Query page,
+          NOT all rows — never a full-partition drain).
+
+        Returns ``(members, last_evaluated_key)``. ``last_evaluated_key`` is the raw DynamoDB
+        resume key for the NEXT page, or ``None`` when this page exhausted the result (the final
+        page → the caller surfaces "no next page", R25.5/R25.6). ``start_key`` resumes a prior
+        page (the decoded ``ExclusiveStartKey``); it is already tenant-checked by the cursor
+        codec before it reaches here, and the Query itself pins ``tenant_id`` as the partition
+        key regardless, so a page can never cross tenants (Property 1).
+
+        The ``Limit`` applies to the RAW Query before the sort-key record-shape filter (member
+        records have a 2-segment ``member#<id>`` SK; their child items share the ``member#``
+        prefix), so the returned list may be shorter than ``limit`` when a page happens to
+        include child items. That is the honest DynamoDB-native page — prev/next walks the raw
+        ``LastEvaluatedKey`` cursor, never a post-filter count (no SQL-style offset).
+        """
+        self._require_tenant(tenant_id)
+        from boto3.dynamodb.conditions import Key
+
+        prefix = td.RECORD_TYPE_MEMBER + td.SORT_KEY_SEPARATOR
+        condition = Key(td.PARTITION_KEY_ATTR).eq(tenant_id) & Key(
+            td.SORT_KEY_ATTR
+        ).begins_with(prefix)
+
+        kwargs: dict[str, Any] = {"KeyConditionExpression": condition}
+        if limit is not None:
+            kwargs["Limit"] = limit
+        if start_key:
+            kwargs["ExclusiveStartKey"] = dict(start_key)
+
+        response = self.table.query(**kwargs)
+        members: list[dict] = []
+        for item in response.get("Items", []) or []:
+            segments = td.split_sort_key(item.get(td.SORT_KEY_ATTR, ""))
+            if len(segments) == 2 and segments[0] == td.RECORD_TYPE_MEMBER:
+                members.append(item)
+        last = response.get("LastEvaluatedKey") or None
+        return members, last
 
     def save_member(self, tenant_id: str, member: Member) -> Member:
         """Create or update a member, enforcing per-tenant member-number uniqueness.

@@ -442,3 +442,6 @@ __marimo__/
 
 # Agent/task scratch output (logs, command dumps) — trusted, never committed
 .agent-output/
+
+# Per-spec personal scratchpad — never tracked
+.kiro/specs/**/findings.md

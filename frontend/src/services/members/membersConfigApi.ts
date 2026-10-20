@@ -16,6 +16,55 @@ export async function getFieldConfig<T = unknown>(): Promise<T> {
 }
 
 /**
+ * The SAM-owned config ids writable through `PUT /members/config/{configId}` (Requirement 2.1).
+ * The route rejects any id outside this closed set with a 400/404, so the client surface mirrors it.
+ */
+export type MembersWritableConfigId = 'fields' | 'scope' | 'mail';
+
+/**
+ * The authoritative result the SAM config-write path returns on a 200 (Requirement 1.3). The write
+ * IS the authored state — `version` is the row-level monotonic write stamp the row now carries,
+ * there is no projection step to wait on.
+ */
+export interface MembersConfigWriteResult {
+  success: boolean;
+  configId: MembersWritableConfigId;
+  version: string;
+}
+
+/**
+ * PUT /members/config/{configId} — author a SAM-owned `config#{configId}` row (Requirement 1.1/1.2).
+ *
+ * The SAM write path is authoritative: on a 200 the returned `version` is the write stamp the row
+ * now carries (Requirement 1.3) — there is no projection lag, so callers treat the returned result
+ * as the committed state directly. `tenant_id` is resolved from the verified JWT at the edge, never
+ * from the body (Requirement 3.2); `body` is the reader-shaped attribute object for that `configId`.
+ *
+ * Unwraps the module's `{ data }` envelope so the caller receives `{ success, configId, version }`.
+ * A non-2xx (auth/entitlement 401/403, unknown-id 400/404, validation 400) propagates as the
+ * structured ApiError thrown by `putJson`.
+ */
+export async function writeConfig(
+  configId: MembersWritableConfigId,
+  body: unknown
+): Promise<MembersConfigWriteResult> {
+  return unwrapData<MembersConfigWriteResult>(
+    await putJson<unknown>(`/members/config/${encodeURIComponent(configId)}`, body)
+  );
+}
+
+/**
+ * PUT /members/config/fields — author the `config#fields` row (Requirement 7).
+ *
+ * Thin convenience over {@link writeConfig} pinning the `fields` config id. `body` MUST be the SAM
+ * `config#fields` shape — `fields` / `overrides` / `functional_groups` (NO `default_page_size`,
+ * retired per Requirement 25) — matching `ConfigWriteService._validate_fields_body`.
+ */
+export async function writeFieldConfig(body: unknown): Promise<MembersConfigWriteResult> {
+  return writeConfig('fields', body);
+}
+
+/**
  * GET /membership-types — the membership-type catalog.
  * @param activeOnly - when true, appends `?active_only=true`.
  */

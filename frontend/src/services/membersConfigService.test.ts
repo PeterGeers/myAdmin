@@ -19,6 +19,8 @@ import {
 } from './membersConfigService';
 import * as parameterService from './parameterService';
 import * as apiService from './apiService';
+import * as membersApiService from './membersApiService';
+import { ApiError } from '../shared/api/ApiError';
 
 vi.mock('./parameterService', () => ({
   getParameters: vi.fn(),
@@ -29,6 +31,13 @@ vi.mock('./parameterService', () => ({
 vi.mock('./apiService', () => ({
   authenticatedGet: vi.fn(),
   buildApiUrl: (e: string) => e,
+}));
+
+// The `field_overlay` save is repointed to the SAM Members write path (`PUT /members/config/fields`,
+// Requirement 13.1); mock that seam so we can assert the PUT target + authoritative handling.
+vi.mock('./membersApiService', () => ({
+  writeFieldConfig: vi.fn(),
+  getFieldConfig: vi.fn(),
 }));
 
 describe('membersConfigService', () => {
@@ -85,7 +94,7 @@ describe('membersConfigService', () => {
     });
   });
 
-  describe('saveMembersParameter (save-once, Property 8)', () => {
+  describe('saveMembersParameter — scope_dimensions on Flask (save-once, Property 8)', () => {
     it('issues exactly ONE update (PUT) when a tenant row exists', async () => {
       vi.mocked(parameterService.updateParameter).mockResolvedValue({ success: true });
       const existing = {
@@ -120,15 +129,96 @@ describe('membersConfigService', () => {
       expect(parameterService.updateParameter).not.toHaveBeenCalled();
     });
 
-    it('creates (does not update) when only a system/code default exists', async () => {
-      vi.mocked(parameterService.createParameter).mockResolvedValue({ success: true });
-      const systemDefault = {
-        id: null, namespace: 'members', key: 'field_overlay',
-        value: {}, value_type: 'json' as const, scope_origin: 'system' as const, is_secret: false,
-      };
-      await saveMembersParameter('field_overlay', { fields: {} }, systemDefault);
+  });
 
-      expect(parameterService.createParameter).toHaveBeenCalledTimes(1);
+  // -------------------------------------------------------------------------
+  // field_overlay is SAM-owned (`config#fields`): the save is repointed to the
+  // Members SAM write path `PUT /members/config/fields` (Requirement 13.1), the
+  // write is authoritative (Requirement 13.2 — no pending-projection state), and
+  // the Flask parameter path is NO LONGER touched for field_overlay.
+  // Validates: Requirements 13.1, 13.2, 13.4
+  // -------------------------------------------------------------------------
+  describe('saveMembersParameter — field_overlay repointed to SAM PUT /members/config/fields (R13)', () => {
+    it('PUTs the whole field_overlay object through writeFieldConfig, NOT the Flask parameter path', async () => {
+      vi.mocked(membersApiService.writeFieldConfig).mockResolvedValue({
+        success: true,
+        configId: 'fields',
+        version: '2026-10-12T10:00:00+00:00',
+      });
+      const overlay = {
+        fields: { region: { type: 'string', scope: { enabled: true } } },
+        overrides: {},
+        functional_groups: [{ key: 'personal', order: 1 }],
+      };
+
+      const res = await saveMembersParameter('field_overlay', overlay);
+
+      expect(res.success).toBe(true);
+      // Exactly one SAM write, with the whole config#fields body (fields/overrides/functional_groups).
+      expect(membersApiService.writeFieldConfig).toHaveBeenCalledTimes(1);
+      expect(membersApiService.writeFieldConfig).toHaveBeenCalledWith(overlay);
+      // The Flask parameter path is never used for field_overlay anymore.
+      expect(parameterService.createParameter).not.toHaveBeenCalled();
+      expect(parameterService.updateParameter).not.toHaveBeenCalled();
+    });
+
+    it('routes through SAM even when a tenant parameter row exists (no Flask create/update)', async () => {
+      vi.mocked(membersApiService.writeFieldConfig).mockResolvedValue({
+        success: true,
+        configId: 'fields',
+        version: '2026-10-12T10:05:00+00:00',
+      });
+      const existing = {
+        id: 202, namespace: 'members', key: 'field_overlay',
+        value: {}, value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false,
+      };
+
+      await saveMembersParameter('field_overlay', { fields: {} }, existing);
+
+      // config#fields is a SAM upsert — the presence of a legacy MySQL row does NOT reroute to Flask.
+      expect(membersApiService.writeFieldConfig).toHaveBeenCalledTimes(1);
+      expect(parameterService.updateParameter).not.toHaveBeenCalled();
+      expect(parameterService.createParameter).not.toHaveBeenCalled();
+    });
+
+    it('treats the SAM write as authoritative — no pending-projection state (R13.2)', async () => {
+      vi.mocked(membersApiService.writeFieldConfig).mockResolvedValue({
+        success: true,
+        configId: 'fields',
+        version: '2026-10-12T10:10:00+00:00',
+      });
+
+      const res = await saveMembersParameter('field_overlay', { fields: {} });
+
+      // The returned version IS the authored state; the service surfaces no projection-lag signal.
+      expect(res.success).toBe(true);
+      expect(res.projected).toBeUndefined();
+      expect(res.projection_error).toBeUndefined();
+    });
+
+    it('normalizes a nullish field_overlay to an empty object before the SAM write', async () => {
+      vi.mocked(membersApiService.writeFieldConfig).mockResolvedValue({
+        success: true,
+        configId: 'fields',
+        version: '2026-10-12T10:15:00+00:00',
+      });
+
+      await saveMembersParameter('field_overlay', null);
+
+      expect(membersApiService.writeFieldConfig).toHaveBeenCalledWith({});
+    });
+
+    it('surfaces a caller-safe error (success:false) when the SAM write rejects', async () => {
+      vi.mocked(membersApiService.writeFieldConfig).mockRejectedValue(
+        new ApiError(403, { error: 'Access denied' }),
+      );
+
+      const res = await saveMembersParameter('field_overlay', { fields: {} });
+
+      expect(res.success).toBe(false);
+      expect(res.error).toBe('Access denied');
+      // A failed SAM write must not silently fall back to the Flask parameter path.
+      expect(parameterService.createParameter).not.toHaveBeenCalled();
       expect(parameterService.updateParameter).not.toHaveBeenCalled();
     });
   });

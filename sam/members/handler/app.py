@@ -99,6 +99,7 @@ from sam.members.domain.default_page_size import DefaultPageSizeProvider
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
     ConfigWriteValidationError,
+    CursorError,  # noqa: F401 (surface compat: tests reach app.CursorError)
     MailRunNotFound,
     RouteNotImplemented,
     dispatch_route,
@@ -1309,6 +1310,12 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             str(exc),
             code="errors.validation.failed",
         )
+    except CursorError:
+        # A client-supplied paging cursor (Req 25) that is malformed, stale, or does not belong
+        # to the active tenant (a tampered cursor that tries to resume in another tenant's
+        # partition — Property 1). It is a BAD REQUEST, not a server fault, and never a silent
+        # cross-tenant read: a caller-safe 400 with a stable code, no internals.
+        return _error(400, "Invalid paging cursor", code="errors.api.badRequest")
     except KeyError as exc:
         # A resolved route missing an expected path param (defensive — the router only
         # matches when the {param} segments are present).

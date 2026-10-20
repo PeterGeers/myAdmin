@@ -596,7 +596,10 @@
   "pagination": {
     "previous": "Previous",
     "next": "Next",
-    "pageOf": "Page {{page}} of {{total}}"
+    "pageOf": "Page {{page}} of {{total}}",
+    "rowsPerPage": "Rows per page",
+    "max": "Max",
+    "showing": "{{count}} shown"
   },
   "publicApplication": {
     "notAvailable": {

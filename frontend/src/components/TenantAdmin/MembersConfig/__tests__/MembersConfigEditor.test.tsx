@@ -30,6 +30,9 @@ const mockGetParams = vi.fn();
 const mockGetFieldConfig = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
+// field_overlay is SAM-owned (`config#fields`): the save goes through the Members API write path,
+// not parameterService. Capture it to COUNT and inspect the authored body.
+const mockWriteFieldConfig = vi.fn();
 
 vi.mock('../../../../services/membersConfigService', async () => {
   const actual = await vi.importActual<
@@ -44,7 +47,14 @@ vi.mock('../../../../services/membersConfigService', async () => {
   };
 });
 
-// The save-once primitive delegates to parameterService; mock those to COUNT requests.
+// The field_overlay save delegates to the Members API SAM write path (`PUT /members/config/fields`);
+// mock it to COUNT requests. getFieldConfig stays real-ish (the editor fetch is mocked above).
+vi.mock('../../../../services/membersApiService', () => ({
+  writeFieldConfig: (...a: unknown[]) => mockWriteFieldConfig(...a),
+  getFieldConfig: vi.fn(),
+}));
+
+// The scope_dimensions save (still Flask) delegates to parameterService; mock to COUNT requests.
 vi.mock('../../../../services/parameterService', () => ({
   getParameters: vi.fn(),
   createParameter: (...a: unknown[]) => mockCreate(...a),
@@ -101,6 +111,8 @@ function seed(rows: Record<string, Parameter> = { field_overlay: overlayRow }, c
   mockGetFieldConfig.mockResolvedValue(cfg);
   mockCreate.mockResolvedValue({ success: true });
   mockUpdate.mockResolvedValue({ success: true });
+  // The SAM write is authoritative: it returns the authored row version (Requirement 13.2).
+  mockWriteFieldConfig.mockResolvedValue({ success: true, configId: 'fields', version: '2026-10-12T10:00:00+00:00' });
 }
 
 async function renderEditor(
@@ -191,8 +203,8 @@ describe('MembersConfigEditor — drill-down navigation', () => {
   });
 });
 
-describe('MembersConfigEditor — single save path (Property 8 / R4.8)', () => {
-  it('one Save commits the WHOLE field_overlay in EXACTLY one request (PUT the tenant row)', async () => {
+describe('MembersConfigEditor — single save path (Property 8 / R4.8, SAM config#fields write — R13)', () => {
+  it('one Save commits the WHOLE field_overlay in EXACTLY one SAM PUT (/members/config/fields)', async () => {
     await renderEditor();
     // Author an edit through the drill-down: add a new group.
     fireEvent.click(screen.getByTestId('members-groups-add-btn'));
@@ -204,17 +216,18 @@ describe('MembersConfigEditor — single save path (Property 8 / R4.8)', () => {
     await waitFor(() => expect(save).not.toBeDisabled());
     fireEvent.click(save);
 
-    // EXACTLY one request — a PUT to the existing tenant row (id 202), never a create.
-    await waitFor(() => expect(mockUpdate).toHaveBeenCalledTimes(1));
+    // config#fields is SAM-owned: EXACTLY one SAM write (upsert — no Flask create/update split).
+    await waitFor(() => expect(mockWriteFieldConfig).toHaveBeenCalledTimes(1));
     expect(mockCreate).not.toHaveBeenCalled();
-    const saved = mockUpdate.mock.calls[0][1].value as Record<string, any>;
-    // The whole object was committed with the new group added to the one field_overlay.
+    expect(mockUpdate).not.toHaveBeenCalled();
+    // The whole object was committed as the config#fields body (fields/overrides/functional_groups).
+    const saved = mockWriteFieldConfig.mock.calls[0][0] as Record<string, any>;
     expect(saved.functional_groups.some((g: any) => g.key === 'address')).toBe(true);
     expect(saved.fields.region).toBeTruthy();
   });
 
-  it('an unauthored tenant creates the single field_overlay row in exactly one request', async () => {
-    await renderEditor({}); // no existing row
+  it('an unauthored tenant authors the config#fields row in exactly one SAM PUT (upsert, no create/update split)', async () => {
+    await renderEditor({}); // no existing row — SAM put_item upserts regardless
     fireEvent.click(screen.getByTestId('members-groups-add-btn'));
     fireEvent.change(screen.getByLabelText('Group key'), { target: { value: 'personal' } });
     fireEvent.click(screen.getByTestId('members-group-modal-save-btn'));
@@ -223,7 +236,10 @@ describe('MembersConfigEditor — single save path (Property 8 / R4.8)', () => {
     await waitFor(() => expect(save).not.toBeDisabled());
     fireEvent.click(save);
 
-    await waitFor(() => expect(mockCreate).toHaveBeenCalledTimes(1));
+    // Still exactly one SAM write — there is no "create vs update" distinction for a SAM upsert,
+    // and no Flask parameter call is made for field_overlay anymore.
+    await waitFor(() => expect(mockWriteFieldConfig).toHaveBeenCalledTimes(1));
+    expect(mockCreate).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 

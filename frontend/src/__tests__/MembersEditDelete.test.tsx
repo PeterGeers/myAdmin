@@ -126,6 +126,9 @@ describe('MembersEditModal — broadened over the resolved field set', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListMembers.mockResolvedValue([mockRow] as never);
+    vi.mocked(membersApiService.listMembersPage).mockResolvedValue(
+      { items: [mockRow], cursor: null } as never,
+    );
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockFullMember as never);
     mockUpdateMember.mockResolvedValue({ member_id: 'm-1' } as never);
@@ -209,14 +212,16 @@ describe('MembersEditModal — broadened over the resolved field set', () => {
 
   describe('success closes the modal and refreshes the list', () => {
     it('closes the edit modal and reloads members after a successful update', async () => {
+      // The reload goes through the cursor-paging read (`listMembersPage`, Req 25).
+      const mockListMembersPage = vi.mocked(membersApiService.listMembersPage);
       const dialog = await openEditModal();
-      const callsBeforeSubmit = mockListMembers.mock.calls.length;
+      const callsBeforeSubmit = mockListMembersPage.mock.calls.length;
       fillByName(dialog, 'first_name', 'Jan Jansen');
       fireEvent.click(within(dialog).getByText('editModal.save'));
 
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
       await waitFor(() =>
-        expect(mockListMembers.mock.calls.length).toBeGreaterThan(callsBeforeSubmit),
+        expect(mockListMembersPage.mock.calls.length).toBeGreaterThan(callsBeforeSubmit),
       );
     });
   });
@@ -226,6 +231,9 @@ describe('MembersDeleteConfirm (task 19.3)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListMembers.mockResolvedValue([mockRow] as never);
+    vi.mocked(membersApiService.listMembersPage).mockResolvedValue(
+      { items: [mockRow], cursor: null } as never,
+    );
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockFullMember as never);
     mockDeleteMember.mockResolvedValue({} as never);
@@ -250,13 +258,15 @@ describe('MembersDeleteConfirm (task 19.3)', () => {
 
   describe('confirming deletes + refreshes (R8.2)', () => {
     it('calls deleteMember and reloads the list on confirm', async () => {
+      // The reload goes through the cursor-paging read (`listMembersPage`, Req 25).
+      const mockListMembersPage = vi.mocked(membersApiService.listMembersPage);
       const dialog = await openDeleteConfirm();
-      const callsBeforeConfirm = mockListMembers.mock.calls.length;
+      const callsBeforeConfirm = mockListMembersPage.mock.calls.length;
       fireEvent.click(within(dialog).getByText('deleteConfirm.confirm'));
 
       await waitFor(() => expect(mockDeleteMember).toHaveBeenCalledWith('m-1'));
       await waitFor(() =>
-        expect(mockListMembers.mock.calls.length).toBeGreaterThan(callsBeforeConfirm),
+        expect(mockListMembersPage.mock.calls.length).toBeGreaterThan(callsBeforeConfirm),
       );
       await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     });
