@@ -310,15 +310,16 @@ def build_config_scope_row(
     (``_scope_dimensions_from_overlay``): a field declares that it is a scope axis,
     enabled, with its value vocabulary, instead of a standalone
     ``members.scope_dimensions`` list. The builder DERIVES the ``config#scope``
-    ``dimensions`` from those field attributes, keeping the PROJECTED row — and so
-    the ``ScopeConfig`` the resolver (``handler/app.py``) consumes — **semantically
-    equivalent** (Property 2): a field-authored axis and the equivalent standalone
-    dimension project to the SAME row. The standalone ``members.scope_dimensions``
-    param is kept as the FALLBACK source (read only when the overlay declares no
-    scope axis), so the ``scopegrant#`` grants, the grant-validation service, and
-    the picker API — all of which still read ``members.scope_dimensions`` — are
-    untouched (R2.3/R2.4). The two sources are not merged: a tenant that has
-    migrated authoring onto fields drives the row entirely from the overlay.
+    ``dimensions`` from those field attributes (``_scope_dimensions_from_overlay``)
+    — the SINGLE authoring source (OQ-3 RESOLVED, ODD 3). The legacy standalone
+    ``members.scope_dimensions`` fallback was REMOVED (task 3.1): it silently masked
+    overlay toggle changes (the dead-toggle defect), so toggling a field's ``scope``
+    could appear to do nothing while a stale standalone param kept driving the row.
+    With the fallback gone the overlay toggle has real effect. The standalone
+    ``members.scope_dimensions`` param is NOT read here anymore and is NOT deleted —
+    it persists as the frontend-written DERIVED MIRROR (task 3.1a) that the
+    ``scopegrant#`` grants, the grant-validation service, and the picker API keep
+    reading UNCHANGED (R2.3/R2.4); those readers are out of scope for this builder.
 
     One-directional discipline (Property 1): this builder issues **zero** MySQL
     writes and does **not** write the projection itself — it only READS via
@@ -326,11 +327,10 @@ def build_config_scope_row(
     RETURNS the item for :class:`ProjectionSync` (the sole writer), mirroring the
     pure ``tenant``/``module``/``role`` builders in ``projection_builder.py``.
 
-    Empty-is-valid (R1.6): a tenant that has authored neither a field scope axis nor
-    a ``members.scope_dimensions`` parameter yields a row with an empty
-    ``dimensions`` list — the reader then resolves it to a tenant-wide config, never
-    an error. Returning the row (rather than ``None``) keeps the projection
-    self-describing; an empty list is the tenant-wide collapse.
+    Empty-is-valid (R1.6): a tenant whose overlay declares no field scope axis
+    yields a row with an empty ``dimensions`` list — the reader then resolves it to a
+    tenant-wide config, never an error. Returning the row (rather than ``None``) keeps
+    the projection self-describing; an empty list is the tenant-wide collapse.
 
     Args:
         tenant: The tenant row. Must carry ``administration`` (or ``tenant_id``)
@@ -363,34 +363,33 @@ def build_config_scope_row(
     )
     dimensions = _scope_dimensions_from_overlay(overlay)
 
-    # Fallback (semantic equivalence + no grant-model change, R2.4): a tenant that has
-    # NOT moved scope authoring onto its fields still drives the row from the standalone
-    # ``members.scope_dimensions`` param — the SAME source the grant machinery reads.
-    if not dimensions:
-        raw_dimensions = parameter_service.get_param(
-            _MEMBERS_PARAM_NAMESPACE,
-            _SCOPE_DIMENSIONS_PARAM_KEY,
-            tenant=tenant_id,
-        )
-        if isinstance(raw_dimensions, Sequence) and not isinstance(raw_dimensions, str):
-            for entry in raw_dimensions:
-                if isinstance(entry, Mapping):
-                    dimensions.append(_map_scope_dimension(entry))
+    # OQ-3 RESOLVED (ODD 3): config#scope is DERIVED SOLELY from the per-field ``scope``
+    # attributes on the ``members.field_overlay`` overlay — the single authoring source.
+    # The legacy standalone ``members.scope_dimensions`` fallback was REMOVED (task 3.1,
+    # the dead-toggle defect fix): a silent fallback masked overlay toggle changes, so
+    # toggling a field's ``scope`` could appear to have no effect while a stale standalone
+    # param kept driving the row. With the fallback gone the overlay toggle has real
+    # effect; an overlay that declares no scope axis yields EMPTY dimensions — a valid,
+    # tenant-wide config (R1.6), never an error.
+    #
+    # The standalone ``members.scope_dimensions`` param is NOT read here anymore, but it is
+    # NOT deleted: it persists as the frontend-written DERIVED MIRROR (task 3.1a) that the
+    # scopegrant builder, the grant-validation service, and the picker API keep reading
+    # UNCHANGED (R2.3/R2.4). Those readers are out of scope for this builder.
 
     return ProjectionItem(
         tenant_id=tenant_id,
         sort_key=schema.build_sort_key(
             schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_SCOPE
         ),
-        # config#scope is now driven by EITHER param — a scope edit on the field overlay
-        # OR on the standalone scope_dimensions must bump the row (the version-bump-trap
-        # fix): the version is the max of their per-param revisions, falling back to the
-        # tenant row only when neither is authored.
+        # config#scope derives only from the overlay now, so the row version tracks ONLY
+        # the overlay param's revision — a stale standalone ``scope_dimensions`` param can
+        # no longer bump the config#scope version (it is no longer a source).
         version=_config_row_version(
             tenant,
             parameter_service,
             tenant_id,
-            (_FIELD_OVERLAY_PARAM_KEY, _SCOPE_DIMENSIONS_PARAM_KEY),
+            (_FIELD_OVERLAY_PARAM_KEY,),
         ),
         attributes={"dimensions": dimensions},
     )
