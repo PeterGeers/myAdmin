@@ -1,0 +1,475 @@
+{
+  "pbtResults": {
+    "1.2 Write unit tests for the write repository": {
+      "status": "passed",
+      "lastRunTimestamp": 1792505884700
+    },
+    "1.4 Write version-stamp tests": {
+      "status": "passed",
+      "lastRunTimestamp": 1792505900773
+    },
+    "1.10 SAM round-trip equivalence test for config#fields": {
+      "status": "passed",
+      "lastRunTimestamp": 1792507412393
+    }
+  },
+  "executionHistory": {
+    "1.1 Create `MembersConfigWriteRepository` (versioned put_item, closed set, fail-fast table)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505577684
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505591620
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505730640
+      }
+    ],
+    "1.2 Write unit tests for the write repository": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505577815
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505743084
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505937254
+      }
+    ],
+    "1.3 Implement the SAM version model (monotonic ISO-8601 write stamp)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505577923
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505592768
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505731872
+      }
+    ],
+    "1.4 Write version-stamp tests": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505578036
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505744488
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505936146
+      }
+    ],
+    "1.5 Implement the config-write domain service": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505578135
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505745483
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505935233
+      }
+    ],
+    "1.6 Add API Gateway `PUT /members/config/{configId}` route + Members Lambda edge wiring": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505578246
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505943611
+      },
+      {
+        "executionId": "8c43e4ee-bff5-4f4e-9e01-b3909ab5a22c",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792506975723
+      }
+    ],
+    "1.7 Write edge/route tests": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505578360
+      },
+      {
+        "executionId": "8c43e4ee-bff5-4f4e-9e01-b3909ab5a22c",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792506980842
+      },
+      {
+        "executionId": "8c43e4ee-bff5-4f4e-9e01-b3909ab5a22c",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792507284424
+      }
+    ],
+    "1.8 Add the scoped IAM WRITE grant to `sam/members/template.yaml`": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505578455
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505746744
+      },
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505933808
+      }
+    ],
+    "1.9 Author the `config#fields` row through the write path (Step 1)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505578557
+      },
+      {
+        "executionId": "8c43e4ee-bff5-4f4e-9e01-b3909ab5a22c",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792506984459
+      },
+      {
+        "executionId": "8c43e4ee-bff5-4f4e-9e01-b3909ab5a22c",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792507285876
+      }
+    ],
+    "1.10 SAM round-trip equivalence test for config#fields": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505578679
+      },
+      {
+        "executionId": "8c43e4ee-bff5-4f4e-9e01-b3909ab5a22c",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792507310073
+      },
+      {
+        "executionId": "8c43e4ee-bff5-4f4e-9e01-b3909ab5a22c",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792507445307
+      }
+    ],
+    "1.11 Deploy SAM write infra + IAM grant via `deploy-sam-members.yml` (CI/CD — mandatory)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505578805
+      }
+    ],
+    "1.12 Migrate `config#fields` per tenant + read-back verify + delete migrated MySQL rows (operational, PRE builder removal)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505578963
+      }
+    ],
+    "1.13 Repoint `config#fields` save in `membersConfigService.ts` + simplify UX": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505579085
+      }
+    ],
+    "1.14 Update frontend tests for the repointed fields save": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505579206
+      }
+    ],
+    "1.15 Remove `build_config_fields_row` from ProjectionSync + retire MySQL params (merge to main ONLY after 1.12 PROD-verified)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505579319
+      }
+    ],
+    "1.16 Update ProjectionSync tests to assert config#fields NOT emitted (change-with-tests)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505579427
+      }
+    ],
+    "1.17 Members table rows-per-page runtime selector + DynamoDB cursor paging (OQ-6 RESOLVED, Component 10 / Req 25)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505579534
+      }
+    ],
+    "1.18 Property test for rows-per-page selector + cursor paging (change-with-tests)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505579647
+      }
+    ],
+    "2. Checkpoint — config#fields cutover complete": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505579807
+      }
+    ],
+    "3. `config#scope` cutover (Roadmap Step 2)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505579938
+      }
+    ],
+    "3.1 Author `config#scope` from the single source (OQ-3 RESOLVED) + fix the dead-toggle defect": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505580057
+      }
+    ],
+    "3.2 SAM scope equivalence + round-trip test": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505580163
+      }
+    ],
+    "3.3 Deploy scope write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505580317
+      }
+    ],
+    "3.4 Migrate `config#scope` per tenant + read-back verify + seed the Flask mirror (operational, PRE builder removal)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505580432
+      }
+    ],
+    "3.5 Repoint `config#scope` save in `membersConfigService.ts`": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505580532
+      }
+    ],
+    "3.6 Update frontend tests for the repointed scope save": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505580638
+      }
+    ],
+    "3.7 Remove `build_config_scope_row` from ProjectionSync (ProjectionSync stops authoring scope; param persists as the frontend mirror) (merge to main ONLY after 3.4 PROD-verified)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505580759
+      }
+    ],
+    "3.8 Update ProjectionSync tests to assert config#scope NOT emitted (change-with-tests)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505580889
+      }
+    ],
+    "3.9 Cross-plane scope-grant reconciliation (two-tier: routine auto-mirror + reminder / orphaning block + contact-SysAdmin)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505581020
+      }
+    ],
+    "3.10 Property test for scope-grant reconciliation (detection + block + no-silent-stale-grant)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505581126
+      }
+    ],
+    "4. Checkpoint — config#scope cutover complete": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505581233
+      }
+    ],
+    "5.1 Resolve OQ-2 (now-settled three-surface model) and author `config#mail` through the write path": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505581353
+      }
+    ],
+    "5.2 SAM config#mail round-trip + reader test": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505581497
+      }
+    ],
+    "5.3 Invoice-SES-untouched confirmation test": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505581667
+      }
+    ],
+    "5.4 Deploy mail write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505581792
+      }
+    ],
+    "5.5 Migrate `config#mail` per tenant + read-back verify + delete migrated MySQL rows (operational, PRE builder removal)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505581883
+      }
+    ],
+    "5.6 Repoint `config#mail` / sender save in `membersConfigService.ts`": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505581979
+      }
+    ],
+    "5.7 Update frontend tests for the repointed mail save": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505582109
+      }
+    ],
+    "5.8 Remove `build_config_mail_row` + retire `members.*` mail params (merge to main ONLY after 5.5 PROD-verified)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505582194
+      }
+    ],
+    "5.9 Update ProjectionSync tests to assert config#mail NOT emitted (change-with-tests)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505582291
+      }
+    ],
+    "6. Checkpoint — config#mail cutover complete": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505582382
+      }
+    ],
+    "7. Typed authoring UI + single-authoring-door enforcement (Roadmap Step 4)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505582473
+      }
+    ],
+    "7.2* Test: Advanced raw editor shows zero `members.*` rows (change-with-tests)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505582578
+      }
+    ],
+    "7.3* Test: single-authoring-door / no-second-writer — Property 8": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505582735
+      }
+    ],
+    "7.1 Build the NEW dedicated typed Mail function (single door for Members `config#mail` scalars)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505582852
+      }
+    ],
+    "7.2 Re-instate the blanket `members`-namespace exclusion in `ParameterManagement.tsx`": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505582963
+      }
+    ],
+    "7.4 Retire the `view_contexts` residue (physical cleanup, delete-only)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505583074
+      }
+    ],
+    "8.1 Implement the TEST→PROD promotion: structural-change tenant-wide migration + read-back parity": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505583400
+      }
+    ],
+    "8.2 Rollback rehearsal test/script": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505583514
+      }
+    ],
+    "8.3 Promote `test → main` production-release gate (CI/CD — mandatory)": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505583632
+      }
+    ],
+    "9. Final checkpoint — split-ownership verified": [
+      {
+        "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792505583799
+      }
+    ]
+  }
+}

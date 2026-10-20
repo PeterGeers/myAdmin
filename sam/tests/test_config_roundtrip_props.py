@@ -701,3 +701,179 @@ def test_property_new_overlay_attributes_surface_on_resolved_fields(built):
     # The member_number format surfaces on the resolved member_number field.
     mn = cfg.field("membership.member_number")
     assert mn.member_number_format == fmt
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# Spec 02 Task 1.10 — Property 1: Round-trip write/read equivalence through the SAM WRITE PATH
+# (config#fields leg). Wired end-to-end by Task 1.9; formalized as the NAMED equivalence
+# property here.
+#
+# Feature: members-config-sam-owned-write-path, Property 1 (config#fields leg).
+# Validates: Requirements 1.4, 1.5, 7.4, 8.1 (fields subset)
+#
+# The legs above round-trip through the *Flask* builder (`build_config_fields_row`, the
+# ProjectionSync author being retired). THESE two tests assert the net-new, SAM-owned write path:
+#
+#     authored body --ConfigWriteService.put_config('fields')--> MembersConfigWriteRepository
+#         --versioned put_item--> projection row --MembersProjectionReader.get_overlay-->
+#         TenantOverlay equivalent to the authored fields/overrides/functional_groups
+#
+# Property 1 — Round-trip write/read equivalence (config#fields): for ALL authored `fields`
+# bodies, after `put_config('fields', ...)` the matching reader accessor (`get_overlay`) returns
+# a value EQUIVALENT to what was written (Req 1.5), and the repository authors the EXACT attribute
+# shape the UNCHANGED reader reads (Req 1.4 / 7.4). The two tests below cover:
+#
+#   - `test_property_config_fields_round_trips_through_sam_write_path` — the ∀-inputs equivalence
+#     property (Req 1.4, 1.5, 7.4): fields + overrides survive the write→read round-trip.
+#   - `test_config_fields_write_path_preserves_per_field_scope_verbatim` — the 8.1 (fields subset)
+#     leg: the per-field `scope` sub-object is authored verbatim in the `ScopeDimension` shape the
+#     reader (`get_scope_config` derivation source) reads, so `config#scope` can be derived from it.
+#
+# Req 25 retirement is enforced NEGATIVELY: the written row carries NO `default_page_size`
+# attribute and there is NO `get_default_page_size` round-trip assertion — the tenant-level
+# `default_page_size` accessor is retired in favor of the per-user Rows_Per_Page_Selector.
+#
+# No live AWS: the repository writes a FakeTable the reader then queries.
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+from sam.members.domain.config_write_service import ConfigWriteService
+from sam.members.repository.projection_config_write_repository import (
+    MembersConfigWriteRepository,
+)
+
+
+class WriterBackedFakeTable(FakeTable):
+    """A ``FakeTable`` that ALSO satisfies the writer's ``put_item(Item=...)`` contract.
+
+    The write repository calls ``put_item(Item=...)``; the reader calls ``query(...)``. A single
+    in-memory table backs BOTH so a row written by ``MembersConfigWriteRepository`` is immediately
+    readable by ``MembersProjectionReader`` — the real round-trip the SAM write path performs.
+    """
+
+    def put_item(self, Item=None):
+        self.put(Item)
+
+
+@settings(max_examples=100)
+@given(overlay=_field_overlay())
+def test_property_config_fields_round_trips_through_sam_write_path(overlay):
+    """Property 1 — Round-trip write/read equivalence (config#fields leg), Spec 02 Task 1.10.
+
+    Feature: members-config-sam-owned-write-path, Property 1 (config#fields SAM write leg).
+
+    Validates: Requirements 1.4, 1.5, 7.4
+
+    A ``fields`` body authored through ``ConfigWriteService.put_config`` (Task 1.5) →
+    ``MembersConfigWriteRepository`` (Task 1.1) → ``put_item`` yields a projected ``config#fields``
+    row that ``MembersProjectionReader.get_overlay`` reads back into a ``TenantOverlay`` equivalent
+    to the authored fields + overrides. This is the NAMED round-trip write/read equivalence
+    property: the repository authors the EXACT attribute shape the UNCHANGED reader reads (Req 1.4
+    / 7.4), so the reader accessor returns a value equivalent to what was written for ALL authored
+    bodies (Req 1.5). The authored body uses the reader's ``overrides`` attribute name directly
+    (the SAM write path carries no legacy ``fixed_overrides`` input dual-accept — that was
+    Flask-builder only).
+
+    The tenant-level ``default_page_size`` accessor is RETIRED (Req 25): the written row carries NO
+    ``default_page_size`` attribute and there is deliberately NO ``get_default_page_size``
+    round-trip assertion — rows-per-page is the per-user runtime Rows_Per_Page_Selector.
+    """
+    # The SAM write path takes the body shape the reader reads: `overrides` (not the Flask-builder
+    # input alias `fixed_overrides`). Reuse the generated specs verbatim under that key.
+    body = {
+        "fields": overlay["fields"],
+        "overrides": overlay["fixed_overrides"],
+        "functional_groups": [],
+    }
+
+    table = WriterBackedFakeTable()
+    service = ConfigWriteService(
+        MembersConfigWriteRepository(table=table),
+        version_fn=lambda: "2026-01-01T00:00:00+00:00",
+    )
+
+    # authored body --SAM write path--> versioned projection row
+    result = service.put_config(_TENANT_ID, schema.CONFIG_ID_FIELDS, body)
+    assert result == {
+        "success": True,
+        "configId": schema.CONFIG_ID_FIELDS,
+        "version": "2026-01-01T00:00:00+00:00",
+    }
+
+    # The written row carries NO default_page_size (RETIRED, Req 7.2 / Req 25).
+    stored = table.store[
+        (_TENANT_ID, schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS))
+    ]
+    assert "default_page_size" not in stored
+    assert stored[schema.VERSION_ATTR] == "2026-01-01T00:00:00+00:00"
+
+    # projection row --reader--> TenantOverlay equivalent to the authored body
+    resolved = MembersProjectionReader(table=table).get_overlay(_TENANT_ID)
+    assert isinstance(resolved, TenantOverlay)
+
+    authored_fields = body["fields"]
+    assert set(resolved.fields.keys()) == set(authored_fields.keys())
+    for name, authored_spec in authored_fields.items():
+        assert _actual_overlay_field(resolved.fields[name]) == _expected_overlay_field(
+            name, authored_spec
+        )
+
+    authored_overrides = body["overrides"]
+    assert set(resolved.overrides.keys()) == set(authored_overrides.keys())
+    for dotted, authored_spec in authored_overrides.items():
+        assert _actual_override(resolved.overrides[dotted]) == _expected_override(
+            authored_spec
+        )
+
+
+def test_config_fields_write_path_preserves_per_field_scope_verbatim():
+    """Property 1 — config#fields round-trip, 8.1 (fields subset) leg. Spec 02 Task 1.10.
+
+    Validates: Requirements 8.1 (fields subset), 7.3, 1.4
+
+    The per-field ``scope`` sub-object is the single authoring source ``config#scope`` is derived
+    from (Req 8.3), authored in the ``ScopeDimension`` shape the reader reads via
+    ``get_scope_config`` (Req 8.1). The ``fields`` write path must therefore carry it through
+    UNCHANGED onto the projected ``config#fields`` row (never reshaped or dropped) and the reader
+    must surface it as a ``FieldScope`` on the resolved overlay field — this is the fields-subset
+    leg of the round-trip write/read equivalence property. Example-based because the exact
+    sub-object identity (verbatim preservation) is the point.
+    """
+    scope_attr = {
+        "enabled": True,
+        "values": ["noord", "zuid"],
+        "label": {"nl": "Regio", "en": "Region"},
+        "required_for": ["Members_CRUD"],
+    }
+    body = {
+        "fields": {
+            "regio": {
+                "key": "regio",
+                "type": "enum",
+                "choices": ["noord", "zuid"],
+                "scope": scope_attr,
+            }
+        },
+        "overrides": {},
+        "functional_groups": [],
+    }
+
+    table = WriterBackedFakeTable()
+    service = ConfigWriteService(
+        MembersConfigWriteRepository(table=table),
+        version_fn=lambda: "2026-01-01T00:00:00+00:00",
+    )
+    service.put_config(_TENANT_ID, schema.CONFIG_ID_FIELDS, body)
+
+    stored = table.store[
+        (_TENANT_ID, schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS))
+    ]
+    # The per-field scope sub-object rode through verbatim onto the projected row.
+    assert stored["fields"]["regio"]["scope"] == scope_attr
+
+    # And the reader surfaces it as a FieldScope on the resolved overlay field.
+    resolved = MembersProjectionReader(table=table).get_overlay(_TENANT_ID)
+    field_scope = resolved.fields["regio"].scope
+    assert field_scope is not None
+    assert field_scope.enabled is True
+    assert tuple(field_scope.values) == ("noord", "zuid")
+    assert tuple(field_scope.required_for) == ("Members_CRUD",)
