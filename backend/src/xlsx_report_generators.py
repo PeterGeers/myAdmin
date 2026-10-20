@@ -278,15 +278,12 @@ class XLSXProgressExportMixin(XLSXDownloadHelpersMixin):
                     }
 
                 except Exception as e:
-                    print(f"Error processing {administration} {year}: {e!s}")
-                    import traceback
-
-                    traceback.print_exc()
+                    logger.exception("Error processing %s %s", administration, year)
 
                     result = {
                         "administration": administration,
                         "year": year,
-                        "error": str(e),
+                        "error": "An internal error occurred. Please try again later.",
                         "success": False,
                     }
                     results.append(result)

@@ -14,6 +14,7 @@ from flask import Blueprint, jsonify, request
 from auth.cognito_utils import cognito_required
 from auth.tenant_context import tenant_required, validate_tenant_access
 from pattern_analyzer import PatternAnalyzer
+from routes.error_responses import error_response
 
 # Create blueprint
 pattern_storage_bp = Blueprint("pattern_storage", __name__)
@@ -74,7 +75,7 @@ def get_pattern_storage_stats(
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pattern storage request failed", status=500)
 
 
 @pattern_storage_bp.route("/api/patterns/analyze/<administration>", methods=["POST"])
@@ -132,7 +133,7 @@ def analyze_patterns_with_storage(
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pattern storage request failed", status=500)
 
 
 @pattern_storage_bp.route("/api/patterns/summary/<administration>", methods=["GET"])
@@ -166,7 +167,7 @@ def get_pattern_summary_from_storage(
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pattern storage request failed", status=500)
 
 
 @pattern_storage_bp.route("/api/patterns/apply/<administration>", methods=["POST"])
@@ -211,7 +212,7 @@ def apply_patterns_from_storage(
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pattern storage request failed", status=500)
 
 
 @pattern_storage_bp.route(
@@ -275,7 +276,7 @@ def get_performance_comparison(
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pattern storage request failed", status=500)
 
 
 @pattern_storage_bp.route(
@@ -315,4 +316,4 @@ def get_incremental_update_stats(
         )
 
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+        return error_response(e, "Pattern storage request failed", status=500)

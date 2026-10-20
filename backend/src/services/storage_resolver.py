@@ -197,11 +197,14 @@ def create_s3_folder(tenant: str, folder_name: str, parameter_service=None) -> d
         logger.info("Created S3 folder marker: s3://%s/%s", storage.bucket, key)
         return {"id": key, "name": folder_name, "url": key}
 
-    except Exception as e:
+    except Exception:
         logger.warning(
-            "Failed to create S3 folder '%s' for tenant '%s': %s",
+            "Failed to create S3 folder '%s' for tenant '%s'",
             folder_name,
             tenant,
-            e,
+            exc_info=True,
         )
-        return {"success": False, "error": str(e)}
+        return {
+            "success": False,
+            "error": "An internal error occurred. Please try again later.",
+        }

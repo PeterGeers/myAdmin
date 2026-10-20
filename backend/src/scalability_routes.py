@@ -16,6 +16,7 @@ from flask import Blueprint, jsonify, request
 
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
+from routes.error_responses import error_payload
 from scalability_manager import get_scalability_manager
 
 # Configure logging
@@ -138,16 +139,18 @@ def scalability_dashboard(user_email, user_roles):
                 "connection_pools": pool_status,
             }
         except Exception as e:
-            logger.error(f"Error getting database scalability info: {e}")
-            dashboard_data["database_scalability"] = {"error": str(e)}
+            dashboard_data["database_scalability"] = error_payload(
+                e, "Database scalability info unavailable", include_success=False
+            )
 
         return jsonify(dashboard_data)
 
     except Exception as e:
-        logger.error(f"Error generating scalability dashboard: {e}")
         return jsonify(
             {
-                "error": str(e),
+                **error_payload(
+                    e, "Scalability dashboard unavailable", include_success=False
+                ),
                 "scalability_active": False,
                 "concurrent_capacity": "Unknown",
             }
@@ -210,8 +213,14 @@ def realtime_metrics(user_email, user_roles):
         return jsonify(realtime_data)
 
     except Exception as e:
-        logger.error(f"Error getting realtime metrics: {e}")
-        return jsonify({"error": str(e), "realtime_monitoring": False}), 500
+        return jsonify(
+            {
+                **error_payload(
+                    e, "Realtime metrics unavailable", include_success=False
+                ),
+                "realtime_monitoring": False,
+            }
+        ), 500
 
 
 @scalability_bp.route("/api/scalability/load-test", methods=["POST"])
@@ -364,8 +373,12 @@ def run_load_test(user_email, user_roles):
         return jsonify(results)
 
     except Exception as e:
-        logger.error(f"Error running load test: {e}")
-        return jsonify({"error": str(e), "load_test_completed": False}), 500
+        return jsonify(
+            {
+                **error_payload(e, "Load test failed", include_success=False),
+                "load_test_completed": False,
+            }
+        ), 500
 
 
 @scalability_bp.route("/api/scalability/optimize", methods=["POST"])
@@ -397,7 +410,13 @@ def optimize_scalability(user_email, user_roles):
                 )
             except Exception as e:
                 optimizations_applied.append(
-                    {"type": "database", "status": "failed", "error": str(e)}
+                    {
+                        "type": "database",
+                        "status": "failed",
+                        **error_payload(
+                            e, "Optimization failed", include_success=False
+                        ),
+                    }
                 )
 
         # Connection pool optimizations
@@ -431,7 +450,13 @@ def optimize_scalability(user_email, user_roles):
                     )
             except Exception as e:
                 optimizations_applied.append(
-                    {"type": "connections", "status": "failed", "error": str(e)}
+                    {
+                        "type": "connections",
+                        "status": "failed",
+                        **error_payload(
+                            e, "Optimization failed", include_success=False
+                        ),
+                    }
                 )
 
         # Performance monitoring optimization
@@ -463,7 +488,13 @@ def optimize_scalability(user_email, user_roles):
                     )
             except Exception as e:
                 optimizations_applied.append(
-                    {"type": "monitoring", "status": "failed", "error": str(e)}
+                    {
+                        "type": "monitoring",
+                        "status": "failed",
+                        **error_payload(
+                            e, "Optimization failed", include_success=False
+                        ),
+                    }
                 )
 
         # Calculate overall optimization status
@@ -516,8 +547,12 @@ def optimize_scalability(user_email, user_roles):
         )
 
     except Exception as e:
-        logger.error(f"Error applying scalability optimizations: {e}")
-        return jsonify({"error": str(e), "optimization_completed": False}), 500
+        return jsonify(
+            {
+                **error_payload(e, "Optimization failed", include_success=False),
+                "optimization_completed": False,
+            }
+        ), 500
 
 
 @scalability_bp.route("/api/scalability/config", methods=["GET"])
@@ -589,8 +624,14 @@ def get_scalability_config(user_email, user_roles):
         )
 
     except Exception as e:
-        logger.error(f"Error getting scalability configuration: {e}")
-        return jsonify({"error": str(e), "scalability_configured": False}), 500
+        return jsonify(
+            {
+                **error_payload(
+                    e, "Scalability configuration unavailable", include_success=False
+                ),
+                "scalability_configured": False,
+            }
+        ), 500
 
 
 @scalability_bp.route("/api/scalability/alerts", methods=["GET"])
@@ -682,8 +723,14 @@ def get_scalability_alerts(user_email, user_roles):
         )
 
     except Exception as e:
-        logger.error(f"Error getting scalability alerts: {e}")
-        return jsonify({"error": str(e), "alerts_available": False}), 500
+        return jsonify(
+            {
+                **error_payload(
+                    e, "Scalability alerts unavailable", include_success=False
+                ),
+                "alerts_available": False,
+            }
+        ), 500
 
 
 # Global variables set by app.py
@@ -727,7 +774,9 @@ def scalability_status(user_email, user_roles):
         return jsonify(
             {
                 "scalability_active": False,
-                "error": str(e),
+                **error_payload(
+                    e, "Scalability status unavailable", include_success=False
+                ),
                 "concurrent_capacity": "Unknown",
             }
         ), 500
@@ -757,7 +806,14 @@ def scalability_database_status(user_email, user_roles):
         )
 
     except Exception as e:
-        return jsonify({"error": str(e), "database_scalability": "unavailable"}), 500
+        return jsonify(
+            {
+                **error_payload(
+                    e, "Database scalability unavailable", include_success=False
+                ),
+                "database_scalability": "unavailable",
+            }
+        ), 500
 
 
 @scalability_bp.route("/api/scalability/performance", methods=["GET"])
@@ -786,4 +842,11 @@ def scalability_performance(user_email, user_roles):
         )
 
     except Exception as e:
-        return jsonify({"performance_monitoring": False, "error": str(e)}), 500
+        return jsonify(
+            {
+                "performance_monitoring": False,
+                **error_payload(
+                    e, "Performance monitoring unavailable", include_success=False
+                ),
+            }
+        ), 500
