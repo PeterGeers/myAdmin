@@ -90,11 +90,17 @@ export {
   saveColumnPreferences,
 } from './members/membersColumnPreferencesApi';
 
-// --- Config resource group (field-config + membership-type catalog) ---
+// --- Config resource group (field-config + membership-type catalog + SAM config write) ---
 export {
   getFieldConfig,
   listMembershipTypes,
   createMembershipType,
   updateMembershipType,
   deactivateMembershipType,
+  writeConfig,
+  writeFieldConfig,
+} from './members/membersConfigApi';
+export type {
+  MembersWritableConfigId,
+  MembersConfigWriteResult,
 } from './members/membersConfigApi';
