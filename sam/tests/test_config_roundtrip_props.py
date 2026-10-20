@@ -53,7 +53,9 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.members` imports.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -164,9 +166,7 @@ def _scope_dimension(draw, key: str):
     enabled = draw(st.booleans())
     # A unique, non-blank value set. Enabled dimensions MUST have ≥1 value (validation rule);
     # a disabled dimension may have any (its body is ignored) — keep ≥1 for simplicity.
-    values = draw(
-        st.lists(_TOKEN, min_size=1, max_size=5, unique=True)
-    )
+    values = draw(st.lists(_TOKEN, min_size=1, max_size=5, unique=True))
     return {
         "key": key,
         "label": draw(_i18n_label()),
@@ -324,11 +324,18 @@ def _actual_overlay_field(f) -> dict:
 
 def _expected_override(authored: dict) -> dict:
     """What an authored fixed-field override collapses to — absent aspects stay ``None``."""
+
     def _val(aspect, cast):
-        return cast(authored[aspect]) if aspect in authored and authored[aspect] is not None else None
+        return (
+            cast(authored[aspect])
+            if aspect in authored and authored[aspect] is not None
+            else None
+        )
 
     return {
-        "label": dict(authored["label"]) if isinstance(authored.get("label"), dict) else None,
+        "label": dict(authored["label"])
+        if isinstance(authored.get("label"), dict)
+        else None,
         "visible": _val("visible", bool),
         "required": _val("required", bool),
         "order": _val("order", int),
@@ -349,6 +356,33 @@ def _actual_override(o) -> dict:
 # ---------------------------------------------------------------------------
 
 
+def _overlay_from_dimensions(dimensions: list[dict]) -> dict:
+    """Author the SAME scope config as a per-field ``scope`` axis on ``members.field_overlay``.
+
+    Task 3.1 made the overlay field ``scope`` attribute the SINGLE authoring source for
+    ``config#scope`` (the standalone ``members.scope_dimensions`` fallback was removed, the
+    dead-toggle defect). Each generated dimension becomes an enum overlay field keyed by the
+    dimension's own key, carrying a ``scope`` sub-object — so the derived ``config#scope``
+    dimension binds the axis to its own field, identical to the standalone shape the
+    ``_expected_dimension`` normalisation describes.
+    """
+    fields = {
+        d["key"]: {
+            "key": d["key"],
+            "type": "enum",
+            "choices": list(d.get("values") or []),
+            "scope": {
+                "enabled": d.get("enabled", True),
+                "values": list(d.get("values") or []),
+                "label": dict(d.get("label") or {}),
+                "required_for": list(d.get("required_for") or []),
+            },
+        }
+        for d in dimensions
+    }
+    return {"fields": fields, "fixed_overrides": {}}
+
+
 @settings(max_examples=100)
 @given(dimensions=_scope_dimensions())
 def test_property_config_scope_round_trips(dimensions):
@@ -356,15 +390,20 @@ def test_property_config_scope_round_trips(dimensions):
 
     Validates: Requirements 1.1, 1.2, 1.3, 10.6
 
-    Authored ``members.scope_dimensions`` → ``build_config_scope_row`` →
+    Authored field ``scope`` axis on ``members.field_overlay`` → ``build_config_scope_row`` →
     ``to_dynamodb_item()`` → reader ``get_scope_config`` yields a ``ScopeConfig`` equivalent to
     the authored dimensions (a projection round-trip preserves the scope config).
+
+    Re-homed onto the overlay source by task 3.1 (the standalone ``members.scope_dimensions``
+    fallback was removed). The derived dimension binds to the field's own key, so the authored
+    dimensions and the resolved config are equivalent under the SAME ``_expected_dimension``
+    normalisation.
     """
     params = FakeParameterService(
-        {("members", "scope_dimensions", _TENANT_ID): dimensions}
+        {("members", "field_overlay", _TENANT_ID): _overlay_from_dimensions(dimensions)}
     )
 
-    # authored --builder--> projection row
+    # authored (overlay scope axis) --builder--> projection row
     row = build_config_scope_row({"administration": _TENANT_ID}, params)
     assert row is not None
 
@@ -397,9 +436,7 @@ def test_property_config_fields_round_trips(overlay):
     reader ``get_overlay`` yields a ``TenantOverlay`` equivalent to the authored overlay
     (``FieldType`` converted; override present-only aspects preserved, absent stay ``None``).
     """
-    params = FakeParameterService(
-        {("members", "field_overlay", _TENANT_ID): overlay}
-    )
+    params = FakeParameterService({("members", "field_overlay", _TENANT_ID): overlay})
 
     # authored --builder--> projection row
     row = build_config_fields_row({"administration": _TENANT_ID}, params)
@@ -488,7 +525,9 @@ def _resolver_safe_field_overlay(draw):
     the FULL authored→builder→reader→resolve path, not just the reader.
     """
     field_names = draw(
-        st.lists(_TOKEN.filter(lambda k: k not in _RESERVED_KEYS), max_size=4, unique=True)
+        st.lists(
+            _TOKEN.filter(lambda k: k not in _RESERVED_KEYS), max_size=4, unique=True
+        )
     )
     fields = {name: draw(_overlay_field(name)) for name in field_names}
 
@@ -570,7 +609,9 @@ def _config_fields_item(row_attrs: dict) -> dict:
     """Wrap a raw ``config#fields`` attribute dict into a projected DynamoDB item."""
     item = {
         _schema.PARTITION_KEY_ATTR: _TENANT_ID,
-        _schema.SORT_KEY_ATTR: _schema.build_sort_key(_schema.RECORD_TYPE_CONFIG, "fields"),
+        _schema.SORT_KEY_ATTR: _schema.build_sort_key(
+            _schema.RECORD_TYPE_CONFIG, "fields"
+        ),
     }
     item.update(row_attrs)
     return item
@@ -588,7 +629,11 @@ def test_property_functional_groups_catalog_round_trips(catalog):
     and the resolver still yields the whole broadened base over it — never a crash.
     """
     table = FakeTable()
-    table.put(_config_fields_item({"functional_groups": catalog, "fields": {}, "overrides": {}}))
+    table.put(
+        _config_fields_item(
+            {"functional_groups": catalog, "fields": {}, "overrides": {}}
+        )
+    )
     overlay = _Reader(table=table).get_overlay(_TENANT_ID)
     assert isinstance(overlay, TenantOverlay)
 
@@ -598,7 +643,9 @@ def test_property_functional_groups_catalog_round_trips(catalog):
         assert overlay.functional_groups[g["key"]].order == int(g.get("order", 0) or 0)
 
     # The resolver still produces the whole broadened base over the reconstructed overlay.
-    cfg = FieldResolver(StaticOverlayProvider({_TENANT_ID: overlay})).resolve(_TENANT_ID)
+    cfg = FieldResolver(StaticOverlayProvider({_TENANT_ID: overlay})).resolve(
+        _TENANT_ID
+    )
     dotted = {f.dotted_key() for f in cfg.fields}
     assert _FIXED_DOTTED_SET.issubset(dotted)
     assert _CALC_DOTTED_SET.issubset(dotted)
@@ -628,9 +675,15 @@ def _enum_options(draw):
     values = draw(st.lists(_TOKEN, min_size=1, max_size=3, unique=True))
     opts = []
     for v in values:
-        roles = draw(st.one_of(st.none(), st.lists(_ROLE, min_size=1, max_size=2, unique=True)))
+        roles = draw(
+            st.one_of(st.none(), st.lists(_ROLE, min_size=1, max_size=2, unique=True))
+        )
         opts.append(
-            EnumOption(value=v, label=draw(_i18n_label()), roles=tuple(roles) if roles else None)
+            EnumOption(
+                value=v,
+                label=draw(_i18n_label()),
+                roles=tuple(roles) if roles else None,
+            )
         )
     return tuple(opts)
 
@@ -648,7 +701,10 @@ def _rich_domain_overlay(draw):
 
     fname = draw(_TOKEN.filter(lambda k: k not in _RESERVED_KEYS))
     options = draw(_enum_options())
-    show_when = {"field": "membership.membership_type", "in": draw(st.lists(_TOKEN, min_size=1, max_size=2))}
+    show_when = {
+        "field": "membership.membership_type",
+        "in": draw(st.lists(_TOKEN, min_size=1, max_size=2)),
+    }
     ovl_field = OverlayField(
         key=fname,
         type=FieldType.ENUM,
@@ -657,8 +713,12 @@ def _rich_domain_overlay(draw):
         show_when=show_when,
     )
 
-    fmt = MemberNumberFormat(prefix=draw(st.sampled_from(["Nr-", "M", ""])), width=draw(st.integers(1, 6)))
-    overrides = {"membership.member_number": FixedFieldOverride(member_number_format=fmt)}
+    fmt = MemberNumberFormat(
+        prefix=draw(st.sampled_from(["Nr-", "M", ""])), width=draw(st.integers(1, 6))
+    )
+    overrides = {
+        "membership.member_number": FixedFieldOverride(member_number_format=fmt)
+    }
 
     overlay = TenantOverlay(
         fields={fname: ovl_field}, overrides=overrides, functional_groups=catalog
@@ -679,7 +739,9 @@ def test_property_new_overlay_attributes_surface_on_resolved_fields(built):
     whole broadened base survives and nothing raises.
     """
     overlay, fname, options, show_when, fmt = built
-    cfg = FieldResolver(StaticOverlayProvider({_TENANT_ID: overlay})).resolve(_TENANT_ID)
+    cfg = FieldResolver(StaticOverlayProvider({_TENANT_ID: overlay})).resolve(
+        _TENANT_ID
+    )
 
     # The broadened base survives.
     dotted = {f.dotted_key() for f in cfg.fields}
@@ -801,7 +863,10 @@ def test_property_config_fields_round_trips_through_sam_write_path(overlay):
 
     # The written row carries NO default_page_size (RETIRED, Req 7.2 / Req 25).
     stored = table.store[
-        (_TENANT_ID, schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS))
+        (
+            _TENANT_ID,
+            schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS),
+        )
     ]
     assert "default_page_size" not in stored
     assert stored[schema.VERSION_ATTR] == "2026-01-01T00:00:00+00:00"
@@ -865,7 +930,10 @@ def test_config_fields_write_path_preserves_per_field_scope_verbatim():
     service.put_config(_TENANT_ID, schema.CONFIG_ID_FIELDS, body)
 
     stored = table.store[
-        (_TENANT_ID, schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS))
+        (
+            _TENANT_ID,
+            schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS),
+        )
     ]
     # The per-field scope sub-object rode through verbatim onto the projected row.
     assert stored["fields"]["regio"]["scope"] == scope_attr
