@@ -1,0 +1,157 @@
+{
+    "pbtResults": {},
+    "executionHistory": {
+        "1. **Fix regex injection / ReDoS via folder filter** — `backend/src/routes/folder_routes.py:126`": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445315597
+            },
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445327517
+            },
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445932166
+            }
+        ],
+        "2. **Make path-injection containment explicit across file-cleanup + upload sites** — `backend/src/file_cleanup_actions.py:196,197,202,211,256,258,259`; `backend/src/file_cleanup_manager.py:252,253,259`; `backend/src/routes/sysadmin_test_tool.py:155`; `backend/src/str_invoice_routes.py:274`; `backend/src/app.py:251`": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445315712
+            },
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445335986
+            },
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445980546
+            }
+        ],
+        "3. **Sweep `str(e)` stack-trace exposure to `error_response` (×80)** — all `py/stack-trace-exposure` sites": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445315850
+            },
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445987061
+            },
+            {
+                "executionId": "ca4053ae-5cb1-4a71-9107-8b6618cb9c27",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792446904667
+            },
+            {
+                "executionId": "ca4053ae-5cb1-4a71-9107-8b6618cb9c27",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792447830768
+            }
+        ],
+        "4. **Redact IBAN from cleartext log** — `backend/src/services/banking_service.py:91`": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445315988
+            },
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445992961
+            },
+            {
+                "executionId": "ca4053ae-5cb1-4a71-9107-8b6618cb9c27",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792446879936
+            },
+            {
+                "executionId": "ca4053ae-5cb1-4a71-9107-8b6618cb9c27",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792446885308
+            }
+        ],
+        "5. **Bound the SQL-audit ReDoS regex** — `backend/src/security_validators.py:132`": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445316116
+            },
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445999567
+            },
+            {
+                "executionId": "ca4053ae-5cb1-4a71-9107-8b6618cb9c27",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792446881480
+            },
+            {
+                "executionId": "ca4053ae-5cb1-4a71-9107-8b6618cb9c27",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792446887112
+            }
+        ],
+        "6. **Tighten incomplete URL substring check** — `frontend/src/hooks/useTransactions.ts:252`": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445316279
+            },
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792446006034
+            },
+            {
+                "executionId": "ca4053ae-5cb1-4a71-9107-8b6618cb9c27",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792447837778
+            }
+        ],
+        "7. [decision] **Opt-in password print** — `scripts/onboarding/members/_generic/load-cognito-users.py:548,557`": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445316413
+            }
+        ],
+        "8. [decision] **Masked-credential print + guarded path-injection dismissals**": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445316587
+            }
+        ],
+        "9. [decision] **Flask-plane JWT signature verification (E1)** — decode-only today; evaluate verifying against Cognito JWKS like the SAM edge. Architecture decision requiring sign-off. Effort: L.": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445316798
+            }
+        ],
+        "10. [decision] **Role-cache staleness (5 min) + SysAdmin bypass audit (E2)** — confirm no privilege-escalation path. Architecture decision requiring sign-off. Effort: M.": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445317036
+            }
+        ],
+        "11. **Verification gate — confirm the mitigations landed** (depends on 1–6)": [
+            {
+                "executionId": "608e229b-52a4-4a35-baaf-19347a8ec259",
+                "chatSessionId": "sess_e8e94e2e-84b9-4747-bbba-970aa547821a",
+                "timestamp": 1792445318207
+            }
+        ]
+    }
+}
