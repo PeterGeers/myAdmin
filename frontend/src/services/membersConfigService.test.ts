@@ -17,6 +17,7 @@ import {
   saveMembersMailConfig,
   getMembersParameterDefinitions,
   MEMBERS_NAMESPACE,
+  MEMBERS_PARAM_KEYS,
   resolveFieldConfigLabel,
 } from './membersConfigService';
 import * as parameterService from './parameterService';
@@ -406,6 +407,67 @@ describe('membersConfigService', () => {
       expect(resolveFieldConfigLabel({ nl: '', en: 'First name' }, 'nl', 'first_name')).toBe(
         'First name',
       );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Property 8 — single authoring door / no second writer (task 7.3*).
+  //
+  // The config#mail concern has EXACTLY ONE authoring door: saveMembersMailConfig ->
+  // writeMailConfig -> PUT /members/config/mail (the SAM-owned route). This asserts the
+  // two halves of Property 8:
+  //   (a) every config#mail write goes through the single SAM route and NEVER through the
+  //       Flask parameter path (createParameter/updateParameter), and
+  //   (b) no `members.*` MySQL write path remains for any MIGRATED mail key — the Flask
+  //       saveMembersParameter surface (MEMBERS_PARAM_KEYS) carries NONE of them, so there
+  //       is no second writer that could re-open the retired MySQL door.
+  // Validates: Requirements 14.1, 14.3, 14.4
+  // -------------------------------------------------------------------------
+  describe('Property 8 — single authoring door / no second writer (task 7.3*)', () => {
+    const MIGRATED_MAIL_KEYS = [
+      'mail_enabled',
+      'mail_domain',
+      'mail_local_part',
+      'mail_certified',
+      'mail_reply_to_default',
+      'application_consent_notice',
+    ] as const;
+
+    it('routes every config#mail write through the single SAM door, never the Flask param path', async () => {
+      vi.mocked(membersApiService.writeMailConfig).mockResolvedValue({
+        success: true,
+        configId: 'mail',
+        version: '2026-10-21T09:00:00+00:00',
+      });
+
+      await saveMembersMailConfig({
+        mail_enabled: true,
+        mail_certified: true,
+        mail_local_part: 'noreply',
+        mail_domain: 'h-dcn.nl',
+        mail_reply_to_default: 'replies@h-dcn.nl',
+      });
+
+      // (a) Exactly one write, and it is the SAM config#mail route — no Flask parameter write.
+      expect(membersApiService.writeMailConfig).toHaveBeenCalledTimes(1);
+      expect(parameterService.createParameter).not.toHaveBeenCalled();
+      expect(parameterService.updateParameter).not.toHaveBeenCalled();
+      // The field/scope SAM doors are not collateral-called by a mail save either.
+      expect(membersApiService.writeFieldConfig).not.toHaveBeenCalled();
+      expect(membersApiService.writeScopeConfig).not.toHaveBeenCalled();
+    });
+
+    it('exposes NO Flask saveMembersParameter door for any migrated mail key (no second writer)', () => {
+      // (b) The legacy Flask-plane authoring surface accepts only the field/scope keys; no
+      // migrated mail key is a MembersParamKey, so a mail scalar cannot be written to MySQL
+      // through saveMembersParameter — the retired members.* door stays closed.
+      const paramKeys = new Set<string>(MEMBERS_PARAM_KEYS);
+      for (const mailKey of MIGRATED_MAIL_KEYS) {
+        expect(paramKeys.has(mailKey)).toBe(false);
+      }
+      // The Flask surface is exactly field_overlay + scope_dimensions (both SAM-mirrored),
+      // which are field/scope keys, not config#mail keys.
+      expect([...paramKeys].sort()).toEqual(['field_overlay', 'scope_dimensions']);
     });
   });
 });
