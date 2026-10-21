@@ -1273,3 +1273,94 @@ class TestGetConfigStatus:
         status_a = MembersProjectionReader(table=table).get_config_status("tenant-a")
 
         assert status_a["scope"] == 9
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# spec 02 task 7.1 fix — get_mail_config: the full reader-shaped config#mail body the typed
+# Mail authoring form loads from (surfaced on GET /members/field-config as `mail_config`).
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+class TestGetMailConfig:
+    def test_full_authored_body_round_trips(self):
+        """Every authored mail scalar composes into the reader-shaped body (writer/reader parity)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                mail_enabled=True,
+                mail_local_part="info",
+                mail_certified=True,
+                mail_domain="h-dcn.nl",
+                mail_reply_to_default="webmaster@h-dcn.nl",
+                consent_notice={"version": "2026-01", "text": {"nl": "Tekst"}},
+            )
+        )
+        body = MembersProjectionReader(table=table).get_mail_config("h-dcn")
+        assert body == {
+            "mail_enabled": True,
+            "mail_local_part": "info",
+            "mail_certified": True,
+            "mail_domain": "h-dcn.nl",
+            "mail_reply_to_default": "webmaster@h-dcn.nl",
+            "consent_notice": {"version": "2026-01", "text": {"nl": "Tekst"}},
+        }
+
+    def test_missing_row_yields_fail_closed_minimal_body(self):
+        """No config#mail row → the safe minimal body (not-enabled, noreply, not-certified)."""
+        table = FakeTable()  # nothing seeded
+        body = MembersProjectionReader(table=table).get_mail_config("unconfigured")
+        assert body == {
+            "mail_enabled": False,
+            "mail_local_part": "noreply",
+            "mail_certified": False,
+        }
+        # The optional attributes are OMITTED, not present-and-null.
+        assert "mail_domain" not in body
+        assert "mail_reply_to_default" not in body
+        assert "consent_notice" not in body
+
+    def test_optional_fields_omitted_when_unauthored(self):
+        """A minimal authored row surfaces only the always-present trio; options omitted."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn", mail_enabled=True))
+        body = MembersProjectionReader(table=table).get_mail_config("h-dcn")
+        assert body["mail_enabled"] is True
+        assert body["mail_local_part"] == "noreply"
+        assert body["mail_certified"] is False
+        assert "mail_domain" not in body
+        assert "mail_reply_to_default" not in body
+        assert "consent_notice" not in body
+
+    def test_reply_to_default_round_trips(self):
+        """The SAM-only mail_reply_to_default (the reported bug's field) reads back verbatim."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full("h-dcn", mail_reply_to_default="webmaster@h-dcn.nl")
+        )
+        body = MembersProjectionReader(table=table).get_mail_config("h-dcn")
+        assert body["mail_reply_to_default"] == "webmaster@h-dcn.nl"
+
+    def test_mail_config_shares_partition_cache(self):
+        """The composed body resolves from ONE partition Query (all accessors share the cache)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                mail_enabled=True,
+                mail_domain="h-dcn.nl",
+                mail_reply_to_default="replies@h-dcn.nl",
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        reader.get_mail_config("h-dcn")
+        assert table.query_counts["h-dcn"] == 1
+
+    def test_mail_config_tenant_isolation(self):
+        """Each tenant's body answers only from its own partition — no cross-tenant bleed."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("tenant-a", mail_domain="a.example"))
+        table.put(_config_mail_item_full("tenant-b", mail_domain="b.example"))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_mail_config("tenant-a")["mail_domain"] == "a.example"
+        assert reader.get_mail_config("tenant-b")["mail_domain"] == "b.example"
