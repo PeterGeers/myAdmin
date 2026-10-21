@@ -30,7 +30,11 @@ serializes ``Decimal`` via ``_json_default``. The ONLY envelope difference is th
 ``Access-Control-Allow-Origin`` header: the authenticated edge answers ``*`` (token-gated), but
 a public POST must restrict CORS to the known form origin(s) (R10.3/R10.4), so this module
 post-processes that one header against an allow-list (:func:`_apply_cors_origin`) while leaving
-the shared ``_http`` envelope — and the authenticated edge — unchanged.
+the shared ``_http`` envelope — and the authenticated edge — unchanged. That allow-list is the
+union of a STATIC stack-wide baseline (:func:`_allowed_origins`) and, for a route that resolved to
+an allow-listed tenant, that tenant's OWN ``application_embed_origins`` authored on ``config#mail``
+(:func:`_tenant_embed_origins`, task 5.3) — the SAME per-tenant list that drives the CloudFront
+form's ``frame-ancestors``, so the two embed-enforcement points cannot drift.
 
 Task 1.3 (this change) wires the delegation seam's FIRST step and the routes/API it sits behind:
 
@@ -72,6 +76,7 @@ from sam.members.handler._http import (
     _parse_request,
     _response,
 )
+from sam.members.repository.projection_config_reader import MembersProjectionReader
 from sam.members.repository.tenant_slug_reader import EnvTenantSlugReader
 
 logger = logging.getLogger(__name__)
@@ -146,19 +151,35 @@ class PublicRouteNotImplemented(Exception):
     ``create_application`` Phase 2). It maps to ``501 Not Implemented`` ("route exists, behaviour
     pending"), mirroring how :class:`sam.members.handler._dispatch.RouteNotImplemented` is mapped
     by ``app.handler`` — an honest answer, never a silent 200 or a 404 that would hide the route.
+
+    It carries the RESOLVED ``tenant_id`` (the slug already resolved to an allow-listed tenant
+    before this was raised) so :func:`handler` can apply that tenant's per-tenant embed-origin
+    CORS allow-list (task 5.3) to the 501 response — the recognised route's CORS already honours
+    the tenant's ``application_embed_origins`` even while the service behind it is pending.
     """
+
+    def __init__(self, message: str = "", *, tenant_id: str | None = None):
+        super().__init__(message)
+        self.tenant_id = tenant_id
 
 
 # ── CORS (R10.3) — restrict the one Access-Control-Allow-Origin header ────────────────
 
 
 def _allowed_origins() -> list[str]:
-    """The configured public-form origin allow-list (R10.3), resolved at call time.
+    """The STATIC (stack-wide) public-form origin allow-list (R10.3), resolved at call time.
 
     Reads :data:`ALLOWED_ORIGINS_ENV` (comma-separated), trims blanks, and de-duplicates while
     preserving order. Resolved per request (not import-time) so a stack param / a test
     ``monkeypatch.setenv`` is honoured without reloading the module. Empty / unset → an empty
-    list = fail-closed (no cross-origin client permitted), never a wildcard.
+    list = fail-closed (no cross-origin client permitted at the stack level), never a wildcard.
+
+    This is the stack-wide baseline (e.g. the canonical ``aanmelden.jabaki.nl`` form host). A
+    tenant may additionally publish its OWN embed origin(s) via ``application_embed_origins`` on
+    ``config#mail`` (task 5.1); those are resolved PER TENANT by :func:`_tenant_embed_origins` and
+    unioned with this baseline by :func:`_apply_cors_origin` — the SAME tenant-authored list that
+    feeds the CloudFront form's ``frame-ancestors`` (task 5.2), so the two enforcement points
+    cannot drift. The union stays fail-closed: an unset env AND an unconfigured tenant → ``[]``.
     """
     raw = os.environ.get(ALLOWED_ORIGINS_ENV, "") or ""
     seen: dict[str, None] = {}
@@ -169,27 +190,70 @@ def _allowed_origins() -> list[str]:
     return list(seen)
 
 
-def _apply_cors_origin(response: dict, request: ParsedRequest) -> dict:
-    """Restrict the response's ``Access-Control-Allow-Origin`` to the form origin(s) (R10.3).
+def _tenant_embed_origins(tenant_id: str | None) -> list[str]:
+    """The PER-TENANT embed-origin allow-list for ``tenant_id`` from ``config#mail`` (R5.2, D27).
+
+    Reads the tenant-authored ``application_embed_origins`` list off the projected ``config#mail``
+    row via the SAME read-only governance-projection reader the rest of the public edge uses
+    (:class:`~sam.members.repository.projection_config_reader.MembersProjectionReader`,
+    ``get_application_embed_origins`` — trim + de-dupe, empty-is-valid). This is the SAM public
+    API half of the ONE tenant-authored list (task 5.3): an origin on it is echoed into
+    ``Access-Control-Allow-Origin`` for THAT tenant's public routes, so the tenant's own embedding
+    site may call the public field-config / submit endpoints cross-origin.
+
+    Resolved ONLY for a route that has already resolved to an allow-listed tenant (the recognised
+    field-config / submit routes) — never for the non-probeable 404 branches, so an unknown-slug
+    404 and an unknown-path 404 keep the SAME (static-only) CORS header and remain indistinguishable
+    (R2.3/R1a.4). A blank/absent ``tenant_id`` → ``[]``.
+
+    **Fail-safe — never raises.** The CORS decision must not crash a public response, so ANY error
+    resolving the projection (a missing table env, a DynamoDB error, a malformed row) degrades to
+    ``[]`` = the tenant permits no extra cross-origin embed (the static baseline still applies).
+    """
+    if not tenant_id:
+        return []
+    try:
+        return MembersProjectionReader().get_application_embed_origins(tenant_id)
+    except Exception:  # pragma: no cover — defensive: CORS never crashes a response
+        logger.warning(
+            "Public intake: failed to resolve embed origins for tenant %r; "
+            "falling back to the static CORS allow-list only",
+            tenant_id,
+        )
+        return []
+
+
+def _apply_cors_origin(
+    response: dict, request: ParsedRequest, *, tenant_id: str | None = None
+) -> dict:
+    """Restrict the response's ``Access-Control-Allow-Origin`` to the form origin(s) (R10.3/R5.2).
 
     The shared :func:`_http._response` sets ``Access-Control-Allow-Origin: *`` (correct for the
     token-gated authenticated edge). A public POST must NOT be callable cross-origin from any
-    site, so this REPLACES that one header per the allow-list (:func:`_allowed_origins`), leaving
-    the rest of the shared envelope (and the authenticated edge) untouched:
+    site, so this REPLACES that one header per the allow-list, leaving the rest of the shared
+    envelope (and the authenticated edge) untouched. The allow-list is the UNION of:
 
-    - the request's ``Origin`` is in the allow-list → echo exactly that origin (and
-      ``Vary: Origin`` so a shared cache does not serve the wrong origin's header);
+    - the STATIC stack-wide baseline (:func:`_allowed_origins`, e.g. the canonical form host); and
+    - the PER-TENANT ``application_embed_origins`` (:func:`_tenant_embed_origins`) — supplied ONLY
+      when the route resolved to an allow-listed ``tenant_id`` (task 5.3). On the non-probeable
+      404 branches ``tenant_id`` is ``None``, so those responses carry the static baseline ONLY
+      and an unknown-slug / unknown-path 404 stay indistinguishable (R2.3/R1a.4).
+
+    Decision (fail-closed, never ``*``):
+
+    - the request's ``Origin`` is in the union → echo exactly that origin (and ``Vary: Origin``
+      so a shared cache does not serve the wrong origin's header);
     - the request has no ``Origin`` (a non-browser / same-origin caller) → drop the header
       entirely rather than leave a stale ``*`` (a non-browser client does not enforce CORS);
-    - the ``Origin`` is not allow-listed, or the allow-list is empty → drop the header, so a
-      browser on a foreign origin blocks the read (fail-closed, no ``*``).
+    - the ``Origin`` is not in the union, or the union is empty → drop the header, so a browser
+      on a foreign origin blocks the read (fail-closed, no ``*``).
 
     CORS is applied to EVERY response — success AND error — so a browser can read the body in
     all cases (R1a.1/R10.3); this helper is the single place that decides the origin header.
     """
     headers = dict(response.get("headers") or {})
     origin = _request_origin(request)
-    allowed = _allowed_origins()
+    allowed = _allowed_origins() + _tenant_embed_origins(tenant_id)
     if origin and origin in allowed:
         headers["Access-Control-Allow-Origin"] = origin
         # A shared cache must key on Origin so it never serves origin A its cached
@@ -353,7 +417,7 @@ def _slug_from_path(request: ParsedRequest) -> str:
     action segment are guaranteed present.
     """
     path = (request.path or "").rstrip("/")
-    remainder = path[len(_PUBLIC_PREFIX):] if path.startswith(_PUBLIC_PREFIX) else ""
+    remainder = path[len(_PUBLIC_PREFIX) :] if path.startswith(_PUBLIC_PREFIX) else ""
     # remainder == "{slug}/{action}"; the slug is everything before the last "/".
     slug, _, _action = remainder.rpartition("/")
     return slug
@@ -407,7 +471,11 @@ def _dispatch_public(request: ParsedRequest) -> Any:
 
     # Slug resolved to an allow-listed tenant (resolution.tenant_id) — the service layer that
     # consumes it is Phase 2 / Phase 4, so the behaviour is still pending. 501, not a silent 200.
-    raise PublicRouteNotImplemented(f"{request.method} {request.path}")
+    # Carry the resolved tenant forward so the response's CORS honours that tenant's authored
+    # embed origins (task 5.3) even while the service is pending.
+    raise PublicRouteNotImplemented(
+        f"{request.method} {request.path}", tenant_id=resolution.tenant_id
+    )
 
 
 # ── Lambda entry point (the public, token-less edge — D27) ────────────────────────────
@@ -469,14 +537,18 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
         return _apply_cors_origin(
             _error(404, "Not found", code="errors.api.notFound"), request
         )
-    except PublicRouteNotImplemented:
+    except PublicRouteNotImplemented as exc:
         logger.info(
             "Public intake route '%s %s' recognised but not implemented yet",
             request.method,
             request.path,
         )
+        # The slug resolved to an allow-listed tenant → honour that tenant's embed-origin CORS
+        # allow-list on the 501 (task 5.3), so a tenant's own embedding site can read the body.
         return _apply_cors_origin(
-            _error(501, "Not implemented", code="errors.api.notImplemented"), request
+            _error(501, "Not implemented", code="errors.api.notImplemented"),
+            request,
+            tenant_id=exc.tenant_id,
         )
     except Exception:
         # Any UNANTICIPATED error becomes a BODIED 500 — never an empty 502 the SPA can only

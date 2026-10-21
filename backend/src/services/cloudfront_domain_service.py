@@ -38,6 +38,11 @@ class CloudFrontDomainService:
             "CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID", ""
         )
         self.kvs_arn = os.environ.get("CLOUDFRONT_KVS_ARN", "")
+        # Separate KVS mapping the application-form host -> allowed embed origins
+        # (CSP frame-ancestors). See infrastructure/application-form.tf.
+        self.embed_origins_kvs_arn = os.environ.get(
+            "CLOUDFRONT_EMBED_ORIGINS_KVS_ARN", ""
+        )
         self.cloudfront_domain = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "")
 
     def _get_kvs_client(self):
@@ -202,30 +207,30 @@ class CloudFrontDomainService:
         kvs_client = self._get_kvs_client()
 
         if kvs_client:
-            return self._put_kvs_boto3(kvs_client, domain, slug)
+            return self._put_kvs_boto3(kvs_client, domain, slug, self.kvs_arn)
         else:
-            return self._put_kvs_cli(domain, slug)
+            return self._put_kvs_cli(domain, slug, self.kvs_arn)
 
-    def _put_kvs_boto3(self, kvs_client, domain: str, slug: str) -> bool:
-        """Put KVS mapping using boto3 client."""
+    def _put_kvs_boto3(self, kvs_client, key: str, value: str, kvs_arn: str) -> bool:
+        """Put a key→value mapping in the given KVS using the boto3 client."""
         try:
-            describe_response = kvs_client.describe_key_value_store(KvsARN=self.kvs_arn)
+            describe_response = kvs_client.describe_key_value_store(KvsARN=kvs_arn)
             etag = describe_response["ETag"]
 
             kvs_client.put_key(
-                KvsARN=self.kvs_arn,
-                Key=domain,
-                Value=slug,
+                KvsARN=kvs_arn,
+                Key=key,
+                Value=value,
                 IfMatch=etag,
             )
-            logger.info(f"Put KVS mapping: {domain} → {slug}")
+            logger.info(f"Put KVS mapping: {key} → {value}")
             return True
         except ClientError as e:
-            logger.error(f"Failed to put KVS mapping {domain} → {slug}: {e}")
+            logger.error(f"Failed to put KVS mapping {key} → {value}: {e}")
             return False
 
-    def _put_kvs_cli(self, domain: str, slug: str) -> bool:
-        """Put KVS mapping using AWS CLI subprocess (fallback when awscrt unavailable)."""
+    def _put_kvs_cli(self, key: str, value: str, kvs_arn: str) -> bool:
+        """Put a key→value mapping via AWS CLI subprocess (fallback when awscrt unavailable)."""
         import json
         import subprocess
 
@@ -236,7 +241,7 @@ class CloudFrontDomainService:
                 "cloudfront-keyvaluestore",
                 "describe-key-value-store",
                 "--kvs-arn",
-                self.kvs_arn,
+                kvs_arn,
                 "--output",
                 "json",
             ]
@@ -255,11 +260,11 @@ class CloudFrontDomainService:
                 "cloudfront-keyvaluestore",
                 "put-key",
                 "--kvs-arn",
-                self.kvs_arn,
+                kvs_arn,
                 "--key",
-                domain,
+                key,
                 "--value",
-                slug,
+                value,
                 "--if-match",
                 etag,
             ]
@@ -270,10 +275,10 @@ class CloudFrontDomainService:
                 logger.error(f"AWS CLI put KVS key failed: {result.stderr}")
                 return False
 
-            logger.info(f"Put KVS mapping (CLI): {domain} → {slug}")
+            logger.info(f"Put KVS mapping (CLI): {key} → {value}")
             return True
         except Exception as e:
-            logger.error(f"CLI fallback failed for put KVS {domain}: {e}")
+            logger.error(f"CLI fallback failed for put KVS {key}: {e}")
             return False
 
     def delete_kvs_mapping(self, domain: str) -> bool:
@@ -296,33 +301,33 @@ class CloudFrontDomainService:
         kvs_client = self._get_kvs_client()
 
         if kvs_client:
-            return self._delete_kvs_boto3(kvs_client, domain)
+            return self._delete_kvs_boto3(kvs_client, domain, self.kvs_arn)
         else:
-            return self._delete_kvs_cli(domain)
+            return self._delete_kvs_cli(domain, self.kvs_arn)
 
-    def _delete_kvs_boto3(self, kvs_client, domain: str) -> bool:
-        """Delete KVS mapping using boto3 client."""
+    def _delete_kvs_boto3(self, kvs_client, key: str, kvs_arn: str) -> bool:
+        """Delete a key from the given KVS using the boto3 client."""
         try:
-            describe_response = kvs_client.describe_key_value_store(KvsARN=self.kvs_arn)
+            describe_response = kvs_client.describe_key_value_store(KvsARN=kvs_arn)
             etag = describe_response["ETag"]
 
             kvs_client.delete_key(
-                KvsARN=self.kvs_arn,
-                Key=domain,
+                KvsARN=kvs_arn,
+                Key=key,
                 IfMatch=etag,
             )
-            logger.info(f"Deleted KVS mapping for domain: {domain}")
+            logger.info(f"Deleted KVS mapping for key: {key}")
             return True
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "")
             if error_code == "ResourceNotFoundException":
-                logger.info(f"KVS key {domain} not found, nothing to delete")
+                logger.info(f"KVS key {key} not found, nothing to delete")
                 return True
-            logger.error(f"Failed to delete KVS mapping for {domain}: {e}")
+            logger.error(f"Failed to delete KVS mapping for {key}: {e}")
             return False
 
-    def _delete_kvs_cli(self, domain: str) -> bool:
-        """Delete KVS mapping using AWS CLI subprocess (fallback)."""
+    def _delete_kvs_cli(self, key: str, kvs_arn: str) -> bool:
+        """Delete a key via AWS CLI subprocess (fallback)."""
         import json
         import subprocess
 
@@ -333,7 +338,7 @@ class CloudFrontDomainService:
                 "cloudfront-keyvaluestore",
                 "describe-key-value-store",
                 "--kvs-arn",
-                self.kvs_arn,
+                kvs_arn,
                 "--output",
                 "json",
             ]
@@ -352,9 +357,9 @@ class CloudFrontDomainService:
                 "cloudfront-keyvaluestore",
                 "delete-key",
                 "--kvs-arn",
-                self.kvs_arn,
+                kvs_arn,
                 "--key",
-                domain,
+                key,
                 "--if-match",
                 etag,
             ]
@@ -364,16 +369,93 @@ class CloudFrontDomainService:
             if result.returncode != 0:
                 # Key not found is OK
                 if "ResourceNotFoundException" in result.stderr:
-                    logger.info(f"KVS key {domain} not found (CLI), nothing to delete")
+                    logger.info(f"KVS key {key} not found (CLI), nothing to delete")
                     return True
                 logger.error(f"AWS CLI delete KVS key failed: {result.stderr}")
                 return False
 
-            logger.info(f"Deleted KVS mapping (CLI) for domain: {domain}")
+            logger.info(f"Deleted KVS mapping (CLI) for key: {key}")
             return True
         except Exception as e:
-            logger.error(f"CLI fallback failed for delete KVS {domain}: {e}")
+            logger.error(f"CLI fallback failed for delete KVS {key}: {e}")
             return False
+
+    # ========================================================================
+    # Application-Form Embed Origins KVS (CSP frame-ancestors) — task 5.2
+    # ========================================================================
+    # The application form is hosted on the same `*.jabaki.nl` CloudFront
+    # distribution as the landing pages. A `viewer-response` CloudFront function
+    # (infrastructure/application-form.tf) reads the form host's allowed embed
+    # origins from a DEDICATED KVS and emits `Content-Security-Policy:
+    # frame-ancestors <origins>`. These methods populate that KVS from the
+    # tenant-authored `application_embed_origins` list (one source of truth,
+    # also feeding the SAM public-API CORS — task 5.3).
+    #
+    # Key   = the form's public host (e.g. "tenant-member-application.jabaki.nl")
+    # Value = space-separated origins exactly as a CSP frame-ancestors source
+    #         list (e.g. "https://www.acme.nl https://portal.acme.nl").
+    # An empty / absent list clears the mapping => standalone (no header, not
+    # embeddable), matching the function's fail-closed default.
+
+    @staticmethod
+    def _format_frame_ancestors_value(origins) -> str:
+        """Normalise an embed-origins list into the KVS value (space-separated).
+
+        Collapses to a single space-joined string of non-blank origins. Returns
+        "" when there is nothing to allow (caller then deletes the key).
+        """
+        if not origins:
+            return ""
+        if isinstance(origins, str):
+            parts = origins.split()
+        else:
+            parts = [str(o).strip() for o in origins]
+        return " ".join(p for p in parts if p)
+
+    def put_application_embed_origins(self, form_host: str, origins) -> bool:
+        """Set the allowed embed origins for an application-form host.
+
+        `origins` is the tenant's `application_embed_origins` (a list of origin
+        strings, or a pre-joined string). An empty/blank list DELETES the key
+        so the form becomes standalone (not embeddable).
+
+        Returns True on success (including the non-fatal "KVS ARN not set" case).
+        """
+        if not self.embed_origins_kvs_arn:
+            logger.warning(
+                "CLOUDFRONT_EMBED_ORIGINS_KVS_ARN not set — skipping embed-origins KVS put"
+            )
+            return True  # Non-fatal: KVS is optional for basic functionality
+
+        value = self._format_frame_ancestors_value(origins)
+        if not value:
+            # No origins -> standalone: clear any existing mapping.
+            return self.delete_application_embed_origins(form_host)
+
+        kvs_client = self._get_kvs_client()
+        if kvs_client:
+            return self._put_kvs_boto3(
+                kvs_client, form_host, value, self.embed_origins_kvs_arn
+            )
+        return self._put_kvs_cli(form_host, value, self.embed_origins_kvs_arn)
+
+    def delete_application_embed_origins(self, form_host: str) -> bool:
+        """Clear the embed-origins mapping for a form host (-> standalone).
+
+        Returns True on success (including the non-fatal "KVS ARN not set" case).
+        """
+        if not self.embed_origins_kvs_arn:
+            logger.warning(
+                "CLOUDFRONT_EMBED_ORIGINS_KVS_ARN not set — skipping embed-origins KVS delete"
+            )
+            return True  # Non-fatal
+
+        kvs_client = self._get_kvs_client()
+        if kvs_client:
+            return self._delete_kvs_boto3(
+                kvs_client, form_host, self.embed_origins_kvs_arn
+            )
+        return self._delete_kvs_cli(form_host, self.embed_origins_kvs_arn)
 
     # ========================================================================
     # ACM Certificate Management

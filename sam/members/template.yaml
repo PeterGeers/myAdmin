@@ -373,14 +373,24 @@ Parameters:
   # the route/CORS wiring half of the public edge; the least-privilege IAM + API Gateway throttle/
   # usage plan for that function are task 7.1 (NOT here).
   #
-  # PublicFormAllowedOrigins (R10.3/R10.4): the comma-separated allow-list of the public form's
-  #   browser origin(s) the edge echoes into `Access-Control-Allow-Origin` (read at runtime by
-  #   `public_app._allowed_origins` from the `PUBLIC_FORM_ALLOWED_ORIGINS` env var below). A public
-  #   POST must NOT be callable cross-origin from any site, so there is NO `*` fallback: an unset /
-  #   blank value is FAIL-CLOSED (the edge sets no CORS origin header, so a browser blocks the read)
-  #   — unlike the authenticated `MembersApi` whose token-gated CORS answers `*`. Per env via
-  #   samconfig (the real form hostname(s)); empty default keeps a bare `sam deploy` from silently
-  #   opening the form to every origin.
+  # PublicFormAllowedOrigins (R10.3/R10.4): the comma-separated STATIC stack-wide baseline of the
+  #   public form's browser origin(s) the edge echoes into `Access-Control-Allow-Origin` (read at
+  #   runtime by `public_app._allowed_origins` from the `PUBLIC_FORM_ALLOWED_ORIGINS` env var
+  #   below). A public POST must NOT be callable cross-origin from any site, so there is NO `*`
+  #   fallback: an unset / blank value is FAIL-CLOSED (the edge sets no CORS origin header, so a
+  #   browser blocks the read) — unlike the authenticated `MembersApi` whose token-gated CORS
+  #   answers `*`. Per env via samconfig (the canonical form hostname(s)); empty default keeps a
+  #   bare `sam deploy` from silently opening the form to every origin.
+  #
+  #   PER-TENANT augmentation (application-form-builder task 5.3, R5.2): for a route that resolves
+  #   to an allow-listed tenant, the edge UNIONS this static baseline with that tenant's OWN
+  #   `application_embed_origins` list authored on `config#mail` (read READ-ONLY from the
+  #   governance projection via `public_app._tenant_embed_origins`, using the
+  #   `PublicReadGovernanceProjection` grant + `GOVERNANCE_PROJECTION_TABLE` env already wired on
+  #   `MembersPublicFunction`). This is the SAME tenant-authored list that drives the CloudFront
+  #   form's `frame-ancestors` (task 5.2), so the two embed-enforcement points cannot drift. No new
+  #   parameter / grant / env is needed for it — the per-tenant read rides the existing projection
+  #   wiring; this baseline stays the stack-wide default/standalone host.
   PublicFormAllowedOrigins:
     Type: String
     Description: >-
@@ -1534,8 +1544,12 @@ Resources:
           #   the grant cannot disagree. (Producer only — no consume; that is the worker.)
           MAIL_SEND_QUEUE_URL: !Ref MailSendQueue
           # --- The public-edge route/CORS wiring (D27, task 1.3) ---
-          # PUBLIC_FORM_ALLOWED_ORIGINS: the CORS allow-list `public_app._allowed_origins` reads
-          #   per request — fail-closed (no `*`) when blank.
+          # PUBLIC_FORM_ALLOWED_ORIGINS: the STATIC stack-wide CORS baseline `public_app.
+          #   _allowed_origins` reads per request — fail-closed (no `*`) when blank. For a route
+          #   resolved to an allow-listed tenant the edge additionally unions this with that
+          #   tenant's own `application_embed_origins` from `config#mail` (application-form-builder
+          #   task 5.3) — read READ-ONLY via the `GOVERNANCE_PROJECTION_TABLE` grant below; no new
+          #   env/grant needed.
           # PUBLIC_TENANT_SLUG_MAP: the thin slug→tenant_id projection (D19) the edge's
           #   `EnvTenantSlugReader` resolves against — empty = every slug is a non-probeable 404.
           PUBLIC_FORM_ALLOWED_ORIGINS: !Ref PublicFormAllowedOrigins

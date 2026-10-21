@@ -19,7 +19,14 @@ import MemberSenderIdentitiesTab from './MemberSenderIdentitiesTab';
 import AdvancedTab from './AdvancedTab';
 import FunctionsTab from './FunctionsTab';
 import { LandingPageEditor } from './LandingPage';
-import { MembersConfigEditor, MembersMailConfigEditor, MembershipTypesManager } from './MembersConfig';
+// application-form-builder task 2.1 adds the ApplicationFormBuilder authoring view + its
+// barrel export; this sub-tab (task 2.2) wires it in referencing that expected export name.
+import {
+  MembersConfigEditor,
+  MembersMailConfigEditor,
+  MembershipTypesManager,
+  ApplicationFormBuilder,
+} from './MembersConfig';
 
 interface TenantInfo {
   name: string;
@@ -279,6 +286,13 @@ export function TenantAdminDashboard() {
                     >
                       {membersLang === 'nl' ? 'Mail' : 'Mail'}
                     </Tab>
+                    <Tab
+                      color="gray.300"
+                      _selected={{ color: 'orange.400', bg: 'gray.800' }}
+                      data-testid="members-admin-application-form-tab"
+                    >
+                      {membersLang === 'nl' ? 'Aanmeldformulier' : 'Application form'}
+                    </Tab>
                   </TabList>
                   <TabPanels>
                     <TabPanel px={0}>
@@ -296,6 +310,12 @@ export function TenantAdminDashboard() {
                         <MembersMailConfigEditor tenant={currentTenant} />
                         <MemberSenderIdentitiesTab tenant={currentTenant} />
                       </VStack>
+                    </TabPanel>
+                    <TabPanel px={0}>
+                      {/* Application-form authoring view (spec 11): a focused surface over the
+                          same config#fields / config#mail rows the Field-config + Mail sub-tabs
+                          own. Component authored by task 2.1. */}
+                      <ApplicationFormBuilder tenant={currentTenant} />
                     </TabPanel>
                   </TabPanels>
                 </Tabs>
