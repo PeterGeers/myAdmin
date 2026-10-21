@@ -454,7 +454,8 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       verify live in TEST
     - _Requirements: 19.1, 19.3_
 
-  - [ ] 5.5 Migrate `config#mail` per tenant + read-back verify + delete migrated MySQL rows (operational, PRE builder removal)
+  - [x] 5.5 Migrate `config#mail` per tenant + read-back verify + delete migrated MySQL rows (operational, PRE builder removal)
+    - DONE (forward copy + read-back verify): `backend/scripts/migrate_config_mail_to_sam.py` + `backend/tests/unit/test_migrate_config_mail_to_sam.py` (merged to `test` via PR #144), mirroring `migrate_config_scope_to_sam.py`. The `--delete-mysql` sweep is DEFERRED to Step 8: the `members.mail_*` params stay the frontend authoring source until Step 7 moves authoring onto the SAM write door, and the delete happens only after the PROD read-back verify (reversible until then, Req 14.2). `mail_reply_to_default` is SAM-only net-new (no MySQL param to migrate/delete).
     - Copy every live tenant's `members.mail_enabled` + `members.mail_domain` + `members.mail_local_part`
       + `members.mail_certified` + `members.application_consent_notice` into the SAM-owned `config#mail`
       row (min `h-dcn`); read back; keep MySQL params until PROD-verified
@@ -468,14 +469,17 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       remains for those keys (deletion happens only after the PROD read-back verify — reversible until then)
     - _Requirements: 10.1, 10.2, 10.4, 10.5, 10.6, 14.2_
 
-  - [ ] 5.6 Repoint `config#mail` / sender save in `membersConfigService.ts`
+  - [x] 5.6 Repoint `config#mail` / sender save in `membersConfigService.ts`
+    - FOLDED into Step 7: there is no existing frontend mail-save path to repoint today — the mail scalars get their authoring UI (the typed Mail function, single authoring door) in task 7.1, which writes straight to `PUT /members/config/mail`. No separate repoint step is meaningful before that UI exists.
     - Repoint mail + sender save to `PUT /members/config/mail`; authoritative write, no pending-projection
     - _Requirements: 13.1, 13.2, 13.3, 14.3_
 
-  - [ ] 5.7 Update frontend tests for the repointed mail save
+  - [x] 5.7 Update frontend tests for the repointed mail save
+    - FOLDED into Step 7 with 5.6: the frontend mail-save tests are authored alongside the typed Mail function (7.1), since that is where the mail save first exists.
     - **Validates: Requirements 13.1, 13.2, 13.4**
 
-  - [ ] 5.8 Remove `build_config_mail_row` + retire `members.*` mail params (merge to main ONLY after 5.5 PROD-verified)
+  - [x] 5.8 Remove `build_config_mail_row` + retire `members.*` mail params (merge to main ONLY after 5.5 PROD-verified)
+    - DONE (ProjectionSync emission): the `build_config_mail_row(...)` append was removed from `ProjectionSync.sync_administration` (merged to `test` via PR #143) — ProjectionSync now emits ZERO `config#` rows. DEFERRED to Step 8: retiring the `members.mail_*` params and removing the `build_config_mail_row` function itself (the migration script 5.5 still calls it) wait for the `test`→`main` promotion after the PROD read-back verify, per the per-record safety gate (checkpoint 6).
     - Remove the `build_config_mail_row(...)` append in `ProjectionSync.sync_administration`; retire the
       `members.mail_enabled` / `members.mail_domain` / `members.mail_local_part` / `members.mail_certified`
       / `members.application_consent_notice` params in the same change; keep public surface unchanged
@@ -483,7 +487,8 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       retired set; otherwise it is net-new (authored only via SAM) and there is no param to retire
     - _Requirements: 10.3, 11.1, 11.2, 11.4, 11.5, 17.3_
 
-  - [ ] 5.9 Update ProjectionSync tests to assert config#mail NOT emitted (change-with-tests)
+  - [x] 5.9 Update ProjectionSync tests to assert config#mail NOT emitted (change-with-tests)
+    - DONE (merged to `test` via PR #143): the 3 regression tests (version-supersede, fresh-source, batch-abort) and 2 content-gate generality tests were re-homed onto the still-emitted `scopegrant#` row (same `_conditional_put`/`_supersedes`/`_content_key` seam); the split-ownership survival regression stays green. 132 tests pass across `test_projection_sync.py` + `test_projection_content_gate.py`.
     - **Property 4: ProjectionSync no longer emits config#mail** and **Property 5: Delete-sweep safety**
       for the `config#mail` prefix. The delete-sweep guardrail is VERIFIED / regression-locked by
       Requirement 12 (12.5: `config#*` rows are UPSERT-ONLY, only the `config#views`-only residue cleanup
