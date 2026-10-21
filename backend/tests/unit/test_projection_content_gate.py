@@ -31,7 +31,9 @@ from tests.unit.test_projection_sync import (
     FakeParameterService,
     FakeSource,
     FakeTable,
-    _tenant_source,
+    _region_dim_with_values,
+    _sam_source_with_scope_rows,
+    _scope_row_at,
 )
 
 # A stable per-param revision for the `members.field_overlay` param. The WEDGE is that
@@ -106,56 +108,6 @@ def _status_values_in(table, tenant_id):
 # ===========================================================================
 
 
-def test_sync_heals_wedged_config_fields_when_content_differs_at_equal_version(
-    sam_module,
-):
-    """R1.2/R1.8 — the wedge: a stored `config#fields` row holds the STALE 6-value
-    `membership.status` content stamped at version V; the source overlay authors the
-    7-value set (incl. `died`) at the SAME version V. A sync MUST write the 7-value
-    content (content differs → heal), EVEN THOUGH the incoming version is not strictly
-    greater than the stored one.
-
-    EXPECTED on current (unfixed) code: FAILS. `_conditional_put` gates on
-    `_supersedes(incoming, stored)` (strictly greater); with incoming == stored it
-    returns False and SKIPS the write, so the stored row keeps 6 values and `died`
-    never lands. That failing assertion confirms the bug (the SUCCESS case for this
-    exploration test). The fix (tasks 2–4) makes the write content-driven; task 4.2
-    re-runs this green.
-    """
-    tenant_id = "h-dcn"
-    table = FakeTable()
-    overlay = _status_overlay(_STATUS_SEVEN)
-    params = _overlay_params(tenant_id, overlay)
-
-    # Pre-seed the WEDGED stored row: 6-value content, stamped at the SAME version the
-    # builder will compute for this source (the overlay's own revision). This is exactly
-    # the state observed on `test`: stale content at the current source version.
-    stale_item = build_config_fields_row(
-        {"administration": tenant_id},
-        _overlay_params(tenant_id, _status_overlay(_STATUS_SIX)),
-    )
-    assert stale_item.version == _OVERLAY_REVISION  # stored version == source version V
-    table.store[(tenant_id, _FIELDS_SK)] = stale_item.to_dynamodb_item()
-    # Precondition: the wedge really is 6-value at version V.
-    assert _status_values_in(table, tenant_id) == _STATUS_SIX
-
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
-
-    sync.sync_administration(tenant_id)
-
-    # The heal: the stored row now carries the 7-value content incl. `died` (R1.8),
-    # proving the write decision followed CONTENT, not the (equal) version.
-    healed = _status_values_in(table, tenant_id)
-    assert "died" in healed, (
-        "WEDGE REPRODUCED: the stored config#fields row still carries the stale "
-        f"6-value status {healed!r} — the tenant-authored `died` never landed because "
-        "the strict-greater version gate skipped the correcting write (stored "
-        f"version == source version {_OVERLAY_REVISION!r})."
-    )
-    assert healed == _STATUS_SEVEN
-
-
 # ===========================================================================
 # Task 1.2 — Property P2 (idempotent): an unchanged source re-syncs to a
 # byte-identical row and writes nothing (EXPECTED TO PASS on current code)
@@ -219,88 +171,6 @@ def _snapshot(table):
     import copy
 
     return {k: copy.deepcopy(v) for k, v in table.store.items()}
-
-
-@settings(max_examples=100, deadline=None)
-@given(status_values=_status_subsets())
-def test_sync_rerun_unchanged_source_writes_nothing_and_row_byte_identical(
-    status_values,
-):
-    """Feature: members-config-projection-and-cleanup, Property 2: Idempotent.
-
-    Validates: Requirements 1.3, 1.6.
-
-    For ANY tenant-authored `membership.status` overlay, after an initial sync a
-    SECOND sync against the UNCHANGED source writes nothing and leaves every
-    stored row byte-for-byte identical:
-      * the re-sync records NO new `put_item` on the fake table (the write gate
-        short-circuits — no churn), and
-      * the stored partition is deep-equal to the pre-re-sync snapshot, including
-        every `version`/bookkeeping attribute.
-    """
-    # A fresh module registry entry is required for the projection gate to fire;
-    # the `sam_module` fixture is function-scoped and cannot be requested from a
-    # Hypothesis-driven test body, so register the test module inline here with a
-    # monkeypatch-free restore (mirrors the fixture's single setitem).
-    name = "SAM_TEST_MODULE"
-    had_entry = name in MODULE_REGISTRY
-    saved = MODULE_REGISTRY.get(name)
-    MODULE_REGISTRY[name] = {
-        "description": "Temporary SAM-backed test module",
-        "required_params": {},
-        "required_tax_rates": [],
-        "required_roles": ["SamTest_Read"],
-        "backing": {
-            "kind": "sam",
-            "api_base_env": "SAM_TEST_MODULE_API_BASE",
-            "data_namespace": "sam_test",
-        },
-    }
-    try:
-        tenant_id = "h-dcn"
-        table = FakeTable()
-        overlay = _status_overlay(status_values)
-        params = _overlay_params(tenant_id, overlay)
-        source = FakeSource({tenant_id: _tenant_source(tenant_id, name)})
-        sync = ProjectionSync(source, table=table, parameter_service=params)
-
-        # First sync: establishes the stored rows from the authored source.
-        first = sync.sync_administration(tenant_id)
-        assert first.written > 0, "expected the first sync to project rows"
-        # Precondition: the authored status vocabulary landed verbatim.
-        assert _status_values_in(table, tenant_id) == status_values
-
-        snapshot = _snapshot(table)
-        put_calls_after_first = len(table.put_calls)
-
-        # Second sync against the UNCHANGED source — the idempotent re-run.
-        second = sync.sync_administration(tenant_id)
-
-        # (a) Writes nothing: no row was skipped-then-rewritten; the gate
-        #     short-circuited, so the fake recorded NO new put_item and the sync
-        #     reports zero writes (every item a no-op skip).
-        assert second.written == 0, (
-            "P2 VIOLATED: an unchanged re-sync wrote rows "
-            f"(written={second.written}) — the re-sync must be a no-op."
-        )
-        assert second.skipped == first.written
-        assert len(table.put_calls) == put_calls_after_first, (
-            "P2 VIOLATED: the unchanged re-sync issued a new put_item "
-            f"({len(table.put_calls) - put_calls_after_first} new call(s)) — "
-            "a byte-identical row must never be re-written."
-        )
-
-        # (b) Byte-identical: the whole stored partition is deep-equal to the
-        #     pre-re-sync snapshot, including version/bookkeeping — zero churn.
-        assert _snapshot(table) == snapshot, (
-            "P2 VIOLATED: the unchanged re-sync mutated a stored row — the row "
-            "is no longer byte-identical to its pre-re-sync state."
-        )
-    finally:
-        if had_entry:
-            MODULE_REGISTRY[name] = saved
-        else:
-            MODULE_REGISTRY.pop(name, None)
 
 
 # ===========================================================================
@@ -427,7 +297,9 @@ def _status_subsets_including_died():
 
     platform = _STATUS_SIX
 
-    return st.lists(st.sampled_from(platform), min_size=0, max_size=len(platform)).flatmap(
+    return st.lists(
+        st.sampled_from(platform), min_size=0, max_size=len(platform)
+    ).flatmap(
         lambda base: st.integers(min_value=0, max_value=len(base)).map(
             lambda pos: _dedupe([*base[:pos], "died", *base[pos:]])
         )
@@ -540,215 +412,140 @@ def test_build_config_fields_projects_died_in_status_like_gender_concrete(sam_mo
 # Validates: Requirements 1.2, 1.3, 1.5, 1.6, 1.7
 # ===========================================================================
 
-from services.projection_sync import build_config_mail_row, build_config_scope_row
+from services.projection_sync import build_scopegrant_rows
 
-_SCOPE_SK = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_SCOPE)
-_MAIL_SK = schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_MAIL)
+_GRANT_SK = schema.build_sort_key(
+    schema.RECORD_TYPE_SCOPEGRANT, "alice@h-dcn.example", "region"
+)
 
-# A stable per-param revision stamped on the source param that drives each row.
-# The WEDGE is that the stored row is stamped at THIS SAME revision while
-# carrying STALE content, so the strict-greater version gate can never heal it —
-# only the content-gate can. (Same mechanism as the config#fields wedge above,
-# but for a DIFFERENT row type, which is the whole point of generality.)
-_SCOPE_REVISION = "2026-02-01T00:00:00"
-_MAIL_REVISION = "2026-03-01T00:00:00"
+# A stable per-param revision stamped on the source param that drives the scopegrant row. The
+# WEDGE is that the stored row is stamped at THIS SAME revision while carrying STALE content, so
+# the strict-greater version gate can never heal it — only the content-gate can.
+_GRANT_REVISION = "2026-03-01T00:00:00"
 
 
-# --- config#scope wedge setup (driven by the `members.scope_dimensions` param) ---
+# --- content-gate GENERALITY: re-homed onto the scopegrant row (spec 02 Task 5.8) -----------
+#
+# After Task 5.8, ProjectionSync emits NO config#* row (config#fields/scope/mail all SAM-owned),
+# so the content-gate GENERALITY guarantee (R1.2/R1.7 — the content-gate heals ANY emitted row on
+# a content change at an equal version, not just a status/config#fields special-case) is now
+# proven on the ONE remaining ProjectionSync-emitted, members.*-backed, content-gated row: the
+# `scopegrant#` row, written through the SAME `_conditional_put` / `_content_key` seam. The row's
+# content is the grant's `values` list (validated against the declared dimension vocabulary); the
+# wedge grows that vocabulary at an EQUAL param revision, so only the content-gate can heal it.
 
 
-def _scope_dimension(values):
-    """A single authored `members.scope_dimensions` entry whose enum `values` are
-    `values` — the shape the builder maps 1:1 into the `config#scope` row's
-    `dimensions`. STALE vs FRESH differ only in this value list, at the SAME
-    param revision, so the wedge is a pure content change at an equal version."""
-    return {
-        "key": "region",
-        "field": "region",
-        "label": {"nl": "Regio", "en": "Region"},
-        "enabled": True,
-        "values": list(values),
-        "required_for": ["Members_CRUD"],
-    }
-
-
-def _scope_params(tenant_id, values):
-    """A FakeParameterService serving a one-dimension `members.scope_dimensions`
-    whose values are `values`, stamped at the fixed scope wedge revision (the
-    stored row will be stamped at the SAME revision)."""
+def _grant_params(tenant_id, declared_values):
+    """A FakeParameterService declaring the region `members.scope_dimensions` vocabulary as
+    `declared_values` (the grant validates against this). The scopegrant row VERSION comes from
+    the grant's own `updated_at` (_scopegrant_version), NOT this param — so the wedge holds the
+    version fixed (via a fixed grant `updated_at`) while the DECLARED vocabulary changes the
+    scopegrant row's CONTENT (its `values`). A pure content change at an EQUAL version."""
     return FakeParameterService(
-        params={("members", "scope_dimensions", tenant_id): [_scope_dimension(values)]},
-        revisions={("members", "scope_dimensions", tenant_id): _SCOPE_REVISION},
+        {
+            ("members", "scope_dimensions", tenant_id): [
+                _region_dim_with_values(declared_values)
+            ]
+        }
     )
 
 
-def _scope_values_in(table, tenant_id):
-    """The region dimension `values` currently stored on the tenant's config#scope row."""
-    stored = table.store.get((tenant_id, _SCOPE_SK))
-    assert stored is not None, "expected a stored config#scope row"
-    return stored["dimensions"][0]["values"]
+def _grant_source(tenant_id, sam_module, granted_values):
+    """A SAM source whose user holds a region grant for `granted_values` at the fixed wedge
+    `updated_at` (so the scopegrant row is stamped at _GRANT_REVISION). The projected grant
+    `values` are the granted values that are ALSO declared by the dimension."""
+    return FakeSource(
+        {
+            tenant_id: _sam_source_with_scope_rows(
+                tenant_id,
+                sam_module,
+                [
+                    _scope_row_at(
+                        "alice@h-dcn.example",
+                        {"region": list(granted_values)},
+                        _GRANT_REVISION,
+                    )
+                ],
+            )
+        }
+    )
 
 
-_SCOPE_STALE = ["Noord", "Zuid"]
-_SCOPE_FRESH = ["Noord", "Zuid", "Oost", "West"]
+def _grant_values_in(table, tenant_id):
+    """The `values` currently stored on the tenant's scopegrant row."""
+    stored = table.store.get((tenant_id, _GRANT_SK))
+    assert stored is not None, "expected a stored scopegrant row"
+    return stored["values"]
 
 
-def test_sync_heals_wedged_config_scope_when_content_differs_at_equal_version(
-    sam_module,
-):
-    """R1.2/R1.7 GENERALITY — the SAME wedge-and-heal as config#fields, but for
-    `config#scope`: a stored `config#scope` row holds STALE dimension values at
-    version V; the source authors a DIFFERENT (wider) value set at the SAME
-    version V. A sync MUST write the fresh content (content differs → heal),
-    EVEN THOUGH the incoming version is not strictly greater than the stored one.
+_GRANT_STALE = ["Noord"]
+_GRANT_FRESH = ["Noord", "Zuid"]
 
-    This proves the content-gate is NOT a status/config#fields special-case: the
-    decision lives in the shared `ProjectionSync._conditional_put` / `_content_key`
-    seam over the generic `to_dynamodb_item()` payload, so a different `config#*`
-    row type heals identically (R1.7).
-    """
+
+def test_sync_heals_wedged_scopegrant_when_content_differs_at_equal_version(sam_module):
+    """R1.2/R1.7 GENERALITY — a stored `scopegrant#` row holds STALE `values` at version V; the
+    source declares a WIDER vocabulary (so the same grant validates to more values) at the SAME
+    version V. A sync MUST write the fresh values (content differs → heal), EVEN THOUGH the
+    incoming version is not strictly greater than the stored one — proving the content-gate is
+    row-type-agnostic (the SAME `_conditional_put` / `_content_key` seam), now that NO config#*
+    row is emitted (Task 5.8 end-state)."""
     tenant_id = "h-dcn"
     table = FakeTable()
-    params = _scope_params(tenant_id, _SCOPE_FRESH)
+    # The user is granted both values; STALE vs FRESH differ in what the dimension DECLARES
+    # (the grant validates to only the declared subset). The grant's updated_at is the row version.
+    params = _grant_params(tenant_id, _GRANT_FRESH)
 
-    # Pre-seed the WEDGED stored row: STALE 2-value content, stamped at the SAME
-    # version the builder computes for this source (the param's own revision).
-    stale_item = build_config_scope_row(
-        {"administration": tenant_id}, _scope_params(tenant_id, _SCOPE_STALE)
+    # Pre-seed the WEDGED stored row: STALE 1-value content, stamped at the SAME version (the
+    # grant's updated_at = _GRANT_REVISION) the sync computes for this source — so the
+    # strict-greater version gate can NEVER heal it, only the content-gate can.
+    stale_items = build_scopegrant_rows(
+        {"administration": tenant_id},
+        [
+            _scope_row_at(
+                "alice@h-dcn.example", {"region": _GRANT_FRESH}, _GRANT_REVISION
+            )
+        ],
+        _grant_params(tenant_id, _GRANT_STALE),
     )
-    assert stale_item.version == _SCOPE_REVISION  # stored version == source version V
-    table.store[(tenant_id, _SCOPE_SK)] = stale_item.to_dynamodb_item()
-    assert _scope_values_in(table, tenant_id) == _SCOPE_STALE
+    assert len(stale_items) == 1
+    assert (
+        stale_items[0].version == _GRANT_REVISION
+    )  # stored version == source version V
+    table.store[(tenant_id, _GRANT_SK)] = stale_items[0].to_dynamodb_item()
+    assert _grant_values_in(table, tenant_id) == _GRANT_STALE
 
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
+    source = _grant_source(tenant_id, sam_module, _GRANT_FRESH)
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
     sync.sync_administration(tenant_id)
 
-    # The heal: the stored row now carries the fresh (wider) value set, proving
-    # the write followed CONTENT, not the (equal) version — for config#scope.
-    healed = _scope_values_in(table, tenant_id)
-    assert healed == _SCOPE_FRESH, (
-        "GENERALITY WEDGE (config#scope): the stored row still carries the stale "
-        f"dimension values {healed!r} — the content-gate failed to heal a non-status "
-        "row, so the fix is a config#fields/status special-case, not general (R1.7)."
+    healed = _grant_values_in(table, tenant_id)
+    assert healed == _GRANT_FRESH, (
+        "GENERALITY WEDGE (scopegrant): the stored row still carries the stale grant "
+        f"values {healed!r} — the content-gate failed to heal a non-config# row, so the "
+        "fix is a config#fields/status special-case, not general (R1.7)."
     )
 
 
-def test_sync_rerun_unchanged_config_scope_is_noop(sam_module):
-    """R1.3/R1.6 GENERALITY (idempotence) — for config#scope too, a re-sync against
-    an UNCHANGED source writes nothing and leaves the row byte-identical (equal
-    content → skip), the mirror of the heal above."""
+def test_sync_rerun_unchanged_scopegrant_is_noop(sam_module):
+    """R1.3/R1.6 GENERALITY (idempotence) — for the scopegrant row too, a re-sync against an
+    UNCHANGED source writes nothing and leaves the row byte-identical (equal content → skip)."""
     tenant_id = "h-dcn"
     table = FakeTable()
-    params = _scope_params(tenant_id, _SCOPE_FRESH)
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
+    params = _grant_params(tenant_id, _GRANT_FRESH)
+    source = _grant_source(tenant_id, sam_module, _GRANT_FRESH)
     sync = ProjectionSync(source, table=table, parameter_service=params)
 
     first = sync.sync_administration(tenant_id)
     assert first.written > 0
-    assert _scope_values_in(table, tenant_id) == _SCOPE_FRESH
+    assert _grant_values_in(table, tenant_id) == _GRANT_FRESH
     snapshot = {k: dict(v) for k, v in table.store.items()}
     put_calls_after_first = len(table.put_calls)
 
     second = sync.sync_administration(tenant_id)
 
     assert second.written == 0, (
-        f"idempotence VIOLATED (config#scope): re-sync wrote {second.written} row(s)."
-    )
-    assert len(table.put_calls) == put_calls_after_first
-    assert {k: dict(v) for k, v in table.store.items()} == snapshot
-
-
-# --- config#mail wedge setup (driven by the `members.mail_domain` param) ---------
-
-
-def _mail_params(tenant_id, domain):
-    """A FakeParameterService authoring `members.mail_domain = domain` (mail
-    enabled), stamped at the fixed mail wedge revision. STALE vs FRESH differ only
-    in the domain string, at the SAME revision — a pure content change at an equal
-    version for the config#mail row type."""
-    return FakeParameterService(
-        params={
-            ("members", "mail_enabled", tenant_id): True,
-            ("members", "mail_domain", tenant_id): domain,
-        },
-        revisions={("members", "mail_domain", tenant_id): _MAIL_REVISION},
-    )
-
-
-def _mail_domain_in(table, tenant_id):
-    """The `mail_domain` currently stored on the tenant's config#mail row."""
-    stored = table.store.get((tenant_id, _MAIL_SK))
-    assert stored is not None, "expected a stored config#mail row"
-    return stored["mail_domain"]
-
-
-_MAIL_STALE_DOMAIN = "old-domain.example"
-_MAIL_FRESH_DOMAIN = "h-dcn.nl"
-
-
-def test_sync_heals_wedged_config_mail_when_content_differs_at_equal_version(
-    sam_module,
-):
-    """R1.2/R1.7 GENERALITY — the SAME wedge-and-heal for `config#mail`: a stored
-    `config#mail` row holds a STALE `mail_domain` at version V; the source authors
-    a DIFFERENT domain at the SAME version V. A sync MUST write the fresh domain
-    (content differs → heal), EVEN THOUGH the incoming version is not strictly
-    greater than the stored one.
-
-    A THIRD distinct `config#*` row type healing through the SAME shared seam
-    (`_conditional_put` / `_content_key`) confirms the content-gate is row-type-
-    agnostic, not a status/config#fields special-case (R1.7).
-    """
-    tenant_id = "h-dcn"
-    table = FakeTable()
-    params = _mail_params(tenant_id, _MAIL_FRESH_DOMAIN)
-
-    # Pre-seed the WEDGED stored row: STALE domain, stamped at the SAME version the
-    # builder computes for this source (the mail_domain param's own revision).
-    stale_item = build_config_mail_row(
-        {"administration": tenant_id}, _mail_params(tenant_id, _MAIL_STALE_DOMAIN)
-    )
-    assert stale_item.version == _MAIL_REVISION  # stored version == source version V
-    table.store[(tenant_id, _MAIL_SK)] = stale_item.to_dynamodb_item()
-    assert _mail_domain_in(table, tenant_id) == _MAIL_STALE_DOMAIN
-
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
-
-    sync.sync_administration(tenant_id)
-
-    # The heal: the stored row now carries the fresh domain, proving the write
-    # followed CONTENT, not the (equal) version — for config#mail.
-    healed = _mail_domain_in(table, tenant_id)
-    assert healed == _MAIL_FRESH_DOMAIN, (
-        "GENERALITY WEDGE (config#mail): the stored row still carries the stale "
-        f"mail_domain {healed!r} — the content-gate failed to heal a config#mail "
-        "row, so the fix is a config#fields/status special-case, not general (R1.7)."
-    )
-
-
-def test_sync_rerun_unchanged_config_mail_is_noop(sam_module):
-    """R1.3/R1.6 GENERALITY (idempotence) — for config#mail too, a re-sync against
-    an UNCHANGED source writes nothing and leaves the row byte-identical (equal
-    content → skip), the mirror of the heal above."""
-    tenant_id = "h-dcn"
-    table = FakeTable()
-    params = _mail_params(tenant_id, _MAIL_FRESH_DOMAIN)
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
-
-    first = sync.sync_administration(tenant_id)
-    assert first.written > 0
-    assert _mail_domain_in(table, tenant_id) == _MAIL_FRESH_DOMAIN
-    snapshot = {k: dict(v) for k, v in table.store.items()}
-    put_calls_after_first = len(table.put_calls)
-
-    second = sync.sync_administration(tenant_id)
-
-    assert second.written == 0, (
-        f"idempotence VIOLATED (config#mail): re-sync wrote {second.written} row(s)."
+        f"idempotence VIOLATED (scopegrant): re-sync wrote {second.written} row(s)."
     )
     assert len(table.put_calls) == put_calls_after_first
     assert {k: dict(v) for k, v in table.store.items()} == snapshot
@@ -761,94 +558,3 @@ def test_sync_rerun_unchanged_config_mail_is_noop(sam_module):
 # cannot produce a valid row never silently stale-leaves — the raise surfaces
 # through the save route's `_project_tenant_change` outcome.
 # ===========================================================================
-
-from services.projection_builder import ProjectionItem
-from services.projection_validator import ProjectionValidationError
-
-
-def test_sync_malformed_config_fields_build_raises_and_writes_nothing(
-    monkeypatch, sam_module
-):
-    """R1.4 reject path: when the config#fields build yields a structurally
-    incomplete row (here: missing the required `overrides`/`functional_groups`
-    maps), `sync_administration` RAISES `ProjectionValidationError` from the
-    `validate_items` batch gate BEFORE the put loop — and NOTHING is written
-    (atomic per tenant, no partial projection). The failure is loud, never a
-    silent stale-leave."""
-    tenant_id = "h-dcn"
-    table = FakeTable()
-    params = _overlay_params(tenant_id, _status_overlay(_STATUS_SEVEN))
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
-
-    # Force the config#fields builder to emit a STRUCTURALLY INCOMPLETE row (the
-    # kind a buggy/partial build could produce): a `config#fields` item whose
-    # `attributes` omit the required `overrides` and `functional_groups` maps. The
-    # builder itself is defensive and never does this, so we inject the malformed
-    # output to exercise the validate-before-write gate directly.
-    def _malformed_fields_row(tenant, parameter_service):
-        return ProjectionItem(
-            tenant_id=tenant.get("administration") or tenant.get("tenant_id"),
-            sort_key=_FIELDS_SK,
-            version=_OVERLAY_REVISION,
-            attributes={"fields": {}},  # missing overrides + functional_groups
-        )
-
-    monkeypatch.setattr(
-        "services.projection_sync.build_config_fields_row", _malformed_fields_row
-    )
-
-    with pytest.raises(ProjectionValidationError, match="config#fields"):
-        sync.sync_administration(tenant_id)
-
-    # Atomic abort: the validation runs on the WHOLE batch before the put loop, so
-    # a single malformed row means NONE of the batch is written. The fake table saw
-    # zero puts and its store is untouched.
-    assert table.put_calls == [], (
-        "validate-before-write VIOLATED: a put reached the table despite a "
-        "malformed config#fields row — the batch was not aborted atomically (R1.4)."
-    )
-    assert table.store == {}
-
-
-def test_sync_malformed_config_fields_does_not_overwrite_a_valid_stored_row(
-    monkeypatch, sam_module
-):
-    """R1.4 no-stale-leave corollary: if a VALID row already exists for the tenant,
-    a later sync whose build is malformed RAISES and leaves the stored projection
-    byte-for-byte unchanged — it neither clobbers nor partially updates it."""
-    tenant_id = "h-dcn"
-    table = FakeTable()
-
-    # First, a clean sync writes a well-formed projection (the baseline the reject
-    # path must not corrupt).
-    params = _overlay_params(tenant_id, _status_overlay(_STATUS_SIX))
-    source = FakeSource({tenant_id: _tenant_source(tenant_id, sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
-    first = sync.sync_administration(tenant_id)
-    assert first.written > 0
-    snapshot = {k: dict(v) for k, v in table.store.items()}
-
-    # Now a second sync whose config#fields build is malformed must raise and change
-    # nothing.
-    def _malformed_fields_row(tenant, parameter_service):
-        return ProjectionItem(
-            tenant_id=tenant.get("administration") or tenant.get("tenant_id"),
-            sort_key=_FIELDS_SK,
-            version=_OVERLAY_REVISION,
-            attributes={},  # missing every required config#fields attr
-        )
-
-    monkeypatch.setattr(
-        "services.projection_sync.build_config_fields_row", _malformed_fields_row
-    )
-    put_calls_before = len(table.put_calls)
-
-    with pytest.raises(ProjectionValidationError, match="config#fields"):
-        sync.sync_administration(tenant_id)
-
-    assert len(table.put_calls) == put_calls_before, (
-        "a put reached the table on the malformed re-sync — the batch was not "
-        "aborted before the put loop (R1.4)."
-    )
-    assert {k: dict(v) for k, v in table.store.items()} == snapshot

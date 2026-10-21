@@ -20,10 +20,15 @@ import type {
   FunctionalGroup,
   LocalizedLabel,
 } from '../types/members';
+import { ApiError } from '../shared/api/ApiError';
 import { authenticatedGet } from './apiService';
 import { getParameters, createParameter, updateParameter } from './parameterService';
-import { getFieldConfig, writeFieldConfig } from './membersApiService';
-import { ApiError } from '../shared/api/ApiError';
+import {
+  getFieldConfig,
+  writeFieldConfig,
+  writeScopeConfig,
+  writeMailConfig,
+} from './membersApiService';
 
 export const MEMBERS_NAMESPACE = 'members';
 
@@ -323,16 +328,19 @@ export async function getMembersParameters(): Promise<Record<string, Parameter>>
  * write path `PUT /members/config/fields` (`config#fields` is now SAM's system-of-record). The SAM
  * write is **authoritative** — the returned row `version` IS the authored state, there is no
  * projection step to wait on, so this no longer surfaces a `projected` / `projection_error`
- * pending-projection signal for `field_overlay`. `scope_dimensions` stays on the Flask
- * parameter-admin path until its own cutover (task 3.5).
+ * pending-projection signal for `field_overlay`.
+ *
+ * Scope save (`scope_dimensions`) is the frontend cross-plane MIRROR (Requirement 22.5/26.2):
+ * SAM `config#scope` is authoritative and written FIRST (`PUT /members/config/scope`), THEN the
+ * same dimension set is mirrored into the Flask `members.scope_dimensions` validator copy
+ * (best-effort). A failed SAM write returns `{ success: false, error }` and mirrors NOTHING; a
+ * failed MIRROR write returns `{ success: false, version, mirrorError }` — SAM is already
+ * authoritative, and the UI surfaces the mirror failure and offers retry (Requirement 22.6/26.5).
  *
  * The public signature and `{ success, error? }` return shape are kept stable so the editor
  * (`MembersParamSubEditor`) consumes the service unchanged (Requirement 13.3) — only the save
- * target for `field_overlay` moves.
- *
- * Flask path (`scope_dimensions`), unchanged:
- * - If an existing tenant-scope row is supplied, issue ONE `PUT` (update in place).
- * - Otherwise (no row, or a system/code default), issue ONE `POST` creating the tenant-scope row.
+ * targets move (`field_overlay` → SAM config#fields; `scope_dimensions` → SAM config#scope first,
+ * then the Flask mirror).
  *
  * Never per-field / per-keystroke; the caller passes the entire object exactly once.
  */
@@ -340,7 +348,20 @@ export async function saveMembersParameter(
   key: MembersParamKey,
   value: MembersConfigValue,
   existing?: Parameter | null,
-): Promise<{ success: boolean; error?: string; projected?: boolean | null; projection_error?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  projected?: boolean | null;
+  projection_error?: string;
+  /**
+   * Scope save only (Requirement 22.6 / 26.5): SAM `config#scope` was written authoritatively
+   * but the best-effort Flask `members.scope_dimensions` MIRROR write failed. SAM is already the
+   * source of truth; the UI surfaces this and offers RETRY of just the mirror. `mirrorError`
+   * carries a caller-safe message; `version` is the authoritative SAM write stamp.
+   */
+  mirrorError?: string;
+  version?: string;
+}> {
   // A members.* object param is always an object or list; never a bare null.
   // Normalize a nullish value to the right empty container so it satisfies the
   // request value type (which does not accept null).
@@ -363,7 +384,50 @@ export async function saveMembersParameter(
     }
   }
 
-  // `scope_dimensions` (and any other key) stays on the Flask parameter-admin path for now.
+  // `scope_dimensions` is the frontend cross-plane bridge (Requirement 22.5 / 26.2/26.4): the
+  // two planes never call each other at runtime, so the frontend writes EACH plane separately —
+  // SAM `config#scope` FIRST (authoritative), THEN the Flask `members.scope_dimensions` MIRROR.
+  if (key === 'scope_dimensions') {
+    // `normalized` is the dimension set (a list). Step 1 — write SAM config#scope (authoritative).
+    let version: string;
+    try {
+      const result = await writeScopeConfig(normalized as unknown[]);
+      if (result.success === false) {
+        return { success: false, error: 'Scope write failed' };
+      }
+      version = result.version;
+    } catch (e) {
+      // SAM write failed → nothing is authoritative yet; do NOT mirror a stale set to Flask.
+      const error = e instanceof ApiError || e instanceof Error ? e.message : String(e);
+      return { success: false, error };
+    }
+
+    // Step 2 — mirror the SAME dimension set into Flask members.scope_dimensions (best-effort,
+    // Requirement 22.6 / 26.5). SAM stays authoritative; a failed mirror leaves Flask's copy
+    // stale until a surfaced RETRY succeeds — it does NOT fail the authoritative SAM write.
+    try {
+      const mirror =
+        existing && existing.id != null && existing.scope_origin === 'tenant'
+          ? await updateParameter(existing.id, { value: normalized, value_type: 'json' })
+          : await createParameter({
+            scope: 'tenant',
+            namespace: MEMBERS_NAMESPACE,
+            key,
+            value: normalized,
+            value_type: 'json',
+            is_secret: false,
+          });
+      if (mirror.success === false) {
+        return { success: false, version, mirrorError: mirror.error ?? 'Scope mirror write failed' };
+      }
+      return { success: true, version };
+    } catch (e) {
+      const mirrorError = e instanceof ApiError || e instanceof Error ? e.message : String(e);
+      return { success: false, version, mirrorError };
+    }
+  }
+
+  // Any other key stays on the Flask parameter-admin path.
   // A row with a real numeric id + tenant origin can be updated in place.
   if (existing && existing.id != null && existing.scope_origin === 'tenant') {
     return updateParameter(existing.id, { value: normalized, value_type: 'json' });
@@ -377,4 +441,67 @@ export async function saveMembersParameter(
     value_type: 'json',
     is_secret: false,
   });
+}
+
+// ---------------------------------------------------------------------------
+// config#mail — the SAM-owned mail scalars save path (task 7.1, single door).
+// ---------------------------------------------------------------------------
+
+/**
+ * The reader-shaped `config#mail` body authored through `PUT /members/config/mail` (Requirement
+ * 9 / 15). The keys match the SAM `MembersProjectionReader` mail accessors and the Flask
+ * `build_config_mail_row` builder EXACTLY so the writer and reader cannot drift:
+ *
+ *  - `mail_enabled` — the "cleared to send" gate (fail-closed bool).
+ *  - `mail_domain`  — the tenant's own mail domain (e.g. `h-dcn.nl`); optional, NO safe default.
+ *  - `mail_local_part` — the From local-part; defaults to `noreply` when blank.
+ *  - `mail_certified` — the SES-verified gate (fail-closed bool).
+ *  - `mail_reply_to_default` — the OPTIONAL scheduled/unattended-send Reply-To.
+ *  - `consent_notice` — the OPTIONAL versioned bilingual consent notice
+ *    (`{ version, text: { nl?, en? } }`); only send it when well-formed (a non-blank version AND
+ *    at least one non-blank locale body), else omit the attribute entirely (the server shapes it
+ *    the same way, but omitting a half-authored notice keeps the one authored body honest).
+ */
+export interface MembersMailConfigBody {
+  mail_enabled: boolean;
+  mail_domain?: string;
+  mail_local_part: string;
+  mail_certified: boolean;
+  mail_reply_to_default?: string;
+  consent_notice?: {
+    version: string;
+    text: Record<string, string>;
+  };
+}
+
+/**
+ * Save-once: author the SAM-owned `config#mail` scalars in a single `PUT /members/config/mail`
+ * request (task 7.1, Property 8 — the single authoring door for the mail concern).
+ *
+ * The SAM write is AUTHORITATIVE: on a 200 the returned `version` IS the authored state (the
+ * row-level write stamp), there is no projection step to wait on, so this surfaces no
+ * pending-projection signal. The stable `{ success, error?, version? }` shape is what the typed
+ * Mail editor consumes. A non-2xx (auth/entitlement 401/403, validation 400) is caught and
+ * returned as `{ success: false, error }` with a caller-safe message — a failed save never claims
+ * success.
+ *
+ * This writes ONLY the `config#mail` scalars; it does NOT touch the sender-identity Flask route
+ * (three-surface model). It deliberately does NOT route through `saveMembersParameter` — that
+ * function is keyed on `field_overlay` / `scope_dimensions` Flask-mirror semantics, whereas mail
+ * is pure SAM with no Flask mirror.
+ */
+export async function saveMembersMailConfig(
+  body: MembersMailConfigBody,
+): Promise<{ success: boolean; error?: string; version?: string }> {
+  try {
+    const result = await writeMailConfig(body);
+    if (result.success === false) {
+      return { success: false, error: 'Mail config write failed' };
+    }
+    return { success: true, version: result.version };
+  } catch (e) {
+    // The Members API throws a structured ApiError on non-2xx; surface a caller-safe message.
+    const error = e instanceof ApiError || e instanceof Error ? e.message : String(e);
+    return { success: false, error };
+  }
 }

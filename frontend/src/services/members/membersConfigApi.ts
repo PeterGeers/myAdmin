@@ -7,8 +7,8 @@
  * _Requirements: R7.3, R7.4_
  */
 
-import { getJson, postJson, putJson, deleteJson, unwrapData } from './membersApiClient';
 import type { MembershipTypeCreateBody, MembershipTypeUpdateBody } from '../../types/members';
+import { getJson, postJson, putJson, deleteJson, unwrapData } from './membersApiClient';
 
 /** GET /members/field-config — the resolved field configuration/overlay. */
 export async function getFieldConfig<T = unknown>(): Promise<T> {
@@ -62,6 +62,38 @@ export async function writeConfig(
  */
 export async function writeFieldConfig(body: unknown): Promise<MembersConfigWriteResult> {
   return writeConfig('fields', body);
+}
+
+/**
+ * PUT /members/config/scope — author the `config#scope` row (Requirement 8 / 22).
+ *
+ * Thin convenience over {@link writeConfig} pinning the `scope` config id. `body` MUST be the SAM
+ * `config#scope` shape — `{ dimensions: [...] }` in the ScopeDimension shape `get_scope_config`
+ * reads (empty `dimensions` is valid = tenant-wide). SAM `config#scope` is the AUTHORITATIVE scope
+ * source (Requirement 22.1); the frontend writes it FIRST, then mirrors the dimension set into the
+ * Flask `members.scope_dimensions` validator copy (Requirement 22.5 / 26.2).
+ */
+export async function writeScopeConfig(dimensions: unknown[]): Promise<MembersConfigWriteResult> {
+  return writeConfig('scope', { dimensions });
+}
+
+/**
+ * PUT /members/config/mail — author the `config#mail` row (Requirement 9 / 14.4 / 15.2 / 20).
+ *
+ * Thin convenience over {@link writeConfig} pinning the `mail` config id — the single authoring
+ * door for the SAM-owned `config#mail` scalars (Property 8). `body` MUST be the reader-shaped
+ * `config#mail` object the SAM mail accessors read back and `ConfigWriteService._validate_mail_body`
+ * shapes: `mail_enabled` / `mail_certified` (fail-closed bools), `mail_local_part` (default
+ * `"noreply"`), `mail_domain` (optional — omitted server-side when blank; no safe default),
+ * `mail_reply_to_default` (optional), and `consent_notice` (the versioned bilingual notice,
+ * `{ version, text: { <locale>: body } }` — omitted server-side unless well-formed).
+ *
+ * This writes ONLY the `config#mail` scalars; the sender-identity surface keeps its own Flask
+ * `/api/members/sender-identities` route (three-surface model — the mail config write never folds
+ * the sender identities in).
+ */
+export async function writeMailConfig(body: unknown): Promise<MembersConfigWriteResult> {
+  return writeConfig('mail', body);
 }
 
 /**

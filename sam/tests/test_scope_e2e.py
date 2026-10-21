@@ -62,7 +62,9 @@ import pytest
 # needs backend/src so the Flask-plane objects (services.*) import in the SAME process as the
 # SAM-plane ones — exactly the two-plane wiring R7.3's E2E demonstrates. Mirrors
 # test_membership_service_reads.py's path setup.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -83,6 +85,11 @@ from sam.members.domain.membership_service import MembershipService
 from sam.members.handler import app as members_app
 from sam.members.handler.routes import ROUTES
 from sam.members.repository.projection_config_reader import MembersProjectionReader
+from sam.members.repository.projection_config_write_repository import (
+    MembersConfigWriteRepository,
+)
+from services.projection_sync import build_config_scope_row
+from sam.members.domain.config_write_version import next_write_stamp
 
 # ── Fixtures for both planes' in-memory fakes ──────────────────────────────────────────
 from sam.tests.test_membership_service_reads import FakeMembersRepository
@@ -126,7 +133,9 @@ class FakeDB:
             return [{"scopes": self.rows[key]}] if key in self.rows else []
 
         # Projection source-provider read: all rows for a tenant (the s5d grant source).
-        if q.startswith("SELECT EMAIL, MODULE, SCOPES, UPDATED_AT FROM USER_TENANT_SCOPE"):
+        if q.startswith(
+            "SELECT EMAIL, MODULE, SCOPES, UPDATED_AT FROM USER_TENANT_SCOPE"
+        ):
             admin = params[0] if params else None
             out = []
             for (email, a, module), scopes_json in self.rows.items():
@@ -165,20 +174,52 @@ class FakeDB:
 class FakeParameterService:
     """Read-only ``members.scope_dimensions`` provider shared by BOTH planes.
 
-    The authoring service (validation) and the projection builder read the SAME
-    ``(members, scope_dimensions, tenant)`` param, so wiring one fake proves both planes
-    agree on the dimension vocabulary (D4 — the single source of truth).
+    The authoring/grant-validation plane + the ``scopegrant#`` builder read the standalone
+    ``(members, scope_dimensions, tenant)`` param (UNCHANGED, R2.3/R2.4). Task 3.1 made the
+    per-field ``scope`` attribute on ``(members, field_overlay, tenant)`` the SINGLE authoring
+    source the PROJECTION builder derives ``config#scope`` from (the standalone fallback was
+    removed). This fake therefore serves BOTH from the SAME dimension data — a ``field_overlay``
+    synthesised with an equivalent ``scope`` axis per dimension for the projection builder, and
+    the standalone list for the grant plane — so the two planes still agree on one vocabulary
+    (D4 — single source of truth), now expressed in both shapes.
     """
 
     def __init__(self, dimensions_by_tenant):
         self._dims = dimensions_by_tenant
 
+    @staticmethod
+    def _overlay_from_dimensions(dimensions):
+        """A ``members.field_overlay`` carrying each dimension as a per-field ``scope`` axis —
+        the shape the projection builder derives ``config#scope`` from after task 3.1."""
+        fields = {
+            d["key"]: {
+                "key": d["key"],
+                "type": "enum",
+                "choices": list(d.get("values") or []),
+                "scope": {
+                    "enabled": d.get("enabled", True),
+                    "values": list(d.get("values") or []),
+                    "label": dict(d.get("label") or {}),
+                    "required_for": list(d.get("required_for") or []),
+                },
+            }
+            for d in dimensions
+        }
+        return {"fields": fields, "fixed_overrides": {}}
+
     def get_param(self, namespace, key, tenant=None, role=None, user=None):
-        # The authoring service + the scopegrant builder read (members, scope_dimensions);
-        # the projection also builds config#fields (members.field_overlay) — those are
-        # un-authored here → None (empty-is-valid).
-        if namespace == "members" and key == "scope_dimensions":
+        if namespace != "members":
+            return None
+        # Grant plane + scopegrant builder: the standalone list (unchanged, R2.4).
+        if key == "scope_dimensions":
             return self._dims.get(tenant)
+        # Projection builder: config#scope derives from the overlay scope axis (task 3.1), and
+        # config#fields reads the same overlay. Synthesise it from the same dimension data.
+        if key == "field_overlay":
+            dims = self._dims.get(tenant)
+            if dims:
+                return self._overlay_from_dimensions(dims)
+            return None
         return None
 
 
@@ -210,7 +251,10 @@ class ProjectionFakeTable:
     meta = _Meta()
 
     def _key_tuple(self, key_or_item):
-        return (key_or_item[schema.PARTITION_KEY_ATTR], key_or_item[schema.SORT_KEY_ATTR])
+        return (
+            key_or_item[schema.PARTITION_KEY_ATTR],
+            key_or_item[schema.SORT_KEY_ATTR],
+        )
 
     def get_item(self, Key):
         item = self.store.get(self._key_tuple(Key))
@@ -379,9 +423,7 @@ class ScopeE2E:
 
         # Hop 1 — authoring service (real). enqueue_sync is wired straight to hop 2 so a
         # write triggers a real projection sync, exactly like production's on-change trigger.
-        self.author = UserTenantScopeService(
-            db, params, enqueue_sync=self._resync
-        )
+        self.author = UserTenantScopeService(db, params, enqueue_sync=self._resync)
 
         # Hop 2 — projection sync (real) over an in-memory source that reads the SAME FakeDB.
         self._sync = ProjectionSync(
@@ -394,6 +436,22 @@ class ScopeE2E:
         # per resolve; scope reads build a fresh reader (fresh per-invocation cache) like the
         # edge does in production.
         self._members_repo = members_repo
+
+        # config#scope is SAM-OWNED since spec-02 task 3.7 — ProjectionSync no longer emits it
+        # (it now owns only tenant/module/role/scopegrant). Production authors config#scope via
+        # the SAM write path (PUT /members/config/scope -> MembersConfigWriteRepository). So the
+        # e2e must author it the SAME way, into the SAME shared table, rather than expecting the
+        # projection to co-author it. The dimensions still DERIVE from the overlay scope axis
+        # (the single authoring source, task 3.1) via build_config_scope_row, so the test stays
+        # driven by the overlay vocabulary — only the WRITE door moved from ProjectionSync to the
+        # SAM config-write repository (split-ownership, Req 11.1/11.2).
+        scope_row = build_config_scope_row({"administration": TENANT}, params)
+        MembersConfigWriteRepository(table=projection_table).put_config(
+            tenant_id=TENANT,
+            config_id=schema.CONFIG_ID_SCOPE,
+            attributes=dict(scope_row.attributes),
+            version=next_write_stamp(),
+        )
 
     def _resync(self, administration):
         """The on-change trigger: run a real full re-projection for the tenant (add/update/
@@ -459,7 +517,11 @@ class _E2ESourceProvider:
             fetch=True,
         )
         return TenantSource(
-            tenant={"administration": administration, "display_name": "h-dcn", "version": 1},
+            tenant={
+                "administration": administration,
+                "display_name": "h-dcn",
+                "version": 1,
+            },
             tenant_modules=[
                 {"module_name": self._module_name, "is_active": True, "version": 1}
             ],
@@ -485,7 +547,9 @@ def test_scope_oost_projects_scopegrant_and_lists_only_oost(e2e):
 
     # Hop 2 contract: the projection WROTE the scopegrant row the SAM reader keys off.
     row = e2e.scopegrant_row()
-    assert row is not None, "the projection must carry the scopegrant row after authoring"
+    assert row is not None, (
+        "the projection must carry the scopegrant row after authoring"
+    )
     assert row[schema.SORT_KEY_ATTR] == "scopegrant#member-test@example.com#region"
     assert row["dimension"] == "region"
     assert row["values"] == ["Oost"]
@@ -506,7 +570,9 @@ def test_scope_wildcard_lists_all_members(e2e):
     e2e.set_scope({"region": ["*"]})
 
     row = e2e.scopegrant_row()
-    assert row is not None and row["values"] == ["*"], "the grant must project as all-access"
+    assert row is not None and row["values"] == ["*"], (
+        "the grant must project as all-access"
+    )
     assert e2e.resolve_allowed_scopes() == {"region": ["*"]}
     # Every h-dcn member is visible; the other tenant's member is still structurally invisible.
     assert e2e.visible_member_ids() == ["M-NOORD", "M-OOST", "M-WEST", "M-ZUID"]
@@ -522,7 +588,9 @@ def test_clear_deletes_scopegrant_and_lists_none(e2e):
     # projection's diff-and-delete removes the now-obsolete scopegrant row (ODx4b).
     e2e.set_scope({})
 
-    assert e2e.scopegrant_row() is None, "the obsolete scopegrant row must be deleted (ODx4b)"
+    assert e2e.scopegrant_row() is None, (
+        "the obsolete scopegrant row must be deleted (ODx4b)"
+    )
     # Deny-by-default: an absent grant → empty allowed_scopes for the dimension → sees nothing.
     assert e2e.resolve_allowed_scopes() == {"region": []}
     assert e2e.visible_member_ids() == []

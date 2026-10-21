@@ -92,6 +92,13 @@ _MAIL_LOCAL_PART_PARAM_KEY = "mail_local_part"
 #: ``mail_enabled``.
 _MAIL_CERTIFIED_PARAM_KEY = "mail_certified"
 
+#: The OPTIONAL tenant-authored Reply-To default for SCHEDULED / unattended sends
+#: (``members.mail_reply_to_default``, spec 02 Task 5.1). A scheduled send has no invoking
+#: user, so its Reply-To is this authored address, falling back to the composed From when it
+#: is absent (an interactive send instead uses the invoking user's verified email at runtime).
+#: Projected onto ``config#mail`` ONLY when authored as a non-blank string.
+_MAIL_REPLY_TO_DEFAULT_PARAM_KEY = "mail_reply_to_default"
+
 #: The default From local-part projected when a tenant has authored no (or a blank)
 #: ``members.mail_local_part``. MUST match the SAM reader's ``_DEFAULT_MAIL_LOCAL_PART``
 #: so builder and reader agree on the composed-From local-part.
@@ -310,15 +317,16 @@ def build_config_scope_row(
     (``_scope_dimensions_from_overlay``): a field declares that it is a scope axis,
     enabled, with its value vocabulary, instead of a standalone
     ``members.scope_dimensions`` list. The builder DERIVES the ``config#scope``
-    ``dimensions`` from those field attributes, keeping the PROJECTED row — and so
-    the ``ScopeConfig`` the resolver (``handler/app.py``) consumes — **semantically
-    equivalent** (Property 2): a field-authored axis and the equivalent standalone
-    dimension project to the SAME row. The standalone ``members.scope_dimensions``
-    param is kept as the FALLBACK source (read only when the overlay declares no
-    scope axis), so the ``scopegrant#`` grants, the grant-validation service, and
-    the picker API — all of which still read ``members.scope_dimensions`` — are
-    untouched (R2.3/R2.4). The two sources are not merged: a tenant that has
-    migrated authoring onto fields drives the row entirely from the overlay.
+    ``dimensions`` from those field attributes (``_scope_dimensions_from_overlay``)
+    — the SINGLE authoring source (OQ-3 RESOLVED, ODD 3). The legacy standalone
+    ``members.scope_dimensions`` fallback was REMOVED (task 3.1): it silently masked
+    overlay toggle changes (the dead-toggle defect), so toggling a field's ``scope``
+    could appear to do nothing while a stale standalone param kept driving the row.
+    With the fallback gone the overlay toggle has real effect. The standalone
+    ``members.scope_dimensions`` param is NOT read here anymore and is NOT deleted —
+    it persists as the frontend-written DERIVED MIRROR (task 3.1a) that the
+    ``scopegrant#`` grants, the grant-validation service, and the picker API keep
+    reading UNCHANGED (R2.3/R2.4); those readers are out of scope for this builder.
 
     One-directional discipline (Property 1): this builder issues **zero** MySQL
     writes and does **not** write the projection itself — it only READS via
@@ -326,11 +334,10 @@ def build_config_scope_row(
     RETURNS the item for :class:`ProjectionSync` (the sole writer), mirroring the
     pure ``tenant``/``module``/``role`` builders in ``projection_builder.py``.
 
-    Empty-is-valid (R1.6): a tenant that has authored neither a field scope axis nor
-    a ``members.scope_dimensions`` parameter yields a row with an empty
-    ``dimensions`` list — the reader then resolves it to a tenant-wide config, never
-    an error. Returning the row (rather than ``None``) keeps the projection
-    self-describing; an empty list is the tenant-wide collapse.
+    Empty-is-valid (R1.6): a tenant whose overlay declares no field scope axis
+    yields a row with an empty ``dimensions`` list — the reader then resolves it to a
+    tenant-wide config, never an error. Returning the row (rather than ``None``) keeps
+    the projection self-describing; an empty list is the tenant-wide collapse.
 
     Args:
         tenant: The tenant row. Must carry ``administration`` (or ``tenant_id``)
@@ -363,34 +370,33 @@ def build_config_scope_row(
     )
     dimensions = _scope_dimensions_from_overlay(overlay)
 
-    # Fallback (semantic equivalence + no grant-model change, R2.4): a tenant that has
-    # NOT moved scope authoring onto its fields still drives the row from the standalone
-    # ``members.scope_dimensions`` param — the SAME source the grant machinery reads.
-    if not dimensions:
-        raw_dimensions = parameter_service.get_param(
-            _MEMBERS_PARAM_NAMESPACE,
-            _SCOPE_DIMENSIONS_PARAM_KEY,
-            tenant=tenant_id,
-        )
-        if isinstance(raw_dimensions, Sequence) and not isinstance(raw_dimensions, str):
-            for entry in raw_dimensions:
-                if isinstance(entry, Mapping):
-                    dimensions.append(_map_scope_dimension(entry))
+    # OQ-3 RESOLVED (ODD 3): config#scope is DERIVED SOLELY from the per-field ``scope``
+    # attributes on the ``members.field_overlay`` overlay — the single authoring source.
+    # The legacy standalone ``members.scope_dimensions`` fallback was REMOVED (task 3.1,
+    # the dead-toggle defect fix): a silent fallback masked overlay toggle changes, so
+    # toggling a field's ``scope`` could appear to have no effect while a stale standalone
+    # param kept driving the row. With the fallback gone the overlay toggle has real
+    # effect; an overlay that declares no scope axis yields EMPTY dimensions — a valid,
+    # tenant-wide config (R1.6), never an error.
+    #
+    # The standalone ``members.scope_dimensions`` param is NOT read here anymore, but it is
+    # NOT deleted: it persists as the frontend-written DERIVED MIRROR (task 3.1a) that the
+    # scopegrant builder, the grant-validation service, and the picker API keep reading
+    # UNCHANGED (R2.3/R2.4). Those readers are out of scope for this builder.
 
     return ProjectionItem(
         tenant_id=tenant_id,
         sort_key=schema.build_sort_key(
             schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_SCOPE
         ),
-        # config#scope is now driven by EITHER param — a scope edit on the field overlay
-        # OR on the standalone scope_dimensions must bump the row (the version-bump-trap
-        # fix): the version is the max of their per-param revisions, falling back to the
-        # tenant row only when neither is authored.
+        # config#scope derives only from the overlay now, so the row version tracks ONLY
+        # the overlay param's revision — a stale standalone ``scope_dimensions`` param can
+        # no longer bump the config#scope version (it is no longer a source).
         version=_config_row_version(
             tenant,
             parameter_service,
             tenant_id,
-            (_FIELD_OVERLAY_PARAM_KEY, _SCOPE_DIMENSIONS_PARAM_KEY),
+            (_FIELD_OVERLAY_PARAM_KEY,),
         ),
         attributes={"dimensions": dimensions},
     )
@@ -964,6 +970,11 @@ def build_config_mail_row(
         _MAIL_CERTIFIED_PARAM_KEY,
         tenant=tenant_id,
     )
+    raw_reply_to_default = parameter_service.get_param(
+        _MEMBERS_PARAM_NAMESPACE,
+        _MAIL_REPLY_TO_DEFAULT_PARAM_KEY,
+        tenant=tenant_id,
+    )
     raw_scope_copy = parameter_service.get_param(
         _MEMBERS_PARAM_NAMESPACE,
         _APPLICATION_SCOPE_COPY_PARAM_KEY,
@@ -1010,6 +1021,12 @@ def build_config_mail_row(
     if isinstance(raw_domain, str) and raw_domain:
         attributes["mail_domain"] = raw_domain
 
+    # Reply-To default (Task 5.1): the SCHEDULED/unattended-send Reply-To. Project ONLY when
+    # authored as a non-blank string; omit otherwise so the send path falls back to the From
+    # address (an interactive send uses the invoking user's verified email at runtime instead).
+    if isinstance(raw_reply_to_default, str) and raw_reply_to_default.strip():
+        attributes["mail_reply_to_default"] = raw_reply_to_default
+
     # Member Application Form (D26): the versioned bilingual consent notice is projected
     # ONLY when well-formed (non-blank version + at least one locale text); otherwise it
     # is OMITTED so a tenant that authored none projects a back-compatible row (the public
@@ -1023,11 +1040,11 @@ def build_config_mail_row(
         sort_key=schema.build_sort_key(
             schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_MAIL
         ),
-        # config#mail is driven by SIX params — the four mail params PLUS the two Member
-        # Application Form params (the D9a scope-copy toggle + the D26 consent notice) that
-        # now ride this row — so an edit to ANY must bump the row (version-bump trap fix):
-        # the version is the max of their per-param revisions, falling back to the tenant row
-        # only when none is authored.
+        # config#mail is driven by SEVEN params — the four mail params + the NEW
+        # mail_reply_to_default (Task 5.1) + the two Member Application Form params (the D9a
+        # scope-copy toggle + the D26 consent notice) that ride this row — so an edit to ANY
+        # must bump the row (version-bump trap fix): the version is the max of their per-param
+        # revisions, falling back to the tenant row only when none is authored.
         version=_config_row_version(
             tenant,
             parameter_service,
@@ -1037,6 +1054,7 @@ def build_config_mail_row(
                 _MAIL_DOMAIN_PARAM_KEY,
                 _MAIL_LOCAL_PART_PARAM_KEY,
                 _MAIL_CERTIFIED_PARAM_KEY,
+                _MAIL_REPLY_TO_DEFAULT_PARAM_KEY,
                 _APPLICATION_SCOPE_COPY_PARAM_KEY,
                 _APPLICATION_CONSENT_NOTICE_PARAM_KEY,
             ),
@@ -1059,6 +1077,7 @@ __all__ = [
     "_MAIL_ENABLED_PARAM_KEY",
     "_MAIL_LOCAL_PART_DEFAULT",
     "_MAIL_LOCAL_PART_PARAM_KEY",
+    "_MAIL_REPLY_TO_DEFAULT_PARAM_KEY",
     "_MEMBERS_PARAM_NAMESPACE",
     "_OVERLAY_FIELD_DEFAULTS",
     "_SCOPE_DIMENSIONS_PARAM_KEY",

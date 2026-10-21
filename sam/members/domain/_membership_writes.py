@@ -1610,6 +1610,18 @@ class WritesMixin:
             # gates the result-actions slot). Presentation-only: the module serves it; the
             # worker/send path re-checks the gate server-side regardless (design §9).
             "mail_enabled": self._mail_gate_provider.is_mail_enabled(tenant_id),
+            # The AUTHORITATIVE config#mail body for the typed Mail authoring form (spec 02 task
+            # 7.1 fix). Sourced from the injected MailConfigProvider — in production the projection
+            # reader's config#mail row (get_mail_config), a StaticMailConfigProvider in tests. The
+            # typed Mail function (MembersMailConfigEditor) LOADS its initial values from this so it
+            # reads the SAME source it writes (PUT /members/config/mail) — NOT the legacy MySQL
+            # members.* params, which are SAM-owned/retired now (a saved mail_reply_to_default,
+            # SAM-only net-new, would read back blank from MySQL). Reader-shaped body: mail_enabled
+            # / mail_local_part / mail_certified always present; mail_domain / mail_reply_to_default
+            # / consent_notice only when authored. Empty-is-valid / fail-closed (a missing row →
+            # the safe minimal body). Presentation-only: the module serves it; the write path and
+            # the pivot `mail_enabled` gate enforce server-side regardless.
+            "mail_config": self._mail_config_provider.get_mail_config(tenant_id),
             # The DELIVERED/LOADED status of this tenant's projected config#* rows (Phase 0
             # step 3, impact-analysis §2 / risk #6). A map {config_id: version|None} sourced
             # from the injected ConfigStatusProvider — in production the projection reader's

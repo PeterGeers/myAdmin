@@ -25,7 +25,9 @@ import os
 import sys
 
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.members` imports.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -95,7 +97,9 @@ def _config_scope_item(tenant_id, dimensions, version=1):
 def _config_fields_item(tenant_id, fields, overrides, version=1):
     return {
         schema.PARTITION_KEY_ATTR: tenant_id,
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, "fields"
+        ),
         "fields": fields,
         "overrides": overrides,
         schema.VERSION_ATTR: version,
@@ -186,7 +190,9 @@ class TestGetScopeConfig:
     def test_get_scope_config_disabled_dimension_preserved_as_data(self):
         table = FakeTable()
         table.put(
-            _config_scope_item("h-dcn", [_region_dimension_dict(enabled=False, values=[])])
+            _config_scope_item(
+                "h-dcn", [_region_dimension_dict(enabled=False, values=[])]
+            )
         )
 
         reader = MembersProjectionReader(table=table)
@@ -516,10 +522,18 @@ class TestOverlayApplicationAttributes:
         """A malformed `format` (non-dict / missing checker) degrades to None (R7.3)."""
         table = FakeTable()
         fields = {
-            "a": {"key": "a", "type": "string", "format": "EMAIL"},           # not a dict
-            "b": {"key": "b", "type": "string", "format": {"params": {}}},    # no checker
-            "c": {"key": "c", "type": "string", "format": {"checker": ""}},   # empty checker
-            "d": {"key": "d", "type": "string", "format": {"checker": 7}},    # non-string checker
+            "a": {"key": "a", "type": "string", "format": "EMAIL"},  # not a dict
+            "b": {"key": "b", "type": "string", "format": {"params": {}}},  # no checker
+            "c": {
+                "key": "c",
+                "type": "string",
+                "format": {"checker": ""},
+            },  # empty checker
+            "d": {
+                "key": "d",
+                "type": "string",
+                "format": {"checker": 7},
+            },  # non-string checker
         }
         table.put(_config_fields_item("h-dcn", fields, overrides={}))
 
@@ -655,9 +669,9 @@ class TestGetDefaultPageSize:
             table = FakeTable()
             table.put(_config_fields_item_with_page_size("h-dcn", raw))
             reader = MembersProjectionReader(table=table)
-            assert (
-                reader.get_default_page_size("h-dcn") is None
-            ), f"raw={raw!r} must resolve to None"
+            assert reader.get_default_page_size("h-dcn") is None, (
+                f"raw={raw!r} must resolve to None"
+            )
 
     def test_get_default_page_size_shares_partition_cache_with_other_reads(self):
         """The page-size read shares the per-invocation partition cache (one Query per tenant)."""
@@ -839,7 +853,10 @@ class TestIsMailEnabled:
     def test_is_mail_enabled_missing_row_fails_closed_to_false(self):
         """Fail-closed (R0): no config#mail row at all → False, never raises."""
         table = FakeTable()  # nothing seeded for this tenant
-        assert MembersProjectionReader(table=table).is_mail_enabled("unconfigured") is False
+        assert (
+            MembersProjectionReader(table=table).is_mail_enabled("unconfigured")
+            is False
+        )
 
     def test_is_mail_enabled_missing_attribute_fails_closed_to_false(self):
         """A config#mail row with no mail_enabled attribute → False (fail-closed)."""
@@ -856,7 +873,9 @@ class TestIsMailEnabled:
             table = FakeTable()
             table.put(_config_mail_item("h-dcn", raw))
             reader = MembersProjectionReader(table=table)
-            assert reader.is_mail_enabled("h-dcn") is False, f"raw={raw!r} must fail closed"
+            assert reader.is_mail_enabled("h-dcn") is False, (
+                f"raw={raw!r} must fail closed"
+            )
 
     def test_is_mail_enabled_reads_projection_not_mysql(self):
         """The flag resolves purely from the DynamoDB projection — no MySQL seam exists.
@@ -899,6 +918,7 @@ class TestIsMailEnabled:
         reader.is_mail_enabled("h-dcn")
 
         assert table.query_counts["h-dcn"] == 1
+
 
 # ═══════════════════════════════════════════════════════════════════════════════════════
 # mail spec Task 0.3 — per-tenant sender fields on the config#mail row.
@@ -947,12 +967,16 @@ class TestGetMailDomain:
         table = FakeTable()
         table.put(_config_mail_item_full("h-dcn", mail_domain="h-dcn.nl"))
 
-        assert MembersProjectionReader(table=table).get_mail_domain("h-dcn") == "h-dcn.nl"
+        assert (
+            MembersProjectionReader(table=table).get_mail_domain("h-dcn") == "h-dcn.nl"
+        )
 
     def test_get_mail_domain_missing_row_returns_none(self):
         """No config#mail row at all → None (no safe default), never raises."""
         table = FakeTable()
-        assert MembersProjectionReader(table=table).get_mail_domain("unconfigured") is None
+        assert (
+            MembersProjectionReader(table=table).get_mail_domain("unconfigured") is None
+        )
 
     def test_get_mail_domain_missing_attribute_returns_none(self):
         """A config#mail row without mail_domain → None (resolver refuses, R4.2 guard)."""
@@ -987,7 +1011,9 @@ class TestGetMailLocalPart:
         table = FakeTable()
         table.put(_config_mail_item_full("h-dcn", mail_local_part="info"))
 
-        assert MembersProjectionReader(table=table).get_mail_local_part("h-dcn") == "info"
+        assert (
+            MembersProjectionReader(table=table).get_mail_local_part("h-dcn") == "info"
+        )
 
     def test_get_mail_local_part_missing_row_defaults_to_noreply(self):
         """No config#mail row → the generic default 'noreply' (design Data Models)."""
@@ -1000,7 +1026,10 @@ class TestGetMailLocalPart:
         table = FakeTable()
         table.put(_config_mail_item_full("h-dcn"))  # no mail_local_part authored
 
-        assert MembersProjectionReader(table=table).get_mail_local_part("h-dcn") == "noreply"
+        assert (
+            MembersProjectionReader(table=table).get_mail_local_part("h-dcn")
+            == "noreply"
+        )
 
     def test_get_mail_local_part_empty_or_non_string_defaults_to_noreply(self):
         """An empty / non-string value falls back to the 'noreply' default, never raises."""
@@ -1029,7 +1058,10 @@ class TestIsMailCertified:
     def test_is_mail_certified_missing_row_fails_closed_to_false(self):
         """Fail-closed (R5.2): no config#mail row at all → False, never raises."""
         table = FakeTable()
-        assert MembersProjectionReader(table=table).is_mail_certified("unconfigured") is False
+        assert (
+            MembersProjectionReader(table=table).is_mail_certified("unconfigured")
+            is False
+        )
 
     def test_is_mail_certified_missing_attribute_fails_closed_to_false(self):
         """A config#mail row with no mail_certified attribute → False (fail-closed)."""
@@ -1044,7 +1076,9 @@ class TestIsMailCertified:
             table = FakeTable()
             table.put(_config_mail_item_full("h-dcn", mail_certified=raw))
             reader = MembersProjectionReader(table=table)
-            assert reader.is_mail_certified("h-dcn") is False, f"raw={raw!r} must fail closed"
+            assert reader.is_mail_certified("h-dcn") is False, (
+                f"raw={raw!r} must fail closed"
+            )
 
 
 class TestSenderFieldsSharePartitionCache:
@@ -1074,6 +1108,117 @@ class TestSenderFieldsSharePartitionCache:
         assert table.query_counts["h-dcn"] == 1
 
 
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# spec 02 Task 5.1/5.2 — get_mail_reply_to_default (the scheduled-send Reply-To default) +
+# the config#mail round-trip through the SAM-owned WRITE path (Property 1).
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+class TestGetMailReplyToDefault:
+    def test_returns_projected_reply_to_default(self):
+        """A projected non-blank mail_reply_to_default is returned verbatim (Task 5.1)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full("h-dcn", mail_reply_to_default="replies@h-dcn.nl")
+        )
+        assert (
+            MembersProjectionReader(table=table).get_mail_reply_to_default("h-dcn")
+            == "replies@h-dcn.nl"
+        )
+
+    def test_missing_row_returns_none(self):
+        """No config#mail row → None (the send path then falls back to the From), never raises."""
+        table = FakeTable()
+        assert (
+            MembersProjectionReader(table=table).get_mail_reply_to_default("x") is None
+        )
+
+    def test_missing_attribute_returns_none(self):
+        """A config#mail row without mail_reply_to_default → None (From fallback applies)."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn"))  # no reply-to authored
+        assert (
+            MembersProjectionReader(table=table).get_mail_reply_to_default("h-dcn")
+            is None
+        )
+
+    def test_blank_or_non_string_returns_none(self):
+        """A blank / non-string value is unusable → None (no fabricated default)."""
+        for raw in ("", "   ", None, 123, [], {}):
+            table = FakeTable()
+            table.put(_config_mail_item_full("h-dcn", mail_reply_to_default=raw))
+            reader = MembersProjectionReader(table=table)
+            assert reader.get_mail_reply_to_default("h-dcn") is None, f"raw={raw!r}"
+
+    def test_tenant_isolation(self):
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full("tenant-a", mail_reply_to_default="a@x.example")
+        )
+        table.put(
+            _config_mail_item_full("tenant-b", mail_reply_to_default="b@x.example")
+        )
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_mail_reply_to_default("tenant-a") == "a@x.example"
+        assert reader.get_mail_reply_to_default("tenant-b") == "b@x.example"
+
+
+class _WritableFakeTable(FakeTable):
+    """A :class:`FakeTable` exposing the boto3 ``put_item`` the write repository calls, so the
+    SAME in-memory store is written by ``MembersConfigWriteRepository`` and read by the reader —
+    a real config#mail write→read round-trip with no live AWS (Property 1)."""
+
+    def put_item(self, Item):
+        self.put(Item)
+
+
+class TestConfigMailWriteReadRoundTrip:
+    """Property 1 (config#mail): put_config('mail', {...}) → the reader's mail accessors return
+    equivalent values; fail-closed gate + no-safe-default domain hold across the round-trip."""
+
+    def _round_trip(self, attributes):
+        from sam.members.domain.config_write_version import next_write_stamp
+        from sam.members.repository.projection_config_write_repository import (
+            MembersConfigWriteRepository,
+        )
+
+        table = _WritableFakeTable()
+        MembersConfigWriteRepository(table=table).put_config(
+            tenant_id="h-dcn",
+            config_id=schema.CONFIG_ID_MAIL,
+            attributes=attributes,
+            version=next_write_stamp(),
+        )
+        return MembersProjectionReader(table=table)
+
+    def test_full_mail_row_round_trips_through_the_accessors(self):
+        reader = self._round_trip(
+            {
+                "mail_enabled": True,
+                "mail_certified": True,
+                "mail_domain": "h-dcn.nl",
+                "mail_local_part": "info",
+                "mail_reply_to_default": "replies@h-dcn.nl",
+            }
+        )
+        assert reader.is_mail_enabled("h-dcn") is True
+        assert reader.is_mail_certified("h-dcn") is True
+        assert reader.get_mail_domain("h-dcn") == "h-dcn.nl"
+        assert reader.get_mail_local_part("h-dcn") == "info"
+        assert reader.get_mail_reply_to_default("h-dcn") == "replies@h-dcn.nl"
+
+    def test_empty_mail_row_is_fail_closed_across_the_round_trip(self):
+        # An empty authored body: gates fail-closed, local-part defaults, no domain/reply-to.
+        reader = self._round_trip({"mail_enabled": False, "mail_certified": False})
+        assert reader.is_mail_enabled("h-dcn") is False
+        assert reader.is_mail_certified("h-dcn") is False
+        assert reader.get_mail_domain("h-dcn") is None  # no safe default (R4.2)
+        assert reader.get_mail_local_part("h-dcn") == "noreply"
+        assert (
+            reader.get_mail_reply_to_default("h-dcn") is None
+        )  # From fallback applies
+
+
 # ---------------------------------------------------------------------------
 # get_config_status — delivered/loaded projection status (Phase 0 step 3)
 # ---------------------------------------------------------------------------
@@ -1085,7 +1230,9 @@ class TestGetConfigStatus:
         table = FakeTable()
         table.put(_config_scope_item("h-dcn", [_region_dimension_dict()], version=5))
         table.put(
-            _config_fields_item("h-dcn", fields={}, overrides={}, version="2026-10-12T09:00:00")
+            _config_fields_item(
+                "h-dcn", fields={}, overrides={}, version="2026-10-12T09:00:00"
+            )
         )
 
         status = MembersProjectionReader(table=table).get_config_status("h-dcn")
@@ -1126,3 +1273,94 @@ class TestGetConfigStatus:
         status_a = MembersProjectionReader(table=table).get_config_status("tenant-a")
 
         assert status_a["scope"] == 9
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# spec 02 task 7.1 fix — get_mail_config: the full reader-shaped config#mail body the typed
+# Mail authoring form loads from (surfaced on GET /members/field-config as `mail_config`).
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+class TestGetMailConfig:
+    def test_full_authored_body_round_trips(self):
+        """Every authored mail scalar composes into the reader-shaped body (writer/reader parity)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                mail_enabled=True,
+                mail_local_part="info",
+                mail_certified=True,
+                mail_domain="h-dcn.nl",
+                mail_reply_to_default="webmaster@h-dcn.nl",
+                consent_notice={"version": "2026-01", "text": {"nl": "Tekst"}},
+            )
+        )
+        body = MembersProjectionReader(table=table).get_mail_config("h-dcn")
+        assert body == {
+            "mail_enabled": True,
+            "mail_local_part": "info",
+            "mail_certified": True,
+            "mail_domain": "h-dcn.nl",
+            "mail_reply_to_default": "webmaster@h-dcn.nl",
+            "consent_notice": {"version": "2026-01", "text": {"nl": "Tekst"}},
+        }
+
+    def test_missing_row_yields_fail_closed_minimal_body(self):
+        """No config#mail row → the safe minimal body (not-enabled, noreply, not-certified)."""
+        table = FakeTable()  # nothing seeded
+        body = MembersProjectionReader(table=table).get_mail_config("unconfigured")
+        assert body == {
+            "mail_enabled": False,
+            "mail_local_part": "noreply",
+            "mail_certified": False,
+        }
+        # The optional attributes are OMITTED, not present-and-null.
+        assert "mail_domain" not in body
+        assert "mail_reply_to_default" not in body
+        assert "consent_notice" not in body
+
+    def test_optional_fields_omitted_when_unauthored(self):
+        """A minimal authored row surfaces only the always-present trio; options omitted."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn", mail_enabled=True))
+        body = MembersProjectionReader(table=table).get_mail_config("h-dcn")
+        assert body["mail_enabled"] is True
+        assert body["mail_local_part"] == "noreply"
+        assert body["mail_certified"] is False
+        assert "mail_domain" not in body
+        assert "mail_reply_to_default" not in body
+        assert "consent_notice" not in body
+
+    def test_reply_to_default_round_trips(self):
+        """The SAM-only mail_reply_to_default (the reported bug's field) reads back verbatim."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full("h-dcn", mail_reply_to_default="webmaster@h-dcn.nl")
+        )
+        body = MembersProjectionReader(table=table).get_mail_config("h-dcn")
+        assert body["mail_reply_to_default"] == "webmaster@h-dcn.nl"
+
+    def test_mail_config_shares_partition_cache(self):
+        """The composed body resolves from ONE partition Query (all accessors share the cache)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                mail_enabled=True,
+                mail_domain="h-dcn.nl",
+                mail_reply_to_default="replies@h-dcn.nl",
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        reader.get_mail_config("h-dcn")
+        assert table.query_counts["h-dcn"] == 1
+
+    def test_mail_config_tenant_isolation(self):
+        """Each tenant's body answers only from its own partition — no cross-tenant bleed."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("tenant-a", mail_domain="a.example"))
+        table.put(_config_mail_item_full("tenant-b", mail_domain="b.example"))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_mail_config("tenant-a")["mail_domain"] == "a.example"
+        assert reader.get_mail_config("tenant-b")["mail_domain"] == "b.example"

@@ -387,18 +387,38 @@ class ProjectionSync:
         # the current value and the built content always matches its version. No MySQL
         # I/O (read-only cache maintenance) → the one-directional guarantee holds.
         self._invalidate_members_cache(param_svc, administration)
-        config_scope = build_config_scope_row(source.tenant, param_svc)
-        if config_scope is not None:
-            items.append(config_scope)
-        config_fields = build_config_fields_row(source.tenant, param_svc)
-        if config_fields is not None:
-            items.append(config_fields)
-        # R0 (pivot-output-actions, design §6.3): the per-tenant mail-enabled gate.
-        # Projected as config#mail so the Members edge reads the flag via the
-        # projection reader (no live MySQL at request time); fail-closed to False.
-        config_mail = build_config_mail_row(source.tenant, param_svc)
-        if config_mail is not None:
-            items.append(config_mail)
+        # config#scope is NO LONGER emitted by ProjectionSync (spec 02 Task 3.7).
+        # The SAM write path (MembersConfigWriteRepository via PUT /members/config/scope) is now
+        # the AUTHORITATIVE author of the `config#scope` row; the frontend writes it first and
+        # mirrors the dimension set into Flask `members.scope_dimensions` (the frontend-mirror
+        # model, Req 22/26). ProjectionSync must not co-author `config#scope` (split-ownership,
+        # Req 11.1/11.2). `members.scope_dimensions` persists ONLY as the frontend-written mirror
+        # the grant validators read (R22.3/22.4) — it is no longer a ProjectionSync source. The
+        # `build_config_scope_row` builder itself is KEPT (still imported/exported) because the
+        # builder-unit-tests + the round-trip/equivalence tests consume it directly — only the
+        # EMISSION from sync_administration is removed here (the builder is deleted by a later
+        # end-of-band cleanup task once the scope migration is complete).
+        # config#fields is NO LONGER emitted by ProjectionSync (spec 02 Task 1.15).
+        # The SAM write path (MembersConfigWriteRepository via PUT /members/config/fields) is
+        # now the AUTHORITATIVE author of the `config#fields` row in both TEST and PROD (the
+        # per-tenant migration ran + read-back verified). ProjectionSync must not co-author it
+        # (split-ownership, Req 11.1/11.2). `members.field_overlay` is SAM-owned; the retired
+        # `members.default_page_size` (Req 25) is projected nowhere. The `build_config_fields_row`
+        # builder itself is KEPT (still imported/exported) because the one-off migration script
+        # (`backend/scripts/migrate_config_fields_to_sam.py`) and the builder-unit-tests consume
+        # it directly — only the EMISSION from sync_administration is removed here.
+        # config#mail is NO LONGER emitted by ProjectionSync (spec 02 Task 5.8). The SAM write
+        # path (MembersConfigWriteRepository via PUT /members/config/mail) is now the AUTHORITATIVE
+        # author of the `config#mail` row; the mail params (members.mail_enabled / mail_domain /
+        # mail_local_part / mail_certified / application_consent_notice) are SAM-owned after the
+        # per-tenant migration (Task 5.5), and the NEW mail_reply_to_default is SAM-only. With
+        # config#fields (1.15) + config#scope (3.7) + config#mail (5.8) all removed, ProjectionSync
+        # now emits ZERO config#* rows — the split-ownership end-state (Req 11.1/11.2): the SAM
+        # plane owns every config#* row, ProjectionSync owns tenant/module/role/scopegrant only.
+        # The `build_config_mail_row` builder itself is KEPT (still imported/exported) because the
+        # builder-unit-tests + the migration script consume it directly — only the EMISSION from
+        # sync_administration is removed here (the builder is deleted by the end-of-band cleanup
+        # once the mail migration is complete).
         # The scopegrant rows are the DESIRED per-user grant set for this tenant.
         # Kept in a named list (not just extended into ``items``) so the ODx4b
         # diff-and-delete reconcile below can compute which STORED ``scopegrant#…``

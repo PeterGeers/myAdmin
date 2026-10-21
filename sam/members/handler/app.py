@@ -93,6 +93,7 @@ from sam.members.domain.scope_dimensions import (
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.domain.mail_gate import MailGateProvider
+from sam.members.domain.mail_config import MailConfigProvider
 from sam.members.domain.config_status import ConfigStatusProvider
 from sam.members.domain.default_page_size import DefaultPageSizeProvider
 
@@ -186,6 +187,14 @@ _OVERLAY_PROVIDER_OVERRIDE: TenantOverlayProvider | None = None
 #: can be driven without an AWS round-trip. When unset (production), each read builds a fresh
 #: projection reader (see :class:`_ProjectionMailGateProvider`).
 _MAIL_GATE_PROVIDER_OVERRIDE: MailGateProvider | None = None
+
+#: Test-only override for the mail-config provider (``None`` in production → fresh reader).
+#: Mirrors :data:`_MAIL_GATE_PROVIDER_OVERRIDE` — a test injects a ``StaticMailConfigProvider``
+#: (or a ``MembersProjectionReader`` over a fake table) so the field-config endpoint's
+#: ``mail_config`` body (spec 02 task 7.1 fix — the typed Mail authoring read) can be driven
+#: without an AWS round-trip. When unset (production), each read builds a fresh projection
+#: reader (see :class:`_ProjectionMailConfigProvider`).
+_MAIL_CONFIG_PROVIDER_OVERRIDE: MailConfigProvider | None = None
 
 #: Test-only override for the config-status provider (``None`` in production → fresh reader).
 #: Mirrors :data:`_MAIL_GATE_PROVIDER_OVERRIDE` — a test injects a ``StaticConfigStatusProvider``
@@ -333,6 +342,32 @@ class _ProjectionMailGateProvider:
 #: The mail-gate provider handed to the domain service — a stable indirection that reads a
 #: fresh projection each call (see :class:`_ProjectionMailGateProvider`).
 _MAIL_GATE_PROVIDER: MailGateProvider = _ProjectionMailGateProvider()
+
+
+class _ProjectionMailConfigProvider:
+    """A thin :class:`MailConfigProvider` indirection over a per-call fresh reader.
+
+    spec 02 task 7.1 fix — the mail-config (authoring read) seam wired at the module edge,
+    EXACTLY mirroring :class:`_ProjectionMailGateProvider`. The :class:`MembershipService` is a
+    lazy module-level singleton that captures its providers once; to reflect a freshly
+    re-projected ``config#mail`` edit (a tenant saves through the typed Mail function, the SAM
+    write updates the row) without rebuilding the service per request, its mail-config provider
+    is this stable indirection: every ``get_mail_config`` call delegates to a FRESH
+    :class:`MembersProjectionReader` (or the test override), so the field-config endpoint's
+    ``mail_config`` always reflects the current projection while the domain and the service
+    singleton stay UNCHANGED. Empty-is-valid / fail-closed is owned by the reader (missing row →
+    the safe minimal body).
+    """
+
+    def get_mail_config(self, tenant_id: str) -> dict:
+        if _MAIL_CONFIG_PROVIDER_OVERRIDE is not None:
+            return dict(_MAIL_CONFIG_PROVIDER_OVERRIDE.get_mail_config(tenant_id))
+        return _new_projection_reader().get_mail_config(tenant_id)
+
+
+#: The mail-config provider handed to the domain service — a stable indirection that reads a
+#: fresh projection each call (see :class:`_ProjectionMailConfigProvider`).
+_MAIL_CONFIG_PROVIDER: MailConfigProvider = _ProjectionMailConfigProvider()
 
 
 class _ProjectionConfigStatusProvider:
@@ -1092,6 +1127,7 @@ def _get_membership_service() -> MembershipService:
             tenant_hooks=_TENANT_HOOKS,
             scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
             mail_gate_provider=_MAIL_GATE_PROVIDER,
+            mail_config_provider=_MAIL_CONFIG_PROVIDER,
             config_status_provider=_CONFIG_STATUS_PROVIDER,
             default_page_size_provider=_DEFAULT_PAGE_SIZE_PROVIDER,
             scheduler_port=EventBridgeSchedulerApi(),
