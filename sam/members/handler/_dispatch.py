@@ -304,14 +304,17 @@ def get_config_write_service() -> Any:
             MembersConfigWriteRepository,
         )
 
-        # Inject the projection reader so the config#fields write MERGES onto the current stored
-        # row (read-modify-write) instead of blind-replacing it (bugfix): a partial PUT from the
-        # Application Form Builder (only application-attribute toggles) can no longer wipe the
-        # tenant's other slices. The reader resolves its table lazily + fail-fast, same as the
-        # write repo, so cold import still touches no AWS.
+        # MERGE-ON-WRITE for config#fields (bugfix): the write reads the CURRENT stored overlay
+        # and merges the incoming slices onto it, so a partial PUT (e.g. the Application Form
+        # Builder sending only application-attribute toggles) can no longer wipe the tenant's other
+        # slices. Pass the reader as a FACTORY (the class itself — a zero-arg callable) so each
+        # write's merge builds a FRESH reader and reads uncached current state; a module-global
+        # shared reader would serve STALE partition data to a later write on a warm Lambda. The
+        # reader resolves its table lazily + fail-fast, same as the write repo, so cold import
+        # still touches no AWS.
         _CONFIG_WRITE_SERVICE = ConfigWriteService(
             MembersConfigWriteRepository(),
-            overlay_reader=MembersProjectionReader(),
+            overlay_reader_factory=MembersProjectionReader,
         )
     return _CONFIG_WRITE_SERVICE
 

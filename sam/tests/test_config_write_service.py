@@ -908,7 +908,7 @@ def test_fields_write_incoming_entry_replaces_stored_entry_for_the_same_key():
     """A toggle on a key the stored row already has REPLACES that entry (merge, per-key)."""
     stored = {
         "fields": {},
-        "overrides": {"personal.city": {"application_visible": True}},
+        "fixed_overrides": {"personal.city": {"application_visible": True}},
         "functional_groups": [],
     }
     repo = FakeWriteRepository()

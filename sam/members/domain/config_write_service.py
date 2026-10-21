@@ -89,19 +89,38 @@ class ConfigWriteService:
             can pin a deterministic stamp.
     """
 
-    def __init__(self, repository, version_fn=next_write_stamp, overlay_reader=None):
+    def __init__(
+        self,
+        repository,
+        version_fn=next_write_stamp,
+        overlay_reader=None,
+        overlay_reader_factory=None,
+    ):
         self._repository = repository
         self._version_fn = version_fn
-        # Optional raw-overlay reader for MERGE-ON-WRITE of config#fields (bugfix): a config#fields
-        # PUT carries only the slice the client is authoring, but the repository put REPLACES the
-        # whole row. Without merging, a partial body (e.g. the Application Form Builder sending only
-        # application-attribute toggles, with empty fields/functional_groups) would WIPE the other
-        # slices. When a reader exposing ``get_raw_fields_overlay(tenant_id)`` is injected, the
-        # fields validator merges the incoming slices onto the CURRENT stored row per key, so an
-        # omitted field/group/override is preserved rather than erased. None (tests without the
-        # reader) → legacy replace behaviour, so existing unit tests that assert the shaped body
-        # are unaffected.
+        # MERGE-ON-WRITE of config#fields (bugfix): a config#fields PUT carries only the slice the
+        # client is authoring, but the repository put REPLACES the whole row. Without merging, a
+        # partial body (e.g. the Application Form Builder sending only application-attribute toggles
+        # with empty fields/functional_groups) would WIPE the other slices. The fields validator
+        # reads the CURRENT stored overlay and merges the incoming slices onto it per key.
+        #
+        # RELIABILITY — read FRESH each write (no shared cache): the projection reader keeps a
+        # per-instance partition cache. A module-global reader reused across warm invocations would
+        # serve STALE state to a later write's merge (and lose a concurrent change). So prefer an
+        # ``overlay_reader_factory`` (a zero-arg callable returning a FRESH reader) and build a new
+        # reader per ``put_config`` merge — its cache lives only for that one read. ``overlay_reader``
+        # (a shared instance) is still accepted for tests that inject a fake with fresh state; it is
+        # used only when no factory is given. Neither provided → legacy replace (unit tests that
+        # assert the shaped body are unaffected).
         self._overlay_reader = overlay_reader
+        self._overlay_reader_factory = overlay_reader_factory
+
+    def _merge_reader(self):
+        """A reader for the merge read — FRESH per call when a factory is wired (no stale cache),
+        else the injected shared instance (tests), else None (legacy replace)."""
+        if self._overlay_reader_factory is not None:
+            return self._overlay_reader_factory()
+        return self._overlay_reader
 
     def put_config(self, tenant_id: str, config_id: str, body: Mapping) -> dict:
         """Validate ``body`` for ``config_id``, stamp a version, and persist the row.
@@ -253,7 +272,7 @@ class ConfigWriteService:
         (unit tests) or the reader yields nothing — so a never-authored tenant writes exactly what
         the body carried.
         """
-        reader = self._overlay_reader
+        reader = self._merge_reader()
         if (
             reader is None
             or not tenant_id
@@ -265,11 +284,14 @@ class ConfigWriteService:
         cur_fields = (
             current.get("fields") if isinstance(current.get("fields"), dict) else {}
         )
-        cur_overrides = (
-            current.get("overrides")
-            if isinstance(current.get("overrides"), dict)
-            else {}
-        )
+        # The reader serves the override map under the AUTHORING WIRE key ``fixed_overrides``
+        # (one-key contract); accept the storage key ``overrides`` as a fallback for robustness.
+        # ``overrides_in`` is already the storage-shaped (normalized) incoming map, so merging them
+        # yields the storage ``overrides`` the repository persists.
+        cur_overrides_raw = current.get("fixed_overrides")
+        if not isinstance(cur_overrides_raw, dict):
+            cur_overrides_raw = current.get("overrides")
+        cur_overrides = cur_overrides_raw if isinstance(cur_overrides_raw, dict) else {}
         cur_groups = (
             current.get("functional_groups")
             if isinstance(current.get("functional_groups"), list)
