@@ -422,19 +422,88 @@ def test_put_config_mail_consent_notice_shaped_when_well_formed():
     assert written == {"version": "v1", "text": {"nl": "Akkoord", "en": "Consent"}}
 
 
-def test_put_config_mail_consent_notice_omitted_when_malformed():
-    """A malformed consent notice (no version, blank text, non-mapping) is OMITTED (R12.1)."""
+def test_put_config_mail_consent_notice_intended_but_malformed_raises_validation_error():
+    """R8.2: an INTENDED-but-malformed consent notice (key present and non-empty, but no version,
+    blank text, or non-mapping) is REJECTED fail-loud rather than silently omitted — an admin's
+    broken notice surfaces instead of vanishing."""
     for bad in (
         {"text": {"nl": "x"}},  # no version
         {"version": "v1"},  # no text
         {"version": "v1", "text": {}},  # empty text
         {"version": "  ", "text": {"nl": "x"}},  # blank version
         {"version": True, "text": {"nl": "x"}},  # bool version rejected
+        {"version": "v1", "text": {"nl": "  ", "en": ""}},  # all-blank locale text
         "not-a-mapping",
     ):
         repo = FakeWriteRepository()
-        _service(repo).put_config(_TENANT, "mail", {"consent_notice": bad})
+        with pytest.raises(ConfigWriteValidationError):
+            _service(repo).put_config(_TENANT, "mail", {"consent_notice": bad})
+        assert repo.calls == []  # nothing persisted on a validation failure
+
+
+def test_put_config_mail_absent_consent_notice_writes_nothing_back_compatible():
+    """R8.2: a truly ABSENT notice (key omitted, or an empty/falsey value carrying no authoring
+    intent) writes nothing and does NOT raise — back-compatible with the pre-R8.2 behavior."""
+    for absent in (
+        {},  # key omitted entirely
+        {"consent_notice": None},
+        {"consent_notice": {}},  # empty mapping = no intent
+        {"consent_notice": ""},
+    ):
+        repo = FakeWriteRepository()
+        _service(repo).put_config(_TENANT, "mail", absent)
         assert "consent_notice" not in repo.calls[0]["attributes"]
+
+
+def test_put_config_mail_embed_origins_shaped_when_well_formed():
+    """R5.2: a list of non-blank origin strings is trimmed + de-duplicated (order preserved) and
+    stored as the ONE `application_embed_origins` list that later feeds BOTH frame-ancestors and
+    the SAM public API CORS."""
+    repo = FakeWriteRepository()
+    body = {
+        "application_embed_origins": [
+            "https://aanmelden.jabaki.nl",
+            "  https://members.h-dcn.nl  ",  # trimmed
+            "https://aanmelden.jabaki.nl",  # duplicate dropped
+        ]
+    }
+    _service(repo).put_config(_TENANT, "mail", body)
+    assert repo.calls[0]["attributes"]["application_embed_origins"] == [
+        "https://aanmelden.jabaki.nl",
+        "https://members.h-dcn.nl",
+    ]
+
+
+def test_put_config_mail_embed_origins_absent_or_empty_writes_nothing_back_compatible():
+    """R5.2: absent / empty origins is back-compatible (standalone, no embed) — writes nothing and
+    does NOT raise, mirroring mail_domain / mail_reply_to_default omission."""
+    for absent in (
+        {},  # key omitted entirely
+        {"application_embed_origins": None},
+        {"application_embed_origins": []},
+    ):
+        repo = FakeWriteRepository()
+        _service(repo).put_config(_TENANT, "mail", absent)
+        assert "application_embed_origins" not in repo.calls[0]["attributes"]
+
+
+def test_put_config_mail_embed_origins_malformed_raises_validation_error():
+    """R5.2/R8: a malformed embed-origins list (non-list, or a non-string / blank-only entry) is
+    REJECTED fail-loud rather than silently becoming 'standalone' — nothing is persisted."""
+    for bad in (
+        "https://one-origin",  # non-list
+        {"a": "b"},  # non-list mapping
+        ["https://ok", ""],  # blank entry
+        ["https://ok", "   "],  # blank-only entry
+        ["https://ok", 123],  # non-string entry
+        ["https://ok", None],  # None entry
+    ):
+        repo = FakeWriteRepository()
+        with pytest.raises(ConfigWriteValidationError):
+            _service(repo).put_config(
+                _TENANT, "mail", {"application_embed_origins": bad}
+            )
+        assert repo.calls == []  # nothing persisted on a validation failure
 
 
 def test_put_config_mail_non_object_body_raises_validation_error():
@@ -442,3 +511,316 @@ def test_put_config_mail_non_object_body_raises_validation_error():
     with pytest.raises(ConfigWriteValidationError):
         _service(repo).put_config(_TENANT, "mail", "not-an-object")
     assert repo.calls == []
+
+
+# ── Per-field APPLICATION-attribute hardening (Task 1.1 / Task 1.4 / Requirement 8) ──────
+#
+# The SAM write path is now the AUTHORITATIVE author of the four per-field application
+# attributes (the Flask `_validate_application_attrs` guard is off the authoring path, R8.4).
+# `_validate_fields_body` → `_validate_application_attributes` re-checks, over BOTH `fields`
+# (variable overlay) and `overrides` (fixed-field) specs, the three write-time invariants:
+#   R8.1a  application_choices ⊆ the field's own resolved choices (options[].value / choices)
+#   R8.1b  format is a well-formed {checker, params?} whose checker ∈ field_formats.known_tokens()
+#   R8.1c  application_required=False may not relax a PLATFORM-required field
+# A violation raises ONE caller-safe ConfigWriteValidationError keyed to the offending field and
+# persists NOTHING; a coherent body still writes; a tenant that authors no app attrs writes the
+# back-compatible defaults unchanged (R9.2). These exhaustively cover task 1.1's product change.
+
+from sam.members.domain import field_formats
+
+# A platform-required fixed field (fixed_fields: membership.status / .membership_type /
+# .joined_date and personal.last_name are required=True). Used for the no-relax invariant.
+_PLATFORM_REQUIRED_KEY = "membership.status"
+# A platform-OPTIONAL fixed field (required=False) — relaxing it on the form is allowed.
+_PLATFORM_OPTIONAL_KEY = "personal.first_name"
+
+
+def _enum_field_spec(values, **extra):
+    """A variable overlay enum field declaring ``values`` as its own choices (via ``options``)."""
+    return {
+        "key": extra.pop("key", "region"),
+        "type": "enum",
+        "options": [{"value": v, "label": {"en": v}} for v in values],
+        **extra,
+    }
+
+
+# ── R8.1a: application_choices ⊆ the field's own choices ──────────────────────────────────
+
+
+def test_validate_application_attributes_subset_not_in_choices_raises_and_persists_nothing():
+    """R8.1a: an application_choices entry that is not one of the field's own choices is rejected,
+    keyed to the offending field, and nothing is persisted."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "region": _enum_field_spec(
+                ["Noord", "Zuid"], application_choices=["Noord", "Oost"]
+            )
+        }
+    }
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", body)
+    # Keyed to the offending field (dotted overlay form) and names the bad value (R8.3).
+    assert "overlay.region" in str(exc.value)
+    assert "Oost" in str(exc.value)
+    assert repo.calls == []
+
+
+def test_validate_application_attributes_subset_on_field_without_choices_raises():
+    """R8.1a: a subset on a field that declares NO choices (not an enum / value-less) is a write
+    error — you cannot subset a field that has no choice vocabulary."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "nickname": {
+                "key": "nickname",
+                "type": "string",
+                "application_choices": ["anything"],
+            }
+        }
+    }
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", body)
+    assert "overlay.nickname" in str(exc.value)
+    assert repo.calls == []
+
+
+def test_validate_application_attributes_non_list_subset_raises():
+    """R8.1a: a present application_choices that is not a list is rejected."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {"region": _enum_field_spec(["Noord"], application_choices="Noord")}
+    }
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", body)
+    assert "overlay.region" in str(exc.value)
+    assert "must be a list" in str(exc.value)
+    assert repo.calls == []
+
+
+def test_validate_application_attributes_subset_from_bare_choices_list_accepted():
+    """R8.1a (happy): choices may be declared as a bare string ``choices`` list (not only rich
+    ``options``); a subset ⊆ that list writes."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "region": {
+                "key": "region",
+                "type": "enum",
+                "choices": ["Noord", "Zuid", "Oost"],
+                "application_choices": ["Noord", "Zuid"],
+            }
+        }
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    written = repo.calls[0]["attributes"]["fields"]["region"]
+    assert written["application_choices"] == ["Noord", "Zuid"]
+
+
+# ── R8.1b: format must be a well-formed {checker, params?} with a known checker ───────────
+
+
+def test_validate_application_attributes_unknown_checker_raises_and_persists_nothing():
+    """R8.1b: a format.checker that is not a platform-known token is rejected, keyed to the field;
+    the error names the known token set and nothing persists."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "iban_field": {
+                "key": "iban_field",
+                "type": "string",
+                "format": {"checker": "PHONE"},
+            }
+        }
+    }
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", body)
+    assert "overlay.iban_field" in str(exc.value)
+    assert "PHONE" in str(exc.value)
+    assert repo.calls == []
+
+
+@pytest.mark.parametrize(
+    "bad_format",
+    [
+        "EMAIL",  # a bare token string, not a {checker,...} mapping
+        [],  # non-mapping
+        {},  # missing checker
+        {"checker": ""},  # empty checker
+        {"checker": None},  # non-string checker
+        {"params": {"x": 1}},  # params but no checker
+    ],
+)
+def test_validate_application_attributes_malformed_format_raises(bad_format):
+    """R8.1b: a format that is not a well-formed {checker, params?} object (non-mapping, missing or
+    empty/non-string checker) is rejected and nothing persists."""
+    repo = FakeWriteRepository()
+    body = {"fields": {"f": {"key": "f", "type": "string", "format": bad_format}}}
+    with pytest.raises(ConfigWriteValidationError):
+        _service(repo).put_config(_TENANT, "fields", body)
+    assert repo.calls == []
+
+
+def test_validate_application_attributes_known_checker_accepted():
+    """R8.1b (happy): every platform-known token (EMAIL, IBAN, …) is accepted and written verbatim,
+    including its params — the test derives the token set from the registry so a new token is
+    covered automatically."""
+    for token in sorted(field_formats.known_tokens()):
+        repo = FakeWriteRepository()
+        fmt = {"checker": token, "params": {"strict": True}}
+        body = {"fields": {"f": {"key": "f", "type": "string", "format": fmt}}}
+        _service(repo).put_config(_TENANT, "fields", body)
+        assert repo.calls[0]["attributes"]["fields"]["f"]["format"] == fmt
+
+
+# ── R8.1c: application_required=False may not relax a platform-required field ─────────────
+
+
+def test_validate_application_attributes_relax_platform_required_override_raises():
+    """R8.1c: application_required=False on a PLATFORM-required fixed field (via overrides) is a
+    relax of the platform floor — rejected, keyed to that field, nothing persists."""
+    repo = FakeWriteRepository()
+    body = {
+        "overrides": {
+            _PLATFORM_REQUIRED_KEY: {
+                "application_visible": True,
+                "application_required": False,
+            }
+        }
+    }
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", body)
+    assert _PLATFORM_REQUIRED_KEY in str(exc.value)
+    assert repo.calls == []
+
+
+def test_validate_application_attributes_tighten_platform_optional_override_accepted():
+    """R8.1c (happy): the public form may TIGHTEN — application_required=True on any field, and
+    application_required=False on a platform-OPTIONAL field, both write (only relaxing the platform
+    floor is forbidden)."""
+    repo = FakeWriteRepository()
+    body = {
+        "overrides": {
+            # tighten a platform-optional field to required-on-the-form: allowed
+            _PLATFORM_OPTIONAL_KEY: {"application_required": True},
+            # explicitly not-required on a platform-optional field: allowed (no floor to relax)
+            "personal.phone": {"application_required": False},
+        }
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    overrides = repo.calls[0]["attributes"]["overrides"]
+    assert overrides[_PLATFORM_OPTIONAL_KEY]["application_required"] is True
+    assert overrides["personal.phone"]["application_required"] is False
+
+
+def test_validate_application_attributes_variable_field_required_false_accepted():
+    """R8.1c (happy): a VARIABLE overlay field is never platform-required, so
+    application_required=False on it is always allowed."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "nickname": {
+                "key": "nickname",
+                "type": "string",
+                "application_required": False,
+            }
+        }
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    assert (
+        repo.calls[0]["attributes"]["fields"]["nickname"]["application_required"]
+        is False
+    )
+
+
+# ── Collection: every offending field reported in ONE error ───────────────────────────────
+
+
+def test_validate_application_attributes_collects_all_offending_fields_in_one_error():
+    """R8.3: violations across BOTH fields and overrides are collected into ONE error naming every
+    offending field (not just the first); nothing persists."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "region": _enum_field_spec(
+                ["Noord"], application_choices=["Oost"]
+            ),  # bad subset
+            "f": {
+                "key": "f",
+                "type": "string",
+                "format": {"checker": "NOPE"},
+            },  # bad checker
+        },
+        "overrides": {
+            _PLATFORM_REQUIRED_KEY: {"application_required": False},  # relax
+        },
+    }
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", body)
+    message = str(exc.value)
+    assert "overlay.region" in message
+    assert "overlay.f" in message
+    assert _PLATFORM_REQUIRED_KEY in message
+    assert repo.calls == []
+
+
+# ── Happy path: a coherent config#fields body still writes (R9.2) ─────────────────────────
+
+
+def test_validate_application_attributes_coherent_body_writes_all_four_attributes():
+    """R9.2 (happy): a coherent body — a valid enum subset, a known checker, a valid tighten, and
+    application_visible — writes through unchanged (one object, one save)."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "region": _enum_field_spec(
+                ["Noord", "Zuid", "Oost"],
+                application_visible=True,
+                application_required=True,
+                application_choices=["Noord", "Zuid"],
+            ),
+            "contact_email": {
+                "key": "contact_email",
+                "type": "string",
+                "application_visible": True,
+                "format": {"checker": field_formats.EMAIL},
+            },
+        },
+        "overrides": {
+            _PLATFORM_OPTIONAL_KEY: {
+                "application_visible": True,
+                "application_required": True,  # tighten a platform-optional field: allowed
+            }
+        },
+    }
+    result = _service(repo).put_config(_TENANT, "fields", body)
+    assert result["success"] is True
+    assert len(repo.calls) == 1
+    attrs = repo.calls[0]["attributes"]
+    region = attrs["fields"]["region"]
+    assert region["application_visible"] is True
+    assert region["application_required"] is True
+    assert region["application_choices"] == ["Noord", "Zuid"]
+    assert attrs["fields"]["contact_email"]["format"] == {"checker": "EMAIL"}
+    assert attrs["overrides"][_PLATFORM_OPTIONAL_KEY]["application_required"] is True
+
+
+def test_validate_application_attributes_unauthored_tenant_writes_back_compatible_defaults():
+    """R9.2 (back-compat): a tenant that authors NO application attributes writes exactly the
+    pre-R8 shape — the three reader attributes, every field spec verbatim, no app-attr keys
+    injected. The hardening is inert for a tenant that does not opt in."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {"nickname": {"key": "nickname", "type": "string"}},
+        "overrides": {"membership.member_number": {"functional_group": "membership"}},
+        "functional_groups": [{"key": "contact", "order": 1}],
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    attrs = repo.calls[0]["attributes"]
+    assert set(attrs) == {"fields", "overrides", "functional_groups"}
+    # No application_* / format keys injected into a spec that did not author them.
+    assert attrs["fields"]["nickname"] == {"key": "nickname", "type": "string"}
+    assert attrs["overrides"]["membership.member_number"] == {
+        "functional_group": "membership"
+    }

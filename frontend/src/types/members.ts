@@ -626,6 +626,18 @@ export interface FieldConfig {
     mail_certified: boolean;
     mail_reply_to_default?: string;
     consent_notice?: { version: string; text: Record<string, string> };
+    /**
+     * OPTIONAL scope-matched copy toggle (spec 10 D9a / spec 11 R5.4). Authored on the Mail
+     * sub-tab (one `config#mail` home, 0.3); the Application Form Builder only references it.
+     * Surfaced here so a `config#mail` write from the builder PRESERVES it verbatim.
+     */
+    application_scope_copy?: boolean;
+    /**
+     * OPTIONAL allowed embedding origin(s) (spec 11 R5.2 / S3). ONE tenant-authored list on
+     * `config#mail` feeding BOTH the CloudFront form's CSP `frame-ancestors` AND the SAM public
+     * API CORS. Authored by the Application Form Builder's form-shell panel (task 3.2).
+     */
+    application_embed_origins?: string[];
   };
   /**
    * The DELIVERED/LOADED status of this tenant's projected `config#*` rows (Members config
@@ -639,6 +651,17 @@ export interface FieldConfig {
    * Absent on an older module build (treated as "status unavailable").
    */
   config_status?: Record<string, string | number | null>;
+  /**
+   * The platform's known FORMAT-VALIDATOR tokens (spec 11, R3.3; SAM task 1.3). Served as a
+   * top-level key on `GET /members/field-config` — the sorted set of `field_formats.known_tokens()`
+   * (e.g. `["EMAIL", "IBAN"]`). The Application Form Builder's per-field `format` dropdown
+   * (`ApplicationFieldAttributes`) is fed STRICTLY by this list so the authored `format.checker`
+   * can only be a platform-known token and the dropdown never drifts from the registry (never a
+   * free-typed value). The SAM config-write path is the authoritative gate regardless (R8.1b);
+   * this is the convenience source for the UI. Absent on an older module build → the format
+   * control degrades to "no known formats" and offers only the "none" choice.
+   */
+  field_format_tokens?: string[];
 }
 
 /** A configured scope dimension (mirrors the projected `config#scope` shape). */

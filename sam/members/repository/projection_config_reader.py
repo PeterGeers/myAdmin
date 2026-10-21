@@ -665,6 +665,53 @@ class MembersProjectionReader:
             return reply_to
         return None
 
+    def get_application_embed_origins(self, tenant_id: str) -> list[str]:
+        """Return the tenant's projected ``application_embed_origins`` from ``config#mail`` (R5.2).
+
+        The ONE tenant-authored embed-origin allow-list (authored onto ``config#mail`` by the
+        builder's form-shell panel, shaped + validated on write by
+        :meth:`sam.members.domain.config_write_service.ConfigWriteService._shape_embed_origins`).
+        It feeds TWO distinct enforcement points that MUST read the SAME list so they cannot
+        drift: the CloudFront form's CSP ``frame-ancestors`` (task 5.2, at the edge) and the SAM
+        public API CORS ``Access-Control-Allow-Origin`` (task 5.3, consumed here by
+        :func:`sam.members.handler.public_app._tenant_embed_origins`). This is the SAM read side
+        of that list.
+
+        The written attribute is ALREADY trimmed + de-duplicated (first-seen order) by the write
+        shaper, so this read is a verbatim pass-through with the SAME conservative guards as the
+        public-edge CORS convention (``public_app._allowed_origins``: trim + de-dupe, NO scheme
+        check). Re-trimming + re-de-duping here is belt-and-suspenders so a stray stored value
+        (a hand-edited row, a legacy entry) never surfaces a blank or duplicate origin.
+
+        **Empty-is-valid / fail-safe — never raises** (same discipline as ``get_mail_domain``):
+        an absent ``config#mail`` row, a missing attribute, a non-list value, or a list with no
+        usable (non-blank string) entries all resolve to ``[]`` = standalone (no cross-origin
+        embed permitted for this tenant). A per-request flood never crashes the CORS decision.
+
+        Args:
+            tenant_id: The tenant (partition key) whose embed-origin allow-list to resolve.
+
+        Returns:
+            The projected embed origins as a trimmed, de-duplicated list, or ``[]`` when
+            absent/unusable (fail-safe — the tenant permits no cross-origin embed).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_MAIL)
+        if row is None:
+            return []
+        raw = row.get("application_embed_origins")
+        if not isinstance(raw, (list, tuple)):
+            return []
+        origins: list[str] = []
+        seen: set[str] = set()
+        for entry in raw:
+            if not isinstance(entry, str):
+                continue
+            origin = entry.strip()
+            if origin and origin not in seen:
+                seen.add(origin)
+                origins.append(origin)
+        return origins
+
     # ── Tenant consent notice (Member Application Form D26/R12.1a/R12.1c, task 2.6) ────
     #
     # The per-tenant, bilingual, VERSIONED consent/privacy notice the tenant authored on the

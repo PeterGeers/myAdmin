@@ -117,7 +117,7 @@ B:  5 ──▶ 6 ──▶ 7      (independent of A)
     (`PublicApplicationForm.axe.test.tsx`, `useApplicationsInbox.test.ts`) are either fixed or
     explicitly deferred so they do not block the gate. (Decide with the user.)
     DECISION: DEFERRED (pre-existing, unrelated to this spec; does not block the gate).
-  - [ ] 8.4 Ad-hoc (NOT a code task): re-sync h-dcn on `test` and confirm `died` appears in the
+  - [x] 8.4 Ad-hoc (NOT a code task): re-sync h-dcn on `test` and confirm `died` appears in the
     member modal + TenantAdmin. (R1 makes this a one-shot, not a recurring manual bump.)
     DEFERRED - POST-DEPLOY: chicken-and-egg (the fix must be on test before it can be verified
     there). Projection writer is Flask-plane (Railway TEST backend), so this runs after
