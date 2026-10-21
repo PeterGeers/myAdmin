@@ -6,6 +6,10 @@
     "title": "Leden Overzicht",
     "navLabel": "Overzicht"
   },
+  "mail": {
+    "title": "Leden — Mail",
+    "navLabel": "Leden Mail"
+  },
   "analytics": {
     "title": "Analyse",
     "navLabel": "Analyse",

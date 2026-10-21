@@ -38,6 +38,13 @@ vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ hasAnyRole: () => true }),
 }));
 
+// The export filename is now `{Tenant_Name}-{Pivot_Name}.csv` (members-overview-tweaks
+// Req 5.1/5.4). `tenantName` comes from `useTenant().currentTenant`, so stub the tenant
+// context with a fixed active tenant to assert the composed filename deterministically.
+vi.mock('../context/TenantContext', () => ({
+  useTenant: () => ({ currentTenant: 'h-dcn' }),
+}));
+
 const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
@@ -156,9 +163,13 @@ describe('MembersPage export action (R5.6, R8.7)', () => {
     expect(csv).not.toContain('m-2');
     expect(csv).not.toContain('m-3');
 
-    // The download filename is date-stamped (leden-YYYY-MM-DD.csv).
+    // The download filename follows the shared tenant-pivot rule
+    // `{Tenant_Name}-{Pivot_Name}.csv` (Req 5.1/5.4): the active tenant
+    // (`h-dcn` from the stubbed TenantContext) and the members-overview export
+    // set's stable `members` label. It is never the old fixed `leden-*.csv`.
     const filename = downloadCsvSpy.mock.calls[0][1];
-    expect(filename).toMatch(/^leden-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(filename).toBe('h-dcn-members.csv');
+    expect(filename).not.toMatch(/^leden-/);
   });
 
   it('exports the action result, not the client-filtered rows (scope is server-side, R8.7)', async () => {
