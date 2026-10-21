@@ -31,34 +31,34 @@ import { useTableConfig } from '../../hooks/useTableConfig';
 interface Props { tenant: string; }
 
 /**
- * The `members.*` keys the typed `MembersConfig` editor exclusively owns, and so
- * are hidden from the raw generic editor.
+ * The entire `members.*` namespace is hidden from the raw generic editor (spec 02
+ * task 7.2, R14.1/R14.3/R20.4): every `members.*` key now has a DEDICATED typed
+ * authoring door, so the Advanced raw editor must serve NO `members.*` row at all.
  *
- * The redesigned Members tab authors the tenant's groups/FIELD DEFINITIONS. Those
- * live in two keys: the `field_overlay` object AND `scope_dimensions` (a scope
- * dimension is part of a field's definition in that editor — R2.2). Both are the
- * typed editor's single authoring door (Phase 3 §5 / Property 8;
- * `38-sam-module-field-config.md` rule 5), so BOTH are hidden here — there is no
- * raw path to hand-edit them outside the typed editor (R5.1, R5.3, R5.4).
+ * - `field_overlay` + `scope_dimensions` are authored by the typed `MembersConfig`
+ *   editor (groups/field definitions; a scope dimension is part of a field's
+ *   definition — R2.2).
+ * - The mail scalars (`mail_enabled` / `mail_domain` / `mail_local_part` /
+ *   `mail_certified` / `mail_reply_to_default` / `application_consent_notice`) are
+ *   now authored by the typed Mail function (task 7.1) and written straight to the
+ *   SAM-owned `config#mail` row; their MySQL `members.*` rows are retired.
+ * - `view_contexts` is retired (task 7.4) and `default_page_size` is retired in
+ *   favour of the per-user runtime rows-per-page selector (Requirement 25).
  *
- * Every OTHER `members.*` key (e.g. `mail_enabled` / `mail_domain` /
- * `mail_local_part` / `mail_certified` / `default_page_size`) is NOT authored by
- * the Members tab — its intended door is this `/api/tenant-admin/parameters`
- * surface (per the schema/projection-builder docs) — so it IS served to the raw
- * editor; it would otherwise have no authoring door at all. Those keys are
- * validated on save by the backend `validate_members_param`, so raw editing them
- * stays safe. The previous blanket `members`-namespace exclusion wrongly orphaned
- * the mail params and is retired.
+ * So there is no raw path to hand-edit any `members.*` key outside its typed door
+ * (single authoring door — Property 8). The earlier per-key exclusion (which
+ * deliberately SHOWED the mail params while they still lived in MySQL) is reversed:
+ * now that 7.1 gives them a typed door and 5.8/5.5 retire their MySQL rows, the
+ * blanket namespace exclusion is correct again.
  */
 const TYPED_EDITOR_NS = 'members';
-const TYPED_EDITOR_KEYS: ReadonlySet<string> = new Set([
-  'field_overlay',
-  'scope_dimensions',
-]);
 
-/** True for a row the typed MembersConfig editor owns (hidden from the raw editor). */
+/**
+ * True for a `members.*` row — the WHOLE namespace is hidden from the raw editor,
+ * since every `members.*` key has its own typed authoring door (task 7.2).
+ */
 function isTypedEditorOwned(p: { namespace: string; key: string }): boolean {
-  return p.namespace === TYPED_EDITOR_NS && TYPED_EDITOR_KEYS.has(p.key);
+  return p.namespace === TYPED_EDITOR_NS;
 }
 
 /**
@@ -132,16 +132,14 @@ export default function ParameterManagement({ tenant }: Props) {
   useEffect(() => { load(); }, [load, tenant]);
 
   // Build flat parameter array with pre-computed display value.
-  // The `members.*` namespace is excluded so the typed MembersConfig editor is
-  // the single authoring surface for the overlay object (Phase 3 §5 — one door).
-  // Every other members.* key (mail_*, default_page_size) IS served here.
+  // The ENTIRE `members.*` namespace is excluded (task 7.2): every members.* key
+  // now has a dedicated typed authoring door (field/scope editor + the typed Mail
+  // function), so the raw editor serves no members.* row (single door, R14.1/R14.3).
   const allParams: ParameterRow[] = useMemo(() => {
     const namespaces = Object.keys(params).sort();
     return namespaces.flatMap(ns =>
       (params[ns] || [])
-        // Hide ONLY the typed-editor-owned row (`members.field_overlay`), per row,
-        // so every other `members.*` key (mail_*, default_page_size) still has an
-        // authoring door in the raw editor (R5.1/R5.4).
+        // Hide EVERY `members.*` row — each has its own typed door now (task 7.2).
         .filter(p => !isTypedEditorOwned(p))
         .map(p => ({
           ...p,

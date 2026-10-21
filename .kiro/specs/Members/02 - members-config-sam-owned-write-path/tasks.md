@@ -522,7 +522,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       mechanism)
     - _Requirements: 20.1, 20.2, 9.1, 14.4, 15.2_
 
-  - [ ] 7.2 Re-instate the blanket `members`-namespace exclusion in `ParameterManagement.tsx`
+  - [x] 7.2 Re-instate the blanket `members`-namespace exclusion in `ParameterManagement.tsx`
     - In `frontend/src/components/TenantAdmin/ParameterManagement.tsx`, restore the full `members`-namespace
       exclusion so the Advanced raw editor serves NO `members.*` rows at all (today it hides only
       `field_overlay` / `scope_dimensions` via `TYPED_EDITOR_KEYS` and deliberately SHOWS the mail params —
