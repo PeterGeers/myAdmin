@@ -9,7 +9,8 @@
  *
  * EDIT:
  * - the view-modal footer "Edit" opens the edit modal, pre-filled from the member;
- * - the resolved fields render as inputs; a calculated (read-only) field is disabled (R4.4);
+ * - the resolved EDITABLE fields render as inputs; a calculated (read-only) field is EXCLUDED
+ *   from display entirely (members-overview-tweaks R2.1/R2.2) — not rendered disabled;
  * - submitting calls `updateMember(memberId, body)` with the storage-group-shaped nested body
  *   and NO tenant field (Property 2);
  * - a validation error (required field cleared) blocks submit;
@@ -38,6 +39,12 @@ vi.mock('../services/membersApiService');
 
 vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ hasAnyRole: () => true, user: { roles: ['Members_CRUD'] } }),
+}));
+
+// MembersPage reads the active tenant for the export filename (members-overview-tweaks Req 5.1);
+// this test renders the page without a TenantProvider, so stub useTenant to a fixed tenant.
+vi.mock('../context/TenantContext', () => ({
+  useTenant: () => ({ currentTenant: 'h-dcn' }),
 }));
 
 const mockListMembers = vi.mocked(membersApiService.listMembers);
@@ -151,12 +158,18 @@ describe('MembersEditModal — broadened over the resolved field set', () => {
     });
   });
 
-  describe('field-level read-only (R4.4)', () => {
-    it('renders a calculated field disabled (never editable)', async () => {
+  describe('calculated-field exclusion (members-overview-tweaks R2.1/R2.2)', () => {
+    it('excludes a calculated field from the edit modal entirely (not rendered disabled)', async () => {
+      // The edit modal now builds its sections from editableFields(formFields(cfg)): calculated /
+      // read-only fields (display_name, origin 'calculated') are DROPPED from display, not shown
+      // disabled. Every editable field still renders.
       const dialog = await openEditModal();
-      const displayName = dialog.querySelector('[name="display_name"]') as HTMLInputElement | null;
-      expect(displayName).toBeTruthy();
-      expect(displayName!.disabled).toBe(true);
+      expect(dialog.querySelector('[name="display_name"]')).toBeNull();
+      // sanity: the editable fields are still present
+      expect(dialog.querySelector('[name="first_name"]')).toBeTruthy();
+      expect(dialog.querySelector('[name="last_name"]')).toBeTruthy();
+      expect(dialog.querySelector('[name="email"]')).toBeTruthy();
+      expect(dialog.querySelector('[name="name_infix"]')).toBeTruthy();
     });
   });
 
@@ -181,6 +194,33 @@ describe('MembersEditModal — broadened over the resolved field set', () => {
       });
       expect(body).not.toHaveProperty('tenant');
       expect(body).not.toHaveProperty('tenant_id');
+    });
+
+    it('saves the editable-field payload exactly and never persists the excluded calculated field (members-overview-tweaks R2.3)', async () => {
+      // Task 2.6 — the editable/calculated PARTITION (task 2.4) must not leak into the save path:
+      // after calculated fields are excluded from display, saving still persists EXACTLY the
+      // shaped editable fields, and the calculated field (display_name, in the `personal` storage
+      // group) never appears anywhere in the body the page shapes for `updateMember` (R2.3).
+      const dialog = await openEditModal();
+      fillByName(dialog, 'first_name', 'Jan Jansen');
+
+      fireEvent.click(within(dialog).getByText('editModal.save'));
+      await waitFor(() => expect(mockUpdateMember).toHaveBeenCalledTimes(1));
+
+      const [memberId, body] = mockUpdateMember.mock.calls[0] as [string, Record<string, unknown>];
+      expect(memberId).toBe('m-1');
+      // the editable personal fields persist exactly (the edited first_name + the pre-filled rest)
+      expect(body.personal).toEqual({
+        first_name: 'Jan Jansen',
+        last_name: 'de Vries',
+        name_infix: 'van der',
+        email: 'jan@h-dcn.example',
+      });
+      // the excluded calculated field does NOT ride along in its storage group…
+      const personal = body.personal as Record<string, unknown>;
+      expect(personal).not.toHaveProperty('display_name');
+      // …nor anywhere else in the shaped payload.
+      expect(JSON.stringify(body)).not.toContain('display_name');
     });
 
     it('clears an optional field by sending an empty string when it is wiped', async () => {

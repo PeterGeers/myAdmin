@@ -678,6 +678,130 @@ class TestSenderStamping:
         )  # the invoking user, not the scheduled default
 
 
+# ── members-overview-tweaks task 6.1: the export DISPLAY names ride every enqueued job ───
+#
+# `tenant_id` / `set_id` on the job are OPAQUE keys, so the worker (task 6.2) cannot name the
+# export `{Tenant_Name}-{Pivot_Name}.csv` or prefix the subject from them. The enqueue side
+# therefore STAMPS the display names onto every MailJob (both modes): `pivot_name` from the
+# stored set's user-authored `name` (the authoritative set — never a request body), and
+# `tenant_name` from the AUTHORITATIVE verified `tenant_id` (never a body value). A saved-set
+# deliver always carries both; an ad-hoc send has no saved set so it carries neither (the
+# worker then falls back to a safe generic name — task 6.2).
+
+
+class TestExportNameStamping:
+    def test_per_recipient_stamps_tenant_and_pivot_name_on_every_job(self, repo, queue):
+        # The stored set is "Clubblad" for tenant "h-dcn"; both display names ride EVERY job.
+        repo.put_set(
+            _set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"})
+        )
+        repo.put_members(
+            TENANT,
+            [
+                _member("Ava", "ava@example.com"),
+                _member("Ben", "ben@example.com"),
+            ],
+        )
+        service = _build_service(repo, PassThroughPivot(), queue)
+
+        service.execute_and_deliver(TENANT, SET_ID, RUN_ID)
+
+        assert len(queue.jobs) == 2
+        for job in queue.jobs:
+            assert job.pivot_name == "Clubblad"  # the stored set's authoritative name
+            assert job.tenant_name == TENANT  # the authoritative verified tenant
+
+    def test_to_fixed_stamps_tenant_and_pivot_name_on_the_job(self, repo, queue):
+        repo.put_set(
+            _set(
+                {
+                    "mode": DELIVERY_MODE_TO_FIXED,
+                    "recipients": ["agent@example.com"],
+                    "attachment": "csv",
+                }
+            )
+        )
+        repo.put_members(TENANT, [])
+        service = _build_service(
+            repo, CannedPivot([_member("Ava", "ava@example.com")]), queue
+        )
+
+        service.execute_and_deliver(TENANT, SET_ID, RUN_ID)
+
+        [job] = queue.jobs
+        assert job.pivot_name == "Clubblad"
+        assert job.tenant_name == TENANT
+
+    def test_pivot_name_is_sourced_from_the_set_not_a_body_value(self, repo, queue):
+        # `pivot_name` must track the STORED set's name, so renaming the set changes it — it is
+        # never a caller-supplied value (verify-before-trust; the deliver route carries no body).
+        entry = AnalyticsSetEntry(
+            tenant_id=TENANT,
+            set_id=SET_ID,
+            name="Nieuwsbrief 2026",
+            kind="list",
+            definition=_definition(),
+            delivery={"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"},
+            created_at="2024-01-01T00:00:00+00:00",
+            updated_at="2024-01-01T00:00:00+00:00",
+        )
+        repo.put_set(entry)
+        repo.put_members(TENANT, [_member("Ava", "ava@example.com")])
+        service = _build_service(repo, PassThroughPivot(), queue)
+
+        service.execute_and_deliver(TENANT, SET_ID, RUN_ID)
+
+        [job] = queue.jobs
+        assert job.pivot_name == "Nieuwsbrief 2026"
+        assert job.tenant_name == TENANT
+
+
+# ── members-overview-tweaks task 6.1: the display names FLATTEN onto the JSON envelope ───
+#
+# `_mail_job_to_envelope` is the last leg of the enqueue path — it flattens a frozen MailJob
+# into the JSON send-job envelope the worker (task 6.2) deserializes. The two additive display
+# fields must ride that envelope so the worker can name the export + prefix the subject without
+# a second lookup. ADDITIVE: a job that predates the fields (the `""` dataclass default) still
+# flattens cleanly, so an older in-flight job stays backward-compatible.
+
+
+class TestMailJobToEnvelope:
+    def _job(self, **overrides) -> MailJob:
+        base = dict(
+            job_id="job-1",
+            tenant_id=TENANT,
+            set_id=SET_ID,
+            run_id=RUN_ID,
+            mode=DELIVERY_MODE_TO_FIXED,
+            recipients=("agent@example.com",),
+        )
+        base.update(overrides)
+        return MailJob(**base)
+
+    def test_envelope_carries_the_stamped_display_names(self):
+        from sam.members.handler._dispatch import _mail_job_to_envelope
+
+        job = self._job(tenant_name="h-dcn", pivot_name="Clubblad")
+        envelope = _mail_job_to_envelope(job)
+
+        assert envelope["tenant_name"] == "h-dcn"
+        assert envelope["pivot_name"] == "Clubblad"
+
+    def test_envelope_additive_default_blank_for_a_predating_job(self):
+        # A MailJob built without the names (the `""` default — e.g. an ad-hoc send or an older
+        # in-flight job) flattens to blank display names, never raising / dropping a key.
+        from sam.members.handler._dispatch import _mail_job_to_envelope
+
+        envelope = _mail_job_to_envelope(self._job())
+
+        assert envelope["tenant_name"] == ""
+        assert envelope["pivot_name"] == ""
+        # The pre-existing envelope keys are untouched (the change is purely additive).
+        assert envelope["job_id"] == "job-1"
+        assert envelope["tenant_id"] == TENANT
+        assert envelope["set_id"] == SET_ID
+
+
 # ── mail-spec task 1.3: NOT-CERTIFIED refuses BEFORE enqueue (no job, typed reason) ──────
 
 

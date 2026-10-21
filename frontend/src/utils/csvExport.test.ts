@@ -7,7 +7,7 @@
  * Requirements: 7.2, 7.3
  */
 
-import { generateCsv, generateCsvFromObjects } from './csvExport';
+import { generateCsv, generateCsvFromObjects, sanitize, exportFileName } from './csvExport';
 
 describe('generateCsv', () => {
   it('generates header-only CSV for empty rows', () => {
@@ -146,5 +146,68 @@ describe('generateCsvFromObjects', () => {
     });
     const lines = csv.split('\n');
     expect(lines[1]).toBe('$1000');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export naming rule (shared tenant-pivot filename) — Requirements 5.1, 5.4
+// ---------------------------------------------------------------------------
+
+describe('sanitize', () => {
+  it('leaves a plain name unchanged', () => {
+    expect(sanitize('Acme')).toBe('Acme');
+  });
+
+  it('strips path separators', () => {
+    expect(sanitize('a/b\\c')).toBe('abc');
+  });
+
+  it('strips ASCII control characters incl. newlines and NUL', () => {
+    expect(sanitize('a\nb\tc\u0000d\u007f')).toBe('a b cd');
+  });
+
+  it('collapses runs of whitespace to a single space and trims the edges', () => {
+    expect(sanitize('  Big   Charity\tFoundation  ')).toBe('Big Charity Foundation');
+  });
+
+  it('returns an empty string for empty / whitespace-only input', () => {
+    expect(sanitize('')).toBe('');
+    expect(sanitize('   ')).toBe('');
+  });
+
+  it('treats null/undefined as empty', () => {
+    expect(sanitize(undefined as unknown as string)).toBe('');
+    expect(sanitize(null as unknown as string)).toBe('');
+  });
+
+  it('preserves unicode letters', () => {
+    expect(sanitize('Stichting Café')).toBe('Stichting Café');
+  });
+});
+
+describe('exportFileName', () => {
+  it('builds {Tenant}-{Pivot}.csv from the sanitized parts', () => {
+    expect(exportFileName('Acme', 'Members by city')).toBe('Acme-Members by city.csv');
+  });
+
+  it('sanitizes both parts (no path separators or control chars leak through)', () => {
+    // Path separators (/, \) are stripped outright; a newline is whitespace, so
+    // it collapses to a single space (same rule as the `sanitize` cases above:
+    // `a\nb` -> `a b`), never a deletion.
+    expect(exportFileName('a/b', 'x\\y\nz')).toBe('ab-xy z.csv');
+  });
+
+  it('always ends in .csv', () => {
+    expect(exportFileName('T', 'P').endsWith('.csv')).toBe(true);
+    expect(exportFileName('', '').endsWith('.csv')).toBe(true);
+  });
+
+  it('is deterministic for the same inputs', () => {
+    expect(exportFileName('Acme', 'Donors')).toBe(exportFileName('Acme', 'Donors'));
+  });
+
+  it('is never the fixed members.csv', () => {
+    expect(exportFileName('members', '')).not.toBe('members.csv');
+    expect(exportFileName('Acme', 'Donors')).not.toBe('members.csv');
   });
 });

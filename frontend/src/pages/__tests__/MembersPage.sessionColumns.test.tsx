@@ -54,6 +54,13 @@ vi.mock('../../context/AuthContext', () => ({
   useAuth: () => ({ hasAnyRole: () => true }),
 }));
 
+// MembersPage reads `useTenant().currentTenant` for the export filename
+// (members-overview-tweaks Req 5.1/5.4). Stub the tenant context so the page
+// does not require a real TenantProvider in these column-chooser tests.
+vi.mock('../../context/TenantContext', () => ({
+  useTenant: () => ({ currentTenant: 'h-dcn' }),
+}));
+
 const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);

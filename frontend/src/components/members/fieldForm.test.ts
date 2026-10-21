@@ -16,6 +16,8 @@ import {
   groupFieldsBySection,
   formFields,
   isEditableField,
+  isCalculatedField,
+  editableFields,
   isMembershipTypeField,
   membershipTypeOptions,
   resolveLabel,
@@ -143,6 +145,51 @@ describe('formFields — visibility + read-only + system-field rules', () => {
     expect(isEditableField({ key: 'x', origin: 'calculated' })).toBe(false);
     expect(isEditableField({ key: 'y', read_only: true })).toBe(false);
     expect(isEditableField({ key: 'z' })).toBe(true);
+  });
+});
+
+/**
+ * Edit/view field partition (members-overview-tweaks R2.1, R2.2, R3.1, R3.2). `isCalculatedField`
+ * is the exact complement of `isEditableField` over the same per-field calculated/read-only flag;
+ * `editableFields` drops the calculated fields so the Edit_Modal shows exactly the editable set,
+ * while the view modal keeps the full resolved set (no partition).
+ */
+describe('isCalculatedField / editableFields — edit-vs-view partition (R2.1, R2.2, R3.1, R3.2)', () => {
+  it('isCalculatedField flags calculated/read-only fields and nothing else (complement of isEditableField)', () => {
+    expect(isCalculatedField({ key: 'display_name', origin: 'calculated' })).toBe(true);
+    expect(isCalculatedField({ key: 'locked', read_only: true })).toBe(true);
+    expect(isCalculatedField({ key: 'first_name' })).toBe(false);
+    // the complement never agrees with isEditableField on the same field
+    for (const f of [
+      { key: 'display_name', origin: 'calculated' as const },
+      { key: 'locked', read_only: true },
+      { key: 'first_name' },
+    ]) {
+      expect(isCalculatedField(f)).toBe(!isEditableField(f));
+    }
+  });
+
+  it('editableFields keeps every editable field and excludes every calculated field, preserving order', () => {
+    const fields: FieldConfigField[] = [
+      { key: 'first_name', order: 10 },
+      { key: 'display_name', origin: 'calculated', read_only: true, order: 20 },
+      { key: 'email', order: 30 },
+      { key: 'age', read_only: true, order: 40 },
+    ];
+    const kept = editableFields(fields);
+    expect(kept.map((f) => f.key)).toEqual(['first_name', 'email']); // order preserved, calculated dropped
+    expect(kept.every((f) => isEditableField(f))).toBe(true);
+    expect(kept.some((f) => isCalculatedField(f))).toBe(false);
+  });
+
+  it('is a no-op on an all-editable list and drops everything from an all-calculated list', () => {
+    const editable: FieldConfigField[] = [{ key: 'a' }, { key: 'b' }];
+    expect(editableFields(editable)).toEqual(editable);
+    const calculated: FieldConfigField[] = [
+      { key: 'c', origin: 'calculated' },
+      { key: 'd', read_only: true },
+    ];
+    expect(editableFields(calculated)).toEqual([]);
   });
 });
 
