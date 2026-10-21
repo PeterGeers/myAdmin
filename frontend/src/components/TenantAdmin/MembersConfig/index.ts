@@ -2,6 +2,7 @@
  * Members typed authoring UI (s5c C-EDITOR, tasks 2.5/2.6).
  */
 export { MembersConfigEditor, default } from './MembersConfigEditor';
+export { MembersMailConfigEditor } from './MembersMailConfigEditor';
 export { MembershipTypesManager } from './MembershipTypesManager';
 export { MembershipTypeModal } from './MembershipTypeModal';
 export { MembersParamSubEditor } from './MembersParamSubEditor';

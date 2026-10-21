@@ -19,7 +19,7 @@ import MemberSenderIdentitiesTab from './MemberSenderIdentitiesTab';
 import AdvancedTab from './AdvancedTab';
 import FunctionsTab from './FunctionsTab';
 import { LandingPageEditor } from './LandingPage';
-import { MembersConfigEditor, MembershipTypesManager } from './MembersConfig';
+import { MembersConfigEditor, MembersMailConfigEditor, MembershipTypesManager } from './MembersConfig';
 
 interface TenantInfo {
   name: string;
@@ -226,11 +226,8 @@ export function TenantAdminDashboard() {
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               ✉️ {t('tenantAdmin.tabs.senderSettings')}
             </Tab>
-            {hasMembers && (
-              <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-                📧 {t('tenantAdmin.tabs.memberSenderIdentities')}
-              </Tab>
-            )}
+            {/* The Members sender-identities surface now lives inside the Members → Mail
+                sub-tab (task 7.1 single home), so there is NO standalone top-level tab for it. */}
             <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
               📊 {t('tenantAdmin.tabs.pivotViews')}
             </Tab>
@@ -275,6 +272,13 @@ export function TenantAdminDashboard() {
                     >
                       {membersLang === 'nl' ? 'Lidmaatschapstypes' : 'Membership types'}
                     </Tab>
+                    <Tab
+                      color="gray.300"
+                      _selected={{ color: 'orange.400', bg: 'gray.800' }}
+                      data-testid="members-admin-mail-tab"
+                    >
+                      {membersLang === 'nl' ? 'Mail' : 'Mail'}
+                    </Tab>
                   </TabList>
                   <TabPanels>
                     <TabPanel px={0}>
@@ -282,6 +286,16 @@ export function TenantAdminDashboard() {
                     </TabPanel>
                     <TabPanel px={0}>
                       <MembershipTypesManager tenant={currentTenant} />
+                    </TabPanel>
+                    <TabPanel px={0}>
+                      {/* The typed Mail function authors the SAM-owned config#mail scalars
+                          (single door, task 7.1) with the sender-identities surface co-located
+                          below — the latter KEEPS its own Flask sender-identities route and is
+                          NOT folded into the config#mail put (three-surface model). */}
+                      <VStack align="stretch" spacing={8}>
+                        <MembersMailConfigEditor tenant={currentTenant} />
+                        <MemberSenderIdentitiesTab tenant={currentTenant} />
+                      </VStack>
                     </TabPanel>
                   </TabPanels>
                 </Tabs>
@@ -302,11 +316,8 @@ export function TenantAdminDashboard() {
             <TabPanel>
               <SenderSettingsTab tenant={currentTenant} />
             </TabPanel>
-            {hasMembers && (
-              <TabPanel>
-                <MemberSenderIdentitiesTab tenant={currentTenant} />
-              </TabPanel>
-            )}
+            {/* The standalone MemberSenderIdentitiesTab panel was removed — it is co-located in
+                the Members → Mail sub-tab below so the mail concern has one home (task 7.1). */}
             <TabPanel>
               <PivotBuilderWithPreview />
             </TabPanel>
