@@ -171,3 +171,72 @@ describe('ApplicationFieldList — offerability (R2.4 / R2.5)', () => {
     expect(toggle).toBeEnabled();
   });
 });
+
+
+describe('ApplicationFieldList — scope + reference fields are offerable and grouped (user req)', () => {
+  // Reference (membership_type) and scope (region) fields are neither calculated nor read_only, so
+  // they MUST be offerable on the application form and grouped by functional_group like any field.
+  const SCOPE_REF_CONFIG: FieldConfig = {
+    functional_groups: [
+      { key: 'membership', label: { en: 'Membership' }, order: 1 },
+      { key: 'personal', label: { en: 'Personal' }, order: 2 },
+    ],
+    fields: [
+      // REFERENCE field (membership_type) — base/fixed, required, NOT read-only → offerable.
+      {
+        key: 'membership_type',
+        group: 'membership',
+        functional_group: 'membership',
+        order: 1,
+        type: 'reference',
+        origin: 'fixed',
+        provenance: 'base',
+        required: true,
+        label: { en: 'Membership type' },
+      },
+      // SCOPE field (region) — a tenant overlay enum bound to a scope dimension → offerable.
+      {
+        key: 'region',
+        functional_group: 'personal',
+        order: 1,
+        type: 'enum',
+        provenance: 'tenant_added',
+        scope: { enabled: true, required_for: ['Members_CRUD'] },
+        options: ['Noord', 'Zuid'],
+        label: { en: 'Region' },
+      },
+    ],
+  };
+
+  it('offers a toggle for a REFERENCE field (membership_type) and a SCOPE field (region)', () => {
+    render(
+      <ApplicationFieldList fieldConfig={SCOPE_REF_CONFIG} overlay={{}} onChange={vi.fn()} lang="en" />,
+    );
+    // Both render a toggle (offerable) — not a "not available" note.
+    expect(screen.getByTestId('application-field-toggle-membership_type')).toBeInTheDocument();
+    expect(screen.getByTestId('application-field-toggle-region')).toBeInTheDocument();
+    expect(screen.queryByTestId('application-field-not-offerable-membership_type')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-field-not-offerable-region')).not.toBeInTheDocument();
+  });
+
+  it('groups the reference + scope fields under their functional_group sections', () => {
+    render(
+      <ApplicationFieldList fieldConfig={SCOPE_REF_CONFIG} overlay={{}} onChange={vi.fn()} lang="en" />,
+    );
+    const membership = screen.getByTestId('application-field-group-membership');
+    expect(within(membership).getByTestId('application-field-row-membership_type')).toBeInTheDocument();
+    const personal = screen.getByTestId('application-field-group-personal');
+    expect(within(personal).getByTestId('application-field-row-region')).toBeInTheDocument();
+  });
+
+  it('toggling a REFERENCE field on writes application_visible under its origin-aware override key', () => {
+    const onChange = vi.fn();
+    render(
+      <ApplicationFieldList fieldConfig={SCOPE_REF_CONFIG} overlay={{}} onChange={onChange} lang="en" />,
+    );
+    fireEvent.click(screen.getByTestId('application-field-toggle-membership_type'));
+    const next = onChange.mock.calls[0][0] as MembersConfigValue;
+    // base reference field → fixed_overrides['membership.membership_type']
+    expect(findField(next, 'membership.membership_type')?.field.application_visible).toBe(true);
+  });
+});
