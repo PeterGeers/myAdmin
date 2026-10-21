@@ -749,6 +749,52 @@ class MembersProjectionReader:
             return None
         return notice.get("version")
 
+    # ── Full config#mail body (the typed Mail authoring read, spec 02 task 7.1 fix) ────
+
+    def get_mail_config(self, tenant_id: str) -> dict:
+        """Return the full reader-shaped ``config#mail`` body for the typed Mail authoring form.
+
+        The AUTHORITATIVE read-back for the SAM-owned mail scalars: the typed Mail function
+        (``MembersMailConfigEditor``) loads its initial values from THIS (surfaced on
+        ``GET /members/field-config`` as ``mail_config``) instead of the legacy MySQL
+        ``members.*`` params — those are SAM-owned now (``mail_reply_to_default`` is SAM-only
+        net-new; the rest are being retired), so MySQL is the wrong source and a saved value
+        would read back blank. Composing the body here from the SAME accessors the write path /
+        builder use means the authoring form reads exactly what was written (writer/reader cannot
+        drift).
+
+        Shape mirrors ``build_config_mail_row`` / ``ConfigWriteService._validate_mail_body`` and
+        the SAM accessors EXACTLY: ``mail_enabled`` / ``mail_local_part`` / ``mail_certified`` are
+        ALWAYS present (fail-closed bools; ``mail_local_part`` defaults to ``"noreply"``), while
+        ``mail_domain`` / ``mail_reply_to_default`` / ``consent_notice`` are included ONLY when
+        authored (a non-``None`` accessor result), so an un-authored tenant yields the
+        back-compatible minimal body. Empty-is-valid / fail-closed: a missing ``config#mail`` row
+        yields the safe defaults (not-enabled, not-certified, ``noreply``, no domain/reply-to/
+        notice) rather than raising. All six accessors share the per-invocation partition cache,
+        so this resolves in a single Query.
+
+        Args:
+            tenant_id: The tenant (partition key) whose mail config to resolve.
+
+        Returns:
+            The reader-shaped ``config#mail`` body (always a dict; never raises).
+        """
+        body: dict = {
+            "mail_enabled": self.is_mail_enabled(tenant_id),
+            "mail_local_part": self.get_mail_local_part(tenant_id),
+            "mail_certified": self.is_mail_certified(tenant_id),
+        }
+        domain = self.get_mail_domain(tenant_id)
+        if domain is not None:
+            body["mail_domain"] = domain
+        reply_to = self.get_mail_reply_to_default(tenant_id)
+        if reply_to is not None:
+            body["mail_reply_to_default"] = reply_to
+        consent_notice = self.get_consent_notice(tenant_id)
+        if consent_notice is not None:
+            body["consent_notice"] = consent_notice
+        return body
+
     # ── Scope grants (consumed by the edge, task 8.3) ──────────────────────────────────
 
     def get_scope_grants(self, tenant_id: str, email: str) -> dict[str, list[str]]:

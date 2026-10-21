@@ -93,6 +93,10 @@ from sam.members.domain.mail_gate import (
     MailGateProvider,
     StaticMailGateProvider,
 )
+from sam.members.domain.mail_config import (
+    MailConfigProvider,
+    StaticMailConfigProvider,
+)
 from sam.members.domain.consent_notice import (
     ConsentNoticeProvider,
     StaticConsentNoticeProvider,
@@ -188,6 +192,7 @@ class MembershipService(
         tenant_hooks: TenantHookRegistry | None = None,
         scope_config_provider: ScopeConfigProvider | None = None,
         mail_gate_provider: MailGateProvider | None = None,
+        mail_config_provider: MailConfigProvider | None = None,
         config_status_provider: ConfigStatusProvider | None = None,
         default_page_size_provider: DefaultPageSizeProvider | None = None,
         consent_notice_provider: ConsentNoticeProvider | None = None,
@@ -222,6 +227,22 @@ class MembershipService(
             mail_gate_provider
             if mail_gate_provider is not None
             else StaticMailGateProvider()
+        )
+        # The mail-config seam (spec 02 task 7.1 fix — the typed Mail authoring read). Mirrors
+        # the mail-gate injection: the service depends only on the MailConfigProvider Protocol,
+        # never on where the per-tenant config#mail body lives. get_field_config surfaces its
+        # result as `mail_config` so the typed Mail function loads its initial values from the
+        # AUTHORITATIVE SAM source (the config#mail row) rather than the retired MySQL
+        # members.* params — reading the authoring form from MySQL is the wrong source (a saved
+        # `mail_reply_to_default`, SAM-only net-new, would read back blank). Defaults to the
+        # empty, FAIL-CLOSED StaticMailConfigProvider — a service built without a provider
+        # reports the fail-closed minimal body (not-enabled, noreply, no optional attrs) for
+        # every tenant, matching the reader's empty-is-valid behaviour. `mail_enabled` keeps its
+        # own MailGateProvider for the pivot gate (a separate consumer); both read config#mail.
+        self._mail_config_provider: MailConfigProvider = (
+            mail_config_provider
+            if mail_config_provider is not None
+            else StaticMailConfigProvider()
         )
         # The config delivered/loaded status seam (Phase 0 step 3, impact-analysis §2 / risk
         # #6). Mirrors the mail-gate injection: the service depends only on the

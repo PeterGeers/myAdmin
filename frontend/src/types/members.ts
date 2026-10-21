@@ -610,6 +610,24 @@ export interface FieldConfig {
    */
   mail_enabled?: boolean;
   /**
+   * The AUTHORITATIVE `config#mail` body for the typed Mail authoring form (spec 02 task 7.1
+   * fix). Surfaced on `GET /members/field-config` from the SAM-owned `config#mail` row so the
+   * Mail function (`MembersMailConfigEditor`) loads its initial values from the SAME source it
+   * writes (`PUT /members/config/mail`) — NOT the legacy MySQL `members.*` params, which are
+   * SAM-owned/retired now (a saved `mail_reply_to_default`, SAM-only net-new, reads back blank
+   * from MySQL). Reader-shaped: `mail_enabled` / `mail_local_part` / `mail_certified` always
+   * present; `mail_domain` / `mail_reply_to_default` / `consent_notice` only when authored.
+   * Absent on an older module build (the form then falls back to its fail-closed defaults).
+   */
+  mail_config?: {
+    mail_enabled: boolean;
+    mail_domain?: string;
+    mail_local_part: string;
+    mail_certified: boolean;
+    mail_reply_to_default?: string;
+    consent_notice?: { version: string; text: Record<string, string> };
+  };
+  /**
    * The DELIVERED/LOADED status of this tenant's projected `config#*` rows (Members config
    * redesign Phase 0 step 3). A map `{config_id: version | null}` where `config_id` is one of
    * `scope` / `fields` / `views` / `mail`. The `version` is the monotonic value the
