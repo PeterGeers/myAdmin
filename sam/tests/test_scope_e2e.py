@@ -85,6 +85,11 @@ from sam.members.domain.membership_service import MembershipService
 from sam.members.handler import app as members_app
 from sam.members.handler.routes import ROUTES
 from sam.members.repository.projection_config_reader import MembersProjectionReader
+from sam.members.repository.projection_config_write_repository import (
+    MembersConfigWriteRepository,
+)
+from services.projection_sync import build_config_scope_row
+from sam.members.domain.config_write_version import next_write_stamp
 
 # ── Fixtures for both planes' in-memory fakes ──────────────────────────────────────────
 from sam.tests.test_membership_service_reads import FakeMembersRepository
@@ -431,6 +436,22 @@ class ScopeE2E:
         # per resolve; scope reads build a fresh reader (fresh per-invocation cache) like the
         # edge does in production.
         self._members_repo = members_repo
+
+        # config#scope is SAM-OWNED since spec-02 task 3.7 — ProjectionSync no longer emits it
+        # (it now owns only tenant/module/role/scopegrant). Production authors config#scope via
+        # the SAM write path (PUT /members/config/scope -> MembersConfigWriteRepository). So the
+        # e2e must author it the SAME way, into the SAME shared table, rather than expecting the
+        # projection to co-author it. The dimensions still DERIVE from the overlay scope axis
+        # (the single authoring source, task 3.1) via build_config_scope_row, so the test stays
+        # driven by the overlay vocabulary — only the WRITE door moved from ProjectionSync to the
+        # SAM config-write repository (split-ownership, Req 11.1/11.2).
+        scope_row = build_config_scope_row({"administration": TENANT}, params)
+        MembersConfigWriteRepository(table=projection_table).put_config(
+            tenant_id=TENANT,
+            config_id=schema.CONFIG_ID_SCOPE,
+            attributes=dict(scope_row.attributes),
+            version=next_write_stamp(),
+        )
 
     def _resync(self, administration):
         """The on-change trigger: run a real full re-projection for the tenant (add/update/
