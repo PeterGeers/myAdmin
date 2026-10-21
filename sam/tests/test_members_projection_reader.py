@@ -67,6 +67,12 @@ class FakeTable:
         key = (item[schema.PARTITION_KEY_ATTR], item[schema.SORT_KEY_ATTR])
         self.store[key] = dict(item)
 
+    def put_item(self, Item: dict) -> dict:
+        """boto3 Table.put_item shim (write side) — lets the real write repository persist into
+        this same fake table so a write→read round-trip can be asserted end to end."""
+        self.put(Item)
+        return {}
+
     def query(self, KeyConditionExpression=None):
         tenant_id = _tenant_from_condition(KeyConditionExpression)
         self.query_counts[tenant_id] = self.query_counts.get(tenant_id, 0) + 1
@@ -465,13 +471,16 @@ class TestGetRawFieldsOverlay:
         reader = MembersProjectionReader(table=table)
         raw = reader.get_raw_fields_overlay("h-dcn")
 
-        # The three slices come back byte-for-byte — incl. the four application attributes the
-        # builder authors — so a PUT of this object replaces the row with no loss.
+        # The slices come back in the AUTHORING WIRE shape — the stored `overrides` map served
+        # under the wire key `fixed_overrides` (one-key contract) — incl. the four application
+        # attributes, so a PUT of this object round-trips with no loss.
         assert raw["fields"] == fields
-        assert raw["overrides"] == overrides
+        assert raw["fixed_overrides"] == overrides
         assert raw["functional_groups"] == [
             {"key": "address", "label": {"en": "Address"}, "order": 1}
         ]
+        # The storage key `overrides` is NOT leaked to the editor (one wire key only).
+        assert "overrides" not in raw
         # No key/version leak into the authoring body.
         assert schema.PARTITION_KEY_ATTR not in raw
         assert schema.SORT_KEY_ATTR not in raw
@@ -480,7 +489,7 @@ class TestGetRawFieldsOverlay:
     def test_raw_overlay_missing_row_is_empty_not_an_error(self):
         reader = MembersProjectionReader(table=FakeTable())  # nothing seeded
         raw = reader.get_raw_fields_overlay("unconfigured")
-        assert raw == {"fields": {}, "overrides": {}, "functional_groups": []}
+        assert raw == {"fields": {}, "fixed_overrides": {}, "functional_groups": []}
 
     def test_raw_overlay_absent_slices_default_to_empty_containers(self):
         table = FakeTable()
@@ -497,7 +506,7 @@ class TestGetRawFieldsOverlay:
 
         raw = MembersProjectionReader(table=table).get_raw_fields_overlay("h-dcn")
         assert raw["fields"] == {"notes": {"key": "notes", "type": "string"}}
-        assert raw["overrides"] == {}
+        assert raw["fixed_overrides"] == {}
         assert raw["functional_groups"] == []
 
 
@@ -1559,3 +1568,87 @@ class TestGetMailConfig:
         reader = MembersProjectionReader(table=table)
         assert reader.get_mail_config("tenant-a")["mail_domain"] == "a.example"
         assert reader.get_mail_config("tenant-b")["mail_domain"] == "b.example"
+
+
+# ---------------------------------------------------------------------------
+# WRITE -> READ round-trip SYMMETRY (the "what you save is what you see" test)
+#
+# The one-key contract: storage uses `overrides`; the authoring WIRE uses `fixed_overrides`.
+# The write service normalizes wire->storage (fixed_overrides -> overrides); the reader's
+# get_raw_fields_overlay normalizes storage->wire (overrides -> fixed_overrides). This test runs
+# the REAL ConfigWriteService + REAL MembersConfigWriteRepository + REAL MembersProjectionReader
+# over ONE shared fake table and asserts that what the editor PUTs it reads back IDENTICALLY —
+# the end-to-end guard that would have caught the base-field "deselected after save" bug.
+# ---------------------------------------------------------------------------
+
+
+class TestConfigFieldsWriteReadRoundTripSymmetry:
+    def _stack(self, table):
+        from sam.members.domain.config_write_service import ConfigWriteService
+        from sam.members.repository.projection_config_write_repository import (
+            MembersConfigWriteRepository,
+        )
+
+        writer = MembersConfigWriteRepository(table=table)
+        # Fresh reader PER merge (factory) — mirrors production; a shared cached reader would
+        # serve stale pre-write state to the merge. A separate reader instance for assertions.
+        service = ConfigWriteService(
+            writer, overlay_reader_factory=lambda: MembersProjectionReader(table=table)
+        )
+        reader = MembersProjectionReader(table=table)
+        return service, reader
+
+    def test_fixed_overrides_round_trip_identically_wire_to_wire(self):
+        table = FakeTable()
+        service, reader = self._stack(table)
+
+        # The editor PUTs the AUTHORING WIRE shape: base selections under `fixed_overrides`.
+        body = {
+            "fields": {"motor_type": {"key": "motor_type", "type": "string"}},
+            "fixed_overrides": {
+                "personal.city": {"application_visible": True},
+                "membership.status": {"application_visible": True},
+            },
+            "functional_groups": [{"key": "personal", "order": 1}],
+        }
+        service.put_config("h-dcn", "fields", body)
+
+        # Reading it back yields the SAME wire shape — base selections under `fixed_overrides`,
+        # on-form flags intact. (Storage at rest is `overrides`; both boundaries translate.)
+        got = reader.get_raw_fields_overlay("h-dcn")
+        assert got["fixed_overrides"]["personal.city"]["application_visible"] is True
+        assert (
+            got["fixed_overrides"]["membership.status"]["application_visible"] is True
+        )
+        assert "motor_type" in got["fields"]
+        # No stray `overrides` wire key leaks to the editor (one wire key only).
+        assert "overrides" not in got
+
+    def test_storage_at_rest_still_uses_overrides_key(self):
+        # The resolver + public path read storage `overrides`; the write must keep storing it there.
+        table = FakeTable()
+        service, _ = self._stack(table)
+        service.put_config(
+            "h-dcn",
+            "fields",
+            {"fixed_overrides": {"personal.city": {"application_visible": True}}},
+        )
+        stored = table.store[
+            ("h-dcn", schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"))
+        ]
+        assert "overrides" in stored  # storage key unchanged
+        assert "fixed_overrides" not in stored  # wire key is never persisted
+        assert stored["overrides"]["personal.city"]["application_visible"] is True
+
+    def test_resolver_get_overlay_still_sees_the_override(self):
+        # The domain resolver read (get_overlay) consumes storage `overrides` and must still find
+        # the override after a wire-shaped write — proves the public/resolver path is unaffected.
+        table = FakeTable()
+        service, reader = self._stack(table)
+        service.put_config(
+            "h-dcn",
+            "fields",
+            {"fixed_overrides": {"personal.city": {"application_visible": True}}},
+        )
+        overlay = reader.get_overlay("h-dcn")
+        assert "personal.city" in overlay.overrides

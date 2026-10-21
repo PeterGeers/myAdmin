@@ -599,7 +599,7 @@ class TestGetFieldConfigServesRawOverlay:
                     "application_visible": True,
                 }
             },
-            "overrides": {"personal.city": {"order": 3}},
+            "fixed_overrides": {"personal.city": {"order": 3}},
             "functional_groups": [{"key": "address", "order": 1}],
         }
         service = MembershipService(repo, overlay_provider=self._RawProvider(overlay))
@@ -612,7 +612,7 @@ class TestGetFieldConfigServesRawOverlay:
         config = service.get_field_config("h-dcn")
         assert config["field_overlay"] == {
             "fields": {},
-            "overrides": {},
+            "fixed_overrides": {},
             "functional_groups": [],
         }
 
@@ -620,7 +620,7 @@ class TestGetFieldConfigServesRawOverlay:
         service = MembershipService(
             repo,
             overlay_provider=self._RawProvider(
-                {"fields": {}, "overrides": {}, "functional_groups": []}
+                {"fields": {}, "fixed_overrides": {}, "functional_groups": []}
             ),
         )
         json.dumps(service.get_field_config("h-dcn"))  # must not raise

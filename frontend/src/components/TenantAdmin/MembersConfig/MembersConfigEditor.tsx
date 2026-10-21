@@ -103,8 +103,10 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
       const resolvedConfig = await getMembersFieldConfig();
       setConfigStatus(resolvedConfig?.config_status ?? {});
       setFieldConfig(resolvedConfig);
-      // Seed the ONE working overlay from the authoritative SAM row — the exact
-      // `{ fields, overrides, functional_groups }` object the single Save PUTs back.
+      // Seed the ONE working overlay from the authoritative SAM row. The reader serves the
+      // overlay in the AUTHORING WIRE shape already (`fields` / `fixed_overrides` /
+      // `functional_groups`, the one-key contract) so read + write are symmetric — no client-side
+      // key translation.
       const overlayValue = (resolvedConfig?.field_overlay as MembersConfigValue) ?? {};
       setOverlay(overlayValue);
       setBaseline(JSON.stringify(overlayValue));
