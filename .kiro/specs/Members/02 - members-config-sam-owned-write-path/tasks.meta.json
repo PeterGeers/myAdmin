@@ -541,6 +541,16 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505583074
+      },
+      {
+        "executionId": "0d3701c2-f11b-4d77-8699-653602103f87",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792571723391
+      },
+      {
+        "executionId": "0d3701c2-f11b-4d77-8699-653602103f87",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792571727384
       }
     ],
     "8.1 Implement the TEST→PROD promotion: structural-change tenant-wide migration + read-back parity": [
@@ -590,6 +600,13 @@
         "executionId": "34cee165-3ca5-401f-aaed-4ad089c2ca9c",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792527100704
+      }
+    ],
+    "7.5* Test/verify `view_contexts` cleanup": [
+      {
+        "executionId": "0d3701c2-f11b-4d77-8699-653602103f87",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792571727512
       }
     ]
   }
