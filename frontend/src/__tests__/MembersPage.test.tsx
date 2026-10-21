@@ -39,6 +39,13 @@ vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ hasAnyRole: () => true }),
 }));
 
+// MembersPage reads `useTenant().currentTenant` for the export filename
+// (members-overview-tweaks Req 5.1/5.4). Stub the tenant context so the page
+// does not require a real TenantProvider in these table-focused tests.
+vi.mock('../context/TenantContext', () => ({
+  useTenant: () => ({ currentTenant: 'h-dcn' }),
+}));
+
 const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockListMembersPage = vi.mocked(membersApiService.listMembersPage);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);

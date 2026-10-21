@@ -176,6 +176,12 @@ def _to_fixed_envelope(job_id="job-fixed", attachment_kind="csv"):
         "recipients": ["agent@example.com"],
         "template_id": None,
         "merge_values": {},
+        # The tenant + pivot DISPLAY names ride the envelope (task 6.1) so the worker can name
+        # the CSV attachment `{Tenant_Name}-{Pivot_Name}.csv` and compose the default pivot-export
+        # subject `{Tenant_Name} - {Pivot_Name}` (R5.2/5.3/5.5) off them instead of the old
+        # hard-coded `members.csv` / static subject.
+        "tenant_name": "h-dcn",
+        "pivot_name": "Members 2026",
         "attachment": {"kind": attachment_kind, "label_options": None},
         "rows": [
             {"first_name": "Ava", "membership_type": "lid"},
@@ -315,9 +321,14 @@ class TestToFixedSend:
         assert result.sent is True
         [sent] = ses.sends
         assert sent["recipients"] == ["agent@example.com"]
+        # Default pivot-export subject = tenant name as a leading prefix + pivot name (R5.3).
+        # This envelope carries no covering `template_id`, so the composed subject is the one sent.
+        assert sent["subject"] == "h-dcn - Members 2026"
         assert len(sent["attachments"]) == 1
         att = sent["attachments"][0]
-        assert att["filename"] == "members.csv"
+        # `{Tenant_Name}-{Pivot_Name}.csv` composed from the envelope's display names (R5.2/5.5),
+        # replacing the old hard-coded `members.csv`.
+        assert att["filename"] == "h-dcn-Members 2026.csv"
         assert att["content_type"] == "text/csv"
         body = att["content"].decode("utf-8")
         # header + two data rows (metadata of the set, no member PII beyond the set itself)

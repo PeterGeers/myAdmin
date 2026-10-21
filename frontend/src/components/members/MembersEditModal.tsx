@@ -7,11 +7,12 @@
  *
  * Shares the Add modal's whole sectioned-form scaffolding (`MembersFieldFormBody` +
  * `fieldFormModel`) — it is pre-populated from the SELECTED member instead of starting blank. It
- * renders the RESOLVED field set (fixed base ⊕ tenant overlay ⊕ calculated), SECTIONED by
- * `functional_group` (R4.9), honoring field-level view/edit permissions (calculated / read-only
- * fields are shown disabled), `show_when` conditional visibility (R4.12), value-level
- * role-restricted enum options (R4.11/R4.12), and `member_number` manual entry with tenant-format
- * feedback (R4.8).
+ * renders the EDITABLE field set only (fixed base ⊕ tenant overlay, via
+ * `editableFields(formFields(cfg))`), SECTIONED by `functional_group` (R4.9). Calculated /
+ * read-only fields are EXCLUDED from display entirely (members-overview-tweaks R2.1/R2.2) — not
+ * rendered disabled; the view modal keeps the full resolved set (R3.1). It still honors
+ * `show_when` conditional visibility (R4.12), value-level role-restricted enum options
+ * (R4.11/R4.12), and `member_number` manual entry with tenant-format feedback (R4.8).
  *
  * On submit the modal shapes the module's NESTED update payload by each field's STORAGE group
  * (`personal.*` / `membership.*` / `overlay.*`, + `scope_values.<dimension>`) and calls
@@ -36,7 +37,7 @@ import { updateMember } from '../../services/membersApiService';
 import { applyApiError } from '../../shared/api/applyApiError';
 import type { FieldConfig, Member, MembershipType } from '../../types/members';
 import { MembersFieldFormBody } from './MembersFieldFormBody';
-import { formFields, groupFieldsBySection, memberNumberError } from './fieldForm';
+import { editableFields, formFields, groupFieldsBySection, memberNumberError } from './fieldForm';
 import {
   buildInitialValues, buildValidationSchema, shapeWritePayload, scopeInfo,
 } from './fieldFormModel';
@@ -67,7 +68,11 @@ export const MembersEditModal: React.FC<MembersEditModalProps> = ({
   const lang = (i18n?.language || 'nl').slice(0, 2);
   const callerRoles = user?.roles ?? [];
 
-  const fields = useMemo(() => formFields(fieldConfig), [fieldConfig]);
+  // Edit modal shows EDITABLE fields only (members-overview-tweaks R2.1/R2.2): calculated /
+  // read-only fields are EXCLUDED from display entirely — not rendered disabled. The submit path
+  // (shapeWritePayload / buildValidationSchema) already skips non-editable fields, so narrowing
+  // the set here leaves the persisted payload unchanged (R2.3).
+  const fields = useMemo(() => editableFields(formFields(fieldConfig)), [fieldConfig]);
   const sections = useMemo(
     () => groupFieldsBySection(fields, fieldConfig?.functional_groups),
     [fields, fieldConfig],

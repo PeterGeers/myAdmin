@@ -126,6 +126,52 @@ export function downloadCsv(csvContent: string, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Sanitize a single export-name part (a tenant or pivot display name) so it is
+ * safe to embed in a download/attachment filename.
+ *
+ * Strips filesystem-hostile characters — path separators (`/`, `\`) and ASCII
+ * control characters — and collapses any run of whitespace to a single space,
+ * trimming the edges. The result never contains a path separator, a control
+ * char, or leading/trailing whitespace, so it cannot escape a directory or
+ * produce a malformed filename.
+ *
+ * @param part - A raw tenant or pivot display name (may be empty).
+ * @returns The sanitized part (possibly an empty string).
+ */
+export function sanitize(part: string): string {
+  return (part ?? '')
+    // Drop path separators and ASCII control chars, but KEEP tab (\u0009),
+    // newline (\u000a) and CR (\u000d) so the whitespace-collapse step below
+    // can turn them into a single space rather than deleting them outright.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[/\\\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+    // Collapse any whitespace run (spaces, tabs, newlines, unicode spaces) to one space.
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Build the shared pivot-export filename from a tenant name and pivot name.
+ *
+ * This is the single frontend naming rule mirrored on the SAM worker plane so a
+ * downloaded CSV and an emailed attachment for the same tenant+pivot carry the
+ * identical name:
+ *
+ *   exportFileName(tenantName, pivotName)
+ *     = sanitize(tenantName) + "-" + sanitize(pivotName) + ".csv"
+ *
+ * The result is deterministic and always ends in `.csv` — it never falls back
+ * to the old fixed `members.csv`.
+ *
+ * @param tenantName - The active tenant's display name.
+ * @param pivotName  - The selected pivot's display name.
+ * @returns The `{Tenant_Name}-{Pivot_Name}.csv` filename.
+ */
+export function exportFileName(tenantName: string, pivotName: string): string {
+  return `${sanitize(tenantName)}-${sanitize(pivotName)}.csv`;
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------

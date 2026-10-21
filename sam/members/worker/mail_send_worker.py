@@ -48,6 +48,7 @@ from __future__ import annotations
 import csv
 import io
 import logging
+import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
@@ -99,6 +100,19 @@ APPLICATION_TRIGGERED_BY = "public_application_intake"
 #: Members plane's primary language (the app is NL-first); a template without ``nl`` surfaces a
 #: clear render error rather than a silent wrong-language send.
 DEFAULT_LANG = "nl"
+
+#: The generic fallback export filename used when a job carries no usable tenant/pivot display
+#: name (R5 error handling, design §"Error Handling"). An older in-flight job enqueued before the
+#: envelope stamped ``tenant_name`` / ``pivot_name`` (task 6.1) has neither — rather than emit an
+#: empty or malformed name (``-.csv``) or RAISE over a cosmetic detail, the worker degrades to
+#: this safe generic name so a pivot export never regresses to a hard failure. Keeps the naming
+#: change backward-compatible with jobs already on the queue at deploy time.
+DEFAULT_EXPORT_FILENAME = "export.csv"
+
+#: The generic fallback email subject, paired with :data:`DEFAULT_EXPORT_FILENAME` for the same
+#: missing-name case (design §"Error Handling"). Used when neither a usable tenant name nor a
+#: pivot name is available to compose the ``{Tenant} - {Pivot}`` subject.
+DEFAULT_EXPORT_SUBJECT = "Member set"
 
 #: SES hard limit: at most 50 recipients (To + Cc + Bcc) PER message (design §6.4). A
 #: ``to_fixed`` job with more fixed recipients than this would be rejected by SES, so the worker
@@ -881,9 +895,20 @@ class MailSendWorker:
         attachment = envelope.get("attachment")
         tenant_id = self._require(envelope, "tenant_id")
 
-        # Optional covering-mail body from the template (no per-recipient merge values — a
-        # static covering message to the fixed recipients). Absent template → an empty body.
-        subject = "Member set"
+        # Export naming (R5.2/5.3/5.5, task 6.3). The tenant + pivot DISPLAY names ride the
+        # envelope (task 6.1 stamped them from the verified context) — opaque `tenant_id` /
+        # `set_id` are not human-readable. Compose the attachment filename and the default
+        # pivot-export subject from them via the shared PURE helpers (task 6.2), which encode the
+        # `{Tenant}-{Pivot}.csv` / `{Tenant} - {Pivot}` rule and already handle the backward-compat
+        # fallback (blank/absent names → export.csv / generic subject) for older in-flight jobs.
+        tenant_name = envelope.get("tenant_name")
+        pivot_name = envelope.get("pivot_name")
+        export_name = _export_file_name(tenant_name, pivot_name)
+
+        # Default pivot-export subject = tenant prefix + pivot name. A covering TEMPLATE subject
+        # (when a `template_id` is supplied) still takes precedence for the body below — the
+        # composed name is only the default when no covering template overrides it.
+        subject = _export_subject(tenant_name, pivot_name)
         body_html = ""
         template_id = envelope.get("template_id")
         if template_id and self._templates is not None:
@@ -896,7 +921,9 @@ class MailSendWorker:
         attachments: list[dict[str, Any]] | None = None
         if isinstance(attachment, Mapping):
             kind = str(attachment.get("kind") or "")
-            built = self._build_attachment(kind, rows, attachment.get("label_options"))
+            built = self._build_attachment(
+                kind, rows, attachment.get("label_options"), export_name=export_name
+            )
             if built is not None:
                 attachments = [built]
         return subject, body_html, attachments
@@ -906,17 +933,23 @@ class MailSendWorker:
         kind: str,
         rows: Sequence[Mapping[str, Any]],
         label_options: Any,
+        *,
+        export_name: str = DEFAULT_EXPORT_FILENAME,
     ) -> dict[str, Any] | None:
         """Build the attachment descriptor (``{filename, content, content_type}``) for the SES port.
 
-        ``csv`` → a UTF-8 CSV of the result rows (header = the union of row keys, stable order).
+        ``csv`` → a UTF-8 CSV of the result rows (header = the union of row keys, stable order),
+        named ``export_name`` — the ``{Tenant_Name}-{Pivot_Name}.csv`` name the caller composed
+        off the envelope (R5.2/5.5), replacing the old hard-coded ``members.csv``. ``export_name``
+        is keyword-only and defaults to the safe generic :data:`DEFAULT_EXPORT_FILENAME` so a
+        caller that supplies no name (or an older in-flight job) never emits a malformed filename.
         ``pdf_labels`` → delegated to the shared address-label generator seam when available;
         the worker does not reimplement label layout. An unknown kind is a permanent fault.
         """
         if kind == "csv":
             content = _rows_to_csv_bytes(rows)
             return {
-                "filename": "members.csv",
+                "filename": export_name,
                 "content": content,
                 "content_type": "text/csv",
             }
@@ -1027,6 +1060,84 @@ class MailSendWorker:
                 seen.add(key)
                 out.append(addr)
         return out
+
+
+# ── tenant-prefixed export naming (R5.2/5.3/5.5) ──────────────────────────────────────────
+#
+# The Python copy of the shared ``{Tenant_Name}-{Pivot_Name}.csv`` export-naming rule — the
+# MIRROR of the frontend TypeScript rule in ``frontend/src/utils/csvExport.ts`` (``sanitize`` +
+# ``exportFileName``). The two planes do NOT share code, so each owns its copy; both encode the
+# SAME rule and are pinned by filename properties (P3 frontend, P4 worker) so they cannot drift.
+# A downloaded CSV and an emailed attachment for the same tenant+pivot therefore carry the
+# identical name. These helpers are PURE + storage-agnostic; task 6.3 threads them into
+# ``_build_attachment`` / ``_render_to_fixed`` (this task adds the rule only).
+
+#: Matches the characters :func:`_sanitize_export_part` strips before the whitespace-collapse:
+#: path separators (``/`` ``\``) and ASCII control chars, EXCEPT tab/newline/CR which are left in
+#: so the ``\s+`` collapse turns them into a single space rather than deleting them outright.
+#: Mirrors the frontend ``sanitize`` character class.
+_EXPORT_SANITIZE_STRIP = re.compile(
+    "[/\\\\\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]"
+)
+_EXPORT_WHITESPACE_RUN = re.compile(r"\s+")
+
+
+def _sanitize_export_part(part: Any) -> str:
+    """Sanitize one export-name part (a tenant or pivot display name) for a filename/subject.
+
+    The Python mirror of the frontend ``sanitize`` (``csvExport.ts``): strips filesystem-hostile
+    characters — path separators and ASCII control chars — and collapses any whitespace run to a
+    single space, trimming the edges. The result never contains a path separator, a control char,
+    or leading/trailing whitespace, so it can neither escape a directory nor inject a mail header.
+    A ``None`` / non-string input sanitizes to an empty string (the caller's fallback then kicks
+    in).
+    """
+    text = part if isinstance(part, str) else ("" if part is None else str(part))
+    text = _EXPORT_SANITIZE_STRIP.sub("", text)
+    text = _EXPORT_WHITESPACE_RUN.sub(" ", text)
+    return text.strip()
+
+
+def _export_file_name(tenant_name: Any, pivot_name: Any) -> str:
+    """Build the pivot-export attachment filename from the tenant + pivot display names (R5.2/5.5).
+
+    Encodes the shared rule ``sanitize(tenant) + "-" + sanitize(pivot) + ".csv"`` — identical to
+    the frontend ``exportFileName`` so a downloaded file and an emailed attachment match. Both
+    parts are run through :func:`_sanitize_export_part` so the result carries no path separators
+    or control characters.
+
+    **Backward-compat fallback (design §"Error Handling").** When EITHER sanitized part is blank
+    — an older in-flight job that predates the ``tenant_name`` / ``pivot_name`` envelope stamp
+    (task 6.1), or a name that sanitizes to nothing — the helper does NOT raise and does NOT emit
+    a malformed ``-.csv``; it degrades to the safe generic :data:`DEFAULT_EXPORT_FILENAME`
+    (``export.csv``). A pivot export never regresses to a hard failure over a cosmetic name.
+    """
+    tenant = _sanitize_export_part(tenant_name)
+    pivot = _sanitize_export_part(pivot_name)
+    if not tenant or not pivot:
+        return DEFAULT_EXPORT_FILENAME
+    return f"{tenant}-{pivot}.csv"
+
+
+def _export_subject(tenant_name: Any, pivot_name: Any) -> str:
+    """Compose the pivot-export email subject: the tenant name as a leading prefix + the pivot (R5.3).
+
+    Combines the sanitized tenant name as a LEADING PREFIX with the pivot name as
+    ``"{Tenant} - {Pivot}"``, so the subject identifies which tenant and which pivot the emailed
+    export belongs to. Parts are sanitized with :func:`_sanitize_export_part` (no control chars,
+    so no header injection).
+
+    **Backward-compat fallback (design §"Error Handling").** When EITHER sanitized part is blank
+    (an older in-flight job with no stamped names), the helper falls back to the generic
+    :data:`DEFAULT_EXPORT_SUBJECT` rather than composing a lopsided ``"Tenant - "`` /
+    ``" - Pivot"`` subject or raising — matching the filename fallback so the two degrade
+    together.
+    """
+    tenant = _sanitize_export_part(tenant_name)
+    pivot = _sanitize_export_part(pivot_name)
+    if not tenant or not pivot:
+        return DEFAULT_EXPORT_SUBJECT
+    return f"{tenant} - {pivot}"
 
 
 def _rows_to_csv_bytes(rows: Sequence[Mapping[str, Any]]) -> bytes:

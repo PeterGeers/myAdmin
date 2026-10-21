@@ -155,6 +155,15 @@ def _mail_job_to_envelope(job: Any) -> dict[str, Any]:
         "merge_values": dict(job.merge_values),
         "attachment": dict(job.attachment) if job.attachment is not None else None,
         "rows": [dict(r) for r in job.rows],
+        # The DISPLAY names ride the envelope so the worker (task 6.2) can NAME the export
+        # (`{Tenant_Name}-{Pivot_Name}.csv`) + PREFIX the subject without a second lookup
+        # (members-overview-tweaks R5.2/R5.3/R5.5). `tenant_id` / `set_id` above are opaque
+        # keys; these were stamped onto the MailJob at enqueue from the AUTHORITATIVE verified
+        # tenant context + the stored set — never a request-body value. Defaulted to "" on a
+        # job that predates the fields (additive, backward-compatible); the worker falls back
+        # to a safe generic name when either is blank.
+        "tenant_name": job.tenant_name,
+        "pivot_name": job.pivot_name,
     }
 
 

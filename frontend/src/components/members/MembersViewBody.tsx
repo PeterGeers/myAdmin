@@ -16,7 +16,7 @@
  */
 
 import React from 'react';
-import { VStack, Heading, Divider, Box, Flex, Text } from '@chakra-ui/react';
+import { SimpleGrid, VStack, Heading, Divider, Box, Flex, Text } from '@chakra-ui/react';
 import type { FieldConfig, Member } from '../../types/members';
 import { renderFieldValue, valueFor } from './fieldValue';
 import {
@@ -45,7 +45,10 @@ export const MembersViewBody: React.FC<MembersViewBodyProps> = ({
   const flat = flatten(member);
 
   return (
-    <VStack spacing={4} align="stretch">
+    // Field SECTIONS laid out responsively (members-overview-tweaks R4.2/R4.4): two columns on a
+    // Wide_Viewport (≥ Chakra `md`), one column on a Narrow_Viewport (< `md`). Only the container
+    // layout changes — sections stay grouped by `functional_group`.
+    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
       {sections.map((section) => {
         const shown = section.fields.filter((f) => evaluateShowWhen(f.show_when, flat));
         if (shown.length === 0) return null;
@@ -74,7 +77,7 @@ export const MembersViewBody: React.FC<MembersViewBodyProps> = ({
           </Box>
         );
       })}
-    </VStack>
+    </SimpleGrid>
   );
 };
 
