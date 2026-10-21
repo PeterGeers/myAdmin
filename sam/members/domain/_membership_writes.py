@@ -1680,7 +1680,7 @@ class WritesMixin:
             "field_overlay": (
                 self._overlay_provider.get_raw_fields_overlay(tenant_id)
                 if hasattr(self._overlay_provider, "get_raw_fields_overlay")
-                else {"fields": {}, "overrides": {}, "functional_groups": []}
+                else {"fields": {}, "fixed_overrides": {}, "functional_groups": []}
             ),
         }
 
