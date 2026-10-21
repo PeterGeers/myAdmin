@@ -265,7 +265,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirements 10.6, 11.1, 11.5, 17.3 (no-residue cleanup)**
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_projection_sync.py tests/unit/test_projection_content_gate.py -q`
 
-- [ ] 2. Checkpoint — config#fields cutover complete
+- [x] 2. Checkpoint — config#fields cutover complete
   - Ensure all SAM + Flask + frontend tests pass; confirm `config#fields` read-back verified in PROD
     before the 1.15 builder-removal merge to `main`. Ask the user if questions arise.
 
@@ -407,11 +407,11 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirements 22, 23**
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_user_tenant_scope_service.py -q`
 
-- [ ] 4. Checkpoint — config#scope cutover complete
+- [x] 4. Checkpoint — config#scope cutover complete
   - Ensure all tests pass; confirm `config#scope` read-back verified in PROD before the 3.7 merge to `main`.
     Ask the user if questions arise.
 
-- [ ] 5. `config#mail` cutover + sender fields (Roadmap Step 3)
+- [x] 5. `config#mail` cutover + sender fields (Roadmap Step 3)
 
   - [x] 5.1 Resolve OQ-2 (now-settled three-surface model) and author `config#mail` through the write path
     - DONE (merged to `test`): the `config#mail` validator wired into `config_write_service.py` (PR #141, deployed to TEST via Deploy SAM Members) + `mail_reply_to_default` in the builder/reader and the scheduled-send Reply-To resolution in `execute_and_deliver` / `mail_sender_resolver.resolve_scheduled_reply_to` (PR #142). Builder authors `mail_enabled` / `mail_domain` / `mail_local_part` / `mail_certified` (fail-closed bool) / `mail_reply_to_default` / `consent_notice` in the exact reader shape; the sender-identity Flask route and invoice SES path stay untouched (three-surface model).
@@ -504,13 +504,13 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirements 11.2, 11.3, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6**
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_projection_sync.py -q`
 
-- [ ] 6. Checkpoint — config#mail cutover complete
+- [x] 6. Checkpoint — config#mail cutover complete
   - Ensure all tests pass; confirm `config#mail` read-back verified in PROD before the 5.8 merge to `main`;
     confirm invoice SES untouched. Ask the user if questions arise.
 
 - [ ] 7. Typed authoring UI + single-authoring-door enforcement (Roadmap Step 4)
 
-  - [ ] 7.1 Build the NEW dedicated typed Mail function (single door for Members `config#mail` scalars)
+  - [x] 7.1 Build the NEW dedicated typed Mail function (single door for Members `config#mail` scalars)
     - New single screen under Members Tenant Admin: typed Chakra form fields with Formik/Yup validation
       and bilingual (nl/en) labels per `32-frontend-ui.md` (NOT a raw JSON grid) for `mail_enabled`,
       `mail_domain`, `mail_local_part`, `mail_certified`, `mail_reply_to_default`,

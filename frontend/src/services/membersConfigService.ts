@@ -20,10 +20,15 @@ import type {
   FunctionalGroup,
   LocalizedLabel,
 } from '../types/members';
+import { ApiError } from '../shared/api/ApiError';
 import { authenticatedGet } from './apiService';
 import { getParameters, createParameter, updateParameter } from './parameterService';
-import { getFieldConfig, writeFieldConfig, writeScopeConfig } from './membersApiService';
-import { ApiError } from '../shared/api/ApiError';
+import {
+  getFieldConfig,
+  writeFieldConfig,
+  writeScopeConfig,
+  writeMailConfig,
+} from './membersApiService';
 
 export const MEMBERS_NAMESPACE = 'members';
 
@@ -405,13 +410,13 @@ export async function saveMembersParameter(
         existing && existing.id != null && existing.scope_origin === 'tenant'
           ? await updateParameter(existing.id, { value: normalized, value_type: 'json' })
           : await createParameter({
-              scope: 'tenant',
-              namespace: MEMBERS_NAMESPACE,
-              key,
-              value: normalized,
-              value_type: 'json',
-              is_secret: false,
-            });
+            scope: 'tenant',
+            namespace: MEMBERS_NAMESPACE,
+            key,
+            value: normalized,
+            value_type: 'json',
+            is_secret: false,
+          });
       if (mirror.success === false) {
         return { success: false, version, mirrorError: mirror.error ?? 'Scope mirror write failed' };
       }
@@ -436,4 +441,67 @@ export async function saveMembersParameter(
     value_type: 'json',
     is_secret: false,
   });
+}
+
+// ---------------------------------------------------------------------------
+// config#mail — the SAM-owned mail scalars save path (task 7.1, single door).
+// ---------------------------------------------------------------------------
+
+/**
+ * The reader-shaped `config#mail` body authored through `PUT /members/config/mail` (Requirement
+ * 9 / 15). The keys match the SAM `MembersProjectionReader` mail accessors and the Flask
+ * `build_config_mail_row` builder EXACTLY so the writer and reader cannot drift:
+ *
+ *  - `mail_enabled` — the "cleared to send" gate (fail-closed bool).
+ *  - `mail_domain`  — the tenant's own mail domain (e.g. `h-dcn.nl`); optional, NO safe default.
+ *  - `mail_local_part` — the From local-part; defaults to `noreply` when blank.
+ *  - `mail_certified` — the SES-verified gate (fail-closed bool).
+ *  - `mail_reply_to_default` — the OPTIONAL scheduled/unattended-send Reply-To.
+ *  - `consent_notice` — the OPTIONAL versioned bilingual consent notice
+ *    (`{ version, text: { nl?, en? } }`); only send it when well-formed (a non-blank version AND
+ *    at least one non-blank locale body), else omit the attribute entirely (the server shapes it
+ *    the same way, but omitting a half-authored notice keeps the one authored body honest).
+ */
+export interface MembersMailConfigBody {
+  mail_enabled: boolean;
+  mail_domain?: string;
+  mail_local_part: string;
+  mail_certified: boolean;
+  mail_reply_to_default?: string;
+  consent_notice?: {
+    version: string;
+    text: Record<string, string>;
+  };
+}
+
+/**
+ * Save-once: author the SAM-owned `config#mail` scalars in a single `PUT /members/config/mail`
+ * request (task 7.1, Property 8 — the single authoring door for the mail concern).
+ *
+ * The SAM write is AUTHORITATIVE: on a 200 the returned `version` IS the authored state (the
+ * row-level write stamp), there is no projection step to wait on, so this surfaces no
+ * pending-projection signal. The stable `{ success, error?, version? }` shape is what the typed
+ * Mail editor consumes. A non-2xx (auth/entitlement 401/403, validation 400) is caught and
+ * returned as `{ success: false, error }` with a caller-safe message — a failed save never claims
+ * success.
+ *
+ * This writes ONLY the `config#mail` scalars; it does NOT touch the sender-identity Flask route
+ * (three-surface model). It deliberately does NOT route through `saveMembersParameter` — that
+ * function is keyed on `field_overlay` / `scope_dimensions` Flask-mirror semantics, whereas mail
+ * is pure SAM with no Flask mirror.
+ */
+export async function saveMembersMailConfig(
+  body: MembersMailConfigBody,
+): Promise<{ success: boolean; error?: string; version?: string }> {
+  try {
+    const result = await writeMailConfig(body);
+    if (result.success === false) {
+      return { success: false, error: 'Mail config write failed' };
+    }
+    return { success: true, version: result.version };
+  } catch (e) {
+    // The Members API throws a structured ApiError on non-2xx; surface a caller-safe message.
+    const error = e instanceof ApiError || e instanceof Error ? e.message : String(e);
+    return { success: false, error };
+  }
 }

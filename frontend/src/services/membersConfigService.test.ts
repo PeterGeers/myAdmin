@@ -10,9 +10,11 @@
  * where an absolute buildApiUrl() result was passed back into authenticatedGet()).
  */
 import { vi } from 'vitest';
+import { ApiError } from '../shared/api/ApiError';
 import {
   getMembersParameters,
   saveMembersParameter,
+  saveMembersMailConfig,
   getMembersParameterDefinitions,
   MEMBERS_NAMESPACE,
   resolveFieldConfigLabel,
@@ -20,7 +22,6 @@ import {
 import * as parameterService from './parameterService';
 import * as apiService from './apiService';
 import * as membersApiService from './membersApiService';
-import { ApiError } from '../shared/api/ApiError';
 
 vi.mock('./parameterService', () => ({
   getParameters: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('./apiService', () => ({
 vi.mock('./membersApiService', () => ({
   writeFieldConfig: vi.fn(),
   writeScopeConfig: vi.fn(),
+  writeMailConfig: vi.fn(),
   getFieldConfig: vi.fn(),
 }));
 
@@ -299,6 +301,68 @@ describe('membersConfigService', () => {
       // A failed SAM write must not silently fall back to the Flask parameter path.
       expect(parameterService.createParameter).not.toHaveBeenCalled();
       expect(parameterService.updateParameter).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // config#mail is SAM-owned: saveMembersMailConfig is the single authoring door
+  // (task 7.1, Property 8). It PUTs the reader-shaped body through writeMailConfig
+  // (`PUT /members/config/mail`), the SAM write is authoritative (the returned
+  // version IS the authored state), and it NEVER touches the Flask parameter path.
+  // Validates: Requirements 20.1, 20.2, 9.1, 14.4, 15.2
+  // -------------------------------------------------------------------------
+  describe('saveMembersMailConfig — the single SAM config#mail write door (task 7.1)', () => {
+    const body = {
+      mail_enabled: true,
+      mail_certified: true,
+      mail_local_part: 'info',
+      mail_domain: 'h-dcn.nl',
+    };
+
+    it('PUTs the whole body through writeMailConfig and returns the authoritative version', async () => {
+      vi.mocked(membersApiService.writeMailConfig).mockResolvedValue({
+        success: true,
+        configId: 'mail',
+        version: '2026-10-20T11:00:00+00:00',
+      });
+
+      const res = await saveMembersMailConfig(body);
+
+      expect(res.success).toBe(true);
+      expect(res.version).toBe('2026-10-20T11:00:00+00:00');
+      // Exactly one SAM write, with the full body (single authoring door).
+      expect(membersApiService.writeMailConfig).toHaveBeenCalledTimes(1);
+      expect(membersApiService.writeMailConfig).toHaveBeenCalledWith(body);
+      // The Flask parameter path is never used for mail.
+      expect(parameterService.createParameter).not.toHaveBeenCalled();
+      expect(parameterService.updateParameter).not.toHaveBeenCalled();
+    });
+
+    it('surfaces a caller-safe error (success:false) when the SAM write rejects', async () => {
+      vi.mocked(membersApiService.writeMailConfig).mockRejectedValue(
+        new ApiError(403, { error: 'Access denied' }),
+      );
+
+      const res = await saveMembersMailConfig(body);
+
+      expect(res.success).toBe(false);
+      expect(res.error).toBe('Access denied');
+      // A failed SAM write must not fall back to the Flask parameter path.
+      expect(parameterService.createParameter).not.toHaveBeenCalled();
+      expect(parameterService.updateParameter).not.toHaveBeenCalled();
+    });
+
+    it('treats a success:false result as a failed save (no version claimed)', async () => {
+      vi.mocked(membersApiService.writeMailConfig).mockResolvedValue({
+        success: false,
+        configId: 'mail',
+        version: '',
+      });
+
+      const res = await saveMembersMailConfig(body);
+
+      expect(res.success).toBe(false);
+      expect(res.error).toBe('Mail config write failed');
     });
   });
 
