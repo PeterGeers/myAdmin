@@ -21,6 +21,7 @@ from auth.tenant_context import get_current_tenant
 from database import DatabaseManager
 from google_drive_service import GoogleDriveService
 from routes.error_responses import error_payload, error_response
+from services.parameter_service import ParameterService
 from services.storage_resolver import get_s3_storage, resolve_storage_provider
 
 # Initialize logger
@@ -124,23 +125,27 @@ def get_storage_config(user_email, user_roles) -> ResponseReturnValue:
         # Get current tenant
         tenant = get_current_tenant(request)
 
-        # Get configuration from tenant_config table
+        # No silent hardcoded default: an unresolved tenant is a caller-safe
+        # error, not a fallback (tenant-isolation rules).
+        if not tenant:
+            return jsonify({"error": "Tenant could not be resolved"}), 400
+
+        # Read storage configuration from the current source of truth: the
+        # tenant's `storage` namespace in the `parameters` store (via the
+        # service layer). This removes all dependency on the superseded
+        # `tenant_config` table and its `is_secret` column.
         db = DatabaseManager()
+        ps = ParameterService(db)
+        params = ps.get_params_by_namespace("storage", tenant)
 
-        query = """
-            SELECT config_key, config_value, is_secret
-            FROM tenant_config
-            WHERE administration = %s
-            AND (config_key LIKE '%_folder_id')
-        """
-
-        results = db.execute_query(query, (tenant,))
-
-        # Build config dict from key-value pairs
-        # Return keys as-is (e.g., "google_drive_invoices_folder_id" -> "google_drive_invoices_folder_id")
-        storage_config = {}
-        for row in results:
-            storage_config[row["config_key"]] = row["config_value"]
+        # Keep keys as-is; include ONLY keys ending in the literal suffix
+        # "_folder_id" (str.endswith eliminates the old `LIKE '%_folder_id'`
+        # single-char wildcard over-match, e.g. "xfolder_id" is excluded).
+        storage_config = {
+            param["key"]: param["value"]
+            for param in params
+            if param["key"].endswith("_folder_id")
+        }
 
         logger.info(
             f"Retrieved storage config for tenant {tenant}: {list(storage_config.keys())}"
