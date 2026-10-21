@@ -46,13 +46,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   getMembersFieldConfig,
-  getMembersParameters,
   saveMembersMailConfig,
   saveMembersParameter,
 } from '../../../services/membersConfigService';
 import { getSlug } from '../../../services/landingPageApi';
 import { listMembershipTypes } from '../../../services/members/membersConfigApi';
-import type { Parameter } from '../../../types/parameterTypes';
 import type { MembersConfigValue } from '../../../types/membersConfig';
 import type { FieldConfig, MembershipType } from '../../../types/members';
 import { ApplicationFieldList } from './ApplicationFieldList';
@@ -82,8 +80,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   const [savingMail, setSavingMail] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // The existing field_overlay row (its DB id drives the save upsert); null = unauthored.
-  const [existingRow, setExistingRow] = useState<Parameter | null>(null);
   // The resolved field config — the source for the field list + its current application attributes,
   // the mail_config body, and the readiness signal. Best-effort (null when the fetch fails).
   const [fieldConfig, setFieldConfig] = useState<FieldConfig | null>(null);
@@ -120,16 +116,18 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
     setLoading(true);
     setError(null);
     try {
-      const values = await getMembersParameters();
-      const row = values.field_overlay ?? null;
-      setExistingRow(row);
-      const overlayValue = (row?.value as MembersConfigValue) ?? {};
-      setOverlay(overlayValue);
-      setBaseline(JSON.stringify(overlayValue));
-      // Best-effort: the resolved config feeds the field list, mail_config, and readiness. A
-      // failure resolves to null (panels show "unavailable") and NEVER blocks authoring.
+      // Load the resolved field config FIRST — it carries the RAW stored `config#fields`
+      // overlay (`field_overlay`) the builder seeds + writes back (spec 11 bugfix). GET and PUT
+      // are the SAME SAM row, so a save is loss-free. A failed fetch resolves to null (panels
+      // show "unavailable") and NEVER blocks authoring. The retired Flask `members.field_overlay`
+      // param is no longer read here — SAM `config#fields` is the single source of truth.
       const cfg = await getMembersFieldConfig();
       setFieldConfig(cfg);
+      // Seed the ONE working overlay from the authoritative SAM row (not a divergent Flask copy):
+      // the exact `{ fields, overrides, functional_groups }` object the single Save PUTs back.
+      const overlayValue = (cfg?.field_overlay as MembersConfigValue) ?? {};
+      setOverlay(overlayValue);
+      setBaseline(JSON.stringify(overlayValue));
       // The LIVE membership-type catalog (task 3.3 / R4) — best-effort, like the field config. A
       // failure leaves it null; the membership-type subset picker then shows "no types yet".
       try {
@@ -175,7 +173,7 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   const handleSaveFields = async () => {
     setSaving(true);
     try {
-      const res = await saveMembersParameter('field_overlay', overlay, existingRow);
+      const res = await saveMembersParameter('field_overlay', overlay, null);
       if (res.success) {
         toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
         // Reflect the just-saved config in the live preview (R7.4 — save to update preview).

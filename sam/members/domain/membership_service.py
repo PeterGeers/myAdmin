@@ -208,9 +208,17 @@ class MembershipService(
         # "no EventBridge wiring" — the schedule CRUD then persists records only (preserving the
         # pure-domain / pre-5.3 behaviour), so a unit test of the CRUD need not supply one.
         self._scheduler: SchedulerApiPort | None = scheduler_port
-        self._field_resolver = FieldResolver(
-            overlay_provider if overlay_provider is not None else StaticOverlayProvider()
+        self._overlay_provider = (
+            overlay_provider
+            if overlay_provider is not None
+            else StaticOverlayProvider()
         )
+        # The RAW overlay read (spec 11 bugfix): the authoring editors LOAD the exact
+        # `config#fields` body they PUT back, from the SAME SAM row (`get_raw_fields_overlay`),
+        # so a save is loss-free (GET/PUT symmetric on one table). Only the production reader
+        # exposes it; a provider without the method (e.g. StaticOverlayProvider in tests) yields
+        # an empty overlay via the duck-typed guard in `get_field_config`.
+        self._field_resolver = FieldResolver(self._overlay_provider)
         # S5j (design D1a): the scope-config provider supplies the tenant's ScopeConfig, from
         # which get_field_config / the write validator derive a {dimension.field: values} map so
         # a scope-dimension-backed overlay enum (h-dcn `region`) sources its dropdown choices
@@ -288,4 +296,3 @@ class MembershipService(
         self._tenant_hooks = (
             tenant_hooks if tenant_hooks is not None else TenantHookRegistry()
         )
-
