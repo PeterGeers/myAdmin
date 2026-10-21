@@ -115,7 +115,9 @@ class _PassThroughPivotRunner:
     Protocol, so when the real pivot engine lands it replaces this shim with no service change.
     """
 
-    def run(self, tenant_id: str, definition: Mapping[str, Any], rows: Any) -> list[Any]:
+    def run(
+        self, tenant_id: str, definition: Mapping[str, Any], rows: Any
+    ) -> list[Any]:
         return list(rows)
 
 
@@ -295,11 +297,22 @@ def get_config_write_service() -> Any:
     global _CONFIG_WRITE_SERVICE
     if _CONFIG_WRITE_SERVICE is None:
         from sam.members.domain.config_write_service import ConfigWriteService
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
         from sam.members.repository.projection_config_write_repository import (
             MembersConfigWriteRepository,
         )
 
-        _CONFIG_WRITE_SERVICE = ConfigWriteService(MembersConfigWriteRepository())
+        # Inject the projection reader so the config#fields write MERGES onto the current stored
+        # row (read-modify-write) instead of blind-replacing it (bugfix): a partial PUT from the
+        # Application Form Builder (only application-attribute toggles) can no longer wipe the
+        # tenant's other slices. The reader resolves its table lazily + fail-fast, same as the
+        # write repo, so cold import still touches no AWS.
+        _CONFIG_WRITE_SERVICE = ConfigWriteService(
+            MembersConfigWriteRepository(),
+            overlay_reader=MembersProjectionReader(),
+        )
     return _CONFIG_WRITE_SERVICE
 
 
@@ -446,7 +459,9 @@ def _parse_ad_hoc_body(request: ParsedRequest) -> AdHocMailBody:
         mode=body.get("mode"),
         result_rows=_row_tuple(body.get("result_rows")),
         recipients=_str_tuple(body.get("recipients")),
-        template_id=template_id if isinstance(template_id, str) and template_id else None,
+        template_id=template_id
+        if isinstance(template_id, str) and template_id
+        else None,
         attachment=attachment if isinstance(attachment, str) and attachment else None,
         label_options=label_options if isinstance(label_options, Mapping) else None,
         recipient_field=(
@@ -600,7 +615,9 @@ def dispatch_route(
         paging, limit = _parse_page_size(request.query)
         if not paging:
             return service.list_members(tenant_id, scopes)
-        cursor = request.query.get("cursor") if isinstance(request.query, Mapping) else None
+        cursor = (
+            request.query.get("cursor") if isinstance(request.query, Mapping) else None
+        )
         rows, next_cursor = service.list_members_page(
             tenant_id, scopes, page_size=limit, cursor=cursor
         )
@@ -797,9 +814,7 @@ def dispatch_route(
         run_id = _new_run_id(tenant_id, body.set_id, ctx.sub)
         reply_to = _verified_email(ctx)
         send_service = get_execute_and_deliver_service()
-        outcome = send_service.send_ad_hoc(
-            tenant_id, body, run_id, reply_to=reply_to
-        )
+        outcome = send_service.send_ad_hoc(tenant_id, body, run_id, reply_to=reply_to)
         return AcceptedResult(_delivery_outcome_to_dict(outcome))
 
     # ── Group ANALYTICS (send-run STATUS reads — R9, mail-spec task 3.2) ─────────────
@@ -817,9 +832,7 @@ def dispatch_route(
     if name == "list_mail_runs":
         status_service = get_mail_run_status_service()
         admin = _caller_is_tenant_admin(ctx)
-        runs = status_service.list_runs(
-            tenant_id, requester_sub=ctx.sub, admin=admin
-        )
+        runs = status_service.list_runs(tenant_id, requester_sub=ctx.sub, admin=admin)
         return [_mail_run_to_dict(r) for r in runs]
 
     if name == "get_mail_run":
@@ -912,7 +925,9 @@ def dispatch_route(
                 f"{config_id!r} is not writable"
             )
         config_write_service = get_config_write_service()
-        return config_write_service.put_config(tenant_id, config_id, _write_body(request))
+        return config_write_service.put_config(
+            tenant_id, config_id, _write_body(request)
+        )
 
     # ── Group MEMBER (writes — task 5.2) ──────────────────────────────────────────────
     if name == "create_member":
