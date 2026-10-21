@@ -89,9 +89,19 @@ class ConfigWriteService:
             can pin a deterministic stamp.
     """
 
-    def __init__(self, repository, version_fn=next_write_stamp):
+    def __init__(self, repository, version_fn=next_write_stamp, overlay_reader=None):
         self._repository = repository
         self._version_fn = version_fn
+        # Optional raw-overlay reader for MERGE-ON-WRITE of config#fields (bugfix): a config#fields
+        # PUT carries only the slice the client is authoring, but the repository put REPLACES the
+        # whole row. Without merging, a partial body (e.g. the Application Form Builder sending only
+        # application-attribute toggles, with empty fields/functional_groups) would WIPE the other
+        # slices. When a reader exposing ``get_raw_fields_overlay(tenant_id)`` is injected, the
+        # fields validator merges the incoming slices onto the CURRENT stored row per key, so an
+        # omitted field/group/override is preserved rather than erased. None (tests without the
+        # reader) → legacy replace behaviour, so existing unit tests that assert the shaped body
+        # are unaffected.
+        self._overlay_reader = overlay_reader
 
     def put_config(self, tenant_id: str, config_id: str, body: Mapping) -> dict:
         """Validate ``body`` for ``config_id``, stamp a version, and persist the row.
@@ -115,7 +125,7 @@ class ConfigWriteService:
             ValueError: ``config_id`` has no validator wired (an id outside ``{fields, scope,
                 mail}`` — the edge rejects these first, so this is defense in depth).
         """
-        attributes = self._validate_body(config_id, body)
+        attributes = self._validate_body(config_id, body, tenant_id)
         version = self._version_fn()
         self._repository.put_config(
             tenant_id=tenant_id,
@@ -127,14 +137,16 @@ class ConfigWriteService:
 
     # ── Per-configId body-validation seam ──────────────────────────────────────────────
 
-    def _validate_body(self, config_id: str, body: Mapping) -> dict:
+    def _validate_body(self, config_id: str, body: Mapping, tenant_id: str) -> dict:
         """Dispatch to the per-``configId`` body validator.
 
         Each SAM-owned id shapes + validates only its own attributes — ``fields`` (Task 1.5),
-        ``scope`` (Task 3.3), and ``mail`` (Task 5.1) are all implemented here.
+        ``scope`` (Task 3.3), and ``mail`` (Task 5.1) are all implemented here. ``fields`` also
+        needs ``tenant_id`` to MERGE the incoming slices onto the current stored row (bugfix).
         """
+        if config_id == schema.CONFIG_ID_FIELDS:
+            return self._validate_fields_body(body, tenant_id)
         validators = {
-            schema.CONFIG_ID_FIELDS: self._validate_fields_body,
             schema.CONFIG_ID_SCOPE: self._validate_scope_body,
             schema.CONFIG_ID_MAIL: self._validate_mail_body,
         }
@@ -150,7 +162,7 @@ class ConfigWriteService:
 
     # ── config#fields validator (Task 1.5 / Requirement 7) ──────────────────────────────
 
-    def _validate_fields_body(self, body: Mapping) -> dict:
+    def _validate_fields_body(self, body: Mapping, tenant_id: str = "") -> dict:
         """Validate + shape a ``config#fields`` body into the reader's ``get_overlay`` shape (R7).
 
         Authors the ``fields`` / ``overrides`` / ``functional_groups`` attributes ONLY — the exact
@@ -175,28 +187,43 @@ class ConfigWriteService:
                 "config#fields body must be an object with fields/overrides/functional_groups"
             )
 
-        fields = self._validate_fields_map(body.get("fields"))
+        fields_in = self._validate_fields_map(body.get("fields"))
         # Fixed-field overrides: the canonical stored attribute is ``overrides`` (what
         # ``MembersProjectionReader.get_overlay`` reads). The frontend field_overlay object and the
         # legacy Flask ``build_config_fields_row`` builder author this map under the INPUT ALIAS
-        # ``fixed_overrides``. Accept either on the wire and normalize to ``overrides`` so the
-        # established frontend shape writes through unchanged (R13.3) WITHOUT silently dropping the
-        # fixed-field overrides (the I-x data-loss bug: an alias-only body persisted zero
-        # overrides, wiping membership.status / personal.* presentation). Canonical ``overrides``
-        # wins if a body somehow carries both; the alias is read only when ``overrides`` is absent.
-        overrides_in = body.get("overrides")
-        if overrides_in is None:
-            overrides_in = body.get("fixed_overrides")
-        overrides = self._validate_overrides_map(overrides_in)
-        functional_groups = self._validate_functional_groups(
+        # ``fixed_overrides``. Accept either on the wire and normalize to ``overrides``. Precedence
+        # fix (bugfix): fall back to the alias when ``overrides`` is empty OR absent — a
+        # present-but-empty ``overrides`` must NOT shadow a populated ``fixed_overrides`` (that
+        # dropped every base-field toggle the Application Form Builder sent). A populated canonical
+        # ``overrides`` still wins when both are non-empty.
+        overrides_raw = body.get("overrides")
+        if not overrides_raw:
+            overrides_raw = body.get("fixed_overrides")
+        overrides_in = self._validate_overrides_map(overrides_raw)
+        functional_groups_in = self._validate_functional_groups(
             body.get("functional_groups")
+        )
+
+        # MERGE-ON-WRITE (bugfix): a config#fields PUT carries only the slice(s) the client is
+        # authoring, but the repository put REPLACES the whole row. Without a merge, a partial body
+        # (e.g. the Application Form Builder sending only application-attribute toggles under
+        # ``overrides``/``fixed_overrides`` with empty ``fields``/``functional_groups``) would WIPE
+        # the tenant's other slices. When an overlay reader is wired, load the CURRENT stored row
+        # and merge the incoming slices onto it PER KEY: an incoming field/override spec REPLACES
+        # the stored entry for that key (so a toggle updates it), and a stored entry the body OMITS
+        # is PRESERVED. ``functional_groups`` (an ordered list) is replaced only when the body
+        # carries a non-empty list, else the stored groups are kept. No reader (unit tests without
+        # one) → legacy replace with exactly what the body carried.
+        fields, overrides, functional_groups = self._merge_fields_slices(
+            tenant_id, fields_in, overrides_in, functional_groups_in, body
         )
 
         # Per-field APPLICATION-attribute hardening (R8): the write path is the authoritative
         # author now that the Flask `_validate_application_attrs` guard is off the authoring path
         # (R8.4). Reject a subset ⊄ choices, an unknown `format.checker`, a malformed `format`,
         # or a relax of a platform-required field — fail-loud, BEFORE the row is written, keyed to
-        # the offending field (R8.1/R8.3).
+        # the offending field (R8.1/R8.3). Validated over the MERGED result so a preserved entry is
+        # re-checked too.
         self._validate_application_attributes(fields, overrides)
 
         # Author exactly the three reader-read attributes — no default_page_size (R7.2).
@@ -205,6 +232,69 @@ class ConfigWriteService:
             "overrides": overrides,
             "functional_groups": functional_groups,
         }
+
+    def _merge_fields_slices(
+        self,
+        tenant_id: str,
+        fields_in: dict,
+        overrides_in: dict,
+        functional_groups_in: list,
+        body: Mapping,
+    ) -> tuple[dict, dict, list]:
+        """Merge the incoming config#fields slices onto the CURRENT stored row (bugfix).
+
+        Read-modify-write so a PARTIAL body never wipes a slice it did not author. Per-key merge:
+        an incoming ``fields``/``overrides`` spec replaces the stored entry for that key; a stored
+        key the body omits is preserved. ``functional_groups`` is replaced only when the body
+        carries a non-empty list (an ordered catalog — a present non-empty list is authoritative),
+        else the stored groups are kept.
+
+        Falls back to the incoming slices verbatim (legacy replace) when no overlay reader is wired
+        (unit tests) or the reader yields nothing — so a never-authored tenant writes exactly what
+        the body carried.
+        """
+        reader = self._overlay_reader
+        if (
+            reader is None
+            or not tenant_id
+            or not hasattr(reader, "get_raw_fields_overlay")
+        ):
+            return fields_in, overrides_in, functional_groups_in
+
+        current = reader.get_raw_fields_overlay(tenant_id) or {}
+        cur_fields = (
+            current.get("fields") if isinstance(current.get("fields"), dict) else {}
+        )
+        cur_overrides = (
+            current.get("overrides")
+            if isinstance(current.get("overrides"), dict)
+            else {}
+        )
+        cur_groups = (
+            current.get("functional_groups")
+            if isinstance(current.get("functional_groups"), list)
+            else []
+        )
+
+        # Per-key merge: stored first, then incoming wins for the keys it carries.
+        merged_fields = {**cur_fields, **fields_in}
+        merged_overrides = {**cur_overrides, **overrides_in}
+
+        # A field/override key the body EXPLICITLY clears (incoming spec present but empty-ish) is
+        # still a replace (the toggle-off case writes an empty/attr-stripped spec), so {**...}
+        # already handles it. We do NOT delete keys — deletion in these editors is an explicit
+        # field/group removal that sends the full slice, which the body-carries check below honours.
+
+        # functional_groups: replace only when the body carried a non-empty list; else keep stored.
+        body_carried_groups = (
+            isinstance(body.get("functional_groups"), (list, tuple))
+            and len(body.get("functional_groups")) > 0
+        )
+        merged_groups = (
+            functional_groups_in if body_carried_groups else list(cur_groups)
+        )
+
+        return merged_fields, merged_overrides, merged_groups
 
     # ── Per-field application-attribute validation (Task 1.1 / Requirement 8) ────────────
 
