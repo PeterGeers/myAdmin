@@ -137,6 +137,17 @@ def migrate(db: DatabaseManager | None = None, dry_run: bool = True) -> dict:
 
 
 if __name__ == "__main__":
+    # Load the backend .env so DB_* / APP_ENV resolve for a manual run (DatabaseManager
+    # reads os.getenv and does NOT load .env itself). Best-effort: in a shell that already
+    # exported the vars this is a harmless no-op. The target DB is selected by APP_ENV /
+    # the DB_* chain (TEST = local Docker, PRODUCTION = Railway) — never hardcoded.
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+    except Exception as exc:  # pragma: no cover - .env loading is best-effort
+        logger.debug("Skipped .env load (vars may already be set): %s", exc)
+
     # Dry run is the DEFAULT (R2.1). Require an explicit --apply to write.
     apply = "--apply" in sys.argv
     dry_run = not apply
