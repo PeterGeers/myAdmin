@@ -33,7 +33,6 @@ vi.mock('@chakra-ui/react', async () => {
 /* ------------------------------------------------------------------ */
 const mockSaveMail = vi.fn();
 const mockGetFieldConfig = vi.fn();
-const mockGetParams = vi.fn();
 
 vi.mock('../../../../services/membersConfigService', async () => {
   const actual = await vi.importActual<
@@ -43,7 +42,6 @@ vi.mock('../../../../services/membersConfigService', async () => {
     ...actual,
     saveMembersMailConfig: (...a: unknown[]) => mockSaveMail(...a),
     getMembersFieldConfig: (...a: unknown[]) => mockGetFieldConfig(...a),
-    getMembersParameters: (...a: unknown[]) => mockGetParams(...a),
   };
 });
 
@@ -59,9 +57,13 @@ const renderEditor = () =>
 describe('MembersMailConfigEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Best-effort loads resolve empty → fail-closed defaults; never blocks authoring.
-    mockGetFieldConfig.mockResolvedValue({ fields: [], mail_enabled: false });
-    mockGetParams.mockResolvedValue({});
+    // The form now loads the mail scalars from the AUTHORITATIVE field-config `mail_config`
+    // (the SAM config#mail body), NOT from the legacy members.* params. An empty/fail-closed
+    // mail_config → the fail-closed defaults; never blocks authoring.
+    mockGetFieldConfig.mockResolvedValue({
+      fields: [],
+      mail_config: { mail_enabled: false, mail_local_part: 'noreply', mail_certified: false },
+    });
     mockSaveMail.mockResolvedValue({ success: true, version: '2026-10-20T10:00:00+00:00' });
   });
 
@@ -199,5 +201,50 @@ describe('MembersMailConfigEditor', () => {
     expect(mockToast).not.toHaveBeenCalledWith(
       expect.objectContaining({ status: 'success' }),
     );
+  });
+
+  it('round-trips a saved reply-to through the authoritative field-config read (findings fix)', async () => {
+    // Regression for the reported bug: Default Reply-To saved (server 200) then appeared blank
+    // because the form reloaded the mail scalars from MySQL (which never holds the SAM-only
+    // mail_reply_to_default). The form now loads from field-config `mail_config` and RE-FETCHES
+    // after save, so the saved value round-trips through the real authoritative read path.
+    await i18n.changeLanguage('en');
+    // Initial load: no reply-to yet.
+    mockGetFieldConfig.mockResolvedValueOnce({
+      fields: [],
+      mail_config: { mail_enabled: true, mail_local_part: 'noreply', mail_certified: true },
+    });
+    // Post-save re-fetch: the authoritative config#mail now carries the saved reply-to.
+    mockGetFieldConfig.mockResolvedValueOnce({
+      fields: [],
+      mail_config: {
+        mail_enabled: true,
+        mail_local_part: 'noreply',
+        mail_certified: true,
+        mail_reply_to_default: 'webmaster@h-dcn.nl',
+      },
+    });
+    mockSaveMail.mockResolvedValue({ success: true, version: '2026-10-21T08:29:24+00:00' });
+    renderEditor();
+
+    await screen.findByTestId('members-mail-config-editor');
+    const replyTo = screen.getByTestId('members-mail-config-reply-to') as HTMLInputElement;
+    // Loaded blank from the first (no reply-to) mail_config.
+    expect(replyTo.value).toBe('');
+    fireEvent.change(replyTo, { target: { value: 'webmaster@h-dcn.nl' } });
+    fireEvent.click(screen.getByTestId('members-mail-config-save'));
+
+    await waitFor(() => expect(mockSaveMail).toHaveBeenCalledTimes(1));
+    expect(mockSaveMail.mock.calls[0][0]).toMatchObject({
+      mail_reply_to_default: 'webmaster@h-dcn.nl',
+    });
+    // The re-fetch re-seeds from the AUTHORITATIVE read, so the value sticks (did not reset).
+    await waitFor(() =>
+      expect(
+        (screen.getByTestId('members-mail-config-reply-to') as HTMLInputElement).value,
+      ).toBe('webmaster@h-dcn.nl'),
+    );
+    // getMembersFieldConfig was called twice: initial load + post-save re-fetch (round-trip).
+    expect(mockGetFieldConfig).toHaveBeenCalledTimes(2);
   });
 });

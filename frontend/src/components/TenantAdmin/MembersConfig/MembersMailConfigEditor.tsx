@@ -22,12 +22,16 @@
  * `/api/members/sender-identities` route — it is a separate dataset / write mechanism and is NOT
  * folded into the `config#mail` put. The invoice-SES sender surface is untouched here.
  *
- * ## Best-effort load
+ * ## Authoritative load (reads the same source it writes)
  *
- * Current values are loaded best-effort from `GET /members/field-config` (the resolved
- * config#mail-backed values via the reader) and the legacy `members.*` parameter rows, mirroring
- * `MembersConfigEditor`'s best-effort posture — a load failure degrades to the fail-closed
- * defaults and NEVER blocks authoring.
+ * Initial values are loaded from `GET /members/field-config`'s `mail_config` object — the
+ * AUTHORITATIVE SAM `config#mail` body (the same row this form writes via
+ * `PUT /members/config/mail`). It does NOT read the mail scalars from the legacy MySQL
+ * `members.*` params: those are SAM-owned/retired now, and `mail_reply_to_default` is SAM-only
+ * net-new (no MySQL row), so reading from MySQL would make a just-saved value read back blank.
+ * After a successful save the form RE-FETCHES the field config and re-seeds from the fresh
+ * `mail_config`, so the save demonstrably round-trips through the real read path. A load
+ * failure degrades to the fail-closed defaults and NEVER blocks authoring.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
@@ -54,10 +58,10 @@ import * as Yup from 'yup';
 import { useTranslation } from 'react-i18next';
 import {
   getMembersFieldConfig,
-  getMembersParameters,
   saveMembersMailConfig,
 } from '../../../services/membersConfigService';
 import type { MembersMailConfigBody } from '../../../services/membersConfigService';
+import type { FieldConfig } from '../../../types/members';
 
 interface Props {
   tenant: string;
@@ -125,6 +129,40 @@ export function toMailConfigBody(values: MailFormValues): MembersMailConfigBody 
   return body;
 }
 
+/**
+ * Map the authoritative `GET /members/field-config` `mail_config` body onto the flat Formik form
+ * values. A missing/absent `mail_config` (older module build or load failure) yields the
+ * fail-closed defaults (INITIAL_VALUES), so the form never blocks authoring. The nested
+ * `consent_notice.{version,text.nl,text.en}` is flattened onto the controlled fields.
+ */
+export function mailConfigToFormValues(cfg: FieldConfig | null | undefined): MailFormValues {
+  const next: MailFormValues = { ...INITIAL_VALUES };
+  const mc = cfg?.mail_config;
+  if (!mc) {
+    // Back-compat: an older build may still carry a top-level mail_enabled without mail_config.
+    if (cfg && typeof cfg.mail_enabled === 'boolean') next.mail_enabled = cfg.mail_enabled;
+    return next;
+  }
+  if (typeof mc.mail_enabled === 'boolean') next.mail_enabled = mc.mail_enabled;
+  if (typeof mc.mail_certified === 'boolean') next.mail_certified = mc.mail_certified;
+  if (typeof mc.mail_domain === 'string') next.mail_domain = mc.mail_domain;
+  if (typeof mc.mail_local_part === 'string' && mc.mail_local_part) {
+    next.mail_local_part = mc.mail_local_part;
+  }
+  if (typeof mc.mail_reply_to_default === 'string') {
+    next.mail_reply_to_default = mc.mail_reply_to_default;
+  }
+  const notice = mc.consent_notice;
+  if (notice && typeof notice.version === 'string') {
+    next.consent_version = notice.version;
+    const txt = notice.text ?? {};
+    if (typeof txt.nl === 'string') next.consent_text_nl = txt.nl;
+    if (typeof txt.en === 'string') next.consent_text_en = txt.en;
+  }
+  return next;
+}
+
+
 export const MembersMailConfigEditor: React.FC<Props> = ({ tenant }) => {
   const { i18n } = useTranslation();
   const lang = (i18n.language?.startsWith('nl') ? 'nl' : 'en') as 'nl' | 'en';
@@ -138,47 +176,16 @@ export const MembersMailConfigEditor: React.FC<Props> = ({ tenant }) => {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      // Best-effort: field-config carries the resolved config#mail-backed values via the reader;
-      // the legacy members.* param rows carry the author-time values while they still exist. A
-      // failure of EITHER degrades to the fail-closed defaults and never blocks authoring.
-      const next: MailFormValues = { ...INITIAL_VALUES };
+      // Load the mail scalars from the AUTHORITATIVE SAM source — GET /members/field-config's
+      // `mail_config` body (the same config#mail row this form writes). Never reads the legacy
+      // MySQL members.* params: those are SAM-owned/retired, and mail_reply_to_default is
+      // SAM-only net-new, so MySQL is the wrong source (a saved value would read back blank). A
+      // failure degrades to the fail-closed defaults and never blocks authoring.
+      let next: MailFormValues = { ...INITIAL_VALUES };
       try {
-        const cfg = await getMembersFieldConfig();
-        if (cfg && typeof cfg.mail_enabled === 'boolean') {
-          next.mail_enabled = cfg.mail_enabled;
-        }
+        next = mailConfigToFormValues(await getMembersFieldConfig());
       } catch {
-        // ignore — best-effort
-      }
-      try {
-        const params = await getMembersParameters();
-        const readStr = (key: string): string => {
-          const v = params[key]?.value;
-          return typeof v === 'string' ? v : '';
-        };
-        const readBool = (key: string): boolean | undefined => {
-          const v = params[key]?.value;
-          return typeof v === 'boolean' ? v : undefined;
-        };
-        const enabled = readBool('mail_enabled');
-        if (typeof enabled === 'boolean') next.mail_enabled = enabled;
-        const certified = readBool('mail_certified');
-        if (typeof certified === 'boolean') next.mail_certified = certified;
-        next.mail_domain = readStr('mail_domain') || next.mail_domain;
-        next.mail_local_part = readStr('mail_local_part') || next.mail_local_part;
-        next.mail_reply_to_default = readStr('mail_reply_to_default') || next.mail_reply_to_default;
-        const notice = params['application_consent_notice']?.value;
-        if (notice && typeof notice === 'object' && !Array.isArray(notice)) {
-          const n = notice as { version?: unknown; text?: unknown };
-          if (typeof n.version === 'string') next.consent_version = n.version;
-          if (n.text && typeof n.text === 'object' && !Array.isArray(n.text)) {
-            const txt = n.text as Record<string, unknown>;
-            if (typeof txt.nl === 'string') next.consent_text_nl = txt.nl;
-            if (typeof txt.en === 'string') next.consent_text_en = txt.en;
-          }
-        }
-      } catch {
-        // ignore — best-effort
+        // ignore — best-effort; keep the fail-closed defaults.
       }
       if (!cancelled) {
         setInitialValues(next);
@@ -214,6 +221,15 @@ export const MembersMailConfigEditor: React.FC<Props> = ({ tenant }) => {
     try {
       const res = await saveMembersMailConfig(toMailConfigBody(values));
       if (res.success) {
+        // Re-seed from the AUTHORITATIVE read (GET /members/field-config mail_config) so the save
+        // demonstrably round-trips through the real read path — not an optimistic reflect of the
+        // submitted values. With enableReinitialize the form updates to the persisted state. A
+        // re-fetch failure leaves the just-entered values on screen (still the saved state).
+        try {
+          setInitialValues(mailConfigToFormValues(await getMembersFieldConfig()));
+        } catch {
+          // ignore — best-effort; the toast below still confirms the authoritative save.
+        }
         toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 6000 });
