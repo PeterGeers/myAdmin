@@ -123,8 +123,10 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       // param is no longer read here — SAM `config#fields` is the single source of truth.
       const cfg = await getMembersFieldConfig();
       setFieldConfig(cfg);
-      // Seed the ONE working overlay from the authoritative SAM row (not a divergent Flask copy):
-      // the exact `{ fields, overrides, functional_groups }` object the single Save PUTs back.
+      // Seed the ONE working overlay from the authoritative SAM row. The reader serves the
+      // overlay in the AUTHORING WIRE shape already (`fields` / `fixed_overrides` /
+      // `functional_groups`, the one-key contract), so the overlay model reads + writes it with
+      // NO client-side translation — GET and PUT are symmetric by construction.
       const overlayValue = (cfg?.field_overlay as MembersConfigValue) ?? {};
       setOverlay(overlayValue);
       setBaseline(JSON.stringify(overlayValue));
