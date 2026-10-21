@@ -563,3 +563,64 @@ def test_field_config_route_carries_the_format_tokens(inject_service):
     assert resp["statusCode"] == 200
     data = _data(resp)
     assert data["field_format_tokens"] == sorted(field_formats.known_tokens())
+
+
+class TestGetFieldConfigServesRawOverlay:
+    """spec 11 bugfix — the staff field-config read serves the RAW stored `config#fields` overlay.
+
+    The authoring editors (Application Form Builder + the Field-configuration editor) seed their ONE
+    working `field_overlay` object from this key and PUT it back WHOLE — GET and PUT on the SAME SAM
+    row, so a save is loss-free. Previously they seeded from the retired Flask `members.field_overlay`
+    param (a divergent copy lacking the application attributes), so a save wiped prior selections.
+    """
+
+    class _RawProvider:
+        """An overlay provider exposing the raw-overlay read (like the production reader)."""
+
+        def __init__(self, overlay):
+            self._overlay = overlay
+
+        def get_overlay(
+            self, tenant_id
+        ):  # resolver seam — empty typed overlay is fine here
+            from sam.members.domain.field_resolver import TenantOverlay
+
+            return TenantOverlay()
+
+        def get_raw_fields_overlay(self, tenant_id):
+            return self._overlay
+
+    def test_field_overlay_is_served_verbatim_when_the_provider_exposes_it(self, repo):
+        overlay = {
+            "fields": {
+                "motor_type": {
+                    "key": "motor_type",
+                    "type": "string",
+                    "application_visible": True,
+                }
+            },
+            "overrides": {"personal.city": {"order": 3}},
+            "functional_groups": [{"key": "address", "order": 1}],
+        }
+        service = MembershipService(repo, overlay_provider=self._RawProvider(overlay))
+        config = service.get_field_config("h-dcn")
+        assert config["field_overlay"] == overlay
+
+    def test_field_overlay_defaults_empty_when_provider_lacks_the_raw_read(self, repo):
+        # StaticOverlayProvider has no get_raw_fields_overlay → the duck-typed guard yields empty.
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+        assert config["field_overlay"] == {
+            "fields": {},
+            "overrides": {},
+            "functional_groups": [],
+        }
+
+    def test_field_config_with_field_overlay_is_json_serializable(self, repo):
+        service = MembershipService(
+            repo,
+            overlay_provider=self._RawProvider(
+                {"fields": {}, "overrides": {}, "functional_groups": []}
+            ),
+        )
+        json.dumps(service.get_field_config("h-dcn"))  # must not raise

@@ -1667,6 +1667,21 @@ class WritesMixin:
             # the config-write path is the authoritative gate that a `format.checker` is a known
             # token (R8.1b) — the frontend dropdown is convenience, never the only guard.
             "field_format_tokens": sorted(field_formats.known_tokens()),
+            # The RAW stored `config#fields` overlay (`fields` / `overrides` / `functional_groups`)
+            # — the authoring ROUND-TRIP seed (spec 11 bugfix). The Application Form Builder + the
+            # Field-configuration editor hold ONE working `field_overlay` object and PUT it back
+            # WHOLE (the write REPLACES the row); loading it from THIS same SAM row (not a divergent
+            # Flask copy) makes a save loss-free — GET and PUT are symmetric on one table. Carries
+            # every authored key (incl. the four application attributes) through verbatim so the
+            # editor writes them back unchanged; the write path stays the authoritative validator
+            # (R8). Served only when the injected overlay provider exposes the raw read (the
+            # production projection reader); a provider without it (StaticOverlayProvider in tests)
+            # yields the empty overlay, never an error.
+            "field_overlay": (
+                self._overlay_provider.get_raw_fields_overlay(tenant_id)
+                if hasattr(self._overlay_provider, "get_raw_fields_overlay")
+                else {"fields": {}, "overrides": {}, "functional_groups": []}
+            ),
         }
 
     # ── Public application-form field config (seam a/c — task 4.1, R5.1–R5.3) ─────────

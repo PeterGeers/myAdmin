@@ -123,6 +123,16 @@ const FIELD_CONFIG: FieldConfig = {
     mail_reply_to_default: 'board@h-dcn.nl',
     application_scope_copy: true,
   },
+  // The RAW stored config#fields overlay — the builder now SEEDS its one working object from THIS
+  // (the same SAM row it writes back), not the retired Flask members.field_overlay param (spec 11
+  // bugfix: GET/PUT symmetric so a save is loss-free).
+  field_overlay: {
+    functional_groups: [{ key: 'personal', label_en: 'Personal', label_nl: 'Persoonlijk', order: 1 }],
+    fields: {
+      email: { type: 'string', label_en: 'Email', functional_group: 'personal', visible: true },
+    },
+    fixed_overrides: {},
+  },
 };
 
 function seed(rows: Record<string, Parameter> = { field_overlay: overlayRow }, cfg: FieldConfig | null = FIELD_CONFIG) {
@@ -166,10 +176,12 @@ describe('ApplicationFormBuilder — scaffold + four panel slots (R1.3, §3)', (
     expect(screen.getByTestId('application-form-builder-panel-preview')).toBeInTheDocument();
   });
 
-  it('loads the field_overlay row and resolved field config on mount', async () => {
+  it('seeds the working overlay from the resolved field config (same SAM row it writes), not Flask', async () => {
     await renderBuilder();
-    expect(mockGetParams).toHaveBeenCalledTimes(1);
+    // GET/PUT symmetric on config#fields: the builder loads the field config (which carries the
+    // raw `field_overlay`) and NEVER reads the retired Flask members.field_overlay param.
     expect(mockGetFieldConfig).toHaveBeenCalledTimes(1);
+    expect(mockGetParams).not.toHaveBeenCalled();
   });
 
   it('still renders the panels when the field-config fetch fails (null) — never blocks authoring', async () => {
@@ -190,8 +202,10 @@ describe('ApplicationFormBuilder — single save path (Property 8 / §3.1)', () 
 
   it('makes NO config write on a clean load — authoring is one-object/one-save, never per-field', async () => {
     await renderBuilder();
-    // Loading the builder reads the overlay + resolved config but writes nothing until a Save.
-    await waitFor(() => expect(mockGetParams).toHaveBeenCalledTimes(1));
+    // Loading the builder reads the resolved config (which carries the overlay to seed) but writes
+    // nothing until a Save — and never touches the retired Flask param path.
+    await waitFor(() => expect(mockGetFieldConfig).toHaveBeenCalledTimes(1));
+    expect(mockGetParams).not.toHaveBeenCalled();
     expect(mockWriteFieldConfig).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
@@ -233,6 +247,41 @@ describe('ApplicationFormBuilder — single save path (Property 8 / §3.1)', () 
       fields?: Record<string, { application_visible?: boolean }>;
     };
     expect(body.fields?.email?.application_visible).toBe(true);
+  });
+
+  it('PRESERVES prior application selections on save — seeds from the SAM overlay, not an empty Flask copy (regression)', async () => {
+    // The stored config#fields overlay (served as `field_overlay`) ALREADY has a field on the form
+    // from a prior session. Toggling a DIFFERENT field and saving must keep the prior one — the bug
+    // was seeding the working overlay empty (from Flask) so a save replaced the SAM row and wiped it.
+    const cfgWithPrior: FieldConfig = {
+      ...FIELD_CONFIG,
+      fields: [
+        ...(FIELD_CONFIG.fields ?? []),
+        { key: 'notes', functional_group: 'personal', provenance: 'tenant_added', type: 'string', label: { en: 'Notes', nl: 'Notities' } },
+      ],
+      field_overlay: {
+        functional_groups: [{ key: 'personal', order: 1 }],
+        fields: {
+          // a PRIOR-session selection already on the form
+          notes: { type: 'string', functional_group: 'personal', application_visible: true },
+          email: { type: 'string', functional_group: 'personal', visible: true },
+        },
+        fixed_overrides: {},
+      },
+    };
+    await renderBuilder(undefined, cfgWithPrior);
+
+    // Toggle a DIFFERENT field (email) on, then save.
+    fireEvent.click(screen.getByTestId('application-field-toggle-email'));
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+
+    await waitFor(() => expect(mockWriteFieldConfig).toHaveBeenCalledTimes(1));
+    const body = mockWriteFieldConfig.mock.calls[0][0] as {
+      fields?: Record<string, { application_visible?: boolean }>;
+    };
+    // BOTH survive: the just-toggled field AND the prior-session selection (not wiped).
+    expect(body.fields?.email?.application_visible).toBe(true);
+    expect(body.fields?.notes?.application_visible).toBe(true);
   });
 });
 

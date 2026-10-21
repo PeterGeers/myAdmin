@@ -42,7 +42,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   getMembersFieldConfig,
-  getMembersParameters,
   resolveFieldConfigLabel,
   saveMembersParameter,
 } from '../../../services/membersConfigService';
@@ -51,7 +50,6 @@ import { MembersGroupsTable } from './MembersGroupsTable';
 import { MembersFieldsTable } from './MembersFieldsTable';
 import { MembersFieldModal, type FieldModalMode } from './MembersFieldModal';
 import { MembersFieldActions } from './MembersFieldActions';
-import type { Parameter } from '../../../types/parameterTypes';
 import type { MembersConfigValue } from '../../../types/membersConfig';
 import type { FieldConfig, FieldProvenance } from '../../../types/members';
 
@@ -79,7 +77,6 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [existingRow, setExistingRow] = useState<Parameter | null>(null);
   const [configStatus, setConfigStatus] = useState<Record<string, string | number | null>>({});
   const [fieldConfig, setFieldConfig] = useState<FieldConfig | null>(null);
 
@@ -98,17 +95,19 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
     setLoading(true);
     setError(null);
     try {
-      const values = await getMembersParameters();
-      const row = values.field_overlay ?? null;
-      setExistingRow(row);
-      const overlayValue = (row?.value as MembersConfigValue) ?? {};
-      setOverlay(overlayValue);
-      setBaseline(JSON.stringify(overlayValue));
-      // Best-effort resolved config: feeds the status banner + the DERIVED provenance. A failure
-      // resolves to null (banner hides, provenance treated as base) and NEVER blocks authoring.
+      // Load the resolved field config FIRST — it carries the RAW stored `config#fields` overlay
+      // (`field_overlay`) this editor seeds + writes back (spec 11 bugfix). GET and PUT are the
+      // SAME SAM row, so a save is loss-free. The retired Flask `members.field_overlay` param is
+      // no longer read here — SAM `config#fields` is the single source of truth. Best-effort: a
+      // failure resolves to null (banner hides, provenance = base) and NEVER blocks authoring.
       const resolvedConfig = await getMembersFieldConfig();
       setConfigStatus(resolvedConfig?.config_status ?? {});
       setFieldConfig(resolvedConfig);
+      // Seed the ONE working overlay from the authoritative SAM row — the exact
+      // `{ fields, overrides, functional_groups }` object the single Save PUTs back.
+      const overlayValue = (resolvedConfig?.field_overlay as MembersConfigValue) ?? {};
+      setOverlay(overlayValue);
+      setBaseline(JSON.stringify(overlayValue));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -127,7 +126,7 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await saveMembersParameter('field_overlay', overlay, existingRow);
+      const res = await saveMembersParameter('field_overlay', overlay, null);
       if (res.success) {
         // Honest delivery status (reliability): the save committed to MySQL, but if the
         // projection to the module's DynamoDB config FAILED, say so instead of a false
