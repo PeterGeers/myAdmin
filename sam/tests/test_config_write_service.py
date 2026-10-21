@@ -824,3 +824,126 @@ def test_validate_application_attributes_unauthored_tenant_writes_back_compatibl
     assert attrs["overrides"]["membership.member_number"] == {
         "functional_group": "membership"
     }
+
+
+class _FakeOverlayReader:
+    """A minimal overlay reader exposing get_raw_fields_overlay for merge-on-write tests."""
+
+    def __init__(self, overlay):
+        self._overlay = overlay
+
+    def get_raw_fields_overlay(self, tenant_id):
+        return self._overlay
+
+
+def _service_with_reader(repo, overlay, version="2026-10-22T00:00:00+00:00"):
+    return ConfigWriteService(
+        repo, version_fn=lambda: version, overlay_reader=_FakeOverlayReader(overlay)
+    )
+
+
+# ── config#fields MERGE-ON-WRITE + alias precedence (bugfix) ─────────────────────────────
+#
+# A config#fields PUT carries only the slice the client authors, but the repository put REPLACES
+# the whole row. The Application Form Builder sends ONLY application-attribute toggles (under the
+# `fixed_overrides` alias) with empty `fields`/`functional_groups`. Two bugs this pins:
+#   1. alias precedence — a present-but-empty `overrides` must NOT shadow a populated
+#      `fixed_overrides` (that dropped every base-field toggle);
+#   2. merge-on-write — a partial body must MERGE onto the stored row, never wipe the omitted
+#      slices (fields / functional_groups / other overrides).
+
+
+def test_fields_write_alias_precedence_empty_overrides_does_not_shadow_fixed_overrides():
+    """Bug 1: body with `overrides: {}` + populated `fixed_overrides` persists the overrides."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {},
+        "overrides": {},  # present but EMPTY — must not shadow the alias
+        "functional_groups": [],
+        "fixed_overrides": {
+            "personal.city": {"application_visible": True},
+            "membership.status": {"application_visible": True},
+        },
+    }
+    # No reader → legacy path, but the alias precedence fix still applies.
+    _service(repo).put_config(_TENANT, "fields", body)
+    overrides = repo.calls[0]["attributes"]["overrides"]
+    assert overrides["personal.city"]["application_visible"] is True
+    assert overrides["membership.status"]["application_visible"] is True
+
+
+def test_fields_write_merges_partial_body_onto_stored_row_preserving_omitted_slices():
+    """Bug 2: a partial body (only base toggles, empty fields/groups) MERGES onto the stored row —
+    the tenant's existing fields + functional_groups are PRESERVED, not wiped."""
+    stored = {
+        "fields": {
+            "motor_type": {"key": "motor_type", "type": "string"},
+            "magazine_pref": {"key": "magazine_pref", "type": "enum"},
+        },
+        "overrides": {"personal.first_name": {"label": {"en": "First"}}},
+        "functional_groups": [
+            {"key": "personal", "order": 1},
+            {"key": "motor", "order": 2},
+        ],
+    }
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {},
+        "overrides": {},
+        "functional_groups": [],
+        "fixed_overrides": {"personal.city": {"application_visible": True}},
+    }
+    _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
+    attrs = repo.calls[0]["attributes"]
+    # The two stored tenant fields survive (body carried empty fields → preserved).
+    assert set(attrs["fields"]) == {"motor_type", "magazine_pref"}
+    # The stored functional_groups survive (body carried [] → preserved).
+    assert [g["key"] for g in attrs["functional_groups"]] == ["personal", "motor"]
+    # The pre-existing override survives AND the new base toggle is merged in.
+    assert attrs["overrides"]["personal.first_name"]["label"] == {"en": "First"}
+    assert attrs["overrides"]["personal.city"]["application_visible"] is True
+
+
+def test_fields_write_incoming_entry_replaces_stored_entry_for_the_same_key():
+    """A toggle on a key the stored row already has REPLACES that entry (merge, per-key)."""
+    stored = {
+        "fields": {},
+        "overrides": {"personal.city": {"application_visible": True}},
+        "functional_groups": [],
+    }
+    repo = FakeWriteRepository()
+    # Toggle it OFF: the builder writes an attr-stripped/empty spec for the key.
+    body = {
+        "fields": {},
+        "functional_groups": [],
+        "fixed_overrides": {"personal.city": {}},
+    }
+    _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
+    city = repo.calls[0]["attributes"]["overrides"]["personal.city"]
+    assert city.get("application_visible") is None  # toggle-off cleared the attribute
+
+
+def test_fields_write_non_empty_functional_groups_replace_stored_catalog():
+    """A body that DOES carry functional_groups (the field-config editor) replaces the catalog."""
+    stored = {
+        "fields": {},
+        "overrides": {},
+        "functional_groups": [{"key": "old", "order": 1}],
+    }
+    repo = FakeWriteRepository()
+    body = {"functional_groups": [{"key": "new", "order": 1}]}
+    _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
+    groups = repo.calls[0]["attributes"]["functional_groups"]
+    assert [g["key"] for g in groups] == ["new"]
+
+
+def test_fields_write_without_reader_is_legacy_replace():
+    """No overlay reader (older wiring / unit default) → the body is written as-is (replace)."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {"x": {"key": "x", "type": "string"}},
+        "overrides": {},
+        "functional_groups": [],
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    assert set(repo.calls[0]["attributes"]["fields"]) == {"x"}
