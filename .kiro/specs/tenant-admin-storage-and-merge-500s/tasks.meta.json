@@ -1,0 +1,217 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration tests for merge-duplicates (BEFORE the fix)": {
+      "status": "passed",
+      "failingExample": "Falsifying example: test_merge_duplicates_valid_group_returns_success(group=('0', 'ast_00000000000000000000000001', ['ast_00000000000000000000000000'])) -> db_exceptions.DatabaseError: Lock wait timeout exceeded raised from lifecycle.py:710 (the re-attach INSERT). The non-IntegrityError DatabaseError escapes merge_duplicates' over-narrow `except IntegrityError`, propagating out of the service instead of returning success:true with kept==keep_asset_id. Confirms root-cause P2.",
+      "lastRunTimestamp": 1792588450194
+    },
+    "4. Write bug condition exploration test for storage/config (BEFORE the fix)": {
+      "status": "passed",
+      "failingExample": "Counterexample (reproduction of the stale-source bug on UNFIXED code):\n\nInput: authenticated Tenant_Admin (role Tenant_Admin), tenant=\"test-tenant\" (get_current_tenant patched), GET /api/tenant-admin/storage/config. The route's raw read `SELECT config_key, config_value, is_secret FROM tenant_config WHERE administration=%s AND (config_key LIKE '%_folder_id')` raises db_exceptions.DatabaseError(\"Table 'finance.tenant_config' doesn't exist\") — simulating the superseded table/column being absent in the resolved DB target after migrate_tenant_config_to_parameters.py.\n\nObserved (unfixed) response: HTTP 500, body = {\"error\": \"Tenant storage request failed\", \"error_id\": \"<uuid hex>\"} with NO \"success\" key (include_success=False), and the raw exception text / \"tenant_config\" NOT present in the body.\n\nThis proves the stale-source root cause: an authenticated Tenant_Admin gets a masked 500 on a plain read because the handler still queries tenant_config directly. pytest: `2 passed in 2.92s` (marker=0) for TestTenantAdminStorageConfig.",
+      "lastRunTimestamp": 1792589682587
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration tests for merge-duplicates (BEFORE the fix)": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588134310
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588145101
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588475678
+      }
+    ],
+    "2. Write preservation tests for merge-duplicates (BEFORE the fix)": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588134574
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588481725
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588950184
+      }
+    ],
+    "3.1 Apply the fix in `backend/src/services/media_asset/lifecycle.py::merge_duplicates`": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588134843
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588954617
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589017329
+      }
+    ],
+    "3.2 Verify the merge-duplicates exploration tests now pass": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588135178
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589021693
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589498724
+      }
+    ],
+    "3.3 Verify the merge-duplicates preservation tests still pass": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588135422
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589502772
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589571781
+      }
+    ],
+    "4. Write bug condition exploration test for storage/config (BEFORE the fix)": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588135757
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589577016
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589701984
+      }
+    ],
+    "5. Write preservation tests for storage/config (BEFORE the fix)": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588136046
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589705885
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589960973
+      }
+    ],
+    "6.1 Apply the fix in `backend/src/routes/tenant_admin_storage.py::get_storage_config`": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588136354
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589965267
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792590069844
+      }
+    ],
+    "6.2 Verify the storage/config exploration test now passes": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588136676
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792590073968
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792590188357
+      }
+    ],
+    "6.3 Verify the storage/config preservation tests still pass": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588136957
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792590192288
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792590360568
+      }
+    ],
+    "7. Checkpoint - Run the paired backend test paths and ensure all pass": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792588137217
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792590365314
+      },
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792590475926
+      }
+    ],
+    "3. Fix merge-duplicates (delete-tolerance + precise IntegrityError catch)": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792589571923
+      }
+    ],
+    "6. Fix storage/config (service-layer read + precise folder-id filter)": [
+      {
+        "executionId": "2ff23562-9bc6-411b-8de6-489419932165",
+        "chatSessionId": "sess_ab630386-0f6b-49be-9130-9941741a4950",
+        "timestamp": 1792590360692
+      }
+    ]
+  }
+}
