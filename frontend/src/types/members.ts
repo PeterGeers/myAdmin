@@ -532,6 +532,21 @@ export interface FieldConfigField {
    */
   scope?: { enabled?: boolean; required_for?: string[] } | null;
   /**
+   * The four per-field PUBLIC-APPLICATION attributes the Application Form Builder authors onto
+   * `config#fields` (spec 11, design §3.1/§4) and the SAM staff field-config read serves back so
+   * the builder can re-seed its toggles/controls after a save (`_serialize_field`). Absent on an
+   * older module build; the builder treats the resolved value as a fallback behind the working
+   * overlay. The SAM write path stays the authoritative enforcer (R8).
+   */
+  /** On the public application form? (the on-the-form toggle, R2/R3). */
+  application_visible?: boolean;
+  /** Required ON the form (may TIGHTEN an optional field, never RELAX a platform-required one, R3.1). */
+  application_required?: boolean;
+  /** Enum SUBSET of the field's own choices (R3.2); `null`/absent = the full set. */
+  application_choices?: string[] | null;
+  /** A platform-known validator token (R3.3); `null`/absent = no format check. */
+  format?: { checker: string; params?: Record<string, unknown> } | null;
+  /**
    * Whether the field belongs to the compact (always-visible) view. When
    * omitted, the page treats the field as full-view-only (overlay column).
    */

@@ -42,7 +42,7 @@ from sam.members.domain.field_resolver import (
     StaticOverlayProvider,
     TenantOverlay,
 )
-from sam.members.domain.fixed_fields import FieldType
+from sam.members.domain.fixed_fields import FieldFormat, FieldType
 from sam.members.domain.membership_service import (
     MEMBERSHIP_TYPE_FIELD_KEY,
     MembershipService,
@@ -265,6 +265,74 @@ class TestGetFieldConfigDomain:
         assert config["membership_type_options"] == []
         # ...but the fixed base fields are still resolved.
         assert any(f["key"] == "membership_type" for f in config["fields"])
+
+
+class TestGetFieldConfigServesApplicationAttributes:
+    """spec 11 — the staff field-config read serves the four per-field APPLICATION attributes.
+
+    Regression guard for the Application Form Builder save→reseed bug: the builder authors
+    `application_visible` / `application_required` / `application_choices` / `format` onto
+    `config#fields`, then reads them BACK through `get_field_config` to re-seed its toggles after
+    a save. `_serialize_field` previously DROPPED them (resolved onto `ResolvedField`, used by the
+    public read/create path, but never serialized to the staff read), so every field reseeded OFF
+    after a save even though the write persisted. These pin that the staff serializer emits them.
+    """
+
+    def test_overlay_application_attributes_round_trip_on_the_staff_read(self, repo):
+        overlay = TenantOverlay(
+            fields={
+                "magazine_pref": OverlayField(
+                    key="magazine_pref",
+                    type=FieldType.ENUM,
+                    label={"nl": "Clubblad", "en": "Magazine"},
+                    choices=("Geen", "Papier", "Digitaal"),
+                    order=20,
+                    application_visible=True,
+                    application_required=True,
+                    application_choices=("Papier", "Digitaal"),
+                    format=FieldFormat(checker="EMAIL", params={"strict": True}),
+                )
+            }
+        )
+        service = MembershipService(
+            repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
+        )
+        config = service.get_field_config("h-dcn")
+
+        field = next(f for f in config["fields"] if f["key"] == "magazine_pref")
+        assert field["application_visible"] is True
+        assert field["application_required"] is True
+        assert field["application_choices"] == ["Papier", "Digitaal"]
+        assert field["format"] == {"checker": "EMAIL", "params": {"strict": True}}
+
+    def test_unauthored_field_defaults_are_served_not_omitted(self, repo):
+        # A field that authors NONE of the four attributes still carries them at their safe
+        # defaults so the builder reseeds a coherent OFF state (never `undefined`-vs-false drift).
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+
+        f = next(iter(config["fields"]))
+        assert f["application_visible"] is False
+        assert f["application_required"] is False
+        assert f["application_choices"] is None
+        assert f["format"] is None
+
+    def test_application_attributes_are_json_serializable(self, repo):
+        overlay = TenantOverlay(
+            fields={
+                "motor_type": OverlayField(
+                    key="motor_type",
+                    type=FieldType.STRING,
+                    label={"nl": "Motor", "en": "Motorcycle"},
+                    application_visible=True,
+                    format=FieldFormat(checker="IBAN"),
+                )
+            }
+        )
+        service = MembershipService(
+            repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
+        )
+        json.dumps(service.get_field_config("h-dcn"))  # must not raise
 
 
 # ---------------------------------------------------------------------------
