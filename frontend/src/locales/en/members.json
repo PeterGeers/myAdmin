@@ -6,6 +6,10 @@
     "title": "Members Overview",
     "navLabel": "Overview"
   },
+  "mail": {
+    "title": "Members — Mail",
+    "navLabel": "Members Mail"
+  },
   "analytics": {
     "title": "Analytics",
     "navLabel": "Analytics",

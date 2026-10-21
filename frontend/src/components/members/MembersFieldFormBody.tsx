@@ -28,7 +28,7 @@
 import React from 'react';
 import {
   FormControl, FormLabel, FormErrorMessage, FormHelperText,
-  Input, VStack, Heading, Divider, Box,
+  Input, SimpleGrid, VStack, Heading, Divider, Box,
 } from '@chakra-ui/react';
 import { Field, type FieldProps } from 'formik';
 import type {
@@ -88,7 +88,10 @@ export const MembersFieldFormBody: React.FC<MembersFieldFormBodyProps> = ({
   regionValues, dimensionLabel, membershipTypes,
 }) => {
   return (
-    <VStack spacing={4} align="stretch">
+    // Field SECTIONS laid out responsively (members-overview-tweaks R4.1/R4.3): two columns on a
+    // Wide_Viewport (≥ Chakra `md`), one column on a Narrow_Viewport (< `md`). Only the container
+    // layout changes — sections stay grouped by `functional_group`.
+    <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
       {sections.map((section) => {
         // A section renders only if it has at least one currently-visible field.
         const visibleFields = section.fields.filter((f) =>
@@ -124,7 +127,7 @@ export const MembersFieldFormBody: React.FC<MembersFieldFormBodyProps> = ({
           </Box>
         );
       })}
-    </VStack>
+    </SimpleGrid>
   );
 };
 

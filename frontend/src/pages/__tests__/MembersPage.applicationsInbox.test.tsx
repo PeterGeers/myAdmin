@@ -1,37 +1,42 @@
 /**
- * MembersPage — applications-inbox preset END TO END (Member Application Form,
- * task 7.2, R8b.4/R8b.5/F3).
+ * MembersPage — applications inbox REMOVED (members-overview-tweaks, task 8.1,
+ * Req 6.1).
  *
- * Proves the staff applications inbox is the EXISTING member overview grid viewed
- * through the Table Filter Framework v2 — NOT a new grid — over the real
- * `MembersPage` + the shared filter framework + the unified column model + the
- * on-the-fly overlay flatten:
+ * The applications inbox used to live on the Members Overview page as a preset
+ * bar over the one grid. members-overview-tweaks Req 6.1 relocates it OFF this
+ * page ("THE Members_Overview_Page SHALL exclude the Applications_Inbox") and
+ * into a tenant-administrator members > mail route (task 8.2). Task 8.1 removes
+ * the inbox usage from `MembersPage` — the page is now toolbar → stats →
+ * pagination → table.
  *
- * - "Applications inbox" pins the one grid to `status = application`: only the
- *   application-status rows remain visible, active members drop out (R8b.4/F3).
- * - "Possible duplicates" / "Not auto-notified" narrow that inbox to the rows
- *   whose `overlay.additional_info` carries the stable `DUP` / `NO_NOTIFY` keyword
- *   the SAM create/notify path wrote (R8b.5) — resolved through the generic
- *   framework filter on the surfaced `additional_info` column, no bespoke grid.
- * - "Clear" restores the full overview.
+ * This file (which previously proved the inbox preset end to end on this page)
+ * is realigned to the new behavior per the change-with-tests contract: it
+ * asserts the inbox bar + its preset controls are NO LONGER rendered on
+ * `MembersPage`, while the one members table still renders. The relocated inbox
+ * and its own behavior are covered by the hook test
+ * (`useApplicationsInbox.test.ts`, unchanged — the hook is reused verbatim) and
+ * the new members-mail route tests (task 8.2 / 8.5).
  *
- * Mocking/render approach matches the established `MembersPage.test.tsx`
- * convention (service layer mocked with `vi.mock` + the shared `@/test-utils`
- * render; raw i18n keys in the test env).
- *
- * **Validates: Requirements 8b.4, 8b.5**
+ * **Validates: Requirements 6.1**
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import MembersPage from '../../pages/MembersPage';
 import * as membersApiService from '../../services/membersApiService';
 import type { Member, FieldConfig } from '../../types/members';
-import { render, screen, waitFor, fireEvent } from '@/test-utils';
+import { render, screen, waitFor } from '@/test-utils';
 
 vi.mock('../../services/membersApiService');
 
 vi.mock('../../context/AuthContext', () => ({
   useAuth: () => ({ hasAnyRole: () => true }),
+}));
+
+// MembersPage reads `useTenant().currentTenant` for the export filename
+// (members-overview-tweaks Req 5.1/5.4). Stub the tenant context so the page
+// does not require a real TenantProvider in this inbox-removal test.
+vi.mock('../../context/TenantContext', () => ({
+  useTenant: () => ({ currentTenant: 'h-dcn' }),
 }));
 
 const mockListMembers = vi.mocked(membersApiService.listMembers);
@@ -41,11 +46,9 @@ const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes)
 const mockGetColumnPreferences = vi.mocked(membersApiService.getColumnPreferences);
 const mockSaveColumnPreferences = vi.mocked(membersApiService.saveColumnPreferences);
 
-// A mix of statuses + overlay.additional_info keyword notes:
-// - Dup Applicant: status=application + DUP note (possible duplicate).
-// - NoNotify Applicant: status=application + NO_NOTIFY note (undeliverable staff mail).
-// - Plain Applicant: status=application, no note.
-// - Active Member: status=active (must drop out of the inbox view).
+// A mix of statuses + overlay.additional_info keyword notes — the same fixtures
+// the inbox preset once filtered. They still render in the plain overview; the
+// point of this file now is that the INBOX CONTROLS are gone, not the rows.
 const mockMembers: Member[] = [
   {
     member_id: 'app-dup',
@@ -77,9 +80,6 @@ const mockMembers: Member[] = [
   },
 ];
 
-// Field config exposing `status` (compact, filterable) + the overlay
-// `additional_info` field so the inbox can surface it as a keyword-filterable
-// column.
 const mockFieldConfig: FieldConfig = {
   fields: [
     { key: 'name', label: 'Naam', compact: true, order: 1 },
@@ -97,7 +97,7 @@ const waitForRows = async () => {
   }, SETTLE);
 };
 
-describe('MembersPage — applications inbox preset (task 7.2)', () => {
+describe('MembersPage — applications inbox removed (task 8.1, Req 6.1)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockListMembers.mockResolvedValue(mockMembers as never);
@@ -113,76 +113,28 @@ describe('MembersPage — applications inbox preset (task 7.2)', () => {
     mockSaveColumnPreferences.mockResolvedValue({ sub: '', columns: [], updated_at: '' } as never);
   });
 
-  it('renders the inbox preset bar as a view over the one overview (no new grid)', async () => {
+  it('no longer renders the applications inbox bar on the Members Overview page (Req 6.1)', async () => {
     render(<MembersPage />);
     await waitForRows();
 
-    // The preset bar is present; there is still exactly ONE members table.
-    expect(screen.getByTestId('members-inbox-bar')).toBeInTheDocument();
+    // The inbox preset bar and each of its controls are relocated off this page.
+    expect(screen.queryByTestId('members-inbox-bar')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('members-inbox-activate')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('members-inbox-dup')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('members-inbox-no-notify')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('members-inbox-clear')).not.toBeInTheDocument();
+  });
+
+  it('still renders exactly one members table with every member row (inbox removal only)', async () => {
+    render(<MembersPage />);
+    await waitForRows();
+
+    // Removing the inbox preset leaves the one overview grid intact: all rows,
+    // regardless of status, are present (no status pin applied on the page).
     expect(screen.getAllByRole('table')).toHaveLength(1);
-  });
-
-  it('"Applications inbox" pins the grid to status=application (R8b.4/F3)', async () => {
-    render(<MembersPage />);
-    await waitForRows();
-
-    fireEvent.click(screen.getByTestId('members-inbox-activate'));
-
-    // The three application rows stay; the active member drops out — a filtered
-    // VIEW of the existing grid, not a separate table.
-    await waitFor(() => {
-      expect(screen.getByText('Dup Applicant')).toBeInTheDocument();
-      expect(screen.getByText('NoNotify Applicant')).toBeInTheDocument();
-      expect(screen.getByText('Plain Applicant')).toBeInTheDocument();
-      expect(screen.queryByText('Active Member')).not.toBeInTheDocument();
-    });
-  });
-
-  it('"Possible duplicates" narrows the inbox to the DUP-noted rows (R8b.5)', async () => {
-    render(<MembersPage />);
-    await waitForRows();
-
-    fireEvent.click(screen.getByTestId('members-inbox-dup'));
-
-    // Only the DUP-noted application remains — keyword-filtered on
-    // overlay.additional_info via the generic framework.
-    await waitFor(() => {
-      expect(screen.getByText('Dup Applicant')).toBeInTheDocument();
-      expect(screen.queryByText('NoNotify Applicant')).not.toBeInTheDocument();
-      expect(screen.queryByText('Plain Applicant')).not.toBeInTheDocument();
-      expect(screen.queryByText('Active Member')).not.toBeInTheDocument();
-    });
-  });
-
-  it('"Not auto-notified" narrows the inbox to the NO_NOTIFY-noted rows (R8b.5)', async () => {
-    render(<MembersPage />);
-    await waitForRows();
-
-    fireEvent.click(screen.getByTestId('members-inbox-no-notify'));
-
-    await waitFor(() => {
-      expect(screen.getByText('NoNotify Applicant')).toBeInTheDocument();
-      expect(screen.queryByText('Dup Applicant')).not.toBeInTheDocument();
-      expect(screen.queryByText('Plain Applicant')).not.toBeInTheDocument();
-      expect(screen.queryByText('Active Member')).not.toBeInTheDocument();
-    });
-  });
-
-  it('"Clear" restores the full overview', async () => {
-    render(<MembersPage />);
-    await waitForRows();
-
-    fireEvent.click(screen.getByTestId('members-inbox-dup'));
-    await waitFor(() => {
-      expect(screen.queryByText('Active Member')).not.toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId('members-inbox-clear'));
-    await waitFor(() => {
-      expect(screen.getByText('Dup Applicant')).toBeInTheDocument();
-      expect(screen.getByText('NoNotify Applicant')).toBeInTheDocument();
-      expect(screen.getByText('Plain Applicant')).toBeInTheDocument();
-      expect(screen.getByText('Active Member')).toBeInTheDocument();
-    });
+    expect(screen.getByText('Dup Applicant')).toBeInTheDocument();
+    expect(screen.getByText('NoNotify Applicant')).toBeInTheDocument();
+    expect(screen.getByText('Plain Applicant')).toBeInTheDocument();
+    expect(screen.getByText('Active Member')).toBeInTheDocument();
   });
 });
