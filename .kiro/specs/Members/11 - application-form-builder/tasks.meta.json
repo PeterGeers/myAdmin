@@ -1,0 +1,413 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 `config_write_service.py` — add a per-field application-attribute validator invoked from": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601807828
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601820741
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792602382428
+      }
+    ],
+    "1.2 `config_write_service.py` — `_validate_mail_body`: when a `consent_notice` is PRESENT but": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601807951
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601822150
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792602383809
+      }
+    ],
+    "1.3 (If S4 = serve tokens) expose `field_formats.known_tokens()` to the frontend — add it to the": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601808062
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601824059
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792602385671
+      }
+    ],
+    "1.4 Tests (`sam/tests/`): reject subset⊄choices, unknown checker, malformed `format`,": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601808201
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792602400825
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792603166941
+      }
+    ],
+    "2.1 `ApplicationFormBuilder.tsx` — the sub-tab root: load the resolved field config": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601808281
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601825431
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792602387142
+      }
+    ],
+    "2.2 Wire the sub-tab into `TenantAdminDashboard.tsx`: a 4th `<Tab>`/`<TabPanel>` in the Members": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601808357
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601826607
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792602388717
+      }
+    ],
+    "2.3 `ApplicationFieldList.tsx` — render the resolved fields grouped by `functional_group`,": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601808460
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792602401912
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792603165818
+      }
+    ],
+    "2.4 Tests (`frontend/`): list renders grouped/ordered from a fixture field-config; toggling sets": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601808549
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792603172022
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604148298
+      }
+    ],
+    "3.1 `ApplicationFieldAttributes.tsx` — for a selected on-the-form field: application-required": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601808642
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792603173417
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604149682
+      }
+    ],
+    "3.2 `ApplicationFormShellPanel.tsx` — display the derived public URL (CloudFront-hosted form,": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601808754
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792603174727
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604151479
+      }
+    ],
+    "3.3 Membership-type coherence (R4): when the membership-type field is exposed, surface it as": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601808836
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604157989
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604863322
+      }
+    ],
+    "3.4 Commit the form-shell mail settings through the existing `writeConfig('mail', body)` — ONE": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601808927
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604159396
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604862056
+      }
+    ],
+    "3.5 Tests (`frontend/`): required disabled for platform-required; subset only on enum fields +": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809019
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604869934
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792605319776
+      }
+    ],
+    "4.1 `ApplicationReadinessPanel.tsx` — certified-sender / slug / ≥1-field-on-form summary using": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809109
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604160848
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604860238
+      }
+    ],
+    "4.2 `ApplicationFormPreview.tsx` — an `<iframe>` to the CloudFront-hosted public form URL (S1);": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809225
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604868548
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792605321277
+      }
+    ],
+    "4.3 Tests (`frontend/`): readiness reflects certified/slug/field states; preview renders the": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809299
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792605328119
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792606343135
+      }
+    ],
+    "5.1 `config_write_service._validate_mail_body` — accept/shape `application_embed_origins` (list": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809379
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792603175877
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604152829
+      }
+    ],
+    "5.2 **CloudFront `frame-ancestors`** — host the application form on the landing-page CloudFront": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809460
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604162202
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604856912
+      }
+    ],
+    "5.3 **SAM public API CORS** — the spec-10 public API (`sam/members/template.yaml`, D27) sets": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809551
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604163162
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604858730
+      }
+    ],
+    "5.4 Tests: malformed origins rejected (`sam/tests/`); the public API reflects the allowed origin": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809649
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792604870806
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792605322246
+      }
+    ],
+    "6.1 Accessibility pass over the builder (Chakra `FormControl` label/aria wiring, keyboard": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809771
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792605326984
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792606344006
+      }
+    ],
+    "6.2 **Governance:** correct the stale spec-10 D18 assumption — add a note to": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809859
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792606350441
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792606567508
+      }
+    ],
+    "6.3 **Docs:** extend the tenant-admin docs with \"Configure your application form\" (the builder),": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601809948
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792606351415
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792606568875
+      }
+    ],
+    "6.4 **Quality gates (steering 43):** run the paired frontend + SAM tests for changed files;": [
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792601810036
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792606573106
+      },
+      {
+        "executionId": "d57d62ad-e50a-462e-9718-a46de77a233c",
+        "chatSessionId": "sess_590d1398-452a-4281-889e-7dea39ad83c6",
+        "timestamp": 1792607240490
+      }
+    ]
+  }
+}

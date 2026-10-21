@@ -472,6 +472,19 @@ export interface MembersMailConfigBody {
     version: string;
     text: Record<string, string>;
   };
+  /**
+   * OPTIONAL scope-matched copy toggle (spec 10 D9a / spec 11 R5.4). Owned by the Mail sub-tab
+   * (one `config#mail` home, spec 11 §0.3); carried on the body so a form-shell mail write from
+   * the Application Form Builder PRESERVES it verbatim rather than clobbering it.
+   */
+  application_scope_copy?: boolean;
+  /**
+   * OPTIONAL allowed embedding origin(s) (spec 11 R5.2 / S3). ONE tenant-authored list feeding
+   * BOTH the CloudFront form's CSP `frame-ancestors` AND the SAM public API CORS. Authored by the
+   * Application Form Builder's form-shell panel (`ApplicationFormShellPanel`, task 3.2). Omitted /
+   * empty = standalone (no embedding allowed).
+   */
+  application_embed_origins?: string[];
 }
 
 /**
