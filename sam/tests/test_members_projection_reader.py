@@ -433,6 +433,75 @@ class TestGetOverlay:
 
 
 # ---------------------------------------------------------------------------
+# Raw config#fields overlay read — the authoring ROUND-TRIP seed (spec 11 bugfix)
+#
+# get_raw_fields_overlay returns the stored `{fields, overrides, functional_groups}` VERBATIM
+# (minus key + version) so the authoring editors LOAD the exact object they PUT back to the SAME
+# SAM row — a save is loss-free (GET/PUT symmetric on one table), fixing the "prior selections
+# wiped on save" bug. A missing row → clean empty overlay (empty-is-valid), never an error.
+# ---------------------------------------------------------------------------
+
+
+class TestGetRawFieldsOverlay:
+    def test_raw_overlay_round_trips_the_stored_slices_verbatim(self):
+        table = FakeTable()
+        fields = {
+            "motor_type": {
+                "key": "motor_type",
+                "type": "string",
+                "application_visible": True,
+                "application_required": True,
+                "application_choices": ["BMW", "Honda"],
+                "format": {"checker": "EMAIL", "params": {"strict": True}},
+            }
+        }
+        overrides = {"personal.city": {"functional_group": "address", "order": 3}}
+        item = _config_fields_item("h-dcn", fields, overrides)
+        item["functional_groups"] = [
+            {"key": "address", "label": {"en": "Address"}, "order": 1}
+        ]
+        table.put(item)
+
+        reader = MembersProjectionReader(table=table)
+        raw = reader.get_raw_fields_overlay("h-dcn")
+
+        # The three slices come back byte-for-byte — incl. the four application attributes the
+        # builder authors — so a PUT of this object replaces the row with no loss.
+        assert raw["fields"] == fields
+        assert raw["overrides"] == overrides
+        assert raw["functional_groups"] == [
+            {"key": "address", "label": {"en": "Address"}, "order": 1}
+        ]
+        # No key/version leak into the authoring body.
+        assert schema.PARTITION_KEY_ATTR not in raw
+        assert schema.SORT_KEY_ATTR not in raw
+        assert schema.VERSION_ATTR not in raw
+
+    def test_raw_overlay_missing_row_is_empty_not_an_error(self):
+        reader = MembersProjectionReader(table=FakeTable())  # nothing seeded
+        raw = reader.get_raw_fields_overlay("unconfigured")
+        assert raw == {"fields": {}, "overrides": {}, "functional_groups": []}
+
+    def test_raw_overlay_absent_slices_default_to_empty_containers(self):
+        table = FakeTable()
+        # A row with only `fields` — overrides / functional_groups absent on the stored item.
+        item = {
+            schema.PARTITION_KEY_ATTR: "h-dcn",
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
+            "fields": {"notes": {"key": "notes", "type": "string"}},
+            schema.VERSION_ATTR: 1,
+        }
+        table.put(item)
+
+        raw = MembersProjectionReader(table=table).get_raw_fields_overlay("h-dcn")
+        assert raw["fields"] == {"notes": {"key": "notes", "type": "string"}}
+        assert raw["overrides"] == {}
+        assert raw["functional_groups"] == []
+
+
+# ---------------------------------------------------------------------------
 # Public member-application attributes on config#fields (task 3.3, seam c)
 #
 # The four sibling keys a tenant authors per field for the public application form —

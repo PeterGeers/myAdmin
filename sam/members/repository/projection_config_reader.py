@@ -253,6 +253,36 @@ class MembersProjectionReader:
             functional_groups=functional_groups,
         )
 
+    def get_raw_fields_overlay(self, tenant_id: str) -> dict:
+        """Return the RAW stored ``config#fields`` overlay body (``fields`` / ``overrides`` /
+        ``functional_groups``), verbatim — the authoring round-trip seed (spec 11 bugfix).
+
+        The authoring editors (Application Form Builder + the Field-configuration editor) hold ONE
+        working ``field_overlay`` object, then PUT it back WHOLE to ``config#fields`` (the write
+        REPLACES the row). For that to be loss-free the editor must LOAD the exact object it will
+        write — the SAME SAM row, not a divergent copy. This returns the stored slices byte-for-byte
+        (minus the key + version stamp) so GET and PUT are symmetric on one table. A **missing** row
+        → ``{"fields": {}, "overrides": {}, "functional_groups": []}`` (empty-is-valid, never an
+        error), so a never-authored tenant seeds a clean empty overlay.
+
+        Unlike :meth:`get_overlay` (which rebuilds typed domain objects for the resolver), this is
+        the presentation-plane read: it carries the per-field application attributes
+        (``application_visible`` / ``application_required`` / ``application_choices`` / ``format``)
+        and every other authored key THROUGH unchanged, because the editor must write them back
+        unchanged. The write path stays the authoritative validator (R8).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        if row is None:
+            return {"fields": {}, "overrides": {}, "functional_groups": []}
+        raw_fields = row.get("fields")
+        raw_overrides = row.get("overrides")
+        raw_groups = row.get("functional_groups")
+        return {
+            "fields": raw_fields if isinstance(raw_fields, dict) else {},
+            "overrides": raw_overrides if isinstance(raw_overrides, dict) else {},
+            "functional_groups": raw_groups if isinstance(raw_groups, list) else [],
+        }
+
     @staticmethod
     def _build_functional_group(spec: dict) -> FunctionalGroup:
         """Map a projected functional-group catalog entry onto a :class:`FunctionalGroup` (R4.9)."""
