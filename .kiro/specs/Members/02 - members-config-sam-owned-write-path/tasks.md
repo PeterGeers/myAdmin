@@ -413,7 +413,8 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
 
 - [ ] 5. `config#mail` cutover + sender fields (Roadmap Step 3)
 
-  - [ ] 5.1 Resolve OQ-2 (now-settled three-surface model) and author `config#mail` through the write path
+  - [x] 5.1 Resolve OQ-2 (now-settled three-surface model) and author `config#mail` through the write path
+    - DONE (merged to `test`): the `config#mail` validator wired into `config_write_service.py` (PR #141, deployed to TEST via Deploy SAM Members) + `mail_reply_to_default` in the builder/reader and the scheduled-send Reply-To resolution in `execute_and_deliver` / `mail_sender_resolver.resolve_scheduled_reply_to` (PR #142). Builder authors `mail_enabled` / `mail_domain` / `mail_local_part` / `mail_certified` (fail-closed bool) / `mail_reply_to_default` / `consent_notice` in the exact reader shape; the sender-identity Flask route and invoice SES path stay untouched (three-surface model).
     - Three-surface model is settled: the `config#mail` authoring covers ONLY the SAM-owned scalars;
       `MemberSenderIdentitiesTab` co-locates in the Mail function screen but KEEPS its own Flask
       sender-identity route (`/api/members/sender-identities`) as a separate dataset (NOT folded into the
@@ -430,7 +431,8 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       address when `mail_reply_to_default` is absent
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13, 9.14, 15.1, 15.2, 15.3, 15.4, 15.5, 20.1_
 
-  - [ ] 5.2 SAM config#mail round-trip + reader test
+  - [x] 5.2 SAM config#mail round-trip + reader test
+    - DONE (merged to `test` via PR #142): round-trip write/read equivalence for the mail accessors, the fail-closed `mail_certified` bool on the written row, and the `mail_reply_to_default` round-trip + scheduled-vs-interactive Reply-To selection are all covered.
     - Update `sam/tests/test_members_projection_reader.py` (`_config_mail_item` / `is_mail_enabled` /
       consent-notice reads)
     - **Property 1: Round-trip write/read equivalence (config#mail)** — after `put_config('mail', ...)`,
@@ -444,12 +446,14 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       when it is absent) while an interactive send uses the invoking user's verified email
     - **Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13, 9.14, 1.5**
 
-  - [ ] 5.3 Invoice-SES-untouched confirmation test
+  - [x] 5.3 Invoice-SES-untouched confirmation test
+    - DONE (merged to `test` via PR #142): `test_invoice_ses_untouched.py` asserts the Flask/SES invoice path (`SenderSettingsTab`) is observably unchanged (Property 6).
     - **Property 6: Invoice-SES-untouched invariant** — the Flask/SES invoice path (`SenderSettingsTab`)
       is observably unchanged; no invoice SES read/write path altered
     - **Validates: Requirements 15.4, 15.5**
 
-  - [ ] 5.4 Deploy mail write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
+  - [x] 5.4 Deploy mail write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
+    - DONE: Task 5.1 shipped through `deploy-sam-members.yml` (OIDC, no secrets) — the Deploy SAM Members run on `test` at `d18670893` (the PR #142 merge head carrying the full config#mail write path) completed `success`, stack `test-sam-members` live in TEST. Later Flask-only merges (#143/#144) correctly triggered no new SAM deploy (path filter).
     - Ship Task 5.1 through `deploy-sam-members.yml` (OIDC, no secrets); CodeQL + GitGuardian green;
       verify live in TEST
     - _Requirements: 19.1, 19.3_
