@@ -232,6 +232,15 @@ resource "aws_cloudfront_distribution" "public_pages" {
       event_type   = "viewer-request"
       function_arn = aws_cloudfront_function.public_pages_url_rewrite.arn
     }
+
+    # viewer-response: set CSP frame-ancestors on the application form from the
+    # tenant's application_embed_origins (KVS). Defined in application-form.tf.
+    # No-op for landing pages whose host has no embed-origins KVS entry (the
+    # function omits the header when the host is not configured).
+    function_association {
+      event_type   = "viewer-response"
+      function_arn = aws_cloudfront_function.application_form_frame_ancestors.arn
+    }
   }
 
   custom_error_response {

@@ -68,6 +68,21 @@ export interface OverlayField {
    * (R3.4). A legacy stored `scope.values` is honoured server-side as a migration fallback only.
    */
   scope?: MembersConfigValue;
+  /**
+   * The four per-field APPLICATION attributes authored by the Application Form Builder (spec 11,
+   * design §3.1/§10). They are carried verbatim onto the ONE `field_overlay` object through the
+   * SAME `overlayModel` helpers the field modal uses (no parallel write path) and read/enforced by
+   * the SAM plane (`config#fields` → the public form, spec 10). The `[k: string]: …` index already
+   * lets these pass through unchanged; the explicit typing is for authoring ergonomics + tests.
+   */
+  /** On the public application form? (R2/R3 — the on-the-form toggle). */
+  application_visible?: boolean;
+  /** Required ON the form (R3.1 — may TIGHTEN an optional field, never RELAX a platform-required one). */
+  application_required?: boolean;
+  /** Enum SUBSET of the field's own choices (R3.2); `null`/absent = the full set. */
+  application_choices?: string[] | null;
+  /** A platform-known validator token (R3.3); `null`/absent = no format check. */
+  format?: { checker: string; params?: object } | null;
   /** Any other authored attributes are preserved verbatim. */
   [k: string]: MembersConfigValue | undefined;
 }

@@ -1219,6 +1219,132 @@ class TestConfigMailWriteReadRoundTrip:
         )  # From fallback applies
 
 
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# application-form-builder Task 5.3 — get_application_embed_origins: the SAM read side of the
+# ONE tenant-authored embed-origin list on config#mail (authored by task 5.1's _shape_embed_
+# origins). It feeds BOTH the CloudFront form `frame-ancestors` (task 5.2) and the SAM public
+# API CORS `Access-Control-Allow-Origin` (task 5.3, consumed by public_app._tenant_embed_origins).
+# Same read discipline as the sibling config#mail accessors: one partition Query (shared cache),
+# empty-is-valid / fail-safe (→ [], never raises), trim + de-dupe belt-and-suspenders.
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+class TestGetApplicationEmbedOrigins:
+    def test_returns_projected_origins_verbatim(self):
+        """A projected list of origins is returned (already shaped by the write path)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                application_embed_origins=[
+                    "https://members.h-dcn.nl",
+                    "https://aanmelden.h-dcn.nl",
+                ],
+            )
+        )
+        assert MembersProjectionReader(table=table).get_application_embed_origins(
+            "h-dcn"
+        ) == ["https://members.h-dcn.nl", "https://aanmelden.h-dcn.nl"]
+
+    def test_missing_row_fails_safe_to_empty_list(self):
+        """No config#mail row at all → [] (standalone, no cross-origin embed), never raises."""
+        table = FakeTable()  # nothing seeded
+        assert (
+            MembersProjectionReader(table=table).get_application_embed_origins(
+                "unconfigured"
+            )
+            == []
+        )
+
+    def test_missing_attribute_fails_safe_to_empty_list(self):
+        """A config#mail row without the attribute → [] (an un-authored tenant is standalone)."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn"))  # no embed origins authored
+        assert (
+            MembersProjectionReader(table=table).get_application_embed_origins("h-dcn")
+            == []
+        )
+
+    def test_non_list_values_fail_safe_to_empty_list(self):
+        """A non-list stored value (hand-edited / legacy) degrades to [] — never raises."""
+        for raw in ("https://x.example", None, 123, {}):
+            table = FakeTable()
+            table.put(_config_mail_item_full("h-dcn", application_embed_origins=raw))
+            reader = MembersProjectionReader(table=table)
+            assert reader.get_application_embed_origins("h-dcn") == [], f"raw={raw!r}"
+
+    def test_blank_and_non_string_entries_are_dropped(self):
+        """Belt-and-suspenders read guard: blank/non-string entries are skipped (not raised)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                application_embed_origins=[
+                    "  https://members.h-dcn.nl  ",  # trimmed
+                    "   ",  # blank → dropped
+                    42,  # non-string → dropped
+                    "https://members.h-dcn.nl",  # duplicate of the trimmed entry → de-duped
+                ],
+            )
+        )
+        assert MembersProjectionReader(table=table).get_application_embed_origins(
+            "h-dcn"
+        ) == ["https://members.h-dcn.nl"]
+
+    def test_tenant_isolation(self):
+        """Each tenant's embed origins answer only from its own partition — no bleed."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "tenant-a", application_embed_origins=["https://a.example"]
+            )
+        )
+        table.put(
+            _config_mail_item_full(
+                "tenant-b", application_embed_origins=["https://b.example"]
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_application_embed_origins("tenant-a") == ["https://a.example"]
+        assert reader.get_application_embed_origins("tenant-b") == ["https://b.example"]
+
+    def test_shares_partition_cache_with_sibling_mail_accessors(self):
+        """The embed-origins read shares the per-invocation partition cache (one Query)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                mail_domain="h-dcn.nl",
+                application_embed_origins=["https://members.h-dcn.nl"],
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        reader.get_mail_domain("h-dcn")
+        reader.get_application_embed_origins("h-dcn")
+        assert table.query_counts["h-dcn"] == 1
+
+    def test_round_trips_through_the_sam_owned_write_path(self):
+        """Property 1: put_config('mail', {application_embed_origins: [...]}) → reader returns it."""
+        from sam.members.domain.config_write_version import next_write_stamp
+        from sam.members.repository.projection_config_write_repository import (
+            MembersConfigWriteRepository,
+        )
+
+        table = _WritableFakeTable()
+        MembersConfigWriteRepository(table=table).put_config(
+            tenant_id="h-dcn",
+            config_id=schema.CONFIG_ID_MAIL,
+            attributes={
+                "mail_enabled": True,
+                "application_embed_origins": ["https://members.h-dcn.nl"],
+            },
+            version=next_write_stamp(),
+        )
+        assert MembersProjectionReader(table=table).get_application_embed_origins(
+            "h-dcn"
+        ) == ["https://members.h-dcn.nl"]
+
+
 # ---------------------------------------------------------------------------
 # get_config_status — delivered/loaded projection status (Phase 0 step 3)
 # ---------------------------------------------------------------------------

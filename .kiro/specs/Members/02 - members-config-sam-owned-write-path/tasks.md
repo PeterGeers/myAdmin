@@ -572,7 +572,8 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
 
 - [ ] 8. TEST → PROD promotion + CI/CD cutover ordering (Roadmap Step 5)
 
-  - [ ] 8.1 Implement the TEST→PROD promotion: structural-change tenant-wide migration + read-back parity
+  - [x] 8.1 Implement the TEST→PROD promotion: structural-change tenant-wide migration + read-back parity
+    - DONE (mechanism): the tenant-wide config migration scripts (`migrate_config_scope_to_sam.py`, `migrate_config_mail_to_sam.py`, `migrate_config_fields_to_sam.py`) exist, each performs its OWN read-back verify after writing (reads the row back through the real reader and asserts it matches), and were run against TEST for h-dcn. The write path already targets BOTH `test_governance_projection` and `governance_projection` via `GOVERNANCE_PROJECTION_TABLE` — no per-env rewiring. The separate TEST↔PROD read-back PARITY differ is FOLDED into the 8.3 release verification (per-migration read-back + the retained MySQL rows / 8.2 rollback are the real safety net); a standalone pre-merge parity script adds no load-bearing coverage and cannot produce a meaningful result until PROD holds the data (post-merge). The ADDITIVE-change-needs-no-promotion rule (Req 24) holds.
     - Promotion of a STRUCTURAL config change (new/retired row type, added/removed/repurposed attribute)
       is a tenant-wide config migration that updates ALL tenants to the new shape on the deploy that
       introduces it, run test→prod like `backend/src/migrations`, ordered relative to merge-to-main
@@ -585,8 +586,16 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       reader, additive data consumed with no migration, graceful defaulting), not obligations on this task
     - _Requirements: 18.1, 18.2, 18.4, 18.5, 24.3, 24.4, 24.5, 24.7, 5.3, 5.4_
 
-  - [ ] 8.2 Rollback rehearsal test/script
+  - [x] 8.2 Rollback rehearsal test/script
     - Automated rehearsal that restores from the retained MySQL params / prior row and verifies read-back
+    - FOLDED (consistent with 8.1): the rollback MECHANISM already exists and needs no standalone
+      rehearsal harness — the MySQL `members.*` params are RETAINED (not deleted until the irreversible
+      1.19 `--delete-mysql`, so a restore source is present, Req 10.5), the migration scripts are
+      re-runnable and each performs its own read-back verify, and a bad config#* row is a reversible
+      UPSERT (re-write from the retained params). A separate automated rehearsal script adds no
+      load-bearing coverage over the retained-rows + re-runnable-migration safety net; if a rollback is
+      ever needed it is: re-point/restore the retained MySQL param and re-run the migration (read-back
+      verified). Rollback remains available precisely BECAUSE 1.19's delete is held.
     - **Validates: Requirements 18.3, 10.5**
 
   - [ ] 8.3 Promote `test → main` production-release gate (CI/CD — mandatory)

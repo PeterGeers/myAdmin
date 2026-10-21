@@ -124,6 +124,10 @@ Passkey registreren mislukt. Probeer het opnieuw.
 
 # Your main branch isn't protected
 Protect this branch from force pushing or deletion, or require status checks before merging. View documentation. See https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/about-rulesets
+**Scope:** `services/projection_sync.py` (`_scope_config_version` / the config#* builders),
+`services/parameter_service.py`, the members-config seed/route. Relates to the Tenant Administration
+registry spec (same params/projection plumbing).
+
 
 # Optional follow-ups I can do, just say which:
 
@@ -313,3 +317,4 @@ only indirectly via converted route tests. Add backend/tests/unit/test_error_res
 asserting: generic client_message returned, non-empty error_id, str(exc) never in body,
 status passthrough, include_success=False shape, and full-exception server-side logging
 (caplog + exc_info). Mechanical; the helper is stable.
+Route logging to stdout so Railway stops labeling INFO lines as errors.
