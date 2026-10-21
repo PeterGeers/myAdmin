@@ -531,12 +531,14 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       door and their MySQL rows are deleted, so the raw editor must not serve them
     - _Requirements: 14.1, 14.3, 20.4_
 
-  - [ ] 7.2* Test: Advanced raw editor shows zero `members.*` rows (change-with-tests)
+  - [x] 7.2* Test: Advanced raw editor shows zero `members.*` rows (change-with-tests)
+    - DONE (merged to `test` via PR #147): `ParameterManagement.test.tsx` was flipped from the old per-key 'SHOWS the mail params' assertions to the BLANKET exclusion — a 'HIDES the mail params too' test and a 'no members.* row is present' test (a non-members row still opens its edit modal), plus the empty-state fixture gains a mail param that must also be hidden. 35 tests pass.
     - Update the existing allocated frontend test (`ParameterManagement.test.tsx`) per the change-with-tests
       contract — today it asserts the mail params SHOW; flip it to assert all `members.*` rows are hidden
     - **Validates: Requirements 14.1, 14.3**
 
-  - [ ] 7.3* Test: single-authoring-door / no-second-writer — Property 8
+  - [x] 7.3* Test: single-authoring-door / no-second-writer — Property 8
+    - DONE: a 'Property 8 — single authoring door / no second writer' describe block in `membersConfigService.test.ts` asserts (a) every config#mail write routes through the single SAM door (`saveMembersMailConfig` → `writeMailConfig` → `PUT /members/config/mail`) and NEVER the Flask parameter path (createParameter/updateParameter), and (b) the Flask `saveMembersParameter` surface (`MEMBERS_PARAM_KEYS`) carries NO migrated mail key — so no `members.*` MySQL write path remains for any migrated key (no second writer). 24 tests pass.
     - **Property 8: Single authoring door / no second writer** — assert the typed Mail function (and any
       other view that touches `config#mail`) both PUT to the single SAM `PUT /members/config/mail` route,
       and that no `members.*` MySQL write path remains for any migrated key

@@ -493,6 +493,16 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505582578
+      },
+      {
+        "executionId": "31136f09-d6ac-472c-ab86-4ad86c641789",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792572091706
+      },
+      {
+        "executionId": "31136f09-d6ac-472c-ab86-4ad86c641789",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792572098114
       }
     ],
     "7.3* Test: single-authoring-door / no-second-writer — Property 8": [
@@ -500,6 +510,16 @@
         "executionId": "96e17823-0a96-4e9a-8be1-23b34002b5e7",
         "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
         "timestamp": 1792505582735
+      },
+      {
+        "executionId": "31136f09-d6ac-472c-ab86-4ad86c641789",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792572092945
+      },
+      {
+        "executionId": "31136f09-d6ac-472c-ab86-4ad86c641789",
+        "chatSessionId": "sess_051eba40-9ea0-47df-9aab-793731ef0f95",
+        "timestamp": 1792572096898
       }
     ],
     "7.1 Build the NEW dedicated typed Mail function (single door for Members `config#mail` scalars)": [
