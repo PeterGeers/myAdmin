@@ -542,7 +542,8 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       and that no `members.*` MySQL write path remains for any migrated key
     - **Validates: Requirements 14.1, 14.3, 14.4**
 
-  - [ ] 7.4 Retire the `view_contexts` residue (physical cleanup, delete-only)
+  - [x] 7.4 Retire the `view_contexts` residue (physical cleanup, delete-only)
+    - DONE in TEST: dry-run found 1 `members.view_contexts` row; `--apply` deleted it (local Docker, APP_ENV=test); a re-run is a verified no-op (idempotent). The migration's `__main__` now loads `.env` best-effort so the documented `python -m` invocation resolves `DB_*`/`APP_ENV` (DatabaseManager does not load it). `ProjectionSync.delete_config_views_residue` already removes the `config#views` DynamoDB residue (delete-only, authors no row). The PROD `--apply` is DEFERRED to the Step 8 `test`→`main` promotion (per the user-held release gate).
     - Apply `backend/src/migrations/retire_members_view_contexts.py` to DELETE every tenant
       `members.view_contexts` MySQL row — run dry-run first (default), then `--apply` in TEST, then in PROD
     - Confirm `ProjectionSync.delete_config_views_residue` has removed any stale `config#views` DynamoDB
@@ -556,7 +557,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       then `... python -m src.migrations.retire_members_view_contexts --apply` (after dry-run review, TEST then PROD)
     - _Requirements: 21.1, 21.2, 21.3, 21.4, 21.5, 21.6, 14.1_
 
-  - [ ] 7.5* Test/verify `view_contexts` cleanup
+  - [x] 7.5* Test/verify `view_contexts` cleanup
     - Assert the migration deletes only `members.view_contexts` rows and is idempotent (re-run is a no-op);
       after apply a scan finds zero `members.view_contexts` MySQL rows and zero `config#views` projection
       rows; rows-per-page is now the per-user runtime Rows_Per_Page_Selector (Requirement 25, Task 1.17),
