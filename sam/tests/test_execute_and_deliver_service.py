@@ -93,7 +93,9 @@ class FakeRepo:
         self.list_members_calls.append(tenant_id)
         return list(self._members.get(tenant_id, []))
 
-    def create_mail_run(self, tenant_id, run_id, *, mode, triggered_by, recipient_count):
+    def create_mail_run(
+        self, tenant_id, run_id, *, mode, triggered_by, recipient_count
+    ):
         # Idempotent on run_id, like the real repo: a second create for the same run is a no-op.
         key = (tenant_id, run_id)
         existing = self.mail_runs.get(key)
@@ -168,11 +170,13 @@ class FakeMailConfigReader:
         certified=True,
         domain="h-dcn.nl",
         local_part="noreply",
+        reply_to_default=None,
     ):
         self._enabled = enabled
         self._certified = certified
         self._domain = domain
         self._local_part = local_part
+        self._reply_to_default = reply_to_default
 
     def is_mail_enabled(self, tenant_id):
         return bool(tenant_id) and self._enabled
@@ -185,6 +189,9 @@ class FakeMailConfigReader:
 
     def get_mail_local_part(self, tenant_id):
         return self._local_part
+
+    def get_mail_reply_to_default(self, tenant_id):
+        return self._reply_to_default if tenant_id else None
 
 
 def _certified_resolver(**overrides):
@@ -264,11 +271,15 @@ class TestPortConformance:
 
 class TestPerRecipientFanOut:
     def _service(self, repo, queue, result_rows=None):
-        pivot = CannedPivot(result_rows) if result_rows is not None else PassThroughPivot()
+        pivot = (
+            CannedPivot(result_rows) if result_rows is not None else PassThroughPivot()
+        )
         return _build_service(repo, pivot, queue), pivot
 
     def test_per_recipient_fans_out_to_n_jobs_one_per_member(self, repo, queue):
-        repo.put_set(_set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"}))
+        repo.put_set(
+            _set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"})
+        )
         members = [
             _member("Ava", "ava@example.com"),
             _member("Ben", "ben@example.com"),
@@ -293,7 +304,9 @@ class TestPerRecipientFanOut:
     def test_per_recipient_job_carries_that_members_merge_values_and_template(
         self, repo, queue
     ):
-        repo.put_set(_set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-9"}))
+        repo.put_set(
+            _set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-9"})
+        )
         repo.put_members(TENANT, [_member("Ava", "ava@example.com")])
         service, _ = self._service(repo, queue)
 
@@ -311,9 +324,12 @@ class TestPerRecipientFanOut:
         assert job.rows == ()
 
     def test_per_recipient_each_job_has_its_own_merge_values(self, repo, queue):
-        repo.put_set(_set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"}))
+        repo.put_set(
+            _set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"})
+        )
         repo.put_members(
-            TENANT, [_member("Ava", "ava@example.com"), _member("Ben", "ben@example.com")]
+            TENANT,
+            [_member("Ava", "ava@example.com"), _member("Ben", "ben@example.com")],
         )
         service, _ = self._service(repo, queue)
 
@@ -324,7 +340,9 @@ class TestPerRecipientFanOut:
         assert by_addr["ben@example.com"].merge_values["first_name"] == "Ben"
 
     def test_per_recipient_skips_rows_with_no_resolvable_address(self, repo, queue):
-        repo.put_set(_set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"}))
+        repo.put_set(
+            _set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"})
+        )
         repo.put_members(
             TENANT,
             [
@@ -342,7 +360,9 @@ class TestPerRecipientFanOut:
         assert queue.jobs[0].recipients == ("ava@example.com",)
 
     def test_per_recipient_zero_members_enqueues_nothing(self, repo, queue):
-        repo.put_set(_set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"}))
+        repo.put_set(
+            _set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"})
+        )
         repo.put_members(TENANT, [])
         service, _ = self._service(repo, queue)
 
@@ -494,7 +514,8 @@ class TestStableJobId:
         repo, queue = FakeRepo(), FakeQueue()
         repo.put_set(_set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "t"}))
         repo.put_members(
-            TENANT, [_member("Ava", "ava@example.com"), _member("Ben", "ben@example.com")]
+            TENANT,
+            [_member("Ava", "ava@example.com"), _member("Ben", "ben@example.com")],
         )
         service = _build_service(repo, PassThroughPivot(), queue)
         service.execute_and_deliver(TENANT, SET_ID, RUN_ID)
@@ -557,7 +578,9 @@ class TestSenderStamping:
     def test_per_recipient_stamps_resolved_from_and_reply_to_on_every_job(
         self, repo, queue
     ):
-        repo.put_set(_set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"}))
+        repo.put_set(
+            _set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "tpl-1"})
+        )
         repo.put_members(
             TENANT,
             [
@@ -609,18 +632,50 @@ class TestSenderStamping:
         [job] = queue.jobs
         assert job.from_address == "info@club.example"
 
-    def test_unattended_run_stamps_from_with_no_reply_to(self, repo, queue):
-        # A scheduled/unattended run has no triggering user → reply_to defaults to None, but the
-        # From still carries the tenant identity (R4.3 — Reply-To optional, From required).
+    def test_unattended_run_reply_to_falls_back_to_from_when_no_default(
+        self, repo, queue
+    ):
+        # Task 5.1: a scheduled/unattended run has no triggering user. With NO authored
+        # mail_reply_to_default, the Reply-To FALLS BACK to the composed From (never None /
+        # never a guessed address) so replies still reach the tenant sender.
         repo.put_set(_set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "t"}))
         repo.put_members(TENANT, [_member("Ava", "ava@example.com")])
         service = _build_service(repo, PassThroughPivot(), queue)
 
-        service.execute_and_deliver(TENANT, SET_ID, RUN_ID)  # no reply_to
+        service.execute_and_deliver(TENANT, SET_ID, RUN_ID)  # no reply_to (unattended)
 
         [job] = queue.jobs
         assert job.from_address == "noreply@h-dcn.nl"
-        assert job.reply_to is None
+        assert job.reply_to == "noreply@h-dcn.nl"  # fell back to the From
+
+    def test_unattended_run_uses_authored_reply_to_default(self, repo, queue):
+        # Task 5.1: a scheduled/unattended run with an authored config#mail.mail_reply_to_default
+        # stamps THAT address as the Reply-To (not the From).
+        repo.put_set(_set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "t"}))
+        repo.put_members(TENANT, [_member("Ava", "ava@example.com")])
+        resolver = _certified_resolver(reply_to_default="replies@h-dcn.nl")
+        service = _build_service(repo, PassThroughPivot(), queue, resolver)
+
+        service.execute_and_deliver(TENANT, SET_ID, RUN_ID)  # no reply_to (unattended)
+
+        [job] = queue.jobs
+        assert job.from_address == "noreply@h-dcn.nl"
+        assert job.reply_to == "replies@h-dcn.nl"
+
+    def test_interactive_reply_to_wins_over_authored_default(self, repo, queue):
+        # Task 5.1: an INTERACTIVE send passes the invoking user's email — used verbatim and NOT
+        # overridden by the tenant's scheduled default.
+        repo.put_set(_set({"mode": DELIVERY_MODE_PER_RECIPIENT, "template_id": "t"}))
+        repo.put_members(TENANT, [_member("Ava", "ava@example.com")])
+        resolver = _certified_resolver(reply_to_default="replies@h-dcn.nl")
+        service = _build_service(repo, PassThroughPivot(), queue, resolver)
+
+        service.execute_and_deliver(TENANT, SET_ID, RUN_ID, reply_to="user@h-dcn.nl")
+
+        [job] = queue.jobs
+        assert (
+            job.reply_to == "user@h-dcn.nl"
+        )  # the invoking user, not the scheduled default
 
 
 # ── mail-spec task 1.3: NOT-CERTIFIED refuses BEFORE enqueue (no job, typed reason) ──────

@@ -78,6 +78,7 @@ Optional/supporting docs when useful: a `README.md` navigation guide, `analysis.
 
 - Chunks < 1 day, grouped in phases, with dependencies
 - Include testing requirements per phase
+- Include use of shell commands see steering [text](41-shell-environment.md)
 - **Include the CI/CD tasks per `43-cicd-deploys.md`.** Every spec's `tasks.md` MUST make the
   CI/CD surface explicit — it is part of the work, not an afterthought:
   - the **quality gates** the change must pass (the per-PR CodeQL + GitGuardian today; the

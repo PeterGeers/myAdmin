@@ -35,7 +35,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -74,7 +76,12 @@ class FakeWriteRepository:
                 "version": version,
             }
         )
-        return {"tenant_id": tenant_id, "config_id": config_id, "version": version, **attributes}
+        return {
+            "tenant_id": tenant_id,
+            "config_id": config_id,
+            "version": version,
+            **attributes,
+        }
 
 
 @pytest.fixture()
@@ -166,7 +173,11 @@ def test_write_config_non_admin_returns_403_and_never_writes(repo):
     # A verified caller holding members:write (NOT members:admin) for the tenant → the route's
     # members:admin gate denies with 403, and the config-write service is NEVER reached (R3.3).
     resp = app.handler(
-        _event("fields", capabilities=("members:write", "members:read"), body=_valid_fields_body())
+        _event(
+            "fields",
+            capabilities=("members:write", "members:read"),
+            body=_valid_fields_body(),
+        )
     )
     assert resp["statusCode"] == 403
     assert repo.calls == []
@@ -218,19 +229,86 @@ def test_write_config_tenant_resolved_from_token_not_body(repo):
 
 @pytest.mark.parametrize("config_id", ["fields", "scope", "mail"])
 def test_write_config_accepts_the_three_sam_owned_ids(repo, config_id):
-    # All three SAM-owned ids are ACCEPTED at the route (pass the closed-set gate). `fields` has a
-    # wired validator (1.5) so it writes; `scope`/`mail` validators land in their own cutover
-    # steps, so they are accepted by the route but not yet persisted — the key assertion here is
-    # that NONE of the three is rejected as an unknown id (no 400 from the closed-set guard).
+    # All three SAM-owned ids are ACCEPTED at the route (pass the closed-set gate). `fields` (1.5)
+    # and `scope` (3.3) have wired validators; the `mail` validator lands in its own cutover step
+    # (Task 5). The key assertion here is that NONE of the three is rejected as an unknown id (no
+    # 400 from the closed-set guard). A fields-shaped body sent to `scope` has no `dimensions`
+    # key, which the scope validator reads as empty = tenant-wide (valid), so scope is also not a
+    # 400 — exactly what this asserts.
     resp = app.handler(_event(config_id, body=_valid_fields_body()))
     assert resp["statusCode"] != 400
 
 
 def test_write_config_fields_is_persisted(repo):
-    # The one fully-wired id (1.5): config#fields reaches the repository.
+    # The fully-wired id (1.5): config#fields reaches the repository.
     resp = app.handler(_event("fields", body=_valid_fields_body()))
     assert resp["statusCode"] == 200
     assert repo.calls[0]["config_id"] == "fields"
+
+
+def test_write_config_scope_is_persisted_end_to_end(repo):
+    # Task 3.3: with the scope validator wired, a `{dimensions:[…]}` body round-trips the FULL
+    # edge → service → repository path (the gap found in the task-3 reconciliation: the frontend
+    # mirror + the repository-direct round-trip test did not exercise this seam, so PUT scope
+    # 500'd). A valid scope write now returns 200 and reaches the repository with config_id=scope.
+    body = {
+        "dimensions": [
+            {
+                "key": "region",
+                "field": "region",
+                "enabled": True,
+                "values": ["Noord", "Zuid"],
+            }
+        ]
+    }
+    resp = app.handler(_event("scope", body=body))
+    assert resp["statusCode"] == 200
+    assert repo.calls[0]["config_id"] == "scope"
+    assert repo.calls[0]["attributes"] == {"dimensions": body["dimensions"]}
+
+
+def test_write_config_scope_empty_dimensions_persists_tenant_wide(repo):
+    # R8.5/R1.6: an empty dimensions body is a valid tenant-wide scope write (200, persisted).
+    resp = app.handler(_event("scope", body={"dimensions": []}))
+    assert resp["statusCode"] == 200
+    assert repo.calls[0]["config_id"] == "scope"
+    assert repo.calls[0]["attributes"] == {"dimensions": []}
+
+
+def test_write_config_scope_malformed_body_is_caller_safe_400_no_write(repo):
+    # A malformed scope body (dimensions not a list) is a DELIBERATE caller-safe 400 from the
+    # service validator — not a 500 — and nothing is persisted.
+    resp = app.handler(_event("scope", body={"dimensions": "not-a-list"}))
+    assert resp["statusCode"] == 400
+    assert repo.calls == []
+
+
+def test_write_config_mail_is_persisted_end_to_end(repo):
+    # Task 5.1: with the mail validator wired, a config#mail body round-trips the FULL
+    # edge → service → repository path. A valid mail write returns 200 and persists the
+    # fail-closed-shaped scalars with config_id=mail.
+    body = {
+        "mail_enabled": True,
+        "mail_certified": True,
+        "mail_domain": "h-dcn.nl",
+        "mail_local_part": "info",
+        "mail_reply_to_default": "reply@h-dcn.nl",
+    }
+    resp = app.handler(_event("mail", body=body))
+    assert resp["statusCode"] == 200
+    assert repo.calls[0]["config_id"] == "mail"
+    attrs = repo.calls[0]["attributes"]
+    assert attrs["mail_enabled"] is True
+    assert attrs["mail_domain"] == "h-dcn.nl"
+    assert attrs["mail_reply_to_default"] == "reply@h-dcn.nl"
+
+
+def test_write_config_mail_empty_body_persists_fail_closed(repo):
+    # An empty mail body is valid (fail-closed defaults) → 200, persisted.
+    resp = app.handler(_event("mail", body={}))
+    assert resp["statusCode"] == 200
+    assert repo.calls[0]["config_id"] == "mail"
+    assert repo.calls[0]["attributes"]["mail_enabled"] is False
 
 
 def test_write_config_views_is_rejected_with_no_write(repo):
@@ -279,7 +357,9 @@ def test_write_config_success_returns_configid_and_authoritative_version(repo):
 # ── Unexpected-exception path: bodied generic 500, never str(e) (R17.1, R17.2) ────────
 
 
-def test_write_config_unexpected_exception_returns_generic_500_not_str_e(monkeypatch, repo):
+def test_write_config_unexpected_exception_returns_generic_500_not_str_e(
+    monkeypatch, repo
+):
     # SAM-plane error conventions (steering 35): an UNANTICIPATED error inside the write path
     # becomes a BODIED, generic 500 — never an empty 502, and the internal exception text is
     # NEVER echoed to the client.
@@ -289,7 +369,9 @@ def test_write_config_unexpected_exception_returns_generic_500_not_str_e(monkeyp
         def put_config(self, *a, **k):
             raise RuntimeError(_SECRET)
 
-    monkeypatch.setattr(dispatch_mod, "get_config_write_service", lambda: _BoomService())
+    monkeypatch.setattr(
+        dispatch_mod, "get_config_write_service", lambda: _BoomService()
+    )
 
     resp = app.handler(_event("fields", body=_valid_fields_body()))
     assert resp["statusCode"] == 500

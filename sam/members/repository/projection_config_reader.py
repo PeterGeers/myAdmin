@@ -182,7 +182,9 @@ class MembersProjectionReader:
 
         raw_dimensions = row.get("dimensions") or []
         dimensions = tuple(
-            self._build_dimension(raw) for raw in raw_dimensions if isinstance(raw, dict)
+            self._build_dimension(raw)
+            for raw in raw_dimensions
+            if isinstance(raw, dict)
         )
         return ScopeConfig(tenant_id=tenant_id, dimensions=dimensions)
 
@@ -451,9 +453,9 @@ class MembersProjectionReader:
         # fallback a tenant-authored status value (e.g. `died`) was silently dropped: `_build_options`
         # only saw `options`, so the override carried no values and the resolver fell back to the
         # fixed field's base choices (the config#fields enum-choices data-loss on read).
-        override_options = cls._build_options(spec.get("options")) or cls._build_options(
-            spec.get("choices")
-        )
+        override_options = cls._build_options(
+            spec.get("options")
+        ) or cls._build_options(spec.get("choices"))
         return FixedFieldOverride(
             label=dict(label) if isinstance(label, dict) else None,
             visible=bool(visible) if visible is not None else None,
@@ -638,6 +640,31 @@ class MembersProjectionReader:
             return False
         return row.get("mail_certified") is True
 
+    def get_mail_reply_to_default(self, tenant_id: str) -> str | None:
+        """Return the tenant's projected ``mail_reply_to_default`` from ``config#mail`` (Task 5.1).
+
+        The OPTIONAL tenant-authored Reply-To for SCHEDULED / unattended sends (a scheduled send
+        has no invoking user). The send path uses this when present, and FALLS BACK to the
+        composed From address when it is absent (an interactive send instead uses the invoking
+        user's verified email at runtime). There is no fabricated default here — an **absent**
+        ``config#mail`` row, a missing attribute, or a non-string/blank value all resolve to
+        ``None`` so the caller applies the From fallback. Never raises on missing/empty data
+        (empty-is-valid, same discipline as ``get_mail_domain``).
+
+        Args:
+            tenant_id: The tenant (partition key) whose scheduled-send Reply-To to resolve.
+
+        Returns:
+            The projected non-blank ``mail_reply_to_default`` string, or ``None`` when absent.
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_MAIL)
+        if row is None:
+            return None
+        reply_to = row.get("mail_reply_to_default")
+        if isinstance(reply_to, str) and reply_to.strip():
+            return reply_to
+        return None
+
     # ── Tenant consent notice (Member Application Form D26/R12.1a/R12.1c, task 2.6) ────
     #
     # The per-tenant, bilingual, VERSIONED consent/privacy notice the tenant authored on the
@@ -721,6 +748,52 @@ class MembersProjectionReader:
         if notice is None:
             return None
         return notice.get("version")
+
+    # ── Full config#mail body (the typed Mail authoring read, spec 02 task 7.1 fix) ────
+
+    def get_mail_config(self, tenant_id: str) -> dict:
+        """Return the full reader-shaped ``config#mail`` body for the typed Mail authoring form.
+
+        The AUTHORITATIVE read-back for the SAM-owned mail scalars: the typed Mail function
+        (``MembersMailConfigEditor``) loads its initial values from THIS (surfaced on
+        ``GET /members/field-config`` as ``mail_config``) instead of the legacy MySQL
+        ``members.*`` params — those are SAM-owned now (``mail_reply_to_default`` is SAM-only
+        net-new; the rest are being retired), so MySQL is the wrong source and a saved value
+        would read back blank. Composing the body here from the SAME accessors the write path /
+        builder use means the authoring form reads exactly what was written (writer/reader cannot
+        drift).
+
+        Shape mirrors ``build_config_mail_row`` / ``ConfigWriteService._validate_mail_body`` and
+        the SAM accessors EXACTLY: ``mail_enabled`` / ``mail_local_part`` / ``mail_certified`` are
+        ALWAYS present (fail-closed bools; ``mail_local_part`` defaults to ``"noreply"``), while
+        ``mail_domain`` / ``mail_reply_to_default`` / ``consent_notice`` are included ONLY when
+        authored (a non-``None`` accessor result), so an un-authored tenant yields the
+        back-compatible minimal body. Empty-is-valid / fail-closed: a missing ``config#mail`` row
+        yields the safe defaults (not-enabled, not-certified, ``noreply``, no domain/reply-to/
+        notice) rather than raising. All six accessors share the per-invocation partition cache,
+        so this resolves in a single Query.
+
+        Args:
+            tenant_id: The tenant (partition key) whose mail config to resolve.
+
+        Returns:
+            The reader-shaped ``config#mail`` body (always a dict; never raises).
+        """
+        body: dict = {
+            "mail_enabled": self.is_mail_enabled(tenant_id),
+            "mail_local_part": self.get_mail_local_part(tenant_id),
+            "mail_certified": self.is_mail_certified(tenant_id),
+        }
+        domain = self.get_mail_domain(tenant_id)
+        if domain is not None:
+            body["mail_domain"] = domain
+        reply_to = self.get_mail_reply_to_default(tenant_id)
+        if reply_to is not None:
+            body["mail_reply_to_default"] = reply_to
+        consent_notice = self.get_consent_notice(tenant_id)
+        if consent_notice is not None:
+            body["consent_notice"] = consent_notice
+        return body
 
     # ── Scope grants (consumed by the edge, task 8.3) ──────────────────────────────────
 

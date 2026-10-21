@@ -122,11 +122,13 @@ class ConfigWriteService:
     def _validate_body(self, config_id: str, body: Mapping) -> dict:
         """Dispatch to the per-``configId`` body validator.
 
-        Each SAM-owned id shapes + validates only its own attributes. ``fields`` is implemented
-        here (Task 1.5); ``scope`` and ``mail`` are wired in their own cutover steps (Tasks 3/5).
+        Each SAM-owned id shapes + validates only its own attributes — ``fields`` (Task 1.5),
+        ``scope`` (Task 3.3), and ``mail`` (Task 5.1) are all implemented here.
         """
         validators = {
             schema.CONFIG_ID_FIELDS: self._validate_fields_body,
+            schema.CONFIG_ID_SCOPE: self._validate_scope_body,
+            schema.CONFIG_ID_MAIL: self._validate_mail_body,
         }
         validator = validators.get(config_id)
         if validator is None:
@@ -178,7 +180,9 @@ class ConfigWriteService:
         if overrides_in is None:
             overrides_in = body.get("fixed_overrides")
         overrides = self._validate_overrides_map(overrides_in)
-        functional_groups = self._validate_functional_groups(body.get("functional_groups"))
+        functional_groups = self._validate_functional_groups(
+            body.get("functional_groups")
+        )
 
         # Author exactly the three reader-read attributes — no default_page_size (R7.2).
         return {
@@ -219,7 +223,9 @@ class ConfigWriteService:
         if raw is None:
             return {}
         if not isinstance(raw, Mapping):
-            raise ConfigWriteValidationError("config#fields 'overrides' must be an object")
+            raise ConfigWriteValidationError(
+                "config#fields 'overrides' must be an object"
+            )
         for dotted, spec in raw.items():
             if not isinstance(spec, Mapping):
                 raise ConfigWriteValidationError(
@@ -254,3 +260,146 @@ class ConfigWriteService:
                 )
             groups.append(dict(entry))
         return groups
+
+    # ── config#scope validator (Task 3.3 / Requirement 8 / 22) ──────────────────────────
+
+    def _validate_scope_body(self, body: Mapping) -> dict:
+        """Validate + shape a ``config#scope`` body into the reader's ``get_scope_config`` shape.
+
+        The SAM-owned ``config#scope`` row is ``{"dimensions": [ <ScopeDimension dict>, … ]}`` —
+        the exact shape ``MembersProjectionReader.get_scope_config`` reads back (R8.1). The frontend
+        scope-save mirror (task 3.1a) writes the already-derived dimension set here as the
+        AUTHORITATIVE source; this service shape-checks it and authors the ``dimensions`` attribute
+        ONLY. Validation is SHAPE-ONLY, mirroring ``_validate_fields_body`` (the reader degrades an
+        individual malformed dimension gracefully, so the service checks the container shape, not
+        every leaf):
+
+        - ``dimensions`` — ``None`` / absent → ``[]`` (EMPTY is valid: a tenant-wide scope config,
+          R8.5 / R1.6 — the reader resolves an empty list to tenant-wide, never an error);
+        - otherwise a list whose every entry is a mapping (one dimension spec), carried through
+          verbatim so the reader maps each onto a ``ScopeDimension`` 1:1.
+
+        It never authors ``all_wildcard`` / ``multi_valued`` (s5d clean break, R8.1) — it does not
+        add keys, it only passes the authored dimension specs through.
+        """
+        if not isinstance(body, Mapping):
+            raise ConfigWriteValidationError(
+                "config#scope body must be an object with a 'dimensions' list"
+            )
+        dimensions = self._validate_scope_dimensions(body.get("dimensions"))
+        return {"dimensions": dimensions}
+
+    @staticmethod
+    def _validate_scope_dimensions(raw) -> list:
+        """Validate the ``dimensions`` list; preserve each dimension spec verbatim.
+
+        ``None`` / absent → ``[]`` (empty is valid = tenant-wide). Must be a list; each entry must
+        be a mapping (a dimension spec: ``key`` / ``field`` / ``enabled`` / ``values`` / ``label`` /
+        ``required_for``). Each spec is carried through unchanged — the reader normalizes defaults
+        and ignores unknown keys, so the service does not reshape a dimension.
+        """
+        if raw is None:
+            return []
+        if not isinstance(raw, (list, tuple)):
+            raise ConfigWriteValidationError("config#scope 'dimensions' must be a list")
+        for entry in raw:
+            if not isinstance(entry, Mapping):
+                raise ConfigWriteValidationError(
+                    "config#scope 'dimensions' entries must be objects"
+                )
+        return [dict(entry) for entry in raw]
+
+    # ── config#mail validator (Task 5.1 / Requirement 9 / 15) ───────────────────────────
+
+    def _validate_mail_body(self, body: Mapping) -> dict:
+        """Validate + shape a ``config#mail`` body into the reader's accessor shape (R9/R15).
+
+        Authors ONLY the attributes the ``MembersProjectionReader`` mail accessors read back:
+        ``mail_enabled`` / ``mail_certified`` / ``application_scope_copy`` (fail-closed bools —
+        only an explicit ``True`` opens a gate), ``mail_local_part`` (default ``"noreply"``),
+        ``mail_domain`` (NO safe default — omitted when blank so the pre-send resolver fails
+        closed, R4.2), ``mail_reply_to_default`` (NEW, Task 5.1 — optional; omitted when blank;
+        the scheduled/unattended-send Reply-To, falling back to the From when absent), and
+        ``consent_notice`` (the versioned bilingual notice; omitted unless well-formed, R12.1).
+
+        SHAPE-ONLY, fail-closed, mirroring the Flask ``build_config_mail_row`` so the SAM-written
+        row is byte-for-byte what the reader expects — writer and builder cannot drift (R9). The
+        boolean gates collapse any non-``True`` value to ``False`` (an absent/malformed gate can
+        never silently permit sending).
+        """
+        if not isinstance(body, Mapping):
+            raise ConfigWriteValidationError("config#mail body must be an object")
+
+        attributes: dict = {
+            # Fail-closed gates: only an explicit boolean True opens them (R0/R5.2).
+            "mail_enabled": body.get("mail_enabled") is True,
+            "mail_certified": body.get("mail_certified") is True,
+            "application_scope_copy": body.get("application_scope_copy") is True,
+            "mail_local_part": self._shape_mail_local_part(body.get("mail_local_part")),
+        }
+
+        # Domain: NO safe default — omit unless a non-blank string (a guessed host = a
+        # foreign-sender leak, R4.2). The reader resolves a missing domain to None (fail-closed).
+        domain = body.get("mail_domain")
+        if isinstance(domain, str) and domain.strip():
+            attributes["mail_domain"] = domain
+
+        # Reply-To default (Task 5.1, R9): optional tenant-authored string for the
+        # scheduled/unattended-send Reply-To. Omit unless a non-blank string so the send path
+        # falls back to the From address when it is absent.
+        reply_to = body.get("mail_reply_to_default")
+        if isinstance(reply_to, str) and reply_to.strip():
+            attributes["mail_reply_to_default"] = reply_to
+
+        # Consent notice: project ONLY when well-formed (non-blank version + >=1 non-blank
+        # locale text), else omit — the SAME shape the reader's get_consent_notice reads.
+        consent_notice = self._shape_consent_notice(body.get("consent_notice"))
+        if consent_notice is not None:
+            attributes["consent_notice"] = consent_notice
+
+        return attributes
+
+    @staticmethod
+    def _shape_mail_local_part(raw) -> str:
+        """``mail_local_part`` → a non-blank string, else the default ``"noreply"`` (R4)."""
+        if isinstance(raw, str) and raw.strip():
+            return raw
+        return "noreply"
+
+    @staticmethod
+    def _shape_consent_notice(raw) -> dict | None:
+        """Shape a consent notice to ``{"version": str, "text": {locale: str}}`` or ``None``.
+
+        Mirrors the Flask builder's ``_resolve_application_consent_notice`` read-side shaping so
+        the written row matches ``get_consent_notice`` exactly (R12.1): requires a non-blank
+        ``version`` (string, or an int coerced to str) AND >=1 non-blank string locale under
+        ``text``; anything malformed collapses to ``None`` (the attribute is then omitted).
+        """
+        if not isinstance(raw, Mapping):
+            return None
+        raw_version = raw.get("version")
+        if isinstance(raw_version, bool):
+            return None
+        if isinstance(raw_version, str):
+            version = raw_version.strip()
+        elif isinstance(raw_version, int):
+            version = str(raw_version)
+        else:
+            version = ""
+        if not version:
+            return None
+        raw_text = raw.get("text")
+        if not isinstance(raw_text, Mapping):
+            return None
+        text: dict[str, str] = {}
+        for locale, text_body in raw_text.items():
+            if (
+                isinstance(locale, str)
+                and locale.strip()
+                and isinstance(text_body, str)
+                and text_body.strip()
+            ):
+                text[locale] = text_body
+        if not text:
+            return None
+        return {"version": version, "text": text}

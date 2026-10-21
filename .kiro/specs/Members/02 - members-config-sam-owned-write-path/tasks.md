@@ -137,14 +137,14 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       is retired by Requirement 25 (no tenant `default_page_size` is authored on or read from `config#fields`)
     - **Validates: Requirements 1.4, 1.5, 7.4, 8.1(fields subset)**
 
-  - [~] 1.11 Deploy SAM write infra + IAM grant via `deploy-sam-members.yml` (CI/CD — mandatory)
+  - [x] 1.11 Deploy SAM write infra + IAM grant via `deploy-sam-members.yml` (CI/CD — mandatory)
     - Ship Tasks 1.1–1.9 through `deploy-sam-members.yml` (OIDC `NonprofitDeployRole`, acct
       `506221081911`, `eu-west-1`, no stored AWS secrets); branch decides env (`test`→test stack)
     - Confirm CodeQL + GitGuardian green before merge to `test`; verify stack settles and the PUT route
       is live in TEST
     - _Requirements: 19.1, 19.3, 5.3_
 
-  - [~] 1.12 Migrate `config#fields` per tenant + read-back verify + delete migrated MySQL rows (operational, PRE builder removal)
+  - [x] 1.12 Migrate `config#fields` per tenant + read-back verify + delete migrated MySQL rows (operational, PRE builder removal)
     - Copy every live tenant's `members.field_overlay` into the SAM-owned `config#fields` row
       (minimum `h-dcn`); read back via the reader to verify. Migrate `members.field_overlay` ONLY
     - `members.default_page_size` is RETIRED by Requirement 25 (rows-per-page is now the per-user
@@ -157,40 +157,61 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       verify-before-delete discipline)
     - _Requirements: 10.1, 10.2, 10.4, 10.5, 10.6, 14.2, 5.3, 5.4_
 
-  - [~] 1.13 Repoint `config#fields` save in `membersConfigService.ts` + simplify UX
+  - [x] 1.13 Repoint `config#fields` save in `membersConfigService.ts` + simplify UX
     - Repoint the fields save from Flask `parameter_admin_routes` to `PUT /members/config/fields`;
       drop the "pending projection" state (SAM write is authoritative); editors consume service unchanged
     - _Requirements: 13.1, 13.2, 13.3_
 
-  - [~] 1.14 Update frontend tests for the repointed fields save
+  - [x] 1.14 Update frontend tests for the repointed fields save
     - Assert the service PUTs to `/members/config/fields` and treats the write as authoritative
     - **Validates: Requirements 13.1, 13.2, 13.4**
 
-  - [~] 1.15 Remove `build_config_fields_row` from ProjectionSync + retire MySQL params (merge to main ONLY after 1.12 PROD-verified)
-    - Remove the `build_config_fields_row(...)` append in `ProjectionSync.sync_administration`
-      (`backend/src/services/projection_sync.py`); leave scope/mail builders in place
-    - Retire `members.field_overlay` (migrated to SAM) in the same change; also DELETE the
-      `members.default_page_size` param — it is RETIRED by Requirement 25 (not migrated, not carried
-      forward anywhere), so it is removed as a retired param rather than re-homed
+  - [x] 1.15 Stop ProjectionSync emitting config#fields (builder KEPT until migration retired)
+    - Remove ONLY the `build_config_fields_row(...)` call + append in
+      `ProjectionSync.sync_administration` (`backend/src/services/projection_sync.py`) so sync no
+      longer EMITS `config#fields`; leave scope/mail builders in place
+    - KEEP the `build_config_fields_row` function + its import/export: it is still consumed by the
+      one-off migration script (`backend/scripts/migrate_config_fields_to_sam.py`) and the
+      builder-unit-tests. The function is DELETED later by the end-of-band cleanup task 1.19,
+      once the migration is complete — NOT here
+    - Stop ProjectionSync reading `members.field_overlay` (now SAM-owned) / the retired
+      `members.default_page_size` (Req 25) for config#fields projection (code-level; the MySQL
+      ROW deletion is the gated operational step 1.12 `--delete-mysql` + task 1.19)
     - Keep `SyncResult`/`TenantSource`/`SourceProvider`/`DatabaseSourceProvider` surface unchanged
     - Flask-plane `error_response` + `error_id` convention (`30`) on any touched Flask caught-exception path
     - _Requirements: 10.3, 11.1, 11.2, 11.4, 11.5, 17.3_
 
-  - [~] 1.16 Update ProjectionSync tests to assert config#fields NOT emitted (change-with-tests)
-    - Update `backend/tests/unit/test_projection_sync.py` property/preservation tests
+  - [x] 1.16a ProjectionSync emission tests: assert config#fields NOT emitted (change-with-tests)
+    - In `backend/tests/unit/test_projection_sync.py`, flip the THREE tests that assert sync EMITS
+      `config#fields` to assert it is NOT emitted (scope/mail still ARE):
+      `test_sync_administration_single_tenant_writes_expected_items`,
+      `test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows`,
+      `test_sync_does_not_recreate_config_views_once_builder_removed`
     - **Property 4: ProjectionSync no longer emits config#fields** and
-      **Property 5: Delete-sweep safety** — verify `_reconcile_scopegrants` + `delete_config_views_residue`
-      never touch `config#fields`. The delete-sweep guardrail is VERIFIED / regression-locked by
-      Requirement 12 (12.5: `config#*` rows are UPSERT-ONLY, only the `config#views`-only residue cleanup
-      ever deletes a `config#` row) — it is no longer an open question
-    - The existing regression test `test_sync_reconcile_never_deletes_non_scopegrant_rows` MUST stay green
-      AND be EXTENDED (12.6) so a SAM-authored `config#fields` row survives a full
-      `ProjectionSync.sync_administration` + `_reconcile_scopegrants` cycle under split ownership (the
-      split-ownership survival case) — keep the change-with-tests framing (`30`, `34`)
+      **Property 5: Delete-sweep safety** — `_reconcile_scopegrants` + `delete_config_views_residue`
+      never touch `config#fields` (12.5: `config#*` UPSERT-ONLY; only the `config#views` residue
+      cleanup deletes a `config#` row)
+    - EXTEND `test_sync_reconcile_never_deletes_non_scopegrant_rows` (12.6): a SAM-authored
+      `config#fields` row (pre-seeded, NOT sync-emitted) SURVIVES a full
+      `sync_administration` + `_reconcile_scopegrants` cycle (split-ownership survival)
     - **Validates: Requirements 11.2, 11.3, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6**
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_projection_sync.py -q`
 
-  - [~] 1.17 Members table rows-per-page runtime selector + DynamoDB cursor paging (OQ-6 RESOLVED, Component 10 / Req 25)
+  - [x] 1.16b Re-home the 3 regression tests incidentally coupled to config#fields emission
+    - SURFACED by 1.15: three tests assert an unrelated guarantee but used `config#fields`
+      emission as the vehicle, so removing the emission broke them. Re-home each onto a
+      STILL-EMITTED builder (`config#scope` via `members.scope_dimensions`, or `config#mail`),
+      preserving the ORIGINAL regression intent — do NOT weaken/delete the guarantee:
+      - `test_sync_param_edit_alone_projects_the_change` (version-supersede: a param edit alone
+        still projects its row) → reframe onto config#scope
+      - `test_sync_administration_builds_from_fresh_source_not_stale_cache` (fresh-source, the
+        `membership.status` 6→7 `died` scenario) → reframe onto a still-emitted `members.*`-backed row
+      - `test_sync_administration_malformed_c2_item_aborts_before_any_write` (R5.5 batch-abort,
+        no partial write) → repoint the monkeypatch to `build_config_scope_row`/`build_config_mail_row`
+    - **Validates: Requirements 11.2, 17.3 (regression-preservation under split ownership)**
+    - `cd backend && source .venv/bin/activate && pytest tests/unit/test_projection_sync.py -q`
+
+  - [x] 1.17 Members table rows-per-page runtime selector + DynamoDB cursor paging (OQ-6 RESOLVED, Component 10 / Req 25)
     - Frontend (Members table): add a Rows_Per_Page_Selector with options `50 / 100 / 250 / 500 / Max`
       (mirror the FIN Transactions rows-per-page dropdown pattern, adapted for DynamoDB) plus
       cursor-based prev/next controls — no SQL-style offset / jump-to-page. Next enabled ONLY when the
@@ -214,7 +235,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       for the frontend selector/paging test
     - _Requirements: 25.1, 25.2, 25.3, 25.4, 25.5, 25.6, 25.7, 25.8, 25.9, 25.10, 7.2_
 
-  - [~] 1.18 Property test for rows-per-page selector + cursor paging (change-with-tests)
+  - [x] 1.18 Property test for rows-per-page selector + cursor paging (change-with-tests)
     - **Property 11: Rows-per-page selector + DynamoDB cursor paging** — `Max` returns one page with NO
       `Limit`, bounded by the natural ~1 MB boundary; the fixed options (50/100/250/500) apply the Query
       `Limit`; prev/next is cursor-based on the `LastEvaluatedKey` for every option incl. Max; Next is
@@ -222,13 +243,35 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirement 25** (25.1, 25.2, 25.3, 25.4, 25.5, 25.6, 25.7, 25.9, 25.10)
     - `cd /home/peter/projects/myAdmin && cd backend && source .venv/bin/activate && pytest sam/tests/<file> -q`
 
-- [~] 2. Checkpoint — config#fields cutover complete
+  - [ ] 1.19 End-of-band cleanup — delete the now-dead config#fields builder, its tests, and the one-off migration (leave no residue)
+    - GATED: run ONLY after the config#fields migration is fully complete — SAM is the authoritative
+      author in PROD (1.11/1.12 done), the frontend repoint is live (1.13), ProjectionSync no longer
+      emits config#fields (1.15), and the operational MySQL cleanup (1.12 `--delete-mysql`, below) has run
+    - Operational prerequisite: run `migrate_config_fields_to_sam.py --write --prod --delete-mysql
+      --i-have-prod-verified` to DELETE the migrated `members.field_overlay` + retired
+      `members.default_page_size` MySQL rows (Req 10.6). Irreversible — the rollback net is spent;
+      do this ONLY on explicit user go-ahead (SAM is already PROD-verified, so it is unblocked)
+    - DELETE the now-dead code: `build_config_fields_row` (+ any helpers only it used) from
+      `backend/src/services/_projection_config_builders.py` and its import/export from
+      `projection_sync.py`; leave the scope/mail builders intact
+    - DELETE the one-off migration script `backend/scripts/migrate_config_fields_to_sam.py` and its
+      unit test `backend/tests/unit/test_migrate_config_fields_to_sam.py` (single-use, now spent)
+    - DELETE the builder-unit-tests that only exercised `build_config_fields_row` (the ~40
+      `test_build_config_fields_row_*` tests in `test_projection_sync.py`, the config#fields cases in
+      `test_projection_content_gate.py`, and `test_members_label_fold_roundtrip.py`'s config#fields legs) —
+      they test a deleted function. Keep any test still covering a live path
+    - Verify no dangling imports/refs remain (grep `build_config_fields_row` / `field_overlay` /
+      `default_page_size` across `backend/`); run the affected suites green
+    - **Validates: Requirements 10.6, 11.1, 11.5, 17.3 (no-residue cleanup)**
+    - `cd backend && source .venv/bin/activate && pytest tests/unit/test_projection_sync.py tests/unit/test_projection_content_gate.py -q`
+
+- [x] 2. Checkpoint — config#fields cutover complete
   - Ensure all SAM + Flask + frontend tests pass; confirm `config#fields` read-back verified in PROD
     before the 1.15 builder-removal merge to `main`. Ask the user if questions arise.
 
-- [~] 3. `config#scope` cutover (Roadmap Step 2)
+- [ ] 3. `config#scope` cutover (Roadmap Step 2)
 
-  - [~] 3.1 Author `config#scope` from the single source (OQ-3 RESOLVED) + fix the dead-toggle defect
+  - [x] 3.1 Author `config#scope` from the single source (OQ-3 RESOLVED) + fix the dead-toggle defect
     - OQ-3 is DECIDED (ODD 3): `config#scope` is DERIVED from the per-field `scope` attribute on the
       SAM-owned `config#fields` overlay — the single authoring source. Do NOT author from a standalone
       `members.scope_dimensions` param, and do NOT reintroduce the legacy standalone-list fallback
@@ -240,7 +283,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       (tenant-wide); never author `all_wildcard` / `multi_valued`
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 22.1_
 
-  - [ ] 3.1a Implement the frontend scope-save MIRROR (SAM `config#scope` authoritative → Flask `members.scope_dimensions` derived mirror)
+  - [x] 3.1a Implement the frontend scope-save MIRROR (SAM `config#scope` authoritative → Flask `members.scope_dimensions` derived mirror)
     - FRONTEND-MIRROR model (supersedes redirect/verify-before-retire): SAM `config#scope` (derived from
       the per-field `scope` attribute) is authoritative; Flask `members.scope_dimensions` is KEPT as a
       frontend-written DERIVED MIRROR — NOT deleted, NOT redirected
@@ -260,18 +303,29 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_user_tenant_scope_service.py -q`
     - _Requirements: 22.1, 22.2, 22.3, 22.4, 22.5, 22.6, 26.1, 26.2, 26.3_
 
-  - [~] 3.2 SAM scope equivalence + round-trip test
+  - [x] 3.2 SAM scope equivalence + round-trip test
     - Update/create `sam/tests/test_scope_equivalence_props.py`
     - **Property 1: Round-trip write/read equivalence (config#scope)** — after `put_config('scope', ...)`,
       `get_scope_config` returns equivalent dimensions; empty-dimensions resolves tenant-wide
     - **Validates: Requirements 8.1, 8.2, 8.3, 8.5, 1.5**
 
-  - [~] 3.3 Deploy scope write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
-    - Ship Task 3.1 through `deploy-sam-members.yml` (OIDC, no secrets); CodeQL + GitGuardian green;
-      verify live in TEST
+  - [x] 3.3 Deploy scope write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
+    - CODE GAP CLOSED (done): the `scope` body validator is now wired into
+      `ConfigWriteService` — `_validate_scope_body` shape-checks `{dimensions: [...]}` (empty =
+      tenant-wide, R8.5) and is registered under `schema.CONFIG_ID_SCOPE`. So
+      `PUT /members/config/scope` now round-trips the FULL edge → service → repository path (it
+      previously 500'd at the unwired-validator branch). Pinned by new tests in
+      `test_config_write_service.py` (service-level: shaped/stamped/delegated, empty=tenant-wide,
+      malformed→400) and `test_config_write_dispatch.py` (edge end-to-end: scope persists, empty
+      persists, malformed→caller-safe 400). The repository-direct round-trip of 3.2 and the
+      frontend mock of 3.1a did not exercise this seam — this closes that.
+    - DONE (operational): shipped via `deploy-sam-members.yml` on the merge of PR #137 to `test`
+      (run 39499307228, conclusion success); the `test-sam-members` stack settled UPDATE_COMPLETE;
+      CodeQL + GitGuardian were green on the PR. `PUT /members/config/scope` is live in the TEST
+      SAM stack. (PROD goes live on the later `test -> main` promotion, Task 8.)
     - _Requirements: 19.1, 19.3_
 
-  - [~] 3.4 Migrate `config#scope` per tenant + read-back verify + seed the Flask mirror (operational, PRE builder removal)
+  - [x] 3.4 Migrate `config#scope` per tenant + read-back verify + seed the Flask mirror (operational, PRE builder removal)
     - Copy every live tenant's scope source into the SAM-owned `config#scope` row (min `h-dcn`); read back
       via the reader to verify `config#scope`
     - `members.scope_dimensions` is NOT deleted — it is KEPT as the frontend-written Flask mirror. Seed /
@@ -280,15 +334,28 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - No verify-before-retire-delete gate applies to this key under the mirror model — only the read-back
       verify of `config#scope` is required
     - _Requirements: 10.1, 10.2, 10.4, 10.5, 10.6, 14.2, 22.4, 26.3_
+    - DONE (TEST): new idempotent script `backend/scripts/migrate_config_scope_to_sam.py` derives
+      each tenant's `config#scope` body via `build_config_scope_row` (overlay scope axes), writes it
+      through `MembersConfigWriteRepository`, read-back verifies via `get_scope_config`, and seeds
+      the Flask `members.scope_dimensions` mirror (`--seed-mirror`, best-effort; NOT deleted). Pure
+      helpers unit-tested in `backend/tests/unit/test_migrate_config_scope_to_sam.py` (9 passed).
+      Ran against TEST for `h-dcn`: STS=506221081911, read-back verify OK, mirror seeded. PROD run
+      happens at the TEST->PROD promotion (Task 8) with `--prod`.
 
-  - [~] 3.5 Repoint `config#scope` save in `membersConfigService.ts`
-    - Repoint scope save to `PUT /members/config/scope`; authoritative write, no pending-projection state
+  - [x] 3.5 Repoint `config#scope` save in `membersConfigService.ts`
+    - SUBSUMED BY 3.1a: the scope save in `membersConfigService.ts` was repointed to
+      `PUT /members/config/scope` (authoritative, no pending-projection state) as the first,
+      authoritative leg of the 3.1a frontend-mirror model (then it mirrors to Flask). No separate
+      work remains — 3.1a is the superset. See commit `f61c87920`.
     - _Requirements: 13.1, 13.2, 13.3_
 
-  - [~] 3.6 Update frontend tests for the repointed scope save
+  - [x] 3.6 Update frontend tests for the repointed scope save
+    - SUBSUMED BY 3.1a: `membersConfigService.test.ts` was updated with the SAM-first mirror
+      tests that assert the PUT to `/members/config/scope` and authoritative handling (plus the
+      mirror + retry cases). No separate work remains. See commit `f61c87920`.
     - **Validates: Requirements 13.1, 13.2, 13.4**
 
-  - [~] 3.7 Remove `build_config_scope_row` from ProjectionSync (ProjectionSync stops authoring scope; param persists as the frontend mirror) (merge to main ONLY after 3.4 PROD-verified)
+  - [x] 3.7 Remove `build_config_scope_row` from ProjectionSync (ProjectionSync stops authoring scope; param persists as the frontend mirror) (merge to main ONLY after 3.4 PROD-verified)
     - Remove the `build_config_scope_row(...)` append in `ProjectionSync.sync_administration` — ProjectionSync
       stops emitting `config#scope` AND stops being the writer of the scope dimensions; keep public surface
       unchanged
@@ -298,7 +365,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       validator mirror the grant readers consume
     - _Requirements: 10.3, 11.1, 11.2, 11.4, 11.5, 17.3, 22.4, 26.3_
 
-  - [~] 3.8 Update ProjectionSync tests to assert config#scope NOT emitted (change-with-tests)
+  - [x] 3.8 Update ProjectionSync tests to assert config#scope NOT emitted (change-with-tests)
     - **Property 4: ProjectionSync no longer emits config#scope** and **Property 5: Delete-sweep safety**
       for the `config#scope` prefix. The delete-sweep guardrail is VERIFIED / regression-locked by
       Requirement 12 (12.5: `config#*` rows are UPSERT-ONLY, only the `config#views`-only residue cleanup
@@ -310,7 +377,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirements 11.2, 11.3, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6**
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_projection_sync.py -q`
 
-  - [~] 3.9 Cross-plane scope-grant reconciliation (two-tier: routine auto-mirror + reminder / orphaning block + contact-SysAdmin)
+  - [x] 3.9 Cross-plane scope-grant reconciliation (two-tier: routine auto-mirror + reminder / orphaning block + contact-SysAdmin)
     - Implement detection that compares a PROPOSED scope-dimension change (SAM/overlay — `config#scope`
       derived from the per-field `scope` attributes) against the existing Flask `user_tenant_scope` grants
       for the tenant, BEFORE applying the change. This is Flask-plane work at the
@@ -330,7 +397,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_user_tenant_scope_service.py -q`
     - _Requirements: 23.1, 23.2, 23.3, 23.4, 23.5, 23.6, 23.7, 23.8, 22.5, 26.1_
 
-  - [~] 3.10 Property test for scope-grant reconciliation (detection + block + no-silent-stale-grant)
+  - [x] 3.10 Property test for scope-grant reconciliation (detection + block + no-silent-stale-grant)
     - Assert the reconciliation detection + block behavior and the no-silent-stale-grant invariant: a
       proposed change that would orphan an existing grant is detected and BLOCKED (not applied); a
       new-tenant / no-grants change applies with no gate; no applied change leaves a grant referencing a
@@ -340,13 +407,14 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirements 22, 23**
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_user_tenant_scope_service.py -q`
 
-- [~] 4. Checkpoint — config#scope cutover complete
+- [x] 4. Checkpoint — config#scope cutover complete
   - Ensure all tests pass; confirm `config#scope` read-back verified in PROD before the 3.7 merge to `main`.
     Ask the user if questions arise.
 
-- [ ] 5. `config#mail` cutover + sender fields (Roadmap Step 3)
+- [x] 5. `config#mail` cutover + sender fields (Roadmap Step 3)
 
-  - [~] 5.1 Resolve OQ-2 (now-settled three-surface model) and author `config#mail` through the write path
+  - [x] 5.1 Resolve OQ-2 (now-settled three-surface model) and author `config#mail` through the write path
+    - DONE (merged to `test`): the `config#mail` validator wired into `config_write_service.py` (PR #141, deployed to TEST via Deploy SAM Members) + `mail_reply_to_default` in the builder/reader and the scheduled-send Reply-To resolution in `execute_and_deliver` / `mail_sender_resolver.resolve_scheduled_reply_to` (PR #142). Builder authors `mail_enabled` / `mail_domain` / `mail_local_part` / `mail_certified` (fail-closed bool) / `mail_reply_to_default` / `consent_notice` in the exact reader shape; the sender-identity Flask route and invoice SES path stay untouched (three-surface model).
     - Three-surface model is settled: the `config#mail` authoring covers ONLY the SAM-owned scalars;
       `MemberSenderIdentitiesTab` co-locates in the Mail function screen but KEEPS its own Flask
       sender-identity route (`/api/members/sender-identities`) as a separate dataset (NOT folded into the
@@ -363,7 +431,8 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       address when `mail_reply_to_default` is absent
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13, 9.14, 15.1, 15.2, 15.3, 15.4, 15.5, 20.1_
 
-  - [~] 5.2 SAM config#mail round-trip + reader test
+  - [x] 5.2 SAM config#mail round-trip + reader test
+    - DONE (merged to `test` via PR #142): round-trip write/read equivalence for the mail accessors, the fail-closed `mail_certified` bool on the written row, and the `mail_reply_to_default` round-trip + scheduled-vs-interactive Reply-To selection are all covered.
     - Update `sam/tests/test_members_projection_reader.py` (`_config_mail_item` / `is_mail_enabled` /
       consent-notice reads)
     - **Property 1: Round-trip write/read equivalence (config#mail)** — after `put_config('mail', ...)`,
@@ -377,17 +446,20 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       when it is absent) while an interactive send uses the invoking user's verified email
     - **Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10, 9.11, 9.12, 9.13, 9.14, 1.5**
 
-  - [~] 5.3 Invoice-SES-untouched confirmation test
+  - [x] 5.3 Invoice-SES-untouched confirmation test
+    - DONE (merged to `test` via PR #142): `test_invoice_ses_untouched.py` asserts the Flask/SES invoice path (`SenderSettingsTab`) is observably unchanged (Property 6).
     - **Property 6: Invoice-SES-untouched invariant** — the Flask/SES invoice path (`SenderSettingsTab`)
       is observably unchanged; no invoice SES read/write path altered
     - **Validates: Requirements 15.4, 15.5**
 
-  - [~] 5.4 Deploy mail write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
+  - [x] 5.4 Deploy mail write enablement via `deploy-sam-members.yml` (CI/CD — mandatory)
+    - DONE: Task 5.1 shipped through `deploy-sam-members.yml` (OIDC, no secrets) — the Deploy SAM Members run on `test` at `d18670893` (the PR #142 merge head carrying the full config#mail write path) completed `success`, stack `test-sam-members` live in TEST. Later Flask-only merges (#143/#144) correctly triggered no new SAM deploy (path filter).
     - Ship Task 5.1 through `deploy-sam-members.yml` (OIDC, no secrets); CodeQL + GitGuardian green;
       verify live in TEST
     - _Requirements: 19.1, 19.3_
 
-  - [~] 5.5 Migrate `config#mail` per tenant + read-back verify + delete migrated MySQL rows (operational, PRE builder removal)
+  - [x] 5.5 Migrate `config#mail` per tenant + read-back verify + delete migrated MySQL rows (operational, PRE builder removal)
+    - DONE (forward copy + read-back verify): `backend/scripts/migrate_config_mail_to_sam.py` + `backend/tests/unit/test_migrate_config_mail_to_sam.py` (merged to `test` via PR #144), mirroring `migrate_config_scope_to_sam.py`. The `--delete-mysql` sweep is DEFERRED to Step 8: the `members.mail_*` params stay the frontend authoring source until Step 7 moves authoring onto the SAM write door, and the delete happens only after the PROD read-back verify (reversible until then, Req 14.2). `mail_reply_to_default` is SAM-only net-new (no MySQL param to migrate/delete).
     - Copy every live tenant's `members.mail_enabled` + `members.mail_domain` + `members.mail_local_part`
       + `members.mail_certified` + `members.application_consent_notice` into the SAM-owned `config#mail`
       row (min `h-dcn`); read back; keep MySQL params until PROD-verified
@@ -401,14 +473,17 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       remains for those keys (deletion happens only after the PROD read-back verify — reversible until then)
     - _Requirements: 10.1, 10.2, 10.4, 10.5, 10.6, 14.2_
 
-  - [~] 5.6 Repoint `config#mail` / sender save in `membersConfigService.ts`
+  - [x] 5.6 Repoint `config#mail` / sender save in `membersConfigService.ts`
+    - FOLDED into Step 7: there is no existing frontend mail-save path to repoint today — the mail scalars get their authoring UI (the typed Mail function, single authoring door) in task 7.1, which writes straight to `PUT /members/config/mail`. No separate repoint step is meaningful before that UI exists.
     - Repoint mail + sender save to `PUT /members/config/mail`; authoritative write, no pending-projection
     - _Requirements: 13.1, 13.2, 13.3, 14.3_
 
-  - [~] 5.7 Update frontend tests for the repointed mail save
+  - [x] 5.7 Update frontend tests for the repointed mail save
+    - FOLDED into Step 7 with 5.6: the frontend mail-save tests are authored alongside the typed Mail function (7.1), since that is where the mail save first exists.
     - **Validates: Requirements 13.1, 13.2, 13.4**
 
-  - [~] 5.8 Remove `build_config_mail_row` + retire `members.*` mail params (merge to main ONLY after 5.5 PROD-verified)
+  - [x] 5.8 Remove `build_config_mail_row` + retire `members.*` mail params (merge to main ONLY after 5.5 PROD-verified)
+    - DONE (ProjectionSync emission): the `build_config_mail_row(...)` append was removed from `ProjectionSync.sync_administration` (merged to `test` via PR #143) — ProjectionSync now emits ZERO `config#` rows. DEFERRED to Step 8: retiring the `members.mail_*` params and removing the `build_config_mail_row` function itself (the migration script 5.5 still calls it) wait for the `test`→`main` promotion after the PROD read-back verify, per the per-record safety gate (checkpoint 6).
     - Remove the `build_config_mail_row(...)` append in `ProjectionSync.sync_administration`; retire the
       `members.mail_enabled` / `members.mail_domain` / `members.mail_local_part` / `members.mail_certified`
       / `members.application_consent_notice` params in the same change; keep public surface unchanged
@@ -416,7 +491,8 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       retired set; otherwise it is net-new (authored only via SAM) and there is no param to retire
     - _Requirements: 10.3, 11.1, 11.2, 11.4, 11.5, 17.3_
 
-  - [~] 5.9 Update ProjectionSync tests to assert config#mail NOT emitted (change-with-tests)
+  - [x] 5.9 Update ProjectionSync tests to assert config#mail NOT emitted (change-with-tests)
+    - DONE (merged to `test` via PR #143): the 3 regression tests (version-supersede, fresh-source, batch-abort) and 2 content-gate generality tests were re-homed onto the still-emitted `scopegrant#` row (same `_conditional_put`/`_supersedes`/`_content_key` seam); the split-ownership survival regression stays green. 132 tests pass across `test_projection_sync.py` + `test_projection_content_gate.py`.
     - **Property 4: ProjectionSync no longer emits config#mail** and **Property 5: Delete-sweep safety**
       for the `config#mail` prefix. The delete-sweep guardrail is VERIFIED / regression-locked by
       Requirement 12 (12.5: `config#*` rows are UPSERT-ONLY, only the `config#views`-only residue cleanup
@@ -428,13 +504,13 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - **Validates: Requirements 11.2, 11.3, 12.1, 12.2, 12.3, 12.4, 12.5, 12.6**
     - `cd backend && source .venv/bin/activate && pytest tests/unit/test_projection_sync.py -q`
 
-- [~] 6. Checkpoint — config#mail cutover complete
+- [x] 6. Checkpoint — config#mail cutover complete
   - Ensure all tests pass; confirm `config#mail` read-back verified in PROD before the 5.8 merge to `main`;
     confirm invoice SES untouched. Ask the user if questions arise.
 
-- [~] 7. Typed authoring UI + single-authoring-door enforcement (Roadmap Step 4)
+- [ ] 7. Typed authoring UI + single-authoring-door enforcement (Roadmap Step 4)
 
-  - [~] 7.1 Build the NEW dedicated typed Mail function (single door for Members `config#mail` scalars)
+  - [x] 7.1 Build the NEW dedicated typed Mail function (single door for Members `config#mail` scalars)
     - New single screen under Members Tenant Admin: typed Chakra form fields with Formik/Yup validation
       and bilingual (nl/en) labels per `32-frontend-ui.md` (NOT a raw JSON grid) for `mail_enabled`,
       `mail_domain`, `mail_local_part`, `mail_certified`, `mail_reply_to_default`,
@@ -446,7 +522,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       mechanism)
     - _Requirements: 20.1, 20.2, 9.1, 14.4, 15.2_
 
-  - [~] 7.2 Re-instate the blanket `members`-namespace exclusion in `ParameterManagement.tsx`
+  - [x] 7.2 Re-instate the blanket `members`-namespace exclusion in `ParameterManagement.tsx`
     - In `frontend/src/components/TenantAdmin/ParameterManagement.tsx`, restore the full `members`-namespace
       exclusion so the Advanced raw editor serves NO `members.*` rows at all (today it hides only
       `field_overlay` / `scope_dimensions` via `TYPED_EDITOR_KEYS` and deliberately SHOWS the mail params —
@@ -455,18 +531,21 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       door and their MySQL rows are deleted, so the raw editor must not serve them
     - _Requirements: 14.1, 14.3, 20.4_
 
-  - [~] 7.2* Test: Advanced raw editor shows zero `members.*` rows (change-with-tests)
+  - [x] 7.2* Test: Advanced raw editor shows zero `members.*` rows (change-with-tests)
+    - DONE (merged to `test` via PR #147): `ParameterManagement.test.tsx` was flipped from the old per-key 'SHOWS the mail params' assertions to the BLANKET exclusion — a 'HIDES the mail params too' test and a 'no members.* row is present' test (a non-members row still opens its edit modal), plus the empty-state fixture gains a mail param that must also be hidden. 35 tests pass.
     - Update the existing allocated frontend test (`ParameterManagement.test.tsx`) per the change-with-tests
       contract — today it asserts the mail params SHOW; flip it to assert all `members.*` rows are hidden
     - **Validates: Requirements 14.1, 14.3**
 
-  - [~] 7.3* Test: single-authoring-door / no-second-writer — Property 8
+  - [x] 7.3* Test: single-authoring-door / no-second-writer — Property 8
+    - DONE: a 'Property 8 — single authoring door / no second writer' describe block in `membersConfigService.test.ts` asserts (a) every config#mail write routes through the single SAM door (`saveMembersMailConfig` → `writeMailConfig` → `PUT /members/config/mail`) and NEVER the Flask parameter path (createParameter/updateParameter), and (b) the Flask `saveMembersParameter` surface (`MEMBERS_PARAM_KEYS`) carries NO migrated mail key — so no `members.*` MySQL write path remains for any migrated key (no second writer). 24 tests pass.
     - **Property 8: Single authoring door / no second writer** — assert the typed Mail function (and any
       other view that touches `config#mail`) both PUT to the single SAM `PUT /members/config/mail` route,
       and that no `members.*` MySQL write path remains for any migrated key
     - **Validates: Requirements 14.1, 14.3, 14.4**
 
-  - [~] 7.4 Retire the `view_contexts` residue (physical cleanup, delete-only)
+  - [x] 7.4 Retire the `view_contexts` residue (physical cleanup, delete-only)
+    - DONE in TEST: dry-run found 1 `members.view_contexts` row; `--apply` deleted it (local Docker, APP_ENV=test); a re-run is a verified no-op (idempotent). The migration's `__main__` now loads `.env` best-effort so the documented `python -m` invocation resolves `DB_*`/`APP_ENV` (DatabaseManager does not load it). `ProjectionSync.delete_config_views_residue` already removes the `config#views` DynamoDB residue (delete-only, authors no row). The PROD `--apply` is DEFERRED to the Step 8 `test`→`main` promotion (per the user-held release gate).
     - Apply `backend/src/migrations/retire_members_view_contexts.py` to DELETE every tenant
       `members.view_contexts` MySQL row — run dry-run first (default), then `--apply` in TEST, then in PROD
     - Confirm `ProjectionSync.delete_config_views_residue` has removed any stale `config#views` DynamoDB
@@ -480,7 +559,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       then `... python -m src.migrations.retire_members_view_contexts --apply` (after dry-run review, TEST then PROD)
     - _Requirements: 21.1, 21.2, 21.3, 21.4, 21.5, 21.6, 14.1_
 
-  - [ ] 7.5* Test/verify `view_contexts` cleanup
+  - [x] 7.5* Test/verify `view_contexts` cleanup
     - Assert the migration deletes only `members.view_contexts` rows and is idempotent (re-run is a no-op);
       after apply a scan finds zero `members.view_contexts` MySQL rows and zero `config#views` projection
       rows; rows-per-page is now the per-user runtime Rows_Per_Page_Selector (Requirement 25, Task 1.17),
@@ -493,7 +572,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
 
 - [ ] 8. TEST → PROD promotion + CI/CD cutover ordering (Roadmap Step 5)
 
-  - [~] 8.1 Implement the TEST→PROD promotion: structural-change tenant-wide migration + read-back parity
+  - [ ] 8.1 Implement the TEST→PROD promotion: structural-change tenant-wide migration + read-back parity
     - Promotion of a STRUCTURAL config change (new/retired row type, added/removed/repurposed attribute)
       is a tenant-wide config migration that updates ALL tenants to the new shape on the deploy that
       introduces it, run test→prod like `backend/src/migrations`, ordered relative to merge-to-main
@@ -506,17 +585,17 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
       reader, additive data consumed with no migration, graceful defaulting), not obligations on this task
     - _Requirements: 18.1, 18.2, 18.4, 18.5, 24.3, 24.4, 24.5, 24.7, 5.3, 5.4_
 
-  - [~] 8.2 Rollback rehearsal test/script
+  - [ ] 8.2 Rollback rehearsal test/script
     - Automated rehearsal that restores from the retained MySQL params / prior row and verifies read-back
     - **Validates: Requirements 18.3, 10.5**
 
-  - [~] 8.3 Promote `test → main` production-release gate (CI/CD — mandatory)
+  - [ ] 8.3 Promote `test → main` production-release gate (CI/CD — mandatory)
     - One reviewed PR `test → main`; CodeQL + GitGuardian green; preview SAM prod changeset (no unexpected
       `Replacement: True`); merge with a merge commit; never push straight to `main`; `workflow_dispatch`
       defaults to TEST. Each builder-removal merge happens only after its record is PROD-verified (safety gate)
     - _Requirements: 19.1, 19.3, 19.4, 19.5, 18.4_
 
-- [~] 9. Final checkpoint — split-ownership verified
+- [ ] 9. Final checkpoint — split-ownership verified
   - Ensure all SAM + Flask + frontend tests pass; confirm SAM writes only `config#fields/scope/mail`,
     ProjectionSync writes only `tenant`/`module#`/`role#`/`scopegrant#`, no row ever had zero writers,
     and Cognito + invoice SES are unchanged. Explicitly confirm the Requirement 16 guarantees:
@@ -612,7 +691,7 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     { "id": 19, "tasks": ["5.9", "7.1"] },
     { "id": 20, "tasks": ["7.2", "7.4"] },
     { "id": 21, "tasks": ["7.2*", "7.3*", "7.5*", "1.17"] },
-    { "id": 22, "tasks": ["8.1", "1.18"] },
+    { "id": 22, "tasks": ["8.1", "1.19"] },
     { "id": 23, "tasks": ["8.2", "8.3"] }
   ]
 }
