@@ -58,6 +58,12 @@ vi.mock('../../../../services/membersApiService', () => ({
   writeFieldConfig: (...a: unknown[]) => mockWriteFieldConfig(...a),
   writeMailConfig: (...a: unknown[]) => mockWriteMailConfig(...a),
   getFieldConfig: vi.fn(),
+  // The live-preview panel (task 4.2) POSTs the working overlay to `POST /members/application-preview`
+  // via the REAL `previewMembersApplicationConfig` (spread from importActual above), which delegates
+  // here. Resolve a small schema so the preview slot renders without a real network call.
+  previewApplicationFieldConfig: vi
+    .fn()
+    .mockResolvedValue({ fields: [], locales: ['nl', 'en'], notice: null }),
 }));
 
 // The scope_dimensions save (still Flask) delegates to parameterService; mock to COUNT requests.
@@ -354,5 +360,55 @@ describe('ApplicationFormBuilder — single form-shell mail commit (task 3.4 / R
     expect(body.consent_notice?.text.en).toBe('I consent to the processing of my data.');
     expect(typeof body.consent_notice?.version).toBe('string');
     expect(body.consent_notice?.version).toBeTruthy();
+  });
+
+  it('the ONE committed body carries BOTH new keys — application_embed_origins AND consent_notice — alongside the preserved Mail scalars (R5.5)', async () => {
+    await renderBuilder();
+
+    // Author BOTH form-shell attributes the builder owns on config#mail: switch to iframe embed +
+    // declare an allowed origin (application_embed_origins), AND edit the consent notice text. Both
+    // must ride on the SAME single committed body — one object, one save (R5.5 / Property 8).
+    fireEvent.click(screen.getByTestId('application-form-shell-embed-iframe'));
+    fireEvent.change(screen.getByTestId('application-form-shell-embed-origins'), {
+      target: { value: 'https://sites.google.com\nhttps://portal.h-dcn.nl' },
+    });
+    fireEvent.change(screen.getByTestId('application-form-shell-consent-nl'), {
+      target: { value: 'Ik ga akkoord met de verwerking van mijn gegevens.' },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('application-form-shell-save-mail')).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByTestId('application-form-shell-save-mail'));
+
+    // Still EXACTLY one mail write — adding a second authored attribute does not add a request.
+    await waitFor(() => expect(mockWriteMailConfig).toHaveBeenCalledTimes(1));
+    expect(mockWriteFieldConfig).not.toHaveBeenCalled();
+
+    const body = mockWriteMailConfig.mock.calls[0][0] as {
+      mail_enabled?: boolean;
+      mail_certified?: boolean;
+      mail_domain?: string;
+      mail_local_part?: string;
+      mail_reply_to_default?: string;
+      application_scope_copy?: boolean;
+      application_embed_origins?: string[];
+      consent_notice?: { version: string; text: Record<string, string> };
+    };
+
+    // BOTH new keys land on the one body.
+    expect(body.application_embed_origins).toEqual([
+      'https://sites.google.com',
+      'https://portal.h-dcn.nl',
+    ]);
+    expect(body.consent_notice?.text.nl).toBe('Ik ga akkoord met de verwerking van mijn gegevens.');
+    expect(body.consent_notice?.version).toBeTruthy();
+
+    // The Mail sub-tab's scalars are still carried through VERBATIM on that same body (no clobber).
+    expect(body.mail_enabled).toBe(true);
+    expect(body.mail_certified).toBe(true);
+    expect(body.mail_domain).toBe('h-dcn.nl');
+    expect(body.mail_local_part).toBe('noreply');
+    expect(body.mail_reply_to_default).toBe('board@h-dcn.nl');
+    expect(body.application_scope_copy).toBe(true);
   });
 });

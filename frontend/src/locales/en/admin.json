@@ -778,7 +778,8 @@
       "contact": "Contact",
       "properties": "Properties",
       "services": "Services",
-      "video": "Video"
+      "video": "Video",
+      "application-form": "Application form"
     },
     "blockDescriptions": {
       "hero": "Large banner with image and headline",
@@ -792,7 +793,8 @@
       "contact": "Contact form for visitors",
       "properties": "Your STR property listings",
       "services": "Your ZZP service listings",
-      "video": "Embedded YouTube video player"
+      "video": "Embedded YouTube video player",
+      "application-form": "Your member application form, shown inline on this page"
     },
     "layouts": {
       "image-right": "Image Right",

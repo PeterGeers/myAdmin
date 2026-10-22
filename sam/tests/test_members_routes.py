@@ -62,17 +62,23 @@ def test_route_map_covers_eighteen_behaviours_total():
     # transition_membership + bulk_transition_memberships; status is a plain field edit now) = 48.
     # ...plus the SAM-owned config WRITE route (members-config-sam-owned-write-path Task 1.6 —
     # PUT /members/config/{configId}, the single write door for config#fields/scope/mail) = 49.
-    assert len(ROUTES) == 49
+    # ...plus the Application Form Builder server-side live-preview route
+    # (application-form-builder Task 1.4, R7.2 — POST /members/application-preview, members:admin,
+    # runs the real get_public_field_config filter over the request-body field_overlay; READ-ONLY)
+    # = 50.
+    assert len(ROUTES) == 50
 
 
 def test_route_map_groups_match_the_design_c1_counts():
     # Member CRUD 8 + field-config 1 + config-write 1 (members-config-sam-owned-write-path
-    # Task 1.6 — PUT /members/config/{configId}) = 10 · membership lifecycle 7 · delegates 2 ·
+    # Task 1.6 — PUT /members/config/{configId}) + application-preview 1
+    # (application-form-builder Task 1.4 — POST /members/application-preview) = 11 · membership
+    # lifecycle 7 · delegates 2 ·
     # payments 1 · catalog reads 2 (list + get, task 3.4) + catalog writes 3 (create + update +
     # delete, task 5.3) = 5 · analytics 14 (sets: create+list+get+update+delete, F-012; preferred
     # list: get+save, R11.2; column preferences: get+save, session-columns R6; stored mail
     # templates: create+list+get+update+delete, pivot-output-actions R2 task 2.3).
-    assert len(routes_by_group(RouteGroup.MEMBER)) == 10
+    assert len(routes_by_group(RouteGroup.MEMBER)) == 11
     # Membership lifecycle is 5 after the two transition routes were retired
     # (retire-members-status-lifecycle-engine): create + list + get + update + delete.
     assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 5
@@ -106,6 +112,9 @@ def test_route_map_includes_each_named_behaviour():
         # SAM-owned config WRITE (members-config-sam-owned-write-path Task 1.6 —
         # PUT /members/config/{configId})
         "write_config",
+        # Application Form Builder server-side live preview (application-form-builder Task 1.4,
+        # R7.2 — POST /members/application-preview; members:admin; READ-ONLY)
+        "preview_application",
         # membership lifecycle
         "create_membership",
         "list_memberships",

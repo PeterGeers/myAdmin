@@ -171,6 +171,40 @@ test('unavailable KVS binding fails closed (no header)', async () => {
   assert.equal(result.headers[CSP_HEADER], undefined);
 });
 
+// ── Confirmed v1 targets (task 5.5 / R9.2): Google Sites + h-dcn portal ──────────────
+//
+// Task 5.5 / requirement R9.2 name the two confirmed external embed targets explicitly:
+// a Google Site (`https://sites.google.com`) and the h-dcn event portal
+// (`https://portal.h-dcn.nl`). These pin that a tenant configured with BOTH origins emits a
+// `frame-ancestors` listing both, and that a DIFFERENT (unconfigured) form host is denied —
+// the reflect-the-configured-origins / deny-others contract, stated with the real targets.
+
+const GOOGLE_SITES = 'https://sites.google.com';
+const HDCN_PORTAL = 'https://portal.h-dcn.nl';
+
+test('configured tenant reflects the confirmed v1 targets (Google Sites + h-dcn portal)', async () => {
+  const cf = mockCf({ store: { [FORM_HOST]: `${GOOGLE_SITES} ${HDCN_PORTAL}` } });
+  const handler = await loadFreshHandler(cf);
+
+  const result = await handler(responseEvent(FORM_HOST));
+
+  assert.equal(
+    result.headers[CSP_HEADER].value,
+    `frame-ancestors ${GOOGLE_SITES} ${HDCN_PORTAL}`,
+  );
+});
+
+test('a different, unconfigured form host is denied (no frame-ancestors) even when another tenant lists the confirmed targets', async () => {
+  // Only FORM_HOST is configured with the confirmed targets; a different host has no KVS entry
+  // and must be denied framing — the deny-an-unconfigured-one half of R9.2.
+  const cf = mockCf({ store: { [FORM_HOST]: `${GOOGLE_SITES} ${HDCN_PORTAL}` } });
+  const handler = await loadFreshHandler(cf);
+
+  const result = await handler(responseEvent('other-tenant-application.jabaki.nl'));
+
+  assert.equal(result.headers[CSP_HEADER], undefined, 'an unconfigured host is not embeddable');
+});
+
 // ── Non-interference ─────────────────────────────────────────────────────────────────
 
 test('the function returns the response object (passes other headers through)', async () => {

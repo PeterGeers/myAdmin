@@ -31,12 +31,41 @@
  */
 import type { MembersMailConfigBody } from '../../../services/membersConfigService';
 import type { FieldConfig } from '../../../types/members';
+import {
+  IFRAME_RESIZE_MESSAGE_TYPE,
+  IFRAME_RESIZE_SOURCE,
+} from '../../public/application/iframeResize';
 
 /** How the public form is embedded (R5.2). */
 export type EmbedMode = 'standalone' | 'iframe';
 
 /** The host suffix the public application form is served under (spec 10 D19 — `<slug>.jabaki.nl`). */
 export const PUBLIC_FORM_HOST_SUFFIX = 'jabaki.nl';
+
+/**
+ * The CONFIRMED v1 external embedding targets (R5.2b / E4b, spec 11 task 3.2). These are the two
+ * origins the product owner confirmed for day-one iframe embedding:
+ *  - `https://sites.google.com` — a Google Workspace Site (served at `sites.google.com/<domain>/…`
+ *    but still origin `https://sites.google.com`, so one entry covers all of a tenant's Sites embeds);
+ *  - `https://portal.h-dcn.nl` — the h-dcn event portal.
+ *
+ * The allowed-origin editor is SEEDED with these when a tenant has authored no origins yet, so the
+ * admin starts from the known-good targets instead of a blank list (they remain fully editable —
+ * an origin can be removed, and the server re-validates the shape authoritatively, task 5.1). An
+ * origin here is the ORIGIN only (scheme + host [+ port]); the path is never matched (R5.2c).
+ */
+export const CONFIRMED_EMBED_ORIGINS: readonly string[] = [
+  'https://sites.google.com',
+  'https://portal.h-dcn.nl',
+];
+
+/**
+ * The PATH the public application form is served under, UNDER the tenant's landing-page host
+ * (`<slug>.jabaki.nl/apply`). The landing page itself owns `/` on that host, so the form lives
+ * at a dedicated path — the CloudFront `*.jabaki.nl` rewrite already resolves this non-file path
+ * to the slug's SPA `index.html`, which now mounts the application-form route.
+ */
+export const APPLICATION_FORM_PATH = '/apply';
 
 /** The flat panel state the form-shell UI binds to. */
 export interface ShellFormValues {
@@ -66,15 +95,101 @@ export function derivePublicUrl(slug: string | null | undefined): string | null 
 }
 
 /**
- * The copy-ready `<iframe>` snippet referencing the public URL (R5.2). Returns an empty string
- * when there is no public URL yet (nothing to embed).
+ * Derive the public application-FORM URL (E4/R5.1): the tenant's landing-page host PLUS the
+ * dedicated {@link APPLICATION_FORM_PATH} (`<slug>.jabaki.nl/apply`). This is what the builder's
+ * preview iframe + the copy-ready embed snippet point at — the landing page owns `/`, the form
+ * owns `/apply`. Returns `null` when no slug exists (no public address yet).
+ */
+export function deriveApplicationFormUrl(slug: string | null | undefined): string | null {
+  const base = derivePublicUrl(slug);
+  return base ? `${base}${APPLICATION_FORM_PATH}` : null;
+}
+
+/**
+ * A stable DOM id the generated snippet puts on the `<iframe>` so the paired resize listener can
+ * find exactly THIS iframe (and not resize some other frame on a busy host page).
+ */
+export const IFRAME_EMBED_ELEMENT_ID = 'myadmin-application-form-iframe';
+
+/**
+ * The initial fallback height (px) of the embedded iframe BEFORE the first `postMessage` height
+ * arrives — also the no-JS fixed-height fallback for hosts where parent JS is not allowed. Tall
+ * enough that a typical form is usable even if the resize handshake never runs.
+ */
+export const IFRAME_FALLBACK_HEIGHT = 900;
+
+/**
+ * Derive the ORIGIN (scheme + host [+ port]) of the hosted form from its public URL. The resize
+ * listener pins `event.origin` to EXACTLY this origin (CWE-346) so it accepts a height message ONLY
+ * from the embedded form, never from any other `postMessage` sender on the host page. Returns null
+ * when the URL cannot be parsed (then {@link buildIframeSnippet} emits the plain, no-JS iframe).
+ */
+export function deriveFrameOrigin(publicUrl: string | null): string | null {
+  if (!publicUrl) return null;
+  try {
+    return new URL(publicUrl).origin;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Build the parent-side resize-listener `<script>` that pairs with the hosted form's height
+ * broadcast ({@link import('../../public/application/iframeResize')}). It is ORIGIN-SCOPED and
+ * SHAPE-VALIDATED (secure-postMessage practice, CWE-346):
+ *  - it accepts a message ONLY when `event.origin === <frameOrigin>` (the hosted form's own
+ *    origin) — never a wildcard, so no other sender on the host page can drive the resize;
+ *  - it accepts ONLY a message whose `type`/`source` match the form's tokens and whose `height` is
+ *    a finite non-negative number — ignoring the ocean of unrelated postMessage traffic;
+ *  - it resizes ONLY the specific iframe (`#IFRAME_EMBED_ELEMENT_ID`), nothing else on the page.
+ *
+ * Returns an empty string when the frame origin is unknown (the snippet then omits the script and
+ * relies on the fixed-height fallback).
+ */
+export function buildIframeResizeListenerScript(frameOrigin: string | null): string {
+  if (!frameOrigin) return '';
+  // Emit the constants as JSON string literals so the embedded script stays in lockstep with the
+  // hosted form's tokens and cannot be broken by a quoting slip.
+  const originLit = JSON.stringify(frameOrigin);
+  const typeLit = JSON.stringify(IFRAME_RESIZE_MESSAGE_TYPE);
+  const sourceLit = JSON.stringify(IFRAME_RESIZE_SOURCE);
+  const idLit = JSON.stringify(IFRAME_EMBED_ELEMENT_ID);
+  return (
+    '<script>\n' +
+    '(function () {\n' +
+    `  var ORIGIN = ${originLit};\n` +
+    '  window.addEventListener("message", function (event) {\n' +
+    '    if (event.origin !== ORIGIN) return;\n' +
+    '    var data = event.data;\n' +
+    `    if (!data || data.type !== ${typeLit} || data.source !== ${sourceLit}) return;\n` +
+    '    var h = data.height;\n' +
+    '    if (typeof h !== "number" || !isFinite(h) || h < 0) return;\n' +
+    `    var frame = document.getElementById(${idLit});\n` +
+    '    if (frame) frame.style.height = Math.ceil(h) + "px";\n' +
+    '  });\n' +
+    '})();\n' +
+    '</script>'
+  );
+}
+
+/**
+ * The copy-ready `<iframe>` snippet referencing the public URL (R5.2), now RESPONSIVE (E4b / task
+ * 5.4): the hosted form posts its content height, and the snippet carries an origin-scoped listener
+ * ({@link buildIframeResizeListenerScript}) that resizes the iframe to fit — so the form is not
+ * clipped inside a sandboxed gadget (Google Sites). The iframe starts at {@link
+ * IFRAME_FALLBACK_HEIGHT} as the no-JS fixed-height fallback for hosts where parent JS is not
+ * allowed; the listener only ever GROWS/shrinks it to the real height when messages flow.
+ *
+ * Returns an empty string when there is no public URL yet (nothing to embed).
  */
 export function buildIframeSnippet(publicUrl: string | null): string {
   if (!publicUrl) return '';
-  return (
-    `<iframe src="${publicUrl}" title="Application form" ` +
-    `width="100%" height="900" style="border:0" loading="lazy"></iframe>`
-  );
+  const iframe =
+    `<iframe id="${IFRAME_EMBED_ELEMENT_ID}" src="${publicUrl}" title="Application form" ` +
+    `width="100%" height="${IFRAME_FALLBACK_HEIGHT}" style="border:0;width:100%" ` +
+    `loading="lazy"></iframe>`;
+  const script = buildIframeResizeListenerScript(deriveFrameOrigin(publicUrl));
+  return script ? `${iframe}\n${script}` : iframe;
 }
 
 /**
@@ -102,8 +217,15 @@ export function embedOriginsToText(origins: string[] | null | undefined): string
 /**
  * Map the authoritative `GET /members/field-config` `mail_config` body onto the flat form-shell
  * values, flattening the nested `consent_notice`. A missing/absent `mail_config` (older build or
- * a load failure) yields empty defaults so the panel never blocks authoring. The embed mode is
- * DERIVED: a tenant with ≥1 configured origin is treated as `iframe`, otherwise `standalone`.
+ * a load failure) yields defaults so the panel never blocks authoring. The embed mode is DERIVED:
+ * a tenant with ≥1 configured origin is treated as `iframe`, otherwise `standalone`.
+ *
+ * The allowed-origin list is SEEDED with the {@link CONFIRMED_EMBED_ORIGINS} when the tenant has
+ * authored NO origins yet (R5.2b): the admin starts the iframe editor from the known-good targets
+ * rather than a blank list. The seed does NOT flip the mode to `iframe` (standalone stays the
+ * default) and {@link toShellMailBody} still OMITS origins while standalone — so a tenant who never
+ * enables embedding writes nothing, back-compatible. A tenant WITH stored origins keeps exactly
+ * their list (the seed never overrides an authored value).
  */
 export function mailConfigToShellValues(
   cfg: FieldConfig | null | undefined,
@@ -112,7 +234,7 @@ export function mailConfigToShellValues(
   const next: ShellFormValues = {
     slug: (slug ?? '').trim() || null,
     embedMode: 'standalone',
-    embedOrigins: [],
+    embedOrigins: [...CONFIRMED_EMBED_ORIGINS],
     consentVersion: '',
     consentTextNl: '',
     consentTextEn: '',
@@ -129,9 +251,14 @@ export function mailConfigToShellValues(
   }
 
   const origins = mc.application_embed_origins;
-  if (Array.isArray(origins) && origins.length > 0) {
-    next.embedOrigins = origins.filter((o): o is string => typeof o === 'string' && !!o.trim());
-    if (next.embedOrigins.length > 0) next.embedMode = 'iframe';
+  if (Array.isArray(origins)) {
+    const stored = origins.filter((o): o is string => typeof o === 'string' && !!o.trim());
+    if (stored.length > 0) {
+      // An authored list wins verbatim; its presence derives iframe mode. The seed is only a
+      // starting point for a tenant who has authored none.
+      next.embedOrigins = stored;
+      next.embedMode = 'iframe';
+    }
   }
 
   return next;

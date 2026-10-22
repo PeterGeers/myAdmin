@@ -25,6 +25,7 @@ from services import projection_schema as schema
 
 from sam.members.domain.config_write_service import ConfigWriteValidationError
 from sam.members.domain.execute_and_deliver import AdHocMailBody
+from sam.members.domain.field_resolver import OverlayError
 from sam.members.repository.members_cursor import CursorError
 from sam.members.handler._http import AcceptedResult, ParsedRequest
 from sam.members.handler.routes import CAP_MEMBERS_ADMIN, RouteSpec
@@ -317,6 +318,95 @@ def get_config_write_service() -> Any:
             overlay_reader_factory=MembersProjectionReader,
         )
     return _CONFIG_WRITE_SERVICE
+
+
+# ── Application-form live-preview seam (spec 11, Task 1.4 — R7.2) ──────────────────────
+#
+# The `preview_application` route (`POST /members/application-preview`, members:admin) runs the
+# REAL `MembershipService.get_public_field_config` filter over the WORKING `field_overlay` the
+# admin is editing — carried in the request BODY, not the stored config#fields row — and returns
+# the applicant-facing schema (design §5.3/§6/§10, R7.2). It REUSES the one server filter (zero
+# drift, correctness property 4) and is READ-ONLY (never writes / no DynamoDB mutation).
+#
+# To feed the body overlay through the SAME parse the production read uses (no reimplementation),
+# we build the `TenantOverlay` via a fresh `MembersProjectionReader.get_overlay` over a one-row
+# in-memory table that returns the body (normalized to the storage `overrides` key) as the tenant's
+# `config#fields` row. That is the authoritative wire→overlay translation, identical to the live
+# read path. The resulting overlay provider is handed to `app.build_application_preview_service`,
+# which wires a one-shot membership service (production repo + seams, this overlay) the preview
+# calls `get_public_field_config` on. The build accessor is resolved via the `app` facade so a test
+# can patch it (or `get_application_preview_service`) to inject a service over in-memory fakes.
+
+
+class _BodyOverlayTable:
+    """A one-row in-memory DynamoDB-`query` stand-in serving a body overlay as `config#fields`.
+
+    :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader` reads a
+    tenant's overlay by `query`-ing the tenant partition and finding the `config#fields` row, then
+    parsing it with its authoritative `_build_overlay_field` / `_build_override` helpers. To reuse
+    that EXACT parse for the preview's WORKING overlay — rather than re-implementing the wire→model
+    mapping — this fake `table` returns a single `config#fields` item built from the request body.
+    It is READ-ONLY (only `query`); the preview never mutates anything.
+    """
+
+    def __init__(self, tenant_id: str, fields_row: Mapping[str, Any]):
+        self._tenant_id = tenant_id
+        self._item = dict(fields_row)
+
+    def query(self, **_kwargs: Any) -> dict[str, Any]:
+        # The reader keys only on the partition (tenant); it then classifies rows by sort key.
+        # We return exactly the one config#fields row for this tenant.
+        return {"Items": [self._item]}
+
+
+def _body_overlay_provider(tenant_id: str, overlay_body: Mapping[str, Any]) -> Any:
+    """Build a `TenantOverlayProvider` over the request-body `field_overlay` (preview, R7.2).
+
+    Reuses the production reader's parse by seeding a fresh
+    :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader` with a
+    one-row fake table whose `config#fields` item IS the body overlay. The authoring wire shape
+    uses `fixed_overrides` for the fixed-field override map while the reader reads the storage key
+    `overrides` (the one-key contract) — so we normalize `fixed_overrides` → `overrides` here, the
+    SAME normalization the write path applies, before handing the row to the reader. A missing /
+    non-object body yields an empty overlay (fixed base only), never an error.
+    """
+    from services import projection_schema as schema
+
+    from sam.members.repository.projection_config_reader import MembersProjectionReader
+
+    body = overlay_body if isinstance(overlay_body, Mapping) else {}
+
+    raw_fields = body.get("fields")
+    # Accept the authoring wire key `fixed_overrides` (what overlayModel / the builder send) and
+    # normalize to the storage key `overrides` the reader parses — identical to the write path.
+    raw_overrides = body.get("overrides")
+    if not raw_overrides:
+        raw_overrides = body.get("fixed_overrides")
+    raw_groups = body.get("functional_groups")
+
+    fields_row = {
+        schema.PARTITION_KEY_ATTR: tenant_id,
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS
+        ),
+        "fields": raw_fields if isinstance(raw_fields, Mapping) else {},
+        "overrides": raw_overrides if isinstance(raw_overrides, Mapping) else {},
+        "functional_groups": raw_groups if isinstance(raw_groups, (list, tuple)) else [],
+    }
+    return MembersProjectionReader(table=_BodyOverlayTable(tenant_id, fields_row))
+
+
+def get_application_preview_service(overlay_provider: Any) -> MembershipService:
+    """Resolve the one-shot preview membership service over a body overlay (spec 11, R7.2).
+
+    Delegates to :func:`sam.members.handler.app.build_application_preview_service`, resolved via
+    the ``app`` facade so a test can patch EITHER this accessor or that builder to inject a service
+    over an in-memory fake repo (no AWS). Kept as a thin indirection (not a direct import at module
+    top) to avoid the ``app`` ↔ ``_dispatch`` import cycle and to preserve the existing patch seams.
+    """
+    from sam.members.handler import app
+
+    return app.build_application_preview_service(overlay_provider)
 
 
 def _caller_is_tenant_admin(ctx: RequestContext) -> bool:
@@ -643,6 +733,34 @@ def dispatch_route(
         # tenant_id (never a client-supplied tenant); the frontend renders it, enforces
         # nothing (R2.3/R2.4, design C3/C8).
         return service.get_field_config(tenant_id)
+
+    if name == "preview_application":
+        # Application Form Builder live preview (spec 11, R7.2): run the REAL
+        # `get_public_field_config` filter over the WORKING `field_overlay` in the request BODY
+        # (never the stored config#fields row) and return the applicant-facing schema. The
+        # tenant is AUTHORITATIVE from the verified context (never the body — verify-before-trust,
+        # correctness property 5); the body carries ONLY the working overlay the admin is editing.
+        #
+        # READ-ONLY: a one-shot membership service is built over the body overlay (production repo
+        # + seams, this overlay) and only `get_public_field_config` is called — no write, no
+        # DynamoDB mutation. It deliberately bypasses the public read's send-ready gate (that gate
+        # lives on `ApplicationService`, not here), so an admin can preview BEFORE the sender is
+        # certified (R6.2); the readiness panel carries the "not available" state, not the preview.
+        #
+        # A malformed overlay surfaces fail-loud as a caller-safe 400: a broken enum SUBSET
+        # (`application_choices` ⊄ the field's choices) raises `OverlayError` from the real filter,
+        # re-raised here as a `ConfigWriteValidationError` (→ 400 at the edge) rather than a 500 —
+        # it is bad caller DATA, not a server fault. Everything else returns the 200 schema the
+        # public form's renderer consumes (filter parity).
+        overlay_provider = _body_overlay_provider(tenant_id, _write_body(request))
+        preview_service = get_application_preview_service(overlay_provider)
+        try:
+            return preview_service.get_public_field_config(tenant_id)
+        except OverlayError as exc:
+            raise ConfigWriteValidationError(
+                "application-preview field_overlay is invalid: "
+                f"{'; '.join(f'{k}: {v}' for k, v in exc.reasons.items())}"
+            ) from exc
 
     if name == "get_member":
         member_id = _require_path_param(ctx, "member_id")
