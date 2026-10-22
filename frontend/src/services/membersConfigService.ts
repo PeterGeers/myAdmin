@@ -25,10 +25,12 @@ import { authenticatedGet } from './apiService';
 import { getParameters, createParameter, updateParameter } from './parameterService';
 import {
   getFieldConfig,
+  previewApplicationFieldConfig,
   writeFieldConfig,
   writeScopeConfig,
   writeMailConfig,
 } from './membersApiService';
+import type { PublicFieldConfig } from '../components/public/application/applicationFieldConfig';
 
 export const MEMBERS_NAMESPACE = 'members';
 
@@ -90,6 +92,29 @@ export async function getMembersFieldConfig(): Promise<FieldConfig | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Preview the PUBLIC application-form schema for the builder's WORKING `field_overlay` (spec 11
+ * task 4.2 / R7.1–R7.2; design §4/§6/§9 S1·S2).
+ *
+ * The in-app live preview of the Application Form Builder: it POSTs the admin's WORKING (in-memory,
+ * unsaved) overlay to `POST /members/application-preview`, which runs the EXACT server
+ * `get_public_field_config` filter over it and returns the applicant-facing schema
+ * (`PublicFieldConfig` — `{ fields, locales, notice }`). The preview panel feeds that schema to the
+ * shared spec-10 `ApplicationFormRenderer`, so the preview shares BOTH a single rendering code path
+ * AND a single filtering authority (no client-side mirror to drift, correctness property 4), and
+ * reflects UNSAVED edits live (R7.1).
+ *
+ * UNLIKE the other best-effort reads here, this RE-THROWS on failure: the preview panel distinguishes
+ * a deliberate authoring error (a 400 on a malformed overlay — an enum subset ⊄ the field's choices)
+ * from an empty form, and surfaces it rather than silently rendering a blank preview. The caller owns
+ * the try/catch + the debounce.
+ */
+export async function previewMembersApplicationConfig(
+  overlay: MembersConfigValue,
+): Promise<PublicFieldConfig> {
+  return previewApplicationFieldConfig<PublicFieldConfig>(overlay);
 }
 
 /**

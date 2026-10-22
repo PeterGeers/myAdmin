@@ -48,6 +48,7 @@ import {
   SysAdminDashboard,
   PasskeySettings,
   PublicLandingPage,
+  PublicApplicationFormRoute,
   resolveInitialPage,
   type PageType,
 } from './appPages';
@@ -577,7 +578,36 @@ function App() {
   const path = pathname.startsWith(basePath)
     ? pathname.slice(basePath.length)
     : pathname;
+  // Public member-application form (spec Members/application-app): host `<slug>.jabaki.nl/apply`
+  // in prod, `/p/:slug/apply` as the dev/path fallback. Checked BEFORE the landing page so the
+  // `/apply` suffix is not swallowed by the landing route.
+  const isPublicApplicationForm =
+    /\/apply\/?$/.test(path) ||
+    (window.location.hostname.toLowerCase().endsWith('.jabaki.nl') &&
+      /^\/apply\/?$/.test(path));
   const isPublicLandingPage = /^\/p\/[a-z0-9-]+\/?$/.test(path);
+
+  if (isPublicApplicationForm) {
+    return (
+      <ChakraProvider theme={theme}>
+        <Suspense
+          fallback={
+            <Box
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
+              minH="100vh"
+              bg="white"
+            >
+              <Spinner size="xl" color="orange.400" thickness="4px" />
+            </Box>
+          }
+        >
+          <PublicApplicationFormRoute />
+        </Suspense>
+      </ChakraProvider>
+    );
+  }
 
   if (isPublicLandingPage) {
     return (

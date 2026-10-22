@@ -474,6 +474,25 @@ def test_put_config_mail_embed_origins_shaped_when_well_formed():
     ]
 
 
+def test_put_config_mail_embed_origins_accepts_confirmed_v1_targets():
+    """R5.2/R9.2: the two CONFIRMED v1 external embed targets — a Google Site
+    (`https://sites.google.com`) and the h-dcn event portal (`https://portal.h-dcn.nl`) — are
+    accepted verbatim (order preserved) by the write path, the one list that then feeds BOTH the
+    CloudFront frame-ancestors KVS and the SAM public-API CORS."""
+    repo = FakeWriteRepository()
+    body = {
+        "application_embed_origins": [
+            "https://sites.google.com",
+            "https://portal.h-dcn.nl",
+        ]
+    }
+    _service(repo).put_config(_TENANT, "mail", body)
+    assert repo.calls[0]["attributes"]["application_embed_origins"] == [
+        "https://sites.google.com",
+        "https://portal.h-dcn.nl",
+    ]
+
+
 def test_put_config_mail_embed_origins_absent_or_empty_writes_nothing_back_compatible():
     """R5.2: absent / empty origins is back-compatible (standalone, no embed) — writes nothing and
     does NOT raise, mirroring mail_domain / mail_reply_to_default omission."""

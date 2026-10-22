@@ -41,11 +41,10 @@ import type { FieldConfig, MembershipType } from '../../../../types/members';
 // must be done explicitly).
 expect.extend(axeMatchers);
 
-// The live preview is an <iframe> to the CloudFront-hosted public form; axe-core cannot descend
-// into a (cross-origin, unloaded) frame under jsdom, so we skip frame traversal for the suites
-// that render it. We still assert the HOST document (the builder chrome + the iframe's own `title`)
-// is clean — the iframe's CONTENT is covered by the public form's own axe gate
-// (PublicApplicationForm.axe.test.tsx), not here.
+// axe-core cannot descend into a (cross-origin, unloaded) frame under jsdom, so iframe traversal
+// is skipped for any suite that renders a frame. The live preview is now an IN-APP render via the
+// shared ApplicationFormRenderer (no iframe), so this is retained only as a defensive no-op for the
+// composed builder where other panels could carry a frame.
 const AXE_NO_FRAMES = { iframes: false } as const;
 
 /* ------------------------------------------------------------------ */
@@ -56,6 +55,9 @@ const mockGetParams = vi.fn();
 const mockGetFieldConfig = vi.fn();
 const mockGetSlug = vi.fn();
 const mockListMembershipTypes = vi.fn();
+// The live preview POSTs the working overlay to the server preview endpoint; mock it so the axe
+// render makes no real network call and returns a small, a11y-inspectable schema.
+const mockPreview = vi.fn();
 
 vi.mock('../../../../services/membersConfigService', async () => {
   const actual = await vi.importActual<
@@ -65,6 +67,7 @@ vi.mock('../../../../services/membersConfigService', async () => {
     ...actual,
     getMembersParameters: (...a: unknown[]) => mockGetParams(...a),
     getMembersFieldConfig: (...a: unknown[]) => mockGetFieldConfig(...a),
+    previewMembersApplicationConfig: (...a: unknown[]) => mockPreview(...a),
   };
 });
 
@@ -160,11 +163,29 @@ const SHELL_VALUES: ShellFormValues = {
   consentTextEn: 'yes',
 };
 
+/** The applicant-facing schema the server preview returns for the working overlay (axe-inspected). */
+const PREVIEW_SCHEMA = {
+  fields: [
+    {
+      key: 'membership_type',
+      type: 'enum',
+      label: { en: 'Membership type', nl: 'Lidmaatschapstype' },
+      functional_group: 'personal',
+      order: 1,
+      required: true,
+      options: [{ value: 'regular', label: { en: 'Regular', nl: 'Gewoon' } }],
+    },
+  ],
+  locales: ['nl', 'en'],
+  notice: null,
+};
+
 function seed() {
   mockGetParams.mockResolvedValue({ field_overlay: overlayRow });
   mockGetFieldConfig.mockResolvedValue(FIELD_CONFIG);
   mockGetSlug.mockResolvedValue({ success: true, data: { slug: 'h-dcn' } });
   mockListMembershipTypes.mockResolvedValue(CATALOG);
+  mockPreview.mockResolvedValue(PREVIEW_SCHEMA);
 }
 
 beforeEach(() => {
@@ -213,11 +234,14 @@ describe('ApplicationFormBuilder — axe accessibility gate (task 6.1, R9.1/NFR)
     expect(results).toHaveNoViolations();
   });
 
-  it('has NO axe violations on the live preview (titled iframe)', async () => {
+  it('has NO axe violations on the live preview (in-app render via the shared renderer)', async () => {
+    mockPreview.mockResolvedValue(PREVIEW_SCHEMA);
     const { container } = render(
-      <ApplicationFormPreview slug="h-dcn" reloadToken={0} lang="en" />,
+      <ApplicationFormPreview overlay={overlayRow.value as Record<string, unknown>} lang="en" debounceMs={0} />,
     );
-    const results = await axe(container, AXE_NO_FRAMES);
+    // Wait for the debounced POST to resolve + the renderer to mount before inspecting.
+    await screen.findByTestId('application-form-preview-render');
+    const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
 

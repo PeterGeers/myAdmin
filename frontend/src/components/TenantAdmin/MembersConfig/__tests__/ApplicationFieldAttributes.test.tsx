@@ -222,6 +222,29 @@ describe('ApplicationFieldAttributes — enum subset picker (R3.2 / R4.1)', () =
     expect(screen.getByTestId('application-field-subset-option-c')).toBeInTheDocument();
     expect(screen.queryByTestId('application-field-subset-option-x')).not.toBeInTheDocument();
   });
+
+  it('a WRITTEN subset stays \u2286 the field\u2019s own choices — a stale out-of-vocabulary authored value is pruned, never echoed back (R3.2 edge)', () => {
+    // A prior session authored a subset carrying a value ('z') that is NO LONGER one of the field's
+    // choices (the enum vocabulary was later narrowed on the Field-configuration tab). The picker
+    // offers only the field's CURRENT choices, so 'z' is not even rendered as an option.
+    const seeded = onFormOverlay('preference', { application_choices: ['a', 'z'] });
+    const { onChange } = renderAttrs('preference', seeded);
+    expect(screen.queryByTestId('application-field-subset-option-z')).not.toBeInTheDocument();
+    // Only 'a' is ticked (the authored subset); 'b'/'c' are not. The stale 'z' is invisible.
+    expect(inputUnder('application-field-subset-option-a')).toBeChecked();
+    expect(inputUnder('application-field-subset-option-b')).not.toBeChecked();
+
+    // Ticking 'b' back on writes a list rebuilt STRICTLY from the field's own choices in field
+    // order — the stale 'z' is dropped, so the persisted subset stays ⊆ the field's choices.
+    fireEvent.click(inputUnder('application-field-subset-option-b'));
+    const next = onChange.mock.calls[0][0] as MembersConfigValue;
+    const written = findField(next, 'preference')?.field.application_choices as string[];
+    expect(written).toEqual(['a', 'b']);
+    // The invariant made explicit: every written value is a real field choice (⊆ choices).
+    const fieldChoiceValues = ['a', 'b', 'c'];
+    expect(written.every((v) => fieldChoiceValues.includes(v))).toBe(true);
+    expect(written).not.toContain('z');
+  });
 });
 
 describe('ApplicationFieldAttributes — format dropdown (R3.3)', () => {

@@ -12,7 +12,9 @@
  *    yet and points the admin to the Landing Page editor.
  *  - **Embed (R5.2).** A mode chooser (standalone / iframe); for iframe a copy-ready `<iframe>`
  *    snippet referencing the public URL plus an allowed-origin input authoring
- *    `application_embed_origins: string[]`. Standalone = no origins.
+ *    `application_embed_origins: string[]`, SEEDED with the confirmed v1 targets
+ *    (`https://sites.google.com`, `https://portal.h-dcn.nl`) when none are authored yet.
+ *    Standalone = no origins.
  *  - **Consent notice (R5.3).** A bilingual (nl/en) versioned editor authoring
  *    `consent_notice {version, text{nl,en}}`, BUMPING the version when the text changes.
  *
@@ -43,10 +45,11 @@ import {
 } from '@chakra-ui/react';
 import type { FieldConfig } from '../../../types/members';
 import {
+  CONFIRMED_EMBED_ORIGINS,
   type EmbedMode,
   type ShellFormValues,
   buildIframeSnippet,
-  derivePublicUrl,
+  deriveApplicationFormUrl,
   embedOriginsToText,
   parseEmbedOrigins,
 } from './applicationShellForm';
@@ -78,7 +81,7 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
 
-  const publicUrl = useMemo(() => derivePublicUrl(values.slug), [values.slug]);
+  const publicUrl = useMemo(() => deriveApplicationFormUrl(values.slug), [values.slug]);
   const iframeSnippet = useMemo(() => buildIframeSnippet(publicUrl), [publicUrl]);
   const [hasCopied, setHasCopied] = useState(false);
 
@@ -93,6 +96,17 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
 
   const set = (patch: Partial<ShellFormValues>) => onChange({ ...values, ...patch });
 
+  // Switching into iframe mode with no origins authored yet SEEDS the confirmed v1 targets
+  // (R5.2b) so the admin starts from the known-good list instead of a blank textarea. An
+  // existing (non-empty) list is left untouched.
+  const selectEmbedMode = (mode: EmbedMode) => {
+    if (mode === 'iframe' && values.embedOrigins.length === 0) {
+      set({ embedMode: mode, embedOrigins: [...CONFIRMED_EMBED_ORIGINS] });
+      return;
+    }
+    set({ embedMode: mode });
+  };
+
   return (
     <VStack align="stretch" spacing={5} data-testid="application-form-shell-panel">
       {/* ------------------------------------------------------------------ */}
@@ -104,7 +118,23 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
         </Heading>
         {publicUrl ? (
           <FormControl>
-            <Code data-testid="application-form-shell-public-url">{publicUrl}</Code>
+            <HStack spacing={3} align="center">
+              <Code data-testid="application-form-shell-public-url">{publicUrl}</Code>
+              {/* The authoritative check (R5.1 / R7.3): an "open live form" link to the real
+                  CloudFront-hosted public form — opens in a new tab, rel-hardened. The in-app
+                  preview (ApplicationFormPreview) is for authoring; THIS link confirms the real
+                  thing (and shows the public form's own "not available" state when not send-ready). */}
+              <Link
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                color="orange.300"
+                fontWeight="semibold"
+                data-testid="application-form-shell-open-live"
+              >
+                {t('Open live formulier', 'Open live form')}
+              </Link>
+            </HStack>
             <FormHelperText>
               {t(
                 'Afgeleid van de landingspagina-slug. Wijzig de slug in de Landingspagina-editor.',
@@ -158,7 +188,7 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
               size="sm"
               variant={values.embedMode === mode ? 'solid' : 'outline'}
               colorScheme="orange"
-              onClick={() => set({ embedMode: mode })}
+              onClick={() => selectEmbedMode(mode)}
               role="radio"
               aria-checked={values.embedMode === mode}
               data-testid={`application-form-shell-embed-${mode}`}
@@ -213,8 +243,8 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
               />
               <FormHelperText>
                 {t(
-                  'Eén oorsprong per regel. Bepaalt de CORS / frame-ancestors die de publieke edge afdwingt.',
-                  'One origin per line. Governs the CORS / frame-ancestors the public edge enforces.',
+                  'Eén oorsprong per regel. Vooringevuld met de bevestigde doelen (Google Sites, h-dcn-portaal) — aanpasbaar. Bepaalt de CORS / frame-ancestors die de publieke edge afdwingt.',
+                  'One origin per line. Pre-filled with the confirmed targets (Google Sites, h-dcn portal) — editable. Governs the CORS / frame-ancestors the public edge enforces.',
                 )}
               </FormHelperText>
             </FormControl>
