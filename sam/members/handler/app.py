@@ -1135,6 +1135,42 @@ def _get_membership_service() -> MembershipService:
     return _SERVICE
 
 
+def build_application_preview_service(
+    overlay_provider: TenantOverlayProvider,
+) -> MembershipService:
+    """Build a one-shot :class:`MembershipService` for the LIVE PREVIEW (spec 11, R7.2).
+
+    The Application Form Builder's server-side preview (``POST /members/application-preview``)
+    must run the REAL :meth:`MembershipService.get_public_field_config` filter over the WORKING
+    ``field_overlay`` the admin is editing — NOT the stored ``config#fields`` row. This builds a
+    membership service wired EXACTLY like the production one (same tenant-scoped repository + the
+    same scope-config / consent / mail / membership-type catalog seams, so the preview's
+    membership-type options, scope-sourced enums and consent-notice version are the tenant's REAL
+    ones), with ONE substitution: the overlay provider is the caller-supplied
+    :class:`TenantOverlayProvider` that serves the request-body overlay instead of the projection.
+
+    So the preview reuses the one filtering authority (zero drift, correctness property 4) and is
+    READ-ONLY by construction — ``get_public_field_config`` only reads. It is a fresh service per
+    preview (never the warm module singleton), so a preview can never disturb the production
+    service's captured overlay provider.
+
+    The scheduler port is intentionally omitted (the preview never schedules); the repository
+    resolves its table lazily + fail-fast, so building this touches no AWS until the catalog read
+    the filter performs — the SAME read the staff/public field-config already does. Tests inject a
+    service over an in-memory fake repo by patching the ``_dispatch`` seam that calls this.
+    """
+    return MembershipService(
+        DynamoDbMembersRepository(),
+        overlay_provider=overlay_provider,
+        tenant_hooks=_TENANT_HOOKS,
+        scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
+        mail_gate_provider=_MAIL_GATE_PROVIDER,
+        mail_config_provider=_MAIL_CONFIG_PROVIDER,
+        config_status_provider=_CONFIG_STATUS_PROVIDER,
+        default_page_size_provider=_DEFAULT_PAGE_SIZE_PROVIDER,
+    )
+
+
 def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> Any:
     """Delegate a resolved route to the generic membership engine (design C2).
 

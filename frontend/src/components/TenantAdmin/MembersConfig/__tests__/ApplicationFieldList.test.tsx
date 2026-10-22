@@ -155,6 +155,102 @@ describe('ApplicationFieldList — on-the-form toggle writes application_visible
   });
 });
 
+describe('ApplicationFieldList — keyboard operability of row selection (task 6.1 / WCAG 2.1.1)', () => {
+  // The row is a SELECTION control (clicking opens the field's attributes panel), so an offerable
+  // row must be reachable + operable by keyboard: focusable button semantics that activate on
+  // Enter/Space and announce the selected state via aria-pressed. A non-offerable row carries no
+  // selection affordance and stays out of the tab order.
+  // The selector is the label REGION (not the whole row) so the on-the-form Switch — a focusable
+  // control — is a SIBLING, not a focusable descendant of a button (which would be a
+  // `nested-interactive` axe violation). The axe suite (ApplicationFormBuilder.axe) guards that.
+  it('an offerable field selector exposes button semantics, is focusable, and reflects selection via aria-pressed', () => {
+    render(
+      <ApplicationFieldList
+        fieldConfig={FIELD_CONFIG}
+        overlay={{}}
+        onChange={vi.fn()}
+        lang="en"
+        selectedKey="email"
+        onSelect={vi.fn()}
+      />,
+    );
+    const selector = screen.getByTestId('application-field-select-email');
+    expect(selector).toHaveAttribute('role', 'button');
+    expect(selector).toHaveAttribute('tabindex', '0');
+    // Selected announces its pressed state; an unselected offerable selector is aria-pressed=false.
+    expect(selector).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('application-field-select-first_name')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('activates selection on Enter and Space (keyboard), calling onSelect with the field key', () => {
+    const onSelect = vi.fn();
+    render(
+      <ApplicationFieldList
+        fieldConfig={FIELD_CONFIG}
+        overlay={{}}
+        onChange={vi.fn()}
+        lang="en"
+        onSelect={onSelect}
+      />,
+    );
+    const selector = screen.getByTestId('application-field-select-email');
+    fireEvent.keyDown(selector, { key: 'Enter' });
+    fireEvent.keyDown(selector, { key: ' ' });
+    expect(onSelect).toHaveBeenCalledTimes(2);
+    expect(onSelect).toHaveBeenNthCalledWith(1, 'email');
+    expect(onSelect).toHaveBeenNthCalledWith(2, 'email');
+  });
+
+  it('clicking the field selector selects it (mouse path preserved)', () => {
+    const onSelect = vi.fn();
+    render(
+      <ApplicationFieldList
+        fieldConfig={FIELD_CONFIG}
+        overlay={{}}
+        onChange={vi.fn()}
+        lang="en"
+        onSelect={onSelect}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('application-field-select-email'));
+    expect(onSelect).toHaveBeenCalledWith('email');
+  });
+
+  it('a NON-offerable (calculated) field selector is not a button and not in the tab order', () => {
+    render(
+      <ApplicationFieldList
+        fieldConfig={FIELD_CONFIG}
+        overlay={{}}
+        onChange={vi.fn()}
+        lang="en"
+        onSelect={vi.fn()}
+      />,
+    );
+    const selector = screen.getByTestId('application-field-select-age');
+    expect(selector).not.toHaveAttribute('role', 'button');
+    expect(selector).not.toHaveAttribute('tabindex');
+    expect(selector).not.toHaveAttribute('aria-pressed');
+  });
+
+  it('a key other than Enter/Space on the selector does not trigger selection', () => {
+    const onSelect = vi.fn();
+    render(
+      <ApplicationFieldList
+        fieldConfig={FIELD_CONFIG}
+        overlay={{}}
+        onChange={vi.fn()}
+        lang="en"
+        onSelect={onSelect}
+      />,
+    );
+    fireEvent.keyDown(screen.getByTestId('application-field-select-email'), { key: 'a' });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
 describe('ApplicationFieldList — offerability (R2.4 / R2.5)', () => {
   it('a calculated/read-only field is NOT offerable — a note, no toggle', () => {
     renderList();

@@ -1,136 +1,175 @@
 /**
- * Application live preview — an `<iframe>` to the CloudFront-hosted public form (spec 11 task 4.2;
- * R7.1–R7.4, design §4/§6/§9 S1·S2/§10).
+ * Application live preview — an IN-APP render of the public form via the shared spec-10
+ * `ApplicationFormRenderer`, fed by the server-side preview endpoint (spec 11 task 4.2;
+ * R7.1/R7.2/R7.4, design §4/§6/§9 S1·S2/§10).
  *
- * The R7 panel of the Application Form Builder. The preview is NOT a client-side re-render of the
- * filtered schema — it is an `<iframe>` pointed at the REAL CloudFront-hosted public form URL
- * (derived `https://<slug>.jabaki.nl`, the same host the public form answers on). Because the
- * preview IS the live form, the preview and the live render are the SAME code path by construction
- * — authoring can never drift from what an applicant sees (design Property 4 / §6).
+ * The R7 panel of the Application Form Builder. The preview is NOT an iframe to the hosted form and
+ * NOT a client-side re-implementation of the field filter — both would reflect only the LAST-SAVED
+ * config or risk drifting from the server. Instead (design §9 S1/S2, the resolved decision):
  *
- * ## What the hosted form shows (R7.1–R7.3)
+ *  1. the builder's WORKING (in-memory, UNSAVED) `field_overlay` is DEBOUNCED and
+ *  2. POSTed to `POST /members/application-preview` (`members:admin`), which runs the EXACT server
+ *     `get_public_field_config` filter over it and returns the applicant-facing schema, and
+ *  3. that returned schema is fed to the shared spec-10 `ApplicationFormRenderer`.
  *
- * The preview just shows whatever the hosted form renders for this tenant:
- *  - a send-ready tenant → the filtered public form (R7.1);
- *  - a NOT-send-ready tenant → the hosted form's OWN neutral 409 "not available" state (R7.3). The
- *    builder does NOT re-implement that filter/guard client-side; it relies on the hosted form.
+ * So the preview shows UNSAVED edits live (R7.1), shares a SINGLE rendering code path with the
+ * public form AND a SINGLE filtering authority with the server (no client mirror to drift —
+ * correctness property 4 / §6). The "open live form" link to the real CloudFront-hosted form is the
+ * form-shell panel's concern (R7.3), not this panel.
  *
- * ## Last-saved state + "save to update preview" (R7.4 / §9 S2)
+ * ## Read-only (R7.4)
  *
- * The iframe reflects the LAST-SAVED `config#fields` / `config#mail` (the hosted form reads the
- * live config). After a save the builder bumps a `reloadToken`; that token drives the iframe `key`
- * (and a cache-busting query param) so the iframe remounts and re-fetches the hosted form — the
- * "save to update preview" affordance. A manual "Update preview" button also bumps a local token so
- * the admin can force a reload without a save.
+ * This is a render-only preview: the `ApplicationFormRenderer` is a CONTROLLED component, so it is
+ * driven with empty `values` + a no-op `onChange` and no submit affordance — the admin cannot type
+ * into or submit the preview. It reflects the WORKING overlay; the hosted form reflects the LAST
+ * SAVED config (a save shows there on its next load), which the panel states.
  *
- * ## No public URL yet (R5.1 / E4)
+ * ## Debounce (R7.1 / §9 S2)
  *
- * When the tenant has no slug (no public address), there is nothing to embed — the panel shows a
- * neutral "no preview available yet" placeholder pointing at the Landing Page editor (where the
- * slug is set), mirroring the form-shell panel's "no address yet" posture.
+ * A change to the working overlay debounces the preview POST (default {@link PREVIEW_DEBOUNCE_MS})
+ * so rapid toggles collapse into one request; the latest overlay always wins (a newer change
+ * cancels the pending timer). The panel keeps the LAST good schema visible while a new request is
+ * in flight so the preview does not flicker to empty on every keystroke.
+ *
+ * ## Not-send-ready + errors
+ *
+ * The preview endpoint deliberately BYPASSES the public send-ready gate, so the schema renders even
+ * before the sender is certified (R6.2) — the readiness panel carries the "not available" state,
+ * not this preview. A deliberate authoring error (a 400 on a malformed overlay — e.g. an enum
+ * subset ⊄ the field's choices) is surfaced as a neutral inline message rather than a blank form.
  */
-import React, { useMemo, useState } from 'react';
-import { Box, Button, HStack, Link, Text, VStack } from '@chakra-ui/react';
-import { derivePublicUrl } from './applicationShellForm';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Spinner, Text, VStack } from '@chakra-ui/react';
+import { ApplicationFormRenderer } from '../../public/application/ApplicationFormRenderer';
+import type { PublicFieldConfig } from '../../public/application/applicationFieldConfig';
+import { previewMembersApplicationConfig } from '../../../services/membersConfigService';
+import type { MembersConfigValue } from '../../../types/membersConfig';
+
+/** Default debounce (ms) before the working overlay is POSTed to the preview endpoint (R7.1). */
+export const PREVIEW_DEBOUNCE_MS = 400;
 
 export interface ApplicationFormPreviewProps {
-  /** The resolved landing-page slug (null/absent = no public address yet, R5.1). */
-  slug: string | null;
   /**
-   * A reload token the builder bumps after each successful save (R7.4). Changing it remounts the
-   * iframe (via `key`) so the preview re-fetches the hosted form and reflects the last-saved state.
+   * The builder's ONE working `field_overlay` object (design §3.1). A change to it is debounced and
+   * POSTed to `POST /members/application-preview`; the returned schema drives the renderer so the
+   * preview reflects UNSAVED edits live (R7.1).
    */
-  reloadToken?: number;
+  overlay: MembersConfigValue;
+  /** The applicant locale the preview renders labels in (nl/en). */
   lang: 'nl' | 'en';
+  /** Debounce window override (ms) — tests pass `0` for a deterministic, immediate POST. */
+  debounceMs?: number;
 }
 
 export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
-  slug,
-  reloadToken = 0,
+  overlay,
   lang,
+  debounceMs = PREVIEW_DEBOUNCE_MS,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
 
-  // A local token lets the admin force a reload WITHOUT a save ("Update preview"). The effective
-  // token combines the builder's save-driven token with this manual one — either bump reloads.
-  const [manualToken, setManualToken] = useState(0);
-  const effectiveToken = reloadToken + manualToken;
+  // The last schema the server returned for a working overlay — kept visible across a new in-flight
+  // request so the preview does not flicker to empty while the next POST resolves.
+  const [schema, setSchema] = useState<PublicFieldConfig | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const publicUrl = useMemo(() => derivePublicUrl(slug), [slug]);
+  // Serialize the overlay so the debounce effect re-runs on a VALUE change (not a new object
+  // identity each render) — the builder replaces the overlay object on every edit.
+  const overlayKey = useMemo(() => JSON.stringify(overlay ?? {}), [overlay]);
 
-  // Cache-busting src: appends the reload token so a remount actually re-fetches the hosted form
-  // (the `key` remount is the primary mechanism; the query param guards against an aggressive
-  // iframe/browser cache). The hosted form ignores the extra query param.
-  const iframeSrc = useMemo(() => {
-    if (!publicUrl) return null;
-    const sep = publicUrl.includes('?') ? '&' : '?';
-    return `${publicUrl}${sep}preview=${effectiveToken}`;
-  }, [publicUrl, effectiveToken]);
+  // A monotonically increasing request id so a stale (superseded) response can never overwrite a
+  // newer one — the LATEST working overlay always wins (debounce + out-of-order guard).
+  const reqSeq = useRef(0);
 
-  // No slug → nothing to embed: a neutral placeholder pointing at the Landing Page editor (R5.1).
-  if (!publicUrl || !iframeSrc) {
-    return (
-      <Box data-testid="application-form-preview-no-url">
-        <Text fontSize="sm" color="yellow.300">
-          {t(
-            'Nog geen voorbeeld beschikbaar.',
-            'No preview available yet.',
-          )}
-        </Text>
-        <Text fontSize="sm" color="gray.500">
-          {t(
-            'Het formulier heeft nog geen publiek adres. Stel eerst een slug in via de ',
-            'The form has no public address yet. Set a slug first in the ',
-          )}
-          <Link
-            color="orange.300"
-            href="#landing-page"
-            data-testid="application-form-preview-landing-link"
-          >
-            {t('Landingspagina-editor', 'Landing Page editor')}
-          </Link>
-          .
-        </Text>
-      </Box>
-    );
-  }
+  useEffect(() => {
+    const seq = ++reqSeq.current;
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const next = await previewMembersApplicationConfig(overlay ?? {});
+        if (seq !== reqSeq.current) return; // a newer request superseded this one — drop it.
+        setSchema(next);
+      } catch (e) {
+        if (seq !== reqSeq.current) return;
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (seq === reqSeq.current) setLoading(false);
+      }
+    };
+
+    if (debounceMs <= 0) {
+      run();
+      return;
+    }
+    const timer = setTimeout(run, debounceMs);
+    return () => clearTimeout(timer);
+    // overlayKey captures the overlay value; debounceMs is stable per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlayKey, debounceMs]);
+
+  const fieldCount = schema?.fields?.length ?? 0;
 
   return (
     <VStack align="stretch" spacing={3} data-testid="application-form-preview">
-      <HStack justify="space-between">
-        <Text fontSize="xs" color="gray.500">
+      <Text fontSize="xs" color="gray.500">
+        {t(
+          'Toont het publieke formulier met je niet-opgeslagen wijzigingen. Het gehoste formulier toont de laatst opgeslagen versie.',
+          'Shows the public form with your unsaved edits. The hosted form shows the last-saved version.',
+        )}
+      </Text>
+
+      {loading && schema === null && (
+        <Box data-testid="application-form-preview-loading">
+          <Spinner size="sm" color="orange.400" />
+          <Text display="inline" ml={2} fontSize="sm" color="gray.400">
+            {t('Voorbeeld laden…', 'Loading preview…')}
+          </Text>
+        </Box>
+      )}
+
+      {error && (
+        <Text fontSize="sm" color="red.300" data-testid="application-form-preview-error">
           {t(
-            'Toont de laatst opgeslagen versie van het publieke formulier. Sla op om bij te werken.',
-            'Shows the last-saved version of the public form. Save to update.',
+            'Het voorbeeld kon niet worden bijgewerkt. Controleer je veldinstellingen.',
+            'The preview could not be updated. Check your field settings.',
           )}
         </Text>
-        <Button
-          size="xs"
-          variant="outline"
-          onClick={() => setManualToken((n) => n + 1)}
-          data-testid="application-form-preview-reload"
+      )}
+
+      {schema && fieldCount === 0 && !loading && (
+        <Text fontSize="sm" color="gray.500" data-testid="application-form-preview-empty">
+          {t(
+            'Nog geen velden op het formulier. Zet hierboven velden aan om ze hier te zien.',
+            'No fields on the form yet. Turn fields on above to see them here.',
+          )}
+        </Text>
+      )}
+
+      {schema && fieldCount > 0 && (
+        <Box
+          borderWidth="1px"
+          borderColor="gray.700"
+          borderRadius="md"
+          p={4}
+          bg="white"
+          color="gray.800"
+          // The renderer is CONTROLLED but the preview is READ-ONLY (R7.4): empty values + a no-op
+          // onChange, and no submit affordance — the admin cannot type into or submit the preview.
+          // (No `aria-readonly` here: it is not a supported ARIA attribute on a generic container;
+          // the read-only posture is structural — no submit control, no committed input.)
+          data-testid="application-form-preview-render"
         >
-          {t('Voorbeeld bijwerken', 'Update preview')}
-        </Button>
-      </HStack>
-      <Box
-        borderWidth="1px"
-        borderColor="gray.700"
-        borderRadius="md"
-        overflow="hidden"
-        bg="white"
-      >
-        <iframe
-          // The token drives the `key` so a save (or a manual reload) REMOUNTS the iframe, forcing
-          // a fresh fetch of the hosted form — the "save to update preview" affordance (R7.4).
-          key={effectiveToken}
-          src={iframeSrc}
-          title={t('Voorbeeld aanmeldformulier', 'Application form preview')}
-          data-testid="application-form-preview-iframe"
-          style={{ width: '100%', height: 900, border: 0 }}
-          loading="lazy"
-        />
-      </Box>
+          <ApplicationFormRenderer
+            config={schema}
+            locale={lang}
+            values={{}}
+            onChange={() => { }}
+            idPrefix="application-preview"
+          />
+        </Box>
+      )}
     </VStack>
   );
 };

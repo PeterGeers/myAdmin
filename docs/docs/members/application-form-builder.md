@@ -52,8 +52,10 @@ De eigenschappen verschijnen pas als het veld op het formulier staat. Staat een 
 Het formulier-paneel bepaalt hoe het openbare formulier bereikbaar is:
 
 - **Openbaar adres (URL)** — het adres van het formulier wordt afgeleid van de **slug** van je landingspagina. Heb je nog geen slug, dan zie je "nog geen adres" met een verwijzing naar de [Landing Page editor](../landing-page/index.md), waar je de slug instelt. De slug beheer je dáár, niet in de bouwer.
-- **Insluiten (embed)** — kies **standalone** (een losse pagina) of **iframe** (ingesloten op je eigen website). Bij iframe krijg je een kant-en-klaar fragment om te kopiëren.
-- **Toegestane herkomsten (origins)** — bij insluiten geef je op welke websites het formulier in een iframe mogen tonen. Zonder opgegeven herkomsten blijft het formulier standalone (niemand mag het insluiten).
+- **Insluiten (embed)** — het formulier kan op twee manieren op een andere pagina verschijnen:
+    - **Op je eigen landingspagina** — voeg het formulier toe als **blok** in de [Landing Page editor](../landing-page/index.md). Het formulier wordt dan rechtstreeks meegenomen in je eigen pagina (zelfde opmaak, geen iframe).
+    - **Op een externe site** (bijvoorbeeld een Google Site of je eventportaal) — gebruik het kant-en-klare **iframe-fragment** dat de bouwer voor je genereert. Het ingesloten formulier past zijn hoogte automatisch aan zodat het niet wordt afgeknipt.
+- **Toegestane herkomsten (origins)** — bij een externe insluiting geef je op wélke websites het formulier in een iframe mogen tonen (bijvoorbeeld `https://sites.google.com` en je eventportaal). Geef je geen herkomsten op, dan mag geen enkele externe site het formulier insluiten.
 - **Toestemmingsverklaring (consent)** — de bilinguale (NL/EN) tekst waarmee een aanvrager akkoord moet gaan. Elke wijziging **verhoogt het versienummer**, zodat bij elke aanmelding precies wordt vastgelegd waarmee de aanvrager akkoord ging.
 
 !!! info
@@ -76,13 +78,17 @@ De gereedheid gebruikt hetzelfde "klaar om te verzenden"-signaal als het openbar
 
 ## Live voorbeeld (het voorbeeld-paneel)
 
-Het voorbeeld-paneel toont het **echte** openbare formulier in een ingesloten venster, precies zoals een aanvrager het ziet. Het voorbeeld weerspiegelt de **laatst opgeslagen** stand.
+Het voorbeeld-paneel toont het openbare formulier **in de app**, precies zoals een aanvrager het ziet — met dezelfde weergave als het echte formulier. Het voorbeeld volgt je **werkkopie live**: zet je een veld aan, maak je het verplicht of beperk je de keuzes, dan verschijnt dat meteen in het voorbeeld, nog vóór je opslaat.
 
-- Wijzig je iets, klik dan **Opslaan** en gebruik de knop **Voorbeeld bijwerken** om het venster opnieuw te laden.
-- Omdat het voorbeeld het echte formulier is, is wat je hier ziet exact wat een aanvrager krijgt — geen aparte weergave die kan afwijken.
+- Je hoeft dus **niet** op te slaan om een wijziging in het voorbeeld te zien — het voorbeeld weerspiegelt je nog niet-opgeslagen bewerkingen.
+- Het voorbeeld is **alleen-lezen**: je kunt er niets in verzenden; het is bedoeld om te controleren, niet om een aanmelding te doen.
+- Omdat het voorbeeld dezelfde filtering en dezelfde weergavecode gebruikt als het echte formulier, krijg je exact wat een aanvrager ziet — geen aparte weergave die kan afwijken.
+
+!!! info
+Het voorbeeld toont je **werkkopie** (nog niet opgeslagen). Het **echte** openbare formulier — bereikbaar via de knop **Open live formulier** in het formulier-paneel — weerspiegelt de **laatst opgeslagen** stand; een opgeslagen wijziging verschijnt daar bij de eerstvolgende keer laden.
 
 !!! tip
-Werk in kleine stappen: zet een veld aan, sla op, ververs het voorbeeld en controleer het resultaat voordat je verder gaat.
+Werk in kleine stappen: zet een veld aan, bekijk het direct in het voorbeeld, en sla op zodra het klopt.
 
 ## Rechten
 
@@ -101,5 +107,5 @@ Het instellen van het aanmeldformulier is voorbehouden aan de **Tenant Admin**. 
 | Het formulier opent niet voor aanvragers       | Geen geverifieerde afzender (gereedheid niet vervuld)         | Verifieer een afzender via [Afzender verifiëren](../tenant-admin/sender-verification.md) |
 | Verplicht-schakelaar staat vast aan            | Het platform stelt dit veld al verplicht                      | Dit is bewust — een platform-verplicht veld kun je niet versoepelen       |
 | Keuzebeperking niet beschikbaar bij een veld   | Het veld is geen keuzelijst-veld                              | Een keuzebeperking geldt alleen voor velden met opties                    |
-| Voorbeeld toont oude stand                     | Het voorbeeld weerspiegelt de laatst opgeslagen stand         | Klik **Opslaan** en daarna **Voorbeeld bijwerken**                        |
+| Live formulier toont oude stand                | Het *live* formulier weerspiegelt de laatst opgeslagen stand (het voorbeeld toont de werkkopie) | Klik **Opslaan**; de wijziging verschijnt op het live formulier bij de eerstvolgende keer laden |
 | Sub-tab Aanmeldformulier ontbreekt             | De module Ledenadministratie is niet ingeschakeld             | Vraag je SysAdmin de module in te schakelen voor je tenant                |

@@ -55,6 +55,9 @@ export const PasskeySettings = lazy(() => import('./components/settings/PasskeyS
 
 // Public pages (no auth required)
 export const PublicLandingPage = lazy(() => import('./pages/public/PublicLandingPage'));
+export const PublicApplicationFormRoute = lazy(
+  () => import('./pages/public/PublicApplicationFormRoute'),
+);
 
 export type PageType =
   | 'login'

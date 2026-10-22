@@ -121,12 +121,19 @@ rejects an incoherent body fail-loud instead of storing it.
   scope-copy toggle (`application_scope_copy`), the Reply-To default (`mail_reply_to_default`), and
   the versioned `consent_notice` are added to the Mail editor's `config#mail` body (which already
   accepts them server-side) — not a new row.
-- **E4 — Slug is surfaced read-mostly; embed is authored.** The public slug is derived from the
-  tenant's landing-page slug (spec 10 D19). v1 **displays** the resolved public URL and lets the
-  admin **choose the embed mode** (standalone vs iframe) with a generated snippet + allowed origin.
-  Changing the underlying landing slug itself stays with the Landing Page editor (not duplicated
-  here); if no slug exists the builder tells the admin the form has no public address yet and links
-  to where to set it.
+- **E4 — Slug is surfaced read-mostly; embedding is a DAY-ONE deliverable in TWO modes.** The public
+  slug is derived from the tenant's landing-page slug (spec 10 D19); v1 **displays** the resolved
+  public URL (as an "open live form" link) but does not author the slug (that stays with the Landing
+  Page editor). Embedding is explicitly in scope and split by target:
+  - **E4a — native landing-page block (own site):** the form renders directly as a landing-page block
+    via the shared `ApplicationFormRenderer`, same-origin, no iframe — for styled, responsive
+    presentation on the tenant's own `*.jabaki.nl` page. Owned by THIS spec (one deliverable), wired
+    into the landing-page block registry.
+  - **E4b — external iframe embed:** the hosted public form is iframe-embeddable from a tenant-declared
+    origin allow-list (`application_embed_origins`), enforced by CloudFront `frame-ancestors` +
+    SAM-API CORS, with a `postMessage` responsive-resize handshake so it renders cleanly inside a
+    sandboxed Google Sites gadget. Confirmed v1 targets: a Google Site (`https://sites.google.com`)
+    and the h-dcn event portal (`https://portal.h-dcn.nl`).
 - **E5 — Readiness is shown, not silently blocked.** Because the public form refuses to open for a
   tenant without a certified sender (spec 10 D15), the builder SHOWS the readiness state (certified
   sender present? slug present?) so the admin understands why a preview/publish is unavailable,
@@ -185,10 +192,14 @@ restrict choices for enum fields, and attach a format check, so the form collect
    `application_required`. It SHALL be able to TIGHTEN an optional field to required, but SHALL NOT be
    able to RELAX a platform-required field (the control is disabled/forced for such fields, and the
    SAM write rejects a relax regardless — R8).
-2. For an **enum** field on the form, the builder SHALL offer a **subset picker** over that field's
-   own choices writing `application_choices` (a list; empty/cleared = `null` = full set). The picker
-   SHALL only offer values that are valid choices of the field; it SHALL NOT allow a value that is not
-   a field choice.
+2. For an **enum** field on the form, the builder SHALL offer a **subset picker** — a READ-ONLY
+   multi-select over the field's EXISTING choices (the resolved field's `options`/`choices` from
+   `GET /members/field-config`, rendered with their labels) — where the admin TICKS which values
+   appear on the public form, writing the ticked `value`s to `application_choices` (all ticked, or
+   none ticked = `null` = full set). The picker SHALL NOT let the admin add/remove/rename the field's
+   actual enum values (that stays on the Field-configuration tab — the subset is application metadata,
+   not the enum vocabulary); it offers ONLY existing field choices, so an out-of-vocabulary value
+   cannot be authored. It SHALL be shown only for enum fields.
 3. The builder SHALL offer a **format** control writing `format = {checker, params?}`, whose checker
    options are the **platform-known tokens** fetched from the SAM registry (`EMAIL`, `IBAN`, … — never
    a free-typed token). Clearing it writes `format = null`.
@@ -213,32 +224,49 @@ applicant to pick from a public-safe subset, so I don't show staff-only types.
    (`_validate_membership_type_reference`); the builder SHALL not let the admin save a subset value
    not in the catalog (and the SAM write rejects it regardless — R8).
 
-### R5 — Form-shell settings: slug/URL, embed mode, consent notice
+### R5 — Form-shell settings: slug/URL, embedding (two modes), consent notice
 
-**User story:** As a Tenant Admin, I want to set the form's public address, choose standalone-vs-iframe
-embedding, and author the consent notice, so the form is usable and legally complete.
+**User story:** As a Tenant Admin, I want to set the form's public address, embed it in BOTH my own
+landing page and an external site (a Google Site / our event portal), and author the consent notice,
+so the form is usable, well-presented, and legally complete.
 
 #### Acceptance criteria
 1. **Public slug/URL (E4).** The builder SHALL DISPLAY the tenant's resolved public application URL,
-   derived from the landing-page slug (spec 10 D19). WHEN no slug exists THEN it SHALL state that the
-   form has no public address yet and point the admin to where the slug is set (Landing Page editor),
-   rather than inventing one here.
-2. **Embed mode (E4).** The builder SHALL let the admin choose **standalone** (its own page at the
-   public URL) or **iframe-embedded**. For iframe it SHALL generate a copy-ready `<iframe>` snippet
-   for the public URL and let the admin declare the **allowed embedding origin(s)**; it SHALL explain
-   that the origin governs the CORS / `frame-ancestors` the public edge enforces.
+   derived from the landing-page slug (spec 10 D19), and surface it as an **"open live form" link**
+   (the authoritative check, R7.3). WHEN no slug exists THEN it SHALL state that the form has no public
+   address yet and point the admin to where the slug is set (Landing Page editor), not invent one here.
+2. **Embedding — TWO distinct modes (E4a/E4b).** Embedding is a DAY-ONE requirement with two different
+   targets that need two different mechanisms:
+   a. **Native landing-page block (own site — E4a).** The application form SHALL be embeddable in the
+      tenant's OWN landing page as a **first-class landing-page block** (rendered directly via the
+      shared `ApplicationFormRenderer`, same-origin, NO iframe). This gives responsive, styled
+      presentation and shares the landing page's look. This block is owned by THIS spec as one
+      deliverable (it integrates with the landing-page block registry — design pins the seam).
+   b. **External iframe embed (Google Site / external portal — E4b).** The hosted public form SHALL be
+      embeddable via `<iframe>` in an EXTERNAL site. The builder SHALL generate a copy-ready `<iframe>`
+      snippet for the hosted URL and let the admin declare the **allowed embedding origin(s)**
+      (`application_embed_origins`). The hosted form SHALL be self-contained, responsive, and SHALL
+      post its content height to the parent (the `postMessage` iframe-resize handshake) so it is not
+      clipped inside a sandboxed gadget (notably Google Sites). The confirmed v1 external targets are a
+      **Google Site** (origin `https://sites.google.com` — a Workspace Site served at
+      `sites.google.com/<domain>/...` still has origin `https://sites.google.com`, so one entry covers
+      all of a tenant's Sites embeds) and the **h-dcn event portal** (`https://portal.h-dcn.nl`).
+   c. The allowed origins SHALL be an ORIGIN allow-list (scheme + host [+ port]) — the path is never
+      matched. Standalone (no origins declared) SHALL deny external framing (`frame-ancestors 'none'`).
 3. **Consent notice (E3; spec 10 D26).** The builder SHALL let the admin author a **bilingual (nl/en)
    consent notice text** with a **stable version id** per revision, writing `consent_notice =
    {version, text{nl,en}}` onto `config#mail`. Saving a changed notice SHALL produce a new version id;
    an existing applicant record's recorded version SHALL NEVER be retroactively changed (the record
    stores the version it accepted).
 4. **Scope-copy / Reply-To (E3; spec 10 D9a/D24).** The builder SHALL let the admin toggle the
-   optional **scope-matched copy** (`application_scope_copy`) and, where applicable, the mail
-   **Reply-To default** (`mail_reply_to_default`) — authored onto `config#mail`. (These MAY be
-   presented on the existing Mail sub-tab and merely referenced from the builder, as long as they are
-   authorable; design decides placement.)
-5. The form-shell mail settings (5.3/5.4) SHALL be committed through the existing
-   `PUT /members/config/mail` write (one `config#mail` object), never a new row.
+   optional **scope-matched copy** (`application_scope_copy`) and the mail **Reply-To default**
+   (`mail_reply_to_default`) — authored onto `config#mail` (on the existing Mail sub-tab, referenced
+   from the builder, R5.5/E3). WHEN no `mail_reply_to_default` is set THEN the notification Reply-To
+   SHALL fall back to the certified From address (so a reply never bounces into the void) — one
+   Reply-To for all in v1, no per-scope Reply-To.
+5. The form-shell mail settings (R5.3/R5.4) SHALL be committed through the existing
+   `PUT /members/config/mail` write (one `config#mail` object), never a new row. The embed origins
+   (R5.2b) SHALL likewise ride on `config#mail` as `application_embed_origins` (design §2.3).
 
 ### R6 — Readiness panel (show, don't silently block)
 
@@ -250,8 +278,10 @@ why preview/publish may be unavailable.
    (`mail_certified` + a `mail_domain`), whether a **public slug** exists, and whether at least one
    field is **on the form**.
 2. WHEN the tenant is NOT send-ready THEN the readiness panel SHALL explain it (neutral, no mail-config
-   internals leaked) and link to the sender-verification surface; the live preview (R7) SHALL reflect
-   the same 409 "not available yet" the public read returns.
+   internals leaked) and link to the sender-verification surface. The in-app preview (R7) SHALL still
+   render the field schema so the admin can author before the sender is certified; the readiness panel
+   (not the preview) carries the "not available yet" state, and the "open live form" link reflects the
+   real public form's behaviour.
 3. The readiness check SHALL use the SAME signal the public edge uses (spec 10 D15) so the panel and
    the live form never disagree.
 
@@ -261,18 +291,24 @@ why preview/publish may be unavailable.
 I can confirm my selections before publishing.
 
 #### Acceptance criteria
-1. The builder SHALL render a **live preview** by consuming the real public field-config contract
-   (`GET /public/members/{slug}/field-config` or an equivalent authenticated preview of the same
-   filtered schema), so the preview shows EXACTLY the fields, subsets, required flags, and consent
-   notice an applicant would see.
-2. The preview SHALL reuse the public form **renderer component** (spec 10's
-   `ApplicationFormRenderer`) so there is a single rendering code path — authoring never drifts from
-   the live form.
-3. WHEN the tenant is not send-ready THEN the preview SHALL show the same neutral "not available"
-   state the public form shows (R6.2), not a half-rendered form.
-4. The preview SHALL be read-only (no submission) and SHALL reflect UNSAVED edits where feasible, or
-   clearly indicate it reflects the last saved state — design decides, but the behavior SHALL be
-   explicit to the admin.
+1. The builder SHALL render a **live, in-app preview** by reusing spec 10's public form **renderer
+   component** (`ApplicationFormRenderer`), fed by the builder's WORKING (in-memory) config — so the
+   preview shows UNSAVED edits as the admin makes them, as EXACTLY the fields, subsets, required flags,
+   and consent notice an applicant would see. It SHALL NOT require a save or a round-trip to the public
+   endpoint to reflect a change.
+2. The preview SHALL derive the applicant-facing schema from the working config via a **server-side
+   preview endpoint** (`POST /members/application-preview`, `members:admin`-gated) that takes the
+   working `field_overlay` in the body and returns the SAME filtered schema the server's
+   `get_public_field_config` produces — reusing the EXACT server filter, so there is NO client-side
+   mirror to drift. Reusing spec 10's renderer over that server-produced schema keeps a single
+   rendering code path AND a single filtering authority.
+3. The builder SHALL also surface an **"open live form" link** to the real CloudFront-hosted public
+   form (R5.1) as the authoritative check; WHEN the tenant is not send-ready the live form shows its
+   own neutral "not available" state (R6.2) — the in-app preview is for authoring, the link is for
+   confirming the real thing.
+4. The preview SHALL be read-only (no submission). It SHALL reflect UNSAVED working edits (per 1); the
+   builder SHALL make clear that the hosted form reflects the LAST SAVED config (a save is reflected on
+   the hosted form's next load).
 
 ### R8 — SAM write-path validation hardening (close the validator gap)
 
@@ -306,11 +342,16 @@ a behavior change can't silently break the nightly suite.
 1. **Frontend** (`frontend/`, per `33-frontend-testing`): the builder writes the four per-field
    attributes correctly into the `field_overlay` object (subset only on enum fields; required cannot
    be relaxed for a platform-required field; format only offers known tokens); one-object/one-save is
-   preserved; the live preview consumes the real public-config contract; axe over the builder.
+   preserved; the in-app preview renders the server-preview schema (R7.2) and reflects unsaved edits;
+   the external-embed snippet + `postMessage` resize behave inside a Google Sites iframe; axe over the
+   builder.
 2. **SAM** (`sam/tests/`, per `34-backend-testing`): the R8 write-path validation rejects a subset ⊄
    choices, an unknown `format.checker`, a platform-required relax, and a malformed consent notice,
    with the standard error envelope; a coherent body still writes; back-compatible defaults still
-   write for a tenant that authors none.
+   write for a tenant that authors none. The `POST /members/application-preview` endpoint returns the
+   same schema `get_public_field_config` produces for an equivalent saved config (filter-parity), is
+   `members:admin`-gated, and never writes. The embed-origins validation + CORS/`frame-ancestors`
+   reflect the configured origins (Google Sites + portal) and deny others.
 3. Paired tests land in the SAME change as the behavior they cover (steering 30/34).
 
 ## Non-functional requirements
@@ -327,8 +368,11 @@ a behavior change can't silently break the nightly suite.
 ## Out of scope (v1)
 
 - Changing the underlying landing **slug** value itself (stays with the Landing Page editor; the
-  builder surfaces/derives the public URL and authors embed mode only — E4).
+  builder surfaces/derives the public URL and authors the embed settings — E4).
 - A WAF / CAPTCHA on the public edge (spec 10 D17 deferred; unchanged here).
+- Per-scope Reply-To (v1 is one Reply-To for all, with a From-address fallback — R5.4).
+- Embedding beyond the two confirmed mechanisms (own-site native block + external iframe) — e.g. a
+  JS web-component/script embed is a possible future enhancement, not v1.
 - Hard write-time uniqueness for applicants (spec 10 D11 Open Question #8; unchanged here).
 - Any change to the public submission flow, de-dup, duplicate flag, or notifications (all shipped in
   spec 10) — this spec only authors the config those mechanisms already read.
@@ -336,17 +380,24 @@ a behavior change can't silently break the nightly suite.
 
 ## Open questions — ALL RESOLVED (2026-10-21, user-answered; detail in design §9)
 
-1. **Preview surface (R7.1) — RESOLVED.** The form is CloudFront-hosted at a predictable name (e.g.
-   `tenant-member-application.jabaki.nl`, overridable with a tenant private URL). The live preview is
-   an `<iframe>` to that hosted form — no new preview route; the preview IS the real form.
-2. **Preview freshness (R7.4) — RESOLVED.** Save-then-preview: last-saved state, the iframe reloads
-   after a save. No client-side filter mirror. TEST applications are trivially deletable; PROD editing
-   by a Tenant_Admin is expected.
-3. **Embed origin (R5.2) — RESOLVED.** Enforced by CSP `frame-ancestors` on the CloudFront-hosted FORM
-   (distinct from CORS on the SAM API). One tenant list `application_embed_origins` on `config#mail`
-   feeds both (CloudFront `frame-ancestors` via a `viewer-response` function + KVS; SAM API CORS). No
-   admin-SPA hosting migration required (that is a separate ADR — design §9.1).
+1. **Preview surface (R7.1) — RESOLVED.** In-app preview reusing spec 10's `ApplicationFormRenderer`,
+   fed by a NEW server-side `POST /members/application-preview` (`members:admin`) that runs the EXACT
+   server `get_public_field_config` filter over the working `field_overlay` — no client-side mirror,
+   no drift, shows unsaved edits live. The CloudFront-hosted form is the real public form, surfaced as
+   an "open live form" link, NOT the preview mechanism.
+2. **Preview freshness (R7.4) — RESOLVED.** The preview reflects the WORKING (unsaved) config via the
+   server-preview endpoint (R7.1), so a change shows before save. The hosted form reflects LAST SAVED
+   config (a save shows on its next load); TEST applications are trivially deletable, PROD editing by a
+   Tenant_Admin is expected.
+3. **Embedding (R5.2) — RESOLVED: TWO modes, day-one.** (a) OWN landing page = a native landing-page
+   BLOCK via the shared renderer (same-origin, no iframe) — owned here as one deliverable. (b) EXTERNAL
+   = `<iframe>` of the hosted form, gated by `application_embed_origins` on `config#mail`, enforced by
+   CloudFront `frame-ancestors` (a `viewer-response` function + KVS) AND SAM-API CORS, with a
+   `postMessage` responsive-resize handshake for sandboxed gadgets. Confirmed targets:
+   `https://sites.google.com` (Google Site) + `https://portal.h-dcn.nl`. No admin-SPA hosting migration
+   (separate ADR — design §9.1).
 4. **Reply-To / scope-copy (R5.4) — RESOLVED.** ONE Reply-To for all in v1 (`mail_reply_to_default` on
-   `config#mail`); `application_scope_copy` is an optional CC toggle that does not change Reply-To. All
-   three stay on the existing Mail sub-tab (one authoring home); the builder references them. Per-scope
-   Reply-To is a future additive enhancement — simplifies spec 10's D8/D24.
+   `config#mail`); WHEN unset it falls back to the certified From (no bounce). `application_scope_copy`
+   is an optional CC toggle that does not change Reply-To. All three on the existing Mail sub-tab (one
+   authoring home); the builder references them. Per-scope Reply-To is a future enhancement — simplifies
+   spec 10's D8/D24.

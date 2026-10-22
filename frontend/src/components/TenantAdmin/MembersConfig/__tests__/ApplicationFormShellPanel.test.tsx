@@ -20,14 +20,23 @@ import { render, screen, fireEvent } from '../../../../test-utils';
 import type { FieldConfig } from '../../../../types/members';
 import { ApplicationFormShellPanel } from '../ApplicationFormShellPanel';
 import {
+  CONFIRMED_EMBED_ORIGINS,
+  IFRAME_EMBED_ELEMENT_ID,
   type ShellFormValues,
+  buildIframeResizeListenerScript,
   buildIframeSnippet,
+  deriveApplicationFormUrl,
+  deriveFrameOrigin,
   derivePublicUrl,
   mailConfigToShellValues,
   parseEmbedOrigins,
   resolveConsentVersion,
   toShellMailBody,
 } from '../applicationShellForm';
+import {
+  IFRAME_RESIZE_MESSAGE_TYPE,
+  IFRAME_RESIZE_SOURCE,
+} from '../../../public/application/iframeResize';
 
 /* ------------------------------------------------------------------ */
 /*  Pure helpers (applicationShellForm)                                */
@@ -43,6 +52,17 @@ describe('applicationShellForm — public URL derivation (R5.1 / E4)', () => {
   });
 });
 
+describe('applicationShellForm — application-form URL (/apply) derivation (R5.1 / E4)', () => {
+  it('derives <slug>.jabaki.nl/apply — the form lives at /apply, landing owns /', () => {
+    expect(deriveApplicationFormUrl('h-dcn')).toBe('https://h-dcn.jabaki.nl/apply');
+  });
+  it('returns null when there is no slug (no address yet)', () => {
+    expect(deriveApplicationFormUrl(null)).toBeNull();
+    expect(deriveApplicationFormUrl('')).toBeNull();
+    expect(deriveApplicationFormUrl('   ')).toBeNull();
+  });
+});
+
 describe('applicationShellForm — iframe snippet + origins (R5.2)', () => {
   it('builds a snippet referencing the public URL', () => {
     const snippet = buildIframeSnippet('https://h-dcn.jabaki.nl');
@@ -52,11 +72,138 @@ describe('applicationShellForm — iframe snippet + origins (R5.2)', () => {
   it('returns an empty snippet when there is no public URL', () => {
     expect(buildIframeSnippet(null)).toBe('');
   });
+  it('tags the iframe with the stable element id (so the resize listener can find it)', () => {
+    const snippet = buildIframeSnippet('https://h-dcn.jabaki.nl/apply');
+    expect(snippet).toContain(`id="${IFRAME_EMBED_ELEMENT_ID}"`);
+  });
   it('parses origins (newline/comma), trims, de-dups, preserves order', () => {
     expect(parseEmbedOrigins('https://a.org\nhttps://b.org, https://a.org\n\n')).toEqual([
       'https://a.org',
       'https://b.org',
     ]);
+  });
+});
+
+describe('applicationShellForm — responsive iframe-resize snippet (E4b / task 5.4)', () => {
+  it('derives the frame ORIGIN (scheme+host) from the public URL, dropping the path', () => {
+    expect(deriveFrameOrigin('https://h-dcn.jabaki.nl/apply')).toBe('https://h-dcn.jabaki.nl');
+    expect(deriveFrameOrigin(null)).toBeNull();
+    expect(deriveFrameOrigin('not a url')).toBeNull();
+  });
+
+  it('the snippet carries a resize listener scoped to the hosted form ORIGIN (not a wildcard)', () => {
+    const snippet = buildIframeSnippet('https://h-dcn.jabaki.nl/apply');
+    expect(snippet).toContain('<script>');
+    expect(snippet).toContain('addEventListener("message"');
+    // Origin-pinned to the exact hosted-form origin — never a wildcard.
+    expect(snippet).toContain('"https://h-dcn.jabaki.nl"');
+    expect(snippet).toContain('event.origin !== ORIGIN');
+    expect(snippet).not.toContain('"*"');
+  });
+
+  it('the listener validates the message TYPE + SOURCE tokens (in lockstep with the emitter)', () => {
+    const script = buildIframeResizeListenerScript('https://h-dcn.jabaki.nl');
+    expect(script).toContain(JSON.stringify(IFRAME_RESIZE_MESSAGE_TYPE));
+    expect(script).toContain(JSON.stringify(IFRAME_RESIZE_SOURCE));
+    // It resizes ONLY the specific iframe, nothing else on the host page.
+    expect(script).toContain(JSON.stringify(IFRAME_EMBED_ELEMENT_ID));
+    expect(script).toContain('style.height');
+  });
+
+  it('omits the listener script when the origin cannot be derived (no-JS fixed-height fallback)', () => {
+    expect(buildIframeResizeListenerScript(null)).toBe('');
+  });
+
+  /**
+   * A behavioral check: run the GENERATED listener against the embedder's window and assert it only
+   * resizes the iframe for a well-formed, same-origin height message — and ignores a wrong-origin
+   * one, a wrong-shape one, and a non-numeric height (secure postMessage, CWE-346).
+   */
+  it('the generated listener resizes ONLY on a valid, origin-matching height message', () => {
+    const FRAME_ORIGIN = 'https://h-dcn.jabaki.nl';
+    // Execute the listener BODY directly. We do NOT regex-strip the <script> tags (that is a
+    // tag-sanitization anti-pattern CodeQL rightly flags — js/incomplete-multi-character-
+    // sanitization). Instead we slice between the known, author-controlled delimiters: the
+    // helper builds `<script>\n…\n</script>`, so the body is everything between the first
+    // `>` and the final `</script>`. No HTML parsing/sanitization involved.
+    const wrapped = buildIframeResizeListenerScript(FRAME_ORIGIN);
+    const script = wrapped.slice(wrapped.indexOf('>') + 1, wrapped.lastIndexOf('</script>'));
+
+    // A fake iframe element the listener targets by id.
+    const frame = { style: { height: '' } };
+    const getElementById = vi.fn((id: string) =>
+      id === IFRAME_EMBED_ELEMENT_ID ? (frame as unknown as HTMLElement) : null,
+    );
+    let handler: ((event: { origin: string; data: unknown }) => void) | null = null;
+    const fakeWindow = {
+      addEventListener: (type: string, fn: (event: { origin: string; data: unknown }) => void) => {
+        if (type === 'message') handler = fn;
+      },
+    };
+    // Execute the generated script with our fakes bound as window/document.
+    // eslint-disable-next-line no-new-func
+    new Function('window', 'document', script)(fakeWindow, { getElementById });
+    expect(handler).toBeTypeOf('function');
+
+    const valid = {
+      type: IFRAME_RESIZE_MESSAGE_TYPE,
+      source: IFRAME_RESIZE_SOURCE,
+      height: 742.3,
+    };
+
+    // Wrong origin → ignored.
+    handler!({ origin: 'https://evil.example.org', data: valid });
+    expect(frame.style.height).toBe('');
+
+    // Wrong shape → ignored.
+    handler!({ origin: FRAME_ORIGIN, data: { type: 'something-else', height: 500 } });
+    expect(frame.style.height).toBe('');
+
+    // Non-numeric height → ignored.
+    handler!({ origin: FRAME_ORIGIN, data: { ...valid, height: 'tall' } });
+    expect(frame.style.height).toBe('');
+
+    // Valid + same origin → resizes (ceil'd).
+    handler!({ origin: FRAME_ORIGIN, data: valid });
+    expect(frame.style.height).toBe('743px');
+  });
+});
+
+describe('applicationShellForm — confirmed-target seeding (R5.2b)', () => {
+  it('exposes the two confirmed v1 external targets', () => {
+    expect(CONFIRMED_EMBED_ORIGINS).toEqual(['https://sites.google.com', 'https://portal.h-dcn.nl']);
+  });
+
+  it('SEEDS the confirmed targets when the tenant has authored no origins (standalone stays default)', () => {
+    const values = mailConfigToShellValues({ fields: [] }, 'h-dcn');
+    expect(values.embedMode).toBe('standalone');
+    expect(values.embedOrigins).toEqual(['https://sites.google.com', 'https://portal.h-dcn.nl']);
+  });
+
+  it('seeds the confirmed targets even when there is no mail_config at all', () => {
+    const values = mailConfigToShellValues(null, 'h-dcn');
+    expect(values.embedOrigins).toEqual(['https://sites.google.com', 'https://portal.h-dcn.nl']);
+  });
+
+  it('a tenant with stored origins keeps THEIR list verbatim (seed never overrides)', () => {
+    const cfg: FieldConfig = {
+      fields: [],
+      mail_config: {
+        mail_enabled: true,
+        mail_certified: true,
+        application_embed_origins: ['https://own.example.org'],
+      },
+    };
+    const values = mailConfigToShellValues(cfg, 'h-dcn');
+    expect(values.embedMode).toBe('iframe');
+    expect(values.embedOrigins).toEqual(['https://own.example.org']);
+  });
+
+  it('a seeded-but-standalone tenant still writes NO origins (back-compatible)', () => {
+    // The seed is a starting point only — while standalone, toShellMailBody omits the key.
+    const values = mailConfigToShellValues({ fields: [] }, 'h-dcn');
+    const body = toShellMailBody(values, { mail_enabled: false, mail_certified: false }, '');
+    expect(body.application_embed_origins).toBeUndefined();
   });
 });
 
@@ -186,8 +333,20 @@ describe('ApplicationFormShellPanel — public URL display (R5.1)', () => {
   it('displays the derived public URL when a slug exists', () => {
     renderPanel();
     expect(screen.getByTestId('application-form-shell-public-url')).toHaveTextContent(
-      'https://h-dcn.jabaki.nl',
+      'https://h-dcn.jabaki.nl/apply',
     );
+  });
+
+  it('surfaces an "open live form" link to the hosted form, opening in a new tab (R5.1 / R7.3)', () => {
+    renderPanel();
+    const link = screen.getByTestId('application-form-shell-open-live');
+    expect(link).toHaveAttribute('href', 'https://h-dcn.jabaki.nl/apply');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
+
+  it('shows NO "open live form" link when there is no public address yet', () => {
+    renderPanel({ ...BASE_VALUES, slug: null });
+    expect(screen.queryByTestId('application-form-shell-open-live')).not.toBeInTheDocument();
   });
 
   it('shows "no address yet" + a Landing Page editor link when no slug', () => {
@@ -208,7 +367,7 @@ describe('ApplicationFormShellPanel — embed mode (R5.2)', () => {
   it('shows a copy-ready snippet referencing the public URL + the origins input when iframe', () => {
     renderPanel({ ...BASE_VALUES, embedMode: 'iframe' });
     expect(screen.getByTestId('application-form-shell-iframe-snippet')).toHaveTextContent(
-      'https://h-dcn.jabaki.nl',
+      'https://h-dcn.jabaki.nl/apply',
     );
     expect(screen.getByTestId('application-form-shell-embed-origins')).toBeInTheDocument();
   });
@@ -220,6 +379,26 @@ describe('ApplicationFormShellPanel — embed mode (R5.2)', () => {
     });
     const next = onChange.mock.calls[0][0] as ShellFormValues;
     expect(next.embedOrigins).toEqual(['https://a.org', 'https://b.org']);
+  });
+
+  it('switching to iframe with no origins SEEDS the confirmed targets (R5.2b)', () => {
+    const { onChange } = renderPanel({ ...BASE_VALUES, embedMode: 'standalone', embedOrigins: [] });
+    fireEvent.click(screen.getByTestId('application-form-shell-embed-iframe'));
+    const next = onChange.mock.calls[0][0] as ShellFormValues;
+    expect(next.embedMode).toBe('iframe');
+    expect(next.embedOrigins).toEqual(['https://sites.google.com', 'https://portal.h-dcn.nl']);
+  });
+
+  it('switching to iframe does NOT clobber an existing non-empty origins list', () => {
+    const { onChange } = renderPanel({
+      ...BASE_VALUES,
+      embedMode: 'standalone',
+      embedOrigins: ['https://own.example.org'],
+    });
+    fireEvent.click(screen.getByTestId('application-form-shell-embed-iframe'));
+    const next = onChange.mock.calls[0][0] as ShellFormValues;
+    expect(next.embedMode).toBe('iframe');
+    expect(next.embedOrigins).toEqual(['https://own.example.org']);
   });
 });
 

@@ -774,7 +774,8 @@
       "contact": "Contact",
       "properties": "Accommodaties",
       "services": "Diensten",
-      "video": "Video"
+      "video": "Video",
+      "application-form": "Aanmeldformulier"
     },
     "blockDescriptions": {
       "hero": "Grote banner met afbeelding en kop",
@@ -788,7 +789,8 @@
       "contact": "Contactformulier voor bezoekers",
       "properties": "Je STR-accommodaties",
       "services": "Je ZZP-diensten",
-      "video": "Ingesloten YouTube-videospeler"
+      "video": "Ingesloten YouTube-videospeler",
+      "application-form": "Je aanmeldformulier voor leden, direct op deze pagina getoond"
     },
     "layouts": {
       "image-right": "Afbeelding rechts",
