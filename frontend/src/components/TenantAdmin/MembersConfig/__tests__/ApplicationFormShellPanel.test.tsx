@@ -121,12 +121,13 @@ describe('applicationShellForm — responsive iframe-resize snippet (E4b / task 
    */
   it('the generated listener resizes ONLY on a valid, origin-matching height message', () => {
     const FRAME_ORIGIN = 'https://h-dcn.jabaki.nl';
-    // Strip the wrapping <script>…</script> so we can execute the listener body directly.
-    // Case-insensitive + attribute-tolerant so it matches <SCRIPT ...> too (js/bad-tag-filter).
-    const script = buildIframeResizeListenerScript(FRAME_ORIGIN).replace(
-      /<\/?script\b[^>]*>/gi,
-      '',
-    );
+    // Execute the listener BODY directly. We do NOT regex-strip the <script> tags (that is a
+    // tag-sanitization anti-pattern CodeQL rightly flags — js/incomplete-multi-character-
+    // sanitization). Instead we slice between the known, author-controlled delimiters: the
+    // helper builds `<script>\n…\n</script>`, so the body is everything between the first
+    // `>` and the final `</script>`. No HTML parsing/sanitization involved.
+    const wrapped = buildIframeResizeListenerScript(FRAME_ORIGIN);
+    const script = wrapped.slice(wrapped.indexOf('>') + 1, wrapped.lastIndexOf('</script>'));
 
     // A fake iframe element the listener targets by id.
     const frame = { style: { height: '' } };
