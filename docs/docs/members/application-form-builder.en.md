@@ -52,8 +52,10 @@ The attributes appear only once the field is on the form. If a field is off, its
 The form-shell panel controls how the public form is reachable:
 
 - **Public address (URL)** — the form's address is derived from your landing page's **slug**. If you have no slug yet, you see "no address yet" with a link to the [Landing Page editor](../landing-page/index.md), where you set the slug. You manage the slug there, not in the builder.
-- **Embedding** — choose **standalone** (a separate page) or **iframe** (embedded in your own website). For iframe you get a ready-to-copy snippet.
-- **Allowed origins** — when embedding, you list which websites may show the form in an iframe. With no origins listed, the form stays standalone (no one may embed it).
+- **Embedding** — the form can appear on another page in two ways:
+    - **On your own landing page** — add the form as a **block** in the [Landing Page editor](../landing-page/index.md). The form is then rendered directly as part of your own page (same styling, no iframe).
+    - **On an external site** (for example a Google Site or your event portal) — use the ready-to-copy **iframe snippet** the builder generates for you. The embedded form resizes its height automatically so it is not clipped.
+- **Allowed origins** — for an external embed, you list which websites may show the form in an iframe (for example `https://sites.google.com` and your event portal). If you list no origins, no external site may embed the form.
 - **Consent notice** — the bilingual (NL/EN) text an applicant must agree to. Every change **bumps the version number**, so each application records exactly which text the applicant agreed to.
 
 !!! info
@@ -76,13 +78,17 @@ Readiness uses the same "ready to send" signal as the public form itself. Only w
 
 ## Live preview (the preview panel)
 
-The preview panel shows the **real** public form in an embedded window, exactly as an applicant sees it. The preview reflects the **last saved** state.
+The preview panel shows the public form **in the app**, exactly as an applicant sees it — with the same rendering as the real form. The preview follows your **working copy live**: turn a field on, make it required, or restrict its choices, and it appears in the preview immediately, before you even save.
 
-- If you change something, click **Save** and use the **Update preview** button to reload the window.
-- Because the preview is the real form, what you see here is exactly what an applicant gets — there is no separate view that can drift.
+- So you do **not** need to save to see a change in the preview — the preview reflects your unsaved edits.
+- The preview is **read-only**: you cannot submit anything in it; it is for checking, not for making an application.
+- Because the preview uses the same filtering and the same rendering code as the real form, you get exactly what an applicant sees — there is no separate view that can drift.
+
+!!! info
+The preview shows your **working copy** (not yet saved). The **real** public form — reachable via the **Open live form** button in the form-shell panel — reflects the **last saved** state; a saved change appears there the next time it is loaded.
 
 !!! tip
-Work in small steps: turn a field on, save, refresh the preview and check the result before moving on.
+Work in small steps: turn a field on, check it right away in the preview, and save once it looks right.
 
 ## Permissions
 
@@ -101,5 +107,5 @@ Configuring the application form is reserved for the **Tenant Admin**. The confi
 | The form does not open for applicants          | No verified sender (readiness not met)                       | Verify a sender via [Sender verification](../tenant-admin/sender-verification.md) |
 | The required toggle is locked on               | The platform already marks this field required              | This is intentional — a platform-required field cannot be relaxed         |
 | Choice subset not available on a field         | The field is not a choice-list field                         | A choice subset applies only to fields with options                       |
-| Preview shows an old state                     | The preview reflects the last saved state                    | Click **Save**, then **Update preview**                                   |
+| Live form shows an old state                   | The *live* form reflects the last saved state (the preview shows the working copy) | Click **Save**; the change appears on the live form the next time it is loaded |
 | Application form sub-tab is missing            | The Member Administration module is not enabled              | Ask your SysAdmin to enable the module for your tenant                    |

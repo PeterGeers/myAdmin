@@ -120,10 +120,11 @@ existing editor; exported from the barrel `index.ts`):
 | --- | --- |
 | `ApplicationFormBuilder.tsx` | The sub-tab root. Loads the resolved field config + `config#mail`; owns ONE working `field_overlay` copy; lays out the four panels; commits via `saveMembersParameter`/`writeConfig`. |
 | `ApplicationFieldList.tsx` | R2 — the grouped, ordered field list with the on-the-form toggle per row; drives selection into the working overlay via `overlayModel.upsertField`. |
-| `ApplicationFieldAttributes.tsx` | R3/R4 — for a selected on-the-form field: application-required toggle (disabled when platform-required), the enum **subset picker** (reuses `EnumOptionsEditor` constrained to the field's own choices), the **format** dropdown (fed by the SAM known tokens). |
-| `ApplicationFormShellPanel.tsx` | R5 — public URL display (derived from slug), embed-mode chooser + iframe snippet + allowed-origin input, and the bilingual **consent-notice** editor (versioned). |
+| `ApplicationFieldAttributes.tsx` | R3/R4 — for a selected on-the-form field: application-required toggle (disabled when platform-required), the enum **subset picker** (a READ-ONLY multi-select/checkbox list over the field's existing `options`, ticking values into `application_choices` — NOT `EnumOptionsEditor`, which edits the vocabulary), the **format** dropdown (fed by the SAM known tokens). |
+| `ApplicationFormShellPanel.tsx` | R5 — "open live form" URL (derived from slug); the TWO embed modes: the native landing-page block control (E4a) + the external iframe snippet + allowed-origin editor (E4b); and the bilingual versioned **consent-notice** editor. |
 | `ApplicationReadinessPanel.tsx` | R6 — certified-sender / slug / ≥1-field summary; neutral "not available" guidance; link to sender verification. |
-| `ApplicationFormPreview.tsx` | R7 — renders the public form via the spec-10 `ApplicationFormRenderer` over the public field-config read (OQ1). |
+| `ApplicationFormPreview.tsx` | R7 — renders the public form IN-APP via the spec-10 `ApplicationFormRenderer`, fed by `POST /members/application-preview` (server-produced schema over the working config; shows unsaved edits live, S1/S2). |
+| landing-page **application-form block** (E4a) | R5.2a — a native landing-page block that renders the form via the shared `ApplicationFormRenderer`, registered in the landing-page block registry (`frontend/src/pages/public/blocks/` + the block config). Owned here as one deliverable; same-origin, no iframe. |
 
 **Integration point:** in `TenantAdminDashboard.tsx`, inside the `hasMembers` TabPanel's nested
 `<Tabs>`, add a fourth `<Tab>` ("Aanmeldformulier" / "Application form", `data-testid=
@@ -159,9 +160,10 @@ for authoring ergonomics + tests).
 - **Save field overlay:** `saveMembersParameter('field_overlay', overlay)` → `writeFieldConfig` →
   `PUT /members/config/fields`. Authoritative; returns the new row version; no projection wait.
 - **Save mail config:** `writeConfig('mail', body)` → `PUT /members/config/mail`.
-- **Preview (R7 — RESOLVED S1/S2):** an `<iframe>` pointed at the CloudFront-hosted public form URL.
-  No new read route; the preview reflects the LIVE (last-saved) config. The builder reloads the
-  iframe after a save ("save to update preview").
+- **Preview (R7 — RESOLVED S1/S2):** IN-APP render via the shared spec-10 `ApplicationFormRenderer`,
+  fed by `POST /members/application-preview` (the server runs the real `get_public_field_config` filter
+  over the working `field_overlay`) — shows unsaved edits live, no client mirror. The CloudFront-hosted
+  form is the real public form, surfaced as an "open live form" link, not the preview.
 
 ---
 
@@ -192,11 +194,18 @@ but it is malformed (blank version, or no non-blank locale text), REJECT with a 
 `ConfigWriteValidationError` rather than silently omitting — so an admin's broken notice surfaces
 instead of vanishing. A truly absent notice (key omitted) still writes nothing (back-compatible).
 
-### 5.3 No new route, no new capability
-Both validations hang off the EXISTING `PUT /members/config/{configId}` path (`members:admin`-gated,
-tenant from the token). No route, capability, or template change for the validation itself. The embed
-allowed-origins carrier (§2.3/OQ3) may add a `config#mail` attribute + a public-API template read —
-pinned in Phase 0 / §7.
+### 5.3 Backend surface this spec adds (beyond the validation)
+The validation hardening (5.1/5.2) hangs off the EXISTING `PUT /members/config/{configId}` path
+(`members:admin`-gated, tenant from the token) — no route/capability change for that. This spec DOES
+add a small amount of backend surface:
+- **`POST /members/application-preview`** (`members:admin`, R7.2): takes the working `field_overlay`,
+  runs the real `get_public_field_config` filter, returns the applicant-facing schema. Read-only
+  (never writes). One new route on the authenticated members API (NOT the public edge).
+- **`application_embed_origins`** on `config#mail` (R5.2b): accepted/validated by `_validate_mail_body`,
+  consumed by (a) the CloudFront `frame-ancestors` `viewer-response` function and (b) the spec-10
+  public API CORS. See §2.3 + Phase 5.
+- Optionally the format-token carrier (S4): `known_tokens()` in the `GET /members/field-config`
+  metadata or a tiny `GET /members/field-formats`.
 
 ---
 
@@ -206,10 +215,14 @@ pinned in Phase 0 / §7.
   .is_send_ready`): certified sender (`mail_certified` + `mail_domain`) AND a resolvable slug. The
   panel computes it from the loaded `config#mail` + slug presence; it SHALL NOT re-derive mail
   internals into the UI beyond the boolean states (no domain leak in any public-facing string).
-- **Preview (R7 — RESOLVED S1/S2):** an `<iframe>` to the CloudFront-hosted public form. Because it IS
-  the real form, the preview and the live form are the SAME code path by construction (no separate
-  renderer wiring). A not-send-ready tenant's hosted form shows the neutral 409 "not available" state
-  (R7.3). The preview reflects last-saved config; the builder reloads the iframe after each save.
+- **Preview (R7 — RESOLVED S1/S2):** renders IN-APP via the spec-10 `ApplicationFormRenderer` over the
+  schema returned by `POST /members/application-preview` (the server runs the real
+  `get_public_field_config` filter over the working `field_overlay`), so the preview shows UNSAVED
+  edits live, shares the public renderer's code path, AND shares the server's filtering authority (no
+  client mirror to drift). When the tenant is not send-ready the readiness panel (R6) shows the neutral
+  "not available" state; the preview still renders the schema so the admin can author before the sender
+  is certified. The "open live form" link to the hosted CloudFront form is the authoritative check
+  (R7.3).
 
 ---
 
@@ -248,17 +261,21 @@ pinned in Phase 0 / §7.
 
 All five are now DECIDED from the spec-10 findings answers; none blocks the architecture.
 
-- **S1 (OQ1) — RESOLVED: preview = the CloudFront-hosted public form, in an iframe.** The
-  application form is hosted on CloudFront at a predictable name (e.g.
-  `tenant-member-application.jabaki.nl`), overridable with a tenant's private URL (same pattern as the
-  landing pages, `infrastructure/landing-pages.tf`). The builder's live preview is simply an
-  `<iframe>` pointed at that hosted URL — NO new authenticated preview route. The preview therefore
-  shows the LIVE (last-saved) `config#fields`, which dovetails with S2. → R7.
-- **S2 (OQ2) — RESOLVED: preview is last-saved; save-then-preview.** The builder does NOT mirror the
-  server's `get_public_field_config` filter client-side. The admin edits, SAVES (the one
-  `config#fields` write), and the preview iframe reloads the hosted form to reflect it. In TEST,
-  applications land in test SAM and are trivially deletable; in PROD a Tenant_Admin editing their own
-  form is expected. The builder shows a clear "save to update preview" affordance. → R7.4.
+- **S1 (OQ1) — RESOLVED: preview = IN-APP render via the shared `ApplicationFormRenderer`, fed by a
+  SERVER preview endpoint.** The builder previews by reusing spec 10's React renderer
+  (`frontend/src/components/public/application/ApplicationFormRenderer.tsx`) INSIDE the builder, over a
+  schema produced by a NEW authenticated `POST /members/application-preview` (`members:admin`) that
+  runs the EXACT server `get_public_field_config` filter over the working `field_overlay` in the
+  request body. This keeps BOTH a single renderer AND a single filtering authority — no client-side
+  mirror, so no drift (the improvement over the earlier client-mirror sketch). Shows UNSAVED edits
+  live. The CloudFront-hosted public form (`tenant-member-application.jabaki.nl`, overridable; same
+  pattern as the landing pages, `infrastructure/landing-pages.tf`) remains the REAL public form,
+  surfaced as an "open live form" link (R5.1) — NOT the preview mechanism. → R7.
+- **S2 (OQ2) — RESOLVED: preview reflects the WORKING (unsaved) config via the server endpoint.** The
+  builder debounces the working `field_overlay` to `POST /members/application-preview` and feeds the
+  returned schema to the renderer — a change shows before save, with zero client-side filter logic.
+  The hosted form reads live `config#fields`, so a save is reflected there on next load; TEST
+  applications are trivially deletable, PROD editing by a Tenant_Admin is expected. → R7.4.
 - **S3 (OQ3) — RESOLVED: host the form on CloudFront; embed control is `frame-ancestors`, not CORS.**
   The "allowed embedding origin" is enforced by a **Content-Security-Policy `frame-ancestors`**
   response header on the CloudFront-hosted FORM (who may put the form in an `<iframe>`) — distinct
@@ -300,8 +317,12 @@ spec; capture it as its own ADR/spec if pursued.
 | Builder sub-tab | `frontend/.../TenantAdmin/TenantAdminDashboard.tsx` | Add a 4th `<Tab>`/`<TabPanel>` in the Members nested `<Tabs>` | the existing Field-config / Membership-types / Mail sub-tabs |
 | Builder components | new `frontend/.../MembersConfig/ApplicationFormBuilder.tsx` (+ the 5 sub-components); barrel `index.ts` | New authoring view over the working overlay + config#mail | `MembersConfigEditor` + `MembersFieldModal` + `MembersMailConfigEditor` |
 | Overlay typing | `frontend/.../MembersConfig/overlayModel.ts` | Add the 4 optional app-attr keys to `OverlayField`; helpers unchanged (verbatim pass-through) | the existing `scope`/`choices` keys |
-| Field-list + attrs | reuse `overlayModel.upsertField`, `EnumOptionsEditor` | Author the 4 attrs into the one overlay | `MembersFieldModal`'s `buildField`/`handleSave` |
-| Preview | `<iframe>` → the CloudFront-hosted public form URL (S1) | Embed the real hosted form read-only; reload after save | the landing-page CloudFront hosting (`infrastructure/landing-pages.tf`) |
+| Field-list + attrs | reuse `overlayModel.upsertField`; a NEW read-only subset multi-select over the field's `options` (NOT `EnumOptionsEditor`) | Author the 4 attrs into the one overlay | `MembersFieldModal`'s `buildField`/`handleSave` for the overlay write; a Chakra `CheckboxGroup`/multi-select for the subset |
+| Preview (frontend) | reuse spec-10 `frontend/src/components/public/application/ApplicationFormRenderer.tsx` in `ApplicationFormPreview.tsx` | In-app render over the server-preview schema (S1/S2) | the landing-page in-app `PreviewPanel.tsx` reusing the public block renderers |
+| Preview endpoint (SAM) | new `POST /members/application-preview` in `sam/members/handler/routes.py` + `_dispatch` → `ApplicationService.get_public_field_config`-over-body | Run the real server filter over the working `field_overlay`; read-only; `members:admin` | the existing `get_field_config` route + `ApplicationService.get_public_field_config` |
+| "Open live form" link | the CloudFront-hosted form URL (`infrastructure/landing-pages.tf` pattern) | Surface the real public form URL in the form-shell panel (authoritative check) | the landing-page public URL surfacing |
+| Native landing-page block (E4a) | `frontend/src/pages/public/blocks/` (new application-form block) + the block registry/config + `AddBlockModal` | Render the form as a same-origin landing-page block via the shared renderer | the existing hero/gallery/embed blocks + `PreviewPanel` dispatch |
+| External iframe + resize (E4b) | the hosted form page (spec-10 public SPA) emits a `postMessage` height; `ApplicationFormShellPanel` generates the snippet | Responsive embed inside a sandboxed Google Sites gadget | standard iframe-resize `postMessage` handshake |
 | Embed `frame-ancestors` | `infrastructure/*.tf` (form CloudFront dist + a `viewer-response` function) + the KVS pattern | Set per-tenant CSP `frame-ancestors` from `application_embed_origins` | the `myadmin-domain-slug-mapping` KVS + `public_pages_url_rewrite` function |
 | Known tokens read | SAM `sam/members/domain/field_formats.py::known_tokens` + a carrier (S4) | Expose the token set to the builder | `get_field_config` metadata |
 | App-attr write validation | `sam/members/domain/config_write_service.py` (`_validate_fields_body` + a new per-field app-attr check) | Reject subset⊄choices / unknown checker / relax | retired Flask `members_config_validation._validate_application_attrs` |
@@ -312,8 +333,13 @@ spec; capture it as its own ADR/spec if pursued.
 
 - **Frontend** (`33-frontend-testing`): builder authors the four attrs into the overlay (subset only
   on enum fields; required disabled for platform-required; format dropdown only known tokens);
-  one-object/one-save; consent-notice version bumps on change; readiness states; preview consumes the
-  real contract; axe over the builder.
+  one-object/one-save; consent-notice version bumps on change; readiness states; preview renders the
+  server-preview schema and reflects unsaved edits; the native landing-page block renders the form;
+  the external-embed snippet + `postMessage` resize behave in a Google Sites iframe; axe over the
+  builder.
 - **SAM** (`34-backend-testing`, `sam/tests/`): `ConfigWriteService` rejects subset⊄choices, unknown
   checker, platform-required relax, malformed consent; coherent body writes; defaults still write.
+  `POST /members/application-preview` returns `get_public_field_config` parity, is `members:admin`-gated,
+  never writes. `application_embed_origins` validation + the CORS/`frame-ancestors` reflect the
+  configured origins and deny others.
 - Paired in the same change (change-with-tests, steering 30/34). No Flask tests (no Flask change).

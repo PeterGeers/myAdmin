@@ -180,6 +180,16 @@ export const BLOCK_TYPE_DEFINITIONS: BlockTypeDefinition[] = [
     requiresModule: 'ZZP',
   },
   {
+    type: 'application-form',
+    icon: '📝',
+    defaultLayout: 'contained',
+    layouts: [
+      { id: 'contained', label: 'Contained', thumbnail: SVG_THUMBNAILS.ctaDefault },
+      { id: 'full-width', label: 'Full Width', thumbnail: SVG_THUMBNAILS.faqDefault },
+    ],
+    requiresModule: 'MEMBERS',
+  },
+  {
     type: 'video',
     icon: '🎬',
     defaultLayout: 'centered',

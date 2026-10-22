@@ -13,6 +13,7 @@ import {
   EmbedBlock,
   ContactBlock,
   ServicesBlock,
+  ApplicationFormBlock,
 } from './blocks';
 import NotFoundPage from './NotFoundPage';
 import {
@@ -141,6 +142,14 @@ function BlockDispatcher({ section, cloudFrontUrl, tenantSlug }: BlockDispatcher
           cloudFrontUrl={baseUrl}
         />
       );
+    case 'application-form':
+      return (
+        <ApplicationFormBlock
+          properties={section.properties as ApplicationFormBlockProps['properties']}
+          layout={section.layout}
+          tenantSlug={tenantSlug}
+        />
+      );
     default:
       // Unknown block types are skipped gracefully
       return null;
@@ -158,6 +167,7 @@ import type { CtaBlockProps } from './blocks/CtaBlock';
 import type { EmbedBlockProps } from './blocks/EmbedBlock';
 import type { ContactBlockProps } from './blocks/ContactBlock';
 import type { ServicesBlockProps } from './blocks/ServicesBlock';
+import type { ApplicationFormBlockProps } from './blocks/ApplicationFormBlock';
 
 // ---------- Main Component ----------
 

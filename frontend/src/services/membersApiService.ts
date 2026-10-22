@@ -102,6 +102,7 @@ export {
 // --- Config resource group (field-config + membership-type catalog + SAM config write) ---
 export {
   getFieldConfig,
+  previewApplicationFieldConfig,
   listMembershipTypes,
   createMembershipType,
   updateMembershipType,

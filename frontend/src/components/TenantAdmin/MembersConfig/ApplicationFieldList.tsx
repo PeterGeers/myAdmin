@@ -175,6 +175,34 @@ export const ApplicationFieldList: React.FC<ApplicationFieldListProps> = ({
                 const offerable = isOfferable(field);
                 const on = isOnForm(overlay, field);
                 const isMembershipAdmin = field.group === MEMBERSHIP_STORAGE_GROUP;
+                // Selection (opening the field's attributes panel) must be keyboard-operable
+                // (WCAG 2.1.1) WITHOUT nesting interactive controls (WCAG 4.1.2 / axe
+                // `nested-interactive`): the on-the-form `Switch` is a focusable control, so the
+                // SELECTOR cannot be the whole row (that would make a button contain a focusable
+                // descendant). Instead the label/key region IS the button — a focusable
+                // Enter/Space-operable control that announces its selected state via aria-pressed —
+                // and the Switch sits beside it as an independent sibling control. A non-offerable
+                // row renders a plain, non-interactive label region (out of the tab order).
+                const onSelectKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+                  if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                    e.preventDefault();
+                    onSelect?.(field.key);
+                  }
+                };
+                const selectorA11y = offerable
+                  ? {
+                    role: 'button' as const,
+                    tabIndex: 0,
+                    'aria-pressed': selectedKey === field.key,
+                    'aria-label': t(
+                      `Veldinstellingen voor ${label}`,
+                      `Field attributes for ${label}`,
+                    ),
+                    cursor: 'pointer' as const,
+                    onClick: () => onSelect?.(field.key),
+                    onKeyDown: onSelectKeyDown,
+                  }
+                  : {};
                 return (
                   <HStack
                     key={field.key}
@@ -185,11 +213,12 @@ export const ApplicationFieldList: React.FC<ApplicationFieldListProps> = ({
                     borderRadius="md"
                     px={3}
                     py={2}
-                    cursor={offerable ? 'pointer' : undefined}
-                    onClick={() => offerable && onSelect?.(field.key)}
                     data-testid={`application-field-row-${field.key}`}
                   >
-                    <Box minW={0}>
+                    {/* The selector = the label region (a button on an offerable row). It carries
+                        NO focusable descendants (plain Text/Badge), so nesting the on-the-form
+                        Switch as a SIBLING below is not an interactive-nesting violation. */}
+                    <Box minW={0} {...selectorA11y} data-testid={`application-field-select-${field.key}`}>
                       <HStack spacing={2}>
                         <Text fontSize="sm" color="gray.200" noOfLines={1}>
                           {label}

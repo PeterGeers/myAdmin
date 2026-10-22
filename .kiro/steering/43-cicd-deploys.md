@@ -99,12 +99,73 @@ and the cross-account invoke *permission*. Attaching the Pre-Token-Generation **
 the Cognito pool is in the identity account (`344561557829`) and is a **separate manual step**
 (`sam/pretokengen/DEPLOY.md`). A merge never (re)wires the pool.
 
+## Infrastructure-as-Code (Terraform) — NOT in the pipeline (yet)
+
+> **CURRENT STATE: there is NO Terraform workflow.** `.github/workflows/` has no
+> `terraform plan`/`apply` step — the deploy workflows above are SAM + frontend only. The
+> `infrastructure/*.tf` (CloudFront, Cognito, SNS, S3, IAM, the application-form
+> `frame-ancestors` KVS + function) is applied **manually from a workstation** per
+> `infrastructure/README.md`. So "codified deploy, not hand-typed" (below) is TRUE for
+> SAM/frontend but ASPIRATIONAL for Terraform — a `.tf` header that says "deployment is
+> codified (steering 43)" means *will be*; today a human runs the apply. Close this gap by
+> adding a `deploy-infra.yml` (OIDC → `NonprofitDeployRole`, `plan` on PR / `apply` on
+> `main`) rather than by hand-applying more often.
+
+**State + provider (facts, `infrastructure/main.tf`):** remote **S3 backend**
+`myadmin-terraform-state-eu-west-1`, key `infrastructure/terraform.tfstate`, region
+`eu-west-1`; AWS provider `~> 5.0`; a committed `.terraform.lock.hcl`. The S3 backend — not
+any local file — is the source of truth. **Never commit `terraform.tfstate*`**: local state
+files in the working tree are stale scratch, not authoritative; `.gitignore` them and read
+state from the backend (`terraform state list`).
+
+**Target account:** Terraform manages the DATA account `506221081911` (CloudFront, KVS, IAM)
+plus identity-account Cognito — see `23-aws-accounts.md`. Sanity-check `aws sts
+get-caller-identity` before an apply; the override-ranking trap (`41-shell-environment.md`)
+can silently point you at the wrong account.
+
+**Manual apply workflow (until a pipeline exists):**
+
+1. **`terraform init`** (first run / after a provider or backend change; `-upgrade` to move
+   within the pinned range).
+2. **`terraform plan -out=tf.plan`** — ALWAYS plan to a saved file and READ it. Scope a
+   focused change with `-target` (e.g. `-target=aws_cloudfront_function.application_form_frame_ancestors`)
+   to shrink blast radius, but a `-target` run is a patch, not a reconcile — follow it with a
+   full untargeted `plan` to confirm no drift.
+3. **Inspect for danger BEFORE applying** — a destroy or a `# forces replacement` on a
+   STATEFUL / shared resource (the `public_pages` CloudFront distribution, a KVS, a Cognito
+   pool, an S3 bucket) is a STOP: replacing a live distribution or pool is a user-visible
+   outage. Confirm the plan only *adds/updates in place* for such resources.
+4. **`terraform apply tf.plan`** — apply the exact reviewed plan (never a bare
+   `terraform apply` that re-plans and prompts `yes` against unseen changes).
+5. **Record** what was applied (the plan summary) alongside the PR that merged the `.tf`, so
+   the manual apply is traceable to a reviewed change.
+
+**Change-with-review:** commit the `.tf` edit through the SAME reviewed PR as the code that
+depends on it (the builder's embed feature needs the `frame-ancestors` KVS/function), so the
+infra change is reviewed even though its apply is manual. Never hand-edit live infrastructure
+in the console to match code — the console drifts from state; change the `.tf` and apply.
+
+**Ordering with SAM/frontend:** when an IaC change is a PREREQUISITE for a code deploy (the
+`frame-ancestors` function reads the KVS the backend populates from
+`application_embed_origins`), apply the Terraform FIRST (or in the same window), then let the
+codified SAM/frontend deploy follow — otherwise the feature is half-wired (a tenant authors
+origins nothing enforces). Note the two live in different lifecycles (Terraform state vs.
+CloudFormation stacks) and must not reference each other's resources by hard-coded id.
+
+**Destroy / high-blast-radius ops** (`terraform destroy`, `-replace=`, `state rm`/`import`,
+a backend migration) are owner-run only, never agent-run, and never without a reviewed plan.
+
+
 ## Promote `test` → `main` (production) runbook
 
 1. **Confirm TEST is green & verified** — gates pass on `test`; exercised in live TEST, not just units.
 2. **Open ONE PR `test → main`** for the whole promotion; close stale ones.
 3. **Preview prod changesets** — for SAM, `sam deploy --config-env prod --no-execute-changeset`;
    confirm no unexpected `Replacement: True` on stateful resources.
+3a. **Preview IaC changesets too** — if the promotion includes `infrastructure/*.tf`,
+    `terraform plan -out=tf.plan` and confirm no `# forces replacement` on a stateful/shared
+    resource; the manual `apply` happens in the same release window as the merge, not after.
+
 4. **Clear security gates** — CodeQL **and** GitGuardian green on the PR; fix root cause, don't suppress.
 5. **Merge with a MERGE COMMIT** (not squash) to preserve phase history on `main`.
 6. **Watch the deploys** — the merge fires each deploy workflow whose paths changed (up to three
@@ -117,3 +178,6 @@ the Cognito pool is in the identity account (`344561557829`) and is a **separate
 - **Branch decides the env** — resolve from `github.ref`, never hard-code `prod`/`test`.
 - **`workflow_dispatch` defaults to `test`** — a mis-click must never deploy production.
 - **A merge to `main` IS a production deploy** — treat every `test → main` merge as a release.
+- **Terraform is manual + plan-first** — no pipeline today; `plan -out` → review for
+  replacement/destroy on stateful resources → `apply` the saved plan. Never commit
+  `tfstate`; never hand-edit live infra; destroy/`-replace`/state surgery is owner-run only.

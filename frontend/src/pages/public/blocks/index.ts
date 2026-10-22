@@ -8,6 +8,7 @@ export { CtaBlock } from './CtaBlock';
 export { EmbedBlock } from './EmbedBlock';
 export { ContactBlock } from './ContactBlock';
 export { ServicesBlock } from './ServicesBlock';
+export { ApplicationFormBlock } from './ApplicationFormBlock';
 
 export type { HeroBlockProps } from './HeroBlock';
 export type { AboutBlockProps } from './AboutBlock';
@@ -19,3 +20,4 @@ export type { CtaBlockProps } from './CtaBlock';
 export type { EmbedBlockProps } from './EmbedBlock';
 export type { ContactBlockProps } from './ContactBlock';
 export type { ServicesBlockProps } from './ServicesBlock';
+export type { ApplicationFormBlockProps } from './ApplicationFormBlock';

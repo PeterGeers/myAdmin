@@ -98,11 +98,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   // (task 3.1). Selection drives the panel; it is NOT persisted (pure view state).
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
-  // A reload token the live preview (task 4.2 / R7.4) keys its iframe on. Bumped after EACH
-  // successful save (fields OR mail) so the preview re-fetches the CloudFront-hosted public form
-  // and reflects the last-saved config — the "save to update preview" affordance (design §9 S2).
-  const [previewReloadToken, setPreviewReloadToken] = useState(0);
-
   // The form-shell working values (slug/URL display, embed, consent — task 3.2). Seeded from the
   // loaded `config#mail` + the landing-page slug; committed once via `saveMembersMailConfig` →
   // `PUT /members/config/mail` (the Mail editor's existing path, R5.5). A separate baseline tracks
@@ -178,8 +173,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       const res = await saveMembersParameter('field_overlay', overlay, null);
       if (res.success) {
         toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
-        // Reflect the just-saved config in the live preview (R7.4 — save to update preview).
-        setPreviewReloadToken((n) => n + 1);
         await load();
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 6000 });
@@ -212,8 +205,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       const res = await saveMembersMailConfig(body);
       if (res.success) {
         toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
-        // Reflect the just-saved config in the live preview (R7.4 — save to update preview).
-        setPreviewReloadToken((n) => n + 1);
         await load();
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 6000 });
@@ -379,17 +370,13 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
           <Heading size="sm" mb={2} color="gray.300">
             {t('Voorbeeld', 'Live preview')}
           </Heading>
-          {/* R7 — the live preview: an <iframe> to the CloudFront-hosted public form (derived from
-              the slug). The preview IS the real form (zero drift); it shows the hosted form's own
-              neutral "not available" state when the tenant is not send-ready. It reflects the
-              last-saved config — `previewReloadToken` (bumped after each save) remounts the iframe
-              so a save updates the preview (R7.4, design §4/§6/§9 S1·S2). No slug → a neutral
-              "no preview yet" placeholder pointing at the Landing Page editor. */}
-          <ApplicationFormPreview
-            slug={shell.slug}
-            reloadToken={previewReloadToken}
-            lang={lang}
-          />
+          {/* R7 — the live preview: an IN-APP render of the public form via the shared spec-10
+              ApplicationFormRenderer, fed by POST /members/application-preview over the ONE working
+              overlay. It shows UNSAVED edits live (debounced) through the server's real filter — a
+              single rendering path AND a single filtering authority, no client mirror to drift
+              (R7.1/R7.2, design §4/§6/§9 S1·S2). The "open live form" link to the hosted form is the
+              form-shell panel's concern (R7.3). */}
+          <ApplicationFormPreview overlay={overlay} lang={lang} />
         </GridItem>
       </Grid>
 
