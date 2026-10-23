@@ -370,21 +370,29 @@ def start_oauth_flow(user_email, user_roles) -> ResponseReturnValue:
         # Store state token in session or database
         # For now, we'll return it and expect it back in callback
 
-        # Build OAuth URL (Google Drive)
+        # Build OAuth URL (Google Drive). All query params MUST be URL-encoded —
+        # `redirect_uri` contains `://` and `/` which, if inserted raw, corrupt the
+        # query string so Google receives a different redirect_uri than is registered
+        # on the OAuth client → "Error 400: redirect_uri_mismatch". urlencode() does
+        # the correct percent-encoding for every value.
+        from urllib.parse import urlencode
+
         redirect_uri = os.getenv(
             "GOOGLE_REDIRECT_URI",
             "http://localhost:5000/api/tenant-admin/credentials/oauth/callback",
         )
 
-        oauth_url = (
-            f"https://accounts.google.com/o/oauth2/v2/auth?"
-            f"client_id={client_id}&"
-            f"redirect_uri={redirect_uri}&"
-            f"response_type=code&"
-            f"scope=https://www.googleapis.com/auth/drive&"
-            f"access_type=offline&"
-            f"state={state_token}&"
-            f"prompt=consent"
+        oauth_params = {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": "https://www.googleapis.com/auth/drive",
+            "access_type": "offline",
+            "state": state_token,
+            "prompt": "consent",
+        }
+        oauth_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(
+            oauth_params
         )
 
         logger.info(
