@@ -144,8 +144,13 @@ export function sanitize(part: string): string {
     // Drop path separators and ASCII control chars, but KEEP tab (\u0009),
     // newline (\u000a) and CR (\u000d) so the whitespace-collapse step below
     // can turn them into a single space rather than deleting them outright.
+    // The \u000e-\u001f span is written as the literals \u000e \u000f plus the
+    // range \u0010-\u001f — a COSMETIC split over the IDENTICAL code points, to
+    // satisfy CodeQL py/overly-large-range. Do NOT collapse it back to
+    // \u000e-\u001f (the alert returns); keep it in lockstep with the Python
+    // mirror in sam/members/worker/mail_send_worker.py.
     // eslint-disable-next-line no-control-regex
-    .replace(/[/\\\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+    .replace(/[/\\\u0000-\u0008\u000b\u000c\u000e\u000f\u0010-\u001f\u007f]/g, '')
     // Collapse any whitespace run (spaces, tabs, newlines, unicode spaces) to one space.
     .replace(/\s+/g, ' ')
     .trim();
