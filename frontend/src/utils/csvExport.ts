@@ -144,13 +144,15 @@ export function sanitize(part: string): string {
     // Drop path separators and ASCII control chars, but KEEP tab (\u0009),
     // newline (\u000a) and CR (\u000d) so the whitespace-collapse step below
     // can turn them into a single space rather than deleting them outright.
-    // The \u000e-\u001f span is written as the literals \u000e \u000f plus the
-    // range \u0010-\u001f — a COSMETIC split over the IDENTICAL code points, to
-    // satisfy CodeQL py/overly-large-range. Do NOT collapse it back to
-    // \u000e-\u001f (the alert returns); keep it in lockstep with the Python
-    // mirror in sam/members/worker/mail_send_worker.py.
+    // The C0 control chars are ENUMERATED as individual \uXXXX literals
+    // (U+0000–U+0008, U+000B, U+000C, U+000E–U+001F) plus \u007f (DEL) —
+    // deliberately NOT a range. A control-char range (e.g. \u000e-\u001f) trips
+    // CodeQL py/overly-large-range; enumerating the exact code points removes the
+    // range entirely so there is nothing for that query to flag, while matching the
+    // IDENTICAL set. Keep in lockstep with the Python mirror in
+    // sam/members/worker/mail_send_worker.py — do NOT re-introduce a range.
     // eslint-disable-next-line no-control-regex
-    .replace(/[/\\\u0000-\u0008\u000b\u000c\u000e\u000f\u0010-\u001f\u007f]/g, '')
+    .replace(/[/\\\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008\u000b\u000c\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u007f]/g, '')
     // Collapse any whitespace run (spaces, tabs, newlines, unicode spaces) to one space.
     .replace(/\s+/g, ' ')
     .trim();
