@@ -104,11 +104,21 @@ const FIELD_CONFIG: FieldConfig = {
     { key: 'motor', order: 2 },
   ],
   config_status: { fields: '2026-10-12T09:00:00', scope: 3, mail: null },
+  // The RAW stored config#fields overlay — the editor now SEEDS its one working object from THIS
+  // (the same SAM row it writes back), not the retired Flask members.field_overlay param (spec 11
+  // bugfix: GET/PUT symmetric so a save is loss-free).
+  field_overlay: (overlayRow.value as Record<string, unknown>),
 };
 
 function seed(rows: Record<string, Parameter> = { field_overlay: overlayRow }, cfg: FieldConfig | null = FIELD_CONFIG) {
-  mockGetParams.mockResolvedValue(rows);
-  mockGetFieldConfig.mockResolvedValue(cfg);
+  // The editor seeds its working overlay from the SAM field-config's `field_overlay` (same row it
+  // writes). The `rows` arg still carries the intended overlay for the call sites that vary it
+  // (override / unauthored); project it onto cfg.field_overlay so those scenarios keep working.
+  const seededOverlay = (rows.field_overlay?.value as Record<string, unknown>) ?? {};
+  const cfgWithOverlay =
+    cfg == null ? null : { ...cfg, field_overlay: seededOverlay };
+  mockGetParams.mockResolvedValue(rows); // defensive: the editor must NOT call this anymore
+  mockGetFieldConfig.mockResolvedValue(cfgWithOverlay);
   mockCreate.mockResolvedValue({ success: true });
   mockUpdate.mockResolvedValue({ success: true });
   // The SAM write is authoritative: it returns the authored row version (Requirement 13.2).

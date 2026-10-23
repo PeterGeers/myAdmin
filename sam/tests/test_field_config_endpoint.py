@@ -30,7 +30,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -40,7 +42,7 @@ from sam.members.domain.field_resolver import (
     StaticOverlayProvider,
     TenantOverlay,
 )
-from sam.members.domain.fixed_fields import FieldType
+from sam.members.domain.fixed_fields import FieldFormat, FieldType
 from sam.members.domain.membership_service import (
     MEMBERSHIP_TYPE_FIELD_KEY,
     MembershipService,
@@ -121,10 +123,24 @@ def _entry(tenant, code, *, label=None, active=True, order=0):
 def repo() -> FakeCatalogRepository:
     r = FakeCatalogRepository()
     # Deliberately out of order + one soft-deleted to pin ordering + exclusion.
-    r.add_type("h-dcn", _entry("h-dcn", "donateur", label={"nl": "Donateur", "en": "Donor"}, order=20))
-    r.add_type("h-dcn", _entry("h-dcn", "erelid", label={"nl": "Erelid", "en": "Honorary"}, order=10))
-    r.add_type("h-dcn", _entry("h-dcn", "sponsor", label={"nl": "Sponsor", "en": "Sponsor"}, order=30))
-    r.add_type("h-dcn", _entry("h-dcn", "retired", label={"nl": "Oud", "en": "Old"}, active=False, order=5))
+    r.add_type(
+        "h-dcn",
+        _entry("h-dcn", "donateur", label={"nl": "Donateur", "en": "Donor"}, order=20),
+    )
+    r.add_type(
+        "h-dcn",
+        _entry("h-dcn", "erelid", label={"nl": "Erelid", "en": "Honorary"}, order=10),
+    )
+    r.add_type(
+        "h-dcn",
+        _entry("h-dcn", "sponsor", label={"nl": "Sponsor", "en": "Sponsor"}, order=30),
+    )
+    r.add_type(
+        "h-dcn",
+        _entry(
+            "h-dcn", "retired", label={"nl": "Oud", "en": "Old"}, active=False, order=5
+        ),
+    )
     # A different tenant — must be structurally invisible to h-dcn's config.
     r.add_type("other", _entry("other", "member", order=10))
     return r
@@ -155,7 +171,9 @@ class TestGetFieldConfigDomain:
         config = service.get_field_config("h-dcn")
 
         mt = next(
-            f for f in config["fields"] if f["group"] == "membership" and f["key"] == "membership_type"
+            f
+            for f in config["fields"]
+            if f["group"] == "membership" and f["key"] == "membership_type"
         )
         # It is a REFERENCE field carrying the active catalog entries as its options.
         assert mt["type"] == FieldType.REFERENCE.value
@@ -183,7 +201,11 @@ class TestGetFieldConfigDomain:
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         h = service.get_field_config("h-dcn")
         other = service.get_field_config("other")
-        assert {o["value"] for o in h["membership_type_options"]} == {"erelid", "donateur", "sponsor"}
+        assert {o["value"] for o in h["membership_type_options"]} == {
+            "erelid",
+            "donateur",
+            "sponsor",
+        }
         assert {o["value"] for o in other["membership_type_options"]} == {"member"}
 
     def test_overlay_variable_fields_appear_in_config(self, repo):
@@ -191,14 +213,21 @@ class TestGetFieldConfigDomain:
         overlay = TenantOverlay(
             fields={
                 "motor_type": OverlayField(
-                    key="motor_type", type=FieldType.STRING, label={"nl": "Motor", "en": "Motorcycle"}, order=10
+                    key="motor_type",
+                    type=FieldType.STRING,
+                    label={"nl": "Motor", "en": "Motorcycle"},
+                    order=10,
                 )
             }
         )
-        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay}))
+        service = MembershipService(
+            repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
+        )
         config = service.get_field_config("h-dcn")
 
-        overlay_fields = [f for f in config["fields"] if f["origin"] == FieldOrigin.VARIABLE.value]
+        overlay_fields = [
+            f for f in config["fields"] if f["origin"] == FieldOrigin.VARIABLE.value
+        ]
         assert [f["key"] for f in overlay_fields] == ["motor_type"]
         assert "overlay" in config["by_group"]
 
@@ -209,7 +238,9 @@ class TestGetFieldConfigDomain:
         config = service.get_field_config("h-dcn")
         origins = {f["origin"] for f in config["fields"]}
         assert origins == {FieldOrigin.FIXED.value, FieldOrigin.CALCULATED.value}
-        assert not any(f["origin"] == FieldOrigin.VARIABLE.value for f in config["fields"])
+        assert not any(
+            f["origin"] == FieldOrigin.VARIABLE.value for f in config["fields"]
+        )
 
     def test_config_is_json_serializable(self, repo):
         # The edge json.dumps the result — no enums/dataclasses may leak through.
@@ -236,6 +267,74 @@ class TestGetFieldConfigDomain:
         assert any(f["key"] == "membership_type" for f in config["fields"])
 
 
+class TestGetFieldConfigServesApplicationAttributes:
+    """spec 11 — the staff field-config read serves the four per-field APPLICATION attributes.
+
+    Regression guard for the Application Form Builder save→reseed bug: the builder authors
+    `application_visible` / `application_required` / `application_choices` / `format` onto
+    `config#fields`, then reads them BACK through `get_field_config` to re-seed its toggles after
+    a save. `_serialize_field` previously DROPPED them (resolved onto `ResolvedField`, used by the
+    public read/create path, but never serialized to the staff read), so every field reseeded OFF
+    after a save even though the write persisted. These pin that the staff serializer emits them.
+    """
+
+    def test_overlay_application_attributes_round_trip_on_the_staff_read(self, repo):
+        overlay = TenantOverlay(
+            fields={
+                "magazine_pref": OverlayField(
+                    key="magazine_pref",
+                    type=FieldType.ENUM,
+                    label={"nl": "Clubblad", "en": "Magazine"},
+                    choices=("Geen", "Papier", "Digitaal"),
+                    order=20,
+                    application_visible=True,
+                    application_required=True,
+                    application_choices=("Papier", "Digitaal"),
+                    format=FieldFormat(checker="EMAIL", params={"strict": True}),
+                )
+            }
+        )
+        service = MembershipService(
+            repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
+        )
+        config = service.get_field_config("h-dcn")
+
+        field = next(f for f in config["fields"] if f["key"] == "magazine_pref")
+        assert field["application_visible"] is True
+        assert field["application_required"] is True
+        assert field["application_choices"] == ["Papier", "Digitaal"]
+        assert field["format"] == {"checker": "EMAIL", "params": {"strict": True}}
+
+    def test_unauthored_field_defaults_are_served_not_omitted(self, repo):
+        # A field that authors NONE of the four attributes still carries them at their safe
+        # defaults so the builder reseeds a coherent OFF state (never `undefined`-vs-false drift).
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+
+        f = next(iter(config["fields"]))
+        assert f["application_visible"] is False
+        assert f["application_required"] is False
+        assert f["application_choices"] is None
+        assert f["format"] is None
+
+    def test_application_attributes_are_json_serializable(self, repo):
+        overlay = TenantOverlay(
+            fields={
+                "motor_type": OverlayField(
+                    key="motor_type",
+                    type=FieldType.STRING,
+                    label={"nl": "Motor", "en": "Motorcycle"},
+                    application_visible=True,
+                    format=FieldFormat(checker="IBAN"),
+                )
+            }
+        )
+        service = MembershipService(
+            repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
+        )
+        json.dumps(service.get_field_config("h-dcn"))  # must not raise
+
+
 # ---------------------------------------------------------------------------
 # Edge dispatch — GET /members/field-config
 # ---------------------------------------------------------------------------
@@ -245,10 +344,14 @@ class TestGetFieldConfigDomain:
 def inject_service(monkeypatch, repo):
     overlay = TenantOverlay(
         fields={
-            "motor_type": OverlayField(key="motor_type", type=FieldType.STRING, label={"nl": "Motor"}, order=10)
+            "motor_type": OverlayField(
+                key="motor_type", type=FieldType.STRING, label={"nl": "Motor"}, order=10
+            )
         }
     )
-    service = MembershipService(repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay}))
+    service = MembershipService(
+        repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
+    )
     monkeypatch.setattr(app, "_get_membership_service", lambda: service)
     return service
 
@@ -257,7 +360,15 @@ def _entitlement(tenant, capabilities):
     return json.dumps({"v": 1, "t": {tenant: capabilities}})
 
 
-def _event(method, path, *, tenant="h-dcn", capabilities=("members:read",), groups=("Regio_All",), sub="admin-sub"):
+def _event(
+    method,
+    path,
+    *,
+    tenant="h-dcn",
+    capabilities=("members:read",),
+    groups=("Regio_All",),
+    sub="admin-sub",
+):
     return {
         "httpMethod": method,
         "path": path,
@@ -298,7 +409,9 @@ def test_field_config_route_carries_active_membership_type_options(inject_servic
 def test_field_config_route_reflects_the_tenant_overlay(inject_service):
     resp = app.handler(_event("GET", "/members/field-config"))
     data = _data(resp)
-    assert any(f["key"] == "motor_type" and f["origin"] == "variable" for f in data["fields"])
+    assert any(
+        f["key"] == "motor_type" and f["origin"] == "variable" for f in data["fields"]
+    )
 
 
 def test_field_config_route_resolves_before_get_member(inject_service):
@@ -310,7 +423,9 @@ def test_field_config_route_resolves_before_get_member(inject_service):
 
 def test_field_config_route_requires_auth():
     # No verified claims → 401 (the task-3.0 gate still applies to this route).
-    resp = app.handler({"httpMethod": "GET", "path": "/members/field-config", "headers": {}})
+    resp = app.handler(
+        {"httpMethod": "GET", "path": "/members/field-config", "headers": {}}
+    )
     assert resp["statusCode"] in (401, 403)
 
 
@@ -396,3 +511,116 @@ def test_field_config_route_omits_the_analytics_key(inject_service):
     resp = app.handler(_event("GET", "/members/field-config"))
     assert resp["statusCode"] == 200
     assert "analytics" not in _data(resp)
+
+
+# ---------------------------------------------------------------------------
+# application-form-builder (spec 11) Task 1.3 — the served field-config payload carries
+# the PLATFORM-DEFINED set of field-format checker tokens (S4/R3.3). Serving the set from
+# the SAM `field_formats` registry keeps the Application Form Builder's format dropdown in
+# lockstep with the platform registry (no hand-maintained client-side mirror that can drift).
+#
+# Validates: Requirements R3.3
+# ---------------------------------------------------------------------------
+
+
+class TestGetFieldConfigServesFormatTokens:
+    def test_served_config_carries_the_registry_tokens(self, repo):
+        from sam.members.domain import field_formats
+
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+        # The set is served verbatim from the registry (EMAIL, IBAN today), sorted for a
+        # stable order; it stays in lockstep with the platform registry by construction.
+        assert config["field_format_tokens"] == sorted(field_formats.known_tokens())
+        assert "EMAIL" in config["field_format_tokens"]
+        assert "IBAN" in config["field_format_tokens"]
+
+    def test_format_tokens_are_a_sorted_list_of_strings(self, repo):
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        tokens = service.get_field_config("h-dcn")["field_format_tokens"]
+        assert isinstance(tokens, list)
+        assert all(isinstance(t, str) for t in tokens)
+        assert tokens == sorted(tokens)
+
+    def test_format_tokens_present_even_for_an_unconfigured_tenant(self, repo):
+        # The token set is platform-defined, not tenant data — an un-authored tenant still
+        # gets the full registry (empty-is-valid: never a crash, never an empty omission).
+        from sam.members.domain import field_formats
+
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("unknown-tenant")
+        assert config["field_format_tokens"] == sorted(field_formats.known_tokens())
+
+    def test_config_with_format_tokens_is_json_serializable(self, repo):
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        json.dumps(service.get_field_config("h-dcn"))  # must not raise
+
+
+def test_field_config_route_carries_the_format_tokens(inject_service):
+    from sam.members.domain import field_formats
+
+    resp = app.handler(_event("GET", "/members/field-config"))
+    assert resp["statusCode"] == 200
+    data = _data(resp)
+    assert data["field_format_tokens"] == sorted(field_formats.known_tokens())
+
+
+class TestGetFieldConfigServesRawOverlay:
+    """spec 11 bugfix — the staff field-config read serves the RAW stored `config#fields` overlay.
+
+    The authoring editors (Application Form Builder + the Field-configuration editor) seed their ONE
+    working `field_overlay` object from this key and PUT it back WHOLE — GET and PUT on the SAME SAM
+    row, so a save is loss-free. Previously they seeded from the retired Flask `members.field_overlay`
+    param (a divergent copy lacking the application attributes), so a save wiped prior selections.
+    """
+
+    class _RawProvider:
+        """An overlay provider exposing the raw-overlay read (like the production reader)."""
+
+        def __init__(self, overlay):
+            self._overlay = overlay
+
+        def get_overlay(
+            self, tenant_id
+        ):  # resolver seam — empty typed overlay is fine here
+            from sam.members.domain.field_resolver import TenantOverlay
+
+            return TenantOverlay()
+
+        def get_raw_fields_overlay(self, tenant_id):
+            return self._overlay
+
+    def test_field_overlay_is_served_verbatim_when_the_provider_exposes_it(self, repo):
+        overlay = {
+            "fields": {
+                "motor_type": {
+                    "key": "motor_type",
+                    "type": "string",
+                    "application_visible": True,
+                }
+            },
+            "fixed_overrides": {"personal.city": {"order": 3}},
+            "functional_groups": [{"key": "address", "order": 1}],
+        }
+        service = MembershipService(repo, overlay_provider=self._RawProvider(overlay))
+        config = service.get_field_config("h-dcn")
+        assert config["field_overlay"] == overlay
+
+    def test_field_overlay_defaults_empty_when_provider_lacks_the_raw_read(self, repo):
+        # StaticOverlayProvider has no get_raw_fields_overlay → the duck-typed guard yields empty.
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+        assert config["field_overlay"] == {
+            "fields": {},
+            "fixed_overrides": {},
+            "functional_groups": [],
+        }
+
+    def test_field_config_with_field_overlay_is_json_serializable(self, repo):
+        service = MembershipService(
+            repo,
+            overlay_provider=self._RawProvider(
+                {"fields": {}, "fixed_overrides": {}, "functional_groups": []}
+            ),
+        )
+        json.dumps(service.get_field_config("h-dcn"))  # must not raise

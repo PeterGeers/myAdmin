@@ -34,6 +34,9 @@ export const ZZPTripImport = lazy(() => import('./pages/ZZPTripImport'));
 // Members module page
 export const MembersPage = lazy(() => import('./pages/MembersPage'));
 export const MemberAnalyticsPage = lazy(() => import('./pages/MemberAnalyticsPage'));
+// Tenant-admin members > mail area — the relocated applications inbox
+// (members-overview-tweaks Req 6.2).
+export const MembersMailPage = lazy(() => import('./pages/MembersMailPage'));
 
 // Admin pages (named exports)
 export const TenantAdminDashboard = lazy(() =>
@@ -52,6 +55,9 @@ export const PasskeySettings = lazy(() => import('./components/settings/PasskeyS
 
 // Public pages (no auth required)
 export const PublicLandingPage = lazy(() => import('./pages/public/PublicLandingPage'));
+export const PublicApplicationFormRoute = lazy(
+  () => import('./pages/public/PublicApplicationFormRoute'),
+);
 
 export type PageType =
   | 'login'
@@ -83,7 +89,8 @@ export type PageType =
   | 'str-channel-revenue'
   | 'media-asset-admin'
   | 'members'
-  | 'member-analytics';
+  | 'member-analytics'
+  | 'members-mail';
 
 // URL path → page mapping for PWA deep-link support.
 // Supports both dev (/) and production (/myAdmin/) base paths.
@@ -105,6 +112,7 @@ export const urlPageMap: Record<string, PageType> = {
   '/admin/assets': 'media-asset-admin',
   '/leden': 'members',
   '/leden/analyse': 'member-analytics',
+  '/leden/mail': 'members-mail',
 };
 
 // Resolve the current window location to a PageType, honoring the base path.

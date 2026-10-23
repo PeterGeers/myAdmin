@@ -196,6 +196,43 @@ ROUTES: tuple[RouteSpec, ...] = (
             "membership_type dropdown = the tenant's active catalog entries."
         ),
     ),
+    # ── Application Form Builder — server-side live preview (spec 11, R7.2) ───────────
+    #
+    # The AUTHENTICATED, admin-gated preview seam the Application Form Builder debounces its
+    # WORKING (unsaved) `field_overlay` to. It runs the REAL `get_public_field_config` filter
+    # over the overlay carried in the request BODY (not the stored config#fields row) and returns
+    # the applicant-facing schema, so the in-app preview reuses the SAME server filtering authority
+    # the public form does — no client-side mirror to drift (design §5.3/§6/§10, R7.1/R7.2).
+    #
+    # READ-ONLY: it NEVER writes (no DynamoDB mutation) — it resolves the body overlay in memory,
+    # filters, and returns. It is the authoring counterpart of the PUBLIC
+    # `get_public_field_config` read, but on the AUTHENTICATED members API (gated by the sam/shared
+    # verified-JWT + entitlement toolkit), NOT the public edge; and it deliberately SKIPS the
+    # send-ready gate the public read enforces, so an admin can preview the form BEFORE the sender
+    # is certified (R6.2) — the readiness panel (not the preview) carries the "not available" state.
+    #
+    # Gate: `members:admin` (Tenant_Admin) — the SAME single-capability gate `write_config` uses
+    # (authoring/previewing the tenant's application form is an administrative concern, never a
+    # plain member/read action). tenant resolved from the verified token, never the body.
+    #
+    # The literal `/members/application-preview` path is a POST and is disjoint from every other
+    # `/members/...` route (the only other POST under `/members` are the `/members` create and the
+    # literal `search`/`mail`/`analytics-sets`/`templates` prefixes), so there is no (method, path)
+    # collision or shadowing. Declared beside `get_field_config` for cohesion (both are field-schema
+    # reads the builder consumes).
+    RouteSpec(
+        name="preview_application",
+        method=HttpMethod.POST,
+        path="/members/application-preview",
+        group=RouteGroup.MEMBER,
+        capability=CAP_MEMBERS_ADMIN,
+        self_service=False,
+        summary=(
+            "Run the real get_public_field_config filter over the field_overlay in the request "
+            "body and return the applicant-facing schema (live preview, R7.2). READ-ONLY (never "
+            "writes). Gate: members:admin (Tenant_Admin); skips the send-ready gate (R6.2)."
+        ),
+    ),
     # ── Config write — SAM-owned config#* rows (spec 02, Task 1.6) ───────────────────
     #
     # The single WRITE entry point for the three SAM-owned governance_projection config rows

@@ -258,6 +258,15 @@ export function MainMenu({
               </Button>
             )}
 
+            {/* Members > Mail — the relocated applications inbox
+                (members-overview-tweaks Req 6.2). Tenant_Admin only, like the
+                other tenant-admin entries. */}
+            {(user?.roles?.some(role => ['Tenant_Admin'].includes(role))) && (
+              <Button size="lg" w="full" colorScheme="pink" variant="outline" justifyContent="flex-start" onClick={() => setCurrentPage('members-mail')}>
+                📬 {t('members:mail.navLabel')}
+              </Button>
+            )}
+
 
 
             {/* Loading state */}

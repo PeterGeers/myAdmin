@@ -44,12 +44,20 @@ from collections.abc import Mapping
 
 from services import projection_schema as schema
 
+from sam.members.domain import field_formats
 from sam.members.domain.config_write_version import next_write_stamp
+from sam.members.domain.fixed_fields import field_by_key
 
 __all__ = [
     "ConfigWriteService",
     "ConfigWriteValidationError",
 ]
+
+#: The storage bucket variable (overlay) fields live under (mirrors field_resolver.OVERLAY_GROUP /
+#: the retired Flask ``members_config_validation.OVERLAY_GROUP``). Used ONLY to build a stable,
+#: caller-safe dotted error key for a variable field (``overlay.<key>``) so a rejected write names
+#: the offending field the same way across both planes (R8.3/R8.4).
+OVERLAY_GROUP = "overlay"
 
 
 class ConfigWriteValidationError(ValueError):
@@ -81,9 +89,38 @@ class ConfigWriteService:
             can pin a deterministic stamp.
     """
 
-    def __init__(self, repository, version_fn=next_write_stamp):
+    def __init__(
+        self,
+        repository,
+        version_fn=next_write_stamp,
+        overlay_reader=None,
+        overlay_reader_factory=None,
+    ):
         self._repository = repository
         self._version_fn = version_fn
+        # MERGE-ON-WRITE of config#fields (bugfix): a config#fields PUT carries only the slice the
+        # client is authoring, but the repository put REPLACES the whole row. Without merging, a
+        # partial body (e.g. the Application Form Builder sending only application-attribute toggles
+        # with empty fields/functional_groups) would WIPE the other slices. The fields validator
+        # reads the CURRENT stored overlay and merges the incoming slices onto it per key.
+        #
+        # RELIABILITY — read FRESH each write (no shared cache): the projection reader keeps a
+        # per-instance partition cache. A module-global reader reused across warm invocations would
+        # serve STALE state to a later write's merge (and lose a concurrent change). So prefer an
+        # ``overlay_reader_factory`` (a zero-arg callable returning a FRESH reader) and build a new
+        # reader per ``put_config`` merge — its cache lives only for that one read. ``overlay_reader``
+        # (a shared instance) is still accepted for tests that inject a fake with fresh state; it is
+        # used only when no factory is given. Neither provided → legacy replace (unit tests that
+        # assert the shaped body are unaffected).
+        self._overlay_reader = overlay_reader
+        self._overlay_reader_factory = overlay_reader_factory
+
+    def _merge_reader(self):
+        """A reader for the merge read — FRESH per call when a factory is wired (no stale cache),
+        else the injected shared instance (tests), else None (legacy replace)."""
+        if self._overlay_reader_factory is not None:
+            return self._overlay_reader_factory()
+        return self._overlay_reader
 
     def put_config(self, tenant_id: str, config_id: str, body: Mapping) -> dict:
         """Validate ``body`` for ``config_id``, stamp a version, and persist the row.
@@ -107,7 +144,7 @@ class ConfigWriteService:
             ValueError: ``config_id`` has no validator wired (an id outside ``{fields, scope,
                 mail}`` — the edge rejects these first, so this is defense in depth).
         """
-        attributes = self._validate_body(config_id, body)
+        attributes = self._validate_body(config_id, body, tenant_id)
         version = self._version_fn()
         self._repository.put_config(
             tenant_id=tenant_id,
@@ -119,14 +156,16 @@ class ConfigWriteService:
 
     # ── Per-configId body-validation seam ──────────────────────────────────────────────
 
-    def _validate_body(self, config_id: str, body: Mapping) -> dict:
+    def _validate_body(self, config_id: str, body: Mapping, tenant_id: str) -> dict:
         """Dispatch to the per-``configId`` body validator.
 
         Each SAM-owned id shapes + validates only its own attributes — ``fields`` (Task 1.5),
-        ``scope`` (Task 3.3), and ``mail`` (Task 5.1) are all implemented here.
+        ``scope`` (Task 3.3), and ``mail`` (Task 5.1) are all implemented here. ``fields`` also
+        needs ``tenant_id`` to MERGE the incoming slices onto the current stored row (bugfix).
         """
+        if config_id == schema.CONFIG_ID_FIELDS:
+            return self._validate_fields_body(body, tenant_id)
         validators = {
-            schema.CONFIG_ID_FIELDS: self._validate_fields_body,
             schema.CONFIG_ID_SCOPE: self._validate_scope_body,
             schema.CONFIG_ID_MAIL: self._validate_mail_body,
         }
@@ -142,7 +181,7 @@ class ConfigWriteService:
 
     # ── config#fields validator (Task 1.5 / Requirement 7) ──────────────────────────────
 
-    def _validate_fields_body(self, body: Mapping) -> dict:
+    def _validate_fields_body(self, body: Mapping, tenant_id: str = "") -> dict:
         """Validate + shape a ``config#fields`` body into the reader's ``get_overlay`` shape (R7).
 
         Authors the ``fields`` / ``overrides`` / ``functional_groups`` attributes ONLY — the exact
@@ -167,22 +206,44 @@ class ConfigWriteService:
                 "config#fields body must be an object with fields/overrides/functional_groups"
             )
 
-        fields = self._validate_fields_map(body.get("fields"))
+        fields_in = self._validate_fields_map(body.get("fields"))
         # Fixed-field overrides: the canonical stored attribute is ``overrides`` (what
         # ``MembersProjectionReader.get_overlay`` reads). The frontend field_overlay object and the
         # legacy Flask ``build_config_fields_row`` builder author this map under the INPUT ALIAS
-        # ``fixed_overrides``. Accept either on the wire and normalize to ``overrides`` so the
-        # established frontend shape writes through unchanged (R13.3) WITHOUT silently dropping the
-        # fixed-field overrides (the I-x data-loss bug: an alias-only body persisted zero
-        # overrides, wiping membership.status / personal.* presentation). Canonical ``overrides``
-        # wins if a body somehow carries both; the alias is read only when ``overrides`` is absent.
-        overrides_in = body.get("overrides")
-        if overrides_in is None:
-            overrides_in = body.get("fixed_overrides")
-        overrides = self._validate_overrides_map(overrides_in)
-        functional_groups = self._validate_functional_groups(
+        # ``fixed_overrides``. Accept either on the wire and normalize to ``overrides``. Precedence
+        # fix (bugfix): fall back to the alias when ``overrides`` is empty OR absent — a
+        # present-but-empty ``overrides`` must NOT shadow a populated ``fixed_overrides`` (that
+        # dropped every base-field toggle the Application Form Builder sent). A populated canonical
+        # ``overrides`` still wins when both are non-empty.
+        overrides_raw = body.get("overrides")
+        if not overrides_raw:
+            overrides_raw = body.get("fixed_overrides")
+        overrides_in = self._validate_overrides_map(overrides_raw)
+        functional_groups_in = self._validate_functional_groups(
             body.get("functional_groups")
         )
+
+        # MERGE-ON-WRITE (bugfix): a config#fields PUT carries only the slice(s) the client is
+        # authoring, but the repository put REPLACES the whole row. Without a merge, a partial body
+        # (e.g. the Application Form Builder sending only application-attribute toggles under
+        # ``overrides``/``fixed_overrides`` with empty ``fields``/``functional_groups``) would WIPE
+        # the tenant's other slices. When an overlay reader is wired, load the CURRENT stored row
+        # and merge the incoming slices onto it PER KEY: an incoming field/override spec REPLACES
+        # the stored entry for that key (so a toggle updates it), and a stored entry the body OMITS
+        # is PRESERVED. ``functional_groups`` (an ordered list) is replaced only when the body
+        # carries a non-empty list, else the stored groups are kept. No reader (unit tests without
+        # one) → legacy replace with exactly what the body carried.
+        fields, overrides, functional_groups = self._merge_fields_slices(
+            tenant_id, fields_in, overrides_in, functional_groups_in, body
+        )
+
+        # Per-field APPLICATION-attribute hardening (R8): the write path is the authoritative
+        # author now that the Flask `_validate_application_attrs` guard is off the authoring path
+        # (R8.4). Reject a subset ⊄ choices, an unknown `format.checker`, a malformed `format`,
+        # or a relax of a platform-required field — fail-loud, BEFORE the row is written, keyed to
+        # the offending field (R8.1/R8.3). Validated over the MERGED result so a preserved entry is
+        # re-checked too.
+        self._validate_application_attributes(fields, overrides)
 
         # Author exactly the three reader-read attributes — no default_page_size (R7.2).
         return {
@@ -190,6 +251,218 @@ class ConfigWriteService:
             "overrides": overrides,
             "functional_groups": functional_groups,
         }
+
+    def _merge_fields_slices(
+        self,
+        tenant_id: str,
+        fields_in: dict,
+        overrides_in: dict,
+        functional_groups_in: list,
+        body: Mapping,
+    ) -> tuple[dict, dict, list]:
+        """Merge the incoming config#fields slices onto the CURRENT stored row (bugfix).
+
+        Read-modify-write so a PARTIAL body never wipes a slice it did not author. Per-key merge:
+        an incoming ``fields``/``overrides`` spec replaces the stored entry for that key; a stored
+        key the body omits is preserved. ``functional_groups`` is replaced only when the body
+        carries a non-empty list (an ordered catalog — a present non-empty list is authoritative),
+        else the stored groups are kept.
+
+        Falls back to the incoming slices verbatim (legacy replace) when no overlay reader is wired
+        (unit tests) or the reader yields nothing — so a never-authored tenant writes exactly what
+        the body carried.
+        """
+        reader = self._merge_reader()
+        if (
+            reader is None
+            or not tenant_id
+            or not hasattr(reader, "get_raw_fields_overlay")
+        ):
+            return fields_in, overrides_in, functional_groups_in
+
+        current = reader.get_raw_fields_overlay(tenant_id) or {}
+        cur_fields = (
+            current.get("fields") if isinstance(current.get("fields"), dict) else {}
+        )
+        # The reader serves the override map under the AUTHORING WIRE key ``fixed_overrides``
+        # (one-key contract); accept the storage key ``overrides`` as a fallback for robustness.
+        # ``overrides_in`` is already the storage-shaped (normalized) incoming map, so merging them
+        # yields the storage ``overrides`` the repository persists.
+        cur_overrides_raw = current.get("fixed_overrides")
+        if not isinstance(cur_overrides_raw, dict):
+            cur_overrides_raw = current.get("overrides")
+        cur_overrides = cur_overrides_raw if isinstance(cur_overrides_raw, dict) else {}
+        cur_groups = (
+            current.get("functional_groups")
+            if isinstance(current.get("functional_groups"), list)
+            else []
+        )
+
+        # Per-key merge: stored first, then incoming wins for the keys it carries.
+        merged_fields = {**cur_fields, **fields_in}
+        merged_overrides = {**cur_overrides, **overrides_in}
+
+        # A field/override key the body EXPLICITLY clears (incoming spec present but empty-ish) is
+        # still a replace (the toggle-off case writes an empty/attr-stripped spec), so {**...}
+        # already handles it. We do NOT delete keys — deletion in these editors is an explicit
+        # field/group removal that sends the full slice, which the body-carries check below honours.
+
+        # functional_groups: replace only when the body carried a non-empty list; else keep stored.
+        body_carried_groups = (
+            isinstance(body.get("functional_groups"), (list, tuple))
+            and len(body.get("functional_groups")) > 0
+        )
+        merged_groups = (
+            functional_groups_in if body_carried_groups else list(cur_groups)
+        )
+
+        return merged_fields, merged_overrides, merged_groups
+
+    # ── Per-field application-attribute validation (Task 1.1 / Requirement 8) ────────────
+
+    def _validate_application_attributes(
+        self, fields: Mapping, overrides: Mapping
+    ) -> None:
+        """Validate the four per-field application attributes over BOTH specs, fail-loud (R8).
+
+        The SAM equivalent of the retired Flask ``members_config_validation
+        ._validate_application_attrs`` (R8.4) — same three write-time invariants, now enforced by
+        the authoritative author so a crafted or buggy write can never store an incoherent
+        ``config#fields`` row:
+
+        1. **subset ⊆ choices (R8.1a):** a present ``application_choices`` must be a list whose
+           every entry is a valid choice of the field's own resolved choices (``options[].value``
+           / ``choices``). A subset on a field with no choices, or an entry not in choices, is a
+           write error.
+        2. **known checker (R8.1b):** a present ``format`` must be a well-formed ``{checker,
+           params?}`` mapping whose ``checker`` is in :func:`field_formats.known_tokens`. Anything
+           else is rejected (a tenant attaches a KNOWN token, it never authors a checker).
+        3. **no relax (R8.1c):** a field the platform marks ``required`` may not carry
+           ``application_required = False`` — the public form may only TIGHTEN requiredness, never
+           relax the platform floor. The platform-required authority is the fixed-field registry
+           (:func:`fixed_fields.field_by_key`); a variable overlay field is never platform-required.
+
+        Reasons are COLLECTED across both maps (every offending field, not just the first) and, if
+        any are found, raised as ONE :class:`ConfigWriteValidationError` whose message is keyed to
+        the offending field(s) (R8.3) — caller-safe, no internals leaked.
+        """
+        reasons: dict[str, str] = {}
+
+        # overrides — keyed by the canonical dotted key of a fixed/calculated field. A fixed field
+        # the platform marks required cannot be relaxed on the form.
+        for dotted, spec in overrides.items():
+            if not isinstance(spec, Mapping):
+                continue
+            fixed = field_by_key(dotted)
+            platform_required = bool(fixed is not None and fixed.required)
+            self._collect_application_attr_reasons(
+                dotted, spec, reasons, platform_required=platform_required
+            )
+
+        # fields — the added variable fields. A variable field is NEVER a platform-required field,
+        # so only the subset ⊆ choices + known-checker invariants apply (platform_required=False).
+        # The error key mirrors the Flask dotted form (`overlay.<key>`) so a rejected write names
+        # the field consistently across planes.
+        for name, spec in fields.items():
+            if not isinstance(spec, Mapping):
+                continue
+            key = spec.get("key") if isinstance(spec.get("key"), str) else name
+            dotted = f"{OVERLAY_GROUP}.{key}"
+            self._collect_application_attr_reasons(
+                dotted, spec, reasons, platform_required=False
+            )
+
+        if reasons:
+            detail = "; ".join(
+                f"{field}: {reason}" for field, reason in reasons.items()
+            )
+            raise ConfigWriteValidationError(
+                f"config#fields application-attribute validation failed: {detail}"
+            )
+
+    @staticmethod
+    def _collect_application_attr_reasons(
+        dotted: str,
+        spec: Mapping,
+        reasons: dict[str, str],
+        *,
+        platform_required: bool,
+    ) -> None:
+        """Append a reason under ``dotted`` for any application-attribute violation on one spec.
+
+        Mirrors the three rules of the retired Flask ``_validate_application_attrs`` (R8.4);
+        batched (never raises here) so the caller collects every offending field before raising
+        one :class:`ConfigWriteValidationError`.
+        """
+        # 1) enum application-subset ⊆ field choices (R8.1a).
+        subset = spec.get("application_choices")
+        if subset is not None:
+            if not isinstance(subset, (list, tuple)):
+                reasons[dotted] = "application_choices must be a list"
+            else:
+                choices = ConfigWriteService._field_choice_values(spec)
+                if choices is None:
+                    reasons[dotted] = (
+                        "application_choices is set but the field declares no choices "
+                        "(only an enum field with choices can carry an application subset)"
+                    )
+                else:
+                    extra = [v for v in subset if v not in choices]
+                    if extra:
+                        reasons[dotted] = (
+                            "application_choices entries are not valid field choices: "
+                            f"{extra!r}"
+                        )
+
+        # 2) format.checker must be a platform-known token (R8.1b).
+        fmt = spec.get("format")
+        if fmt is not None:
+            if not isinstance(fmt, Mapping):
+                reasons[dotted] = "format must be an object with a 'checker' token"
+            else:
+                checker = fmt.get("checker")
+                if (
+                    not isinstance(checker, str)
+                    or checker not in field_formats.known_tokens()
+                ):
+                    known = ", ".join(sorted(field_formats.known_tokens()))
+                    reasons[dotted] = (
+                        f"format.checker {checker!r} is not a platform-known token "
+                        f"(known: {known})"
+                    )
+
+        # 3) application-required cannot relax a platform-required field (R8.1c).
+        if platform_required and spec.get("application_required") is False:
+            reasons[dotted] = (
+                "application_required cannot relax a platform-required field "
+                "(the public form may tighten requiredness, never loosen the platform floor)"
+            )
+
+    @staticmethod
+    def _field_choice_values(spec: Mapping) -> set | None:
+        """The field's resolved CHOICE vocabulary as a set, or ``None`` when it declares none.
+
+        Mirrors the retired Flask ``_field_enum_values`` / ``_field_choice_values`` (R8.4): a
+        field's choice vocabulary is read from rich ``options`` (``{value,...}`` dicts or bare
+        strings) FIRST, then from a bare ``choices`` string list — the single ``options``/
+        ``choices`` reader the public read side already uses. Returns the non-blank string values
+        as a set for subset-membership checks, or ``None`` when the field declares no usable
+        vocabulary (not an enum / value-less) — the caller treats an ``application_choices`` subset
+        on such a field as a write error (you cannot subset a field that has no choices).
+        """
+
+        def _collect(raw) -> list | None:
+            if not isinstance(raw, (list, tuple)):
+                return None
+            values: list = []
+            for entry in raw:
+                value = entry.get("value") if isinstance(entry, Mapping) else entry
+                if isinstance(value, str) and value.strip():
+                    values.append(value)
+            return values or None
+
+        values = _collect(spec.get("options")) or _collect(spec.get("choices"))
+        return set(values) if values else None
 
     @staticmethod
     def _validate_fields_map(raw) -> dict:
@@ -319,8 +592,12 @@ class ConfigWriteService:
         only an explicit ``True`` opens a gate), ``mail_local_part`` (default ``"noreply"``),
         ``mail_domain`` (NO safe default — omitted when blank so the pre-send resolver fails
         closed, R4.2), ``mail_reply_to_default`` (NEW, Task 5.1 — optional; omitted when blank;
-        the scheduled/unattended-send Reply-To, falling back to the From when absent), and
-        ``consent_notice`` (the versioned bilingual notice; omitted unless well-formed, R12.1).
+        the scheduled/unattended-send Reply-To, falling back to the From when absent),
+        ``application_embed_origins`` (NEW, Task 5.1 — the ONE tenant-authored embed-origin list
+        that later feeds BOTH the CloudFront ``frame-ancestors`` and the SAM public API CORS;
+        absent/empty writes nothing, a malformed list is rejected fail-loud, R5.2/R8), and
+        ``consent_notice`` (the versioned bilingual notice — a truly absent notice writes nothing,
+        back-compatible, but an INTENDED-but-malformed notice is REJECTED fail-loud, R8.2/R12.1).
 
         SHAPE-ONLY, fail-closed, mirroring the Flask ``build_config_mail_row`` so the SAM-written
         row is byte-for-byte what the reader expects — writer and builder cannot drift (R9). The
@@ -351,10 +628,30 @@ class ConfigWriteService:
         if isinstance(reply_to, str) and reply_to.strip():
             attributes["mail_reply_to_default"] = reply_to
 
-        # Consent notice: project ONLY when well-formed (non-blank version + >=1 non-blank
-        # locale text), else omit — the SAME shape the reader's get_consent_notice reads.
-        consent_notice = self._shape_consent_notice(body.get("consent_notice"))
-        if consent_notice is not None:
+        # Embed origins (Task 5.1, R5.2): ONE tenant-authored list `application_embed_origins`
+        # that later feeds TWO distinct enforcement points — the CloudFront form's CSP
+        # `frame-ancestors` (task 5.2) AND the SAM public API CORS `Access-Control-Allow-Origin`
+        # (task 5.3). Absent / empty is back-compatible (write nothing = standalone, no origins);
+        # an INTENDED-but-malformed list (non-list, or a non-string / blank-only entry) is REJECTED
+        # fail-loud (R8 posture) rather than silently dropped, so a broken embed config surfaces.
+        origins = self._shape_embed_origins(body.get("application_embed_origins"))
+        if origins:
+            attributes["application_embed_origins"] = origins
+
+        # Consent notice (R8.2): a truly ABSENT notice (key omitted, or an empty/falsey value —
+        # no authoring intent) writes nothing, back-compatible. But when the body INTENDS a notice
+        # (the ``consent_notice`` key is present and non-empty) yet it is malformed (blank version,
+        # or no non-blank locale text), REJECT with a clear error rather than silently omitting —
+        # so an admin's broken notice surfaces instead of vanishing. When well-formed it projects
+        # the SAME shape the reader's get_consent_notice reads.
+        raw_consent_notice = body.get("consent_notice")
+        if raw_consent_notice:  # key present AND non-empty → authoring intent
+            consent_notice = self._shape_consent_notice(raw_consent_notice)
+            if consent_notice is None:
+                raise ConfigWriteValidationError(
+                    "config#mail 'consent_notice' is malformed: it must carry a non-blank "
+                    "'version' and at least one non-blank locale text under 'text'"
+                )
             attributes["consent_notice"] = consent_notice
 
         return attributes
@@ -365,6 +662,47 @@ class ConfigWriteService:
         if isinstance(raw, str) and raw.strip():
             return raw
         return "noreply"
+
+    @staticmethod
+    def _shape_embed_origins(raw) -> list[str]:
+        """Shape ``application_embed_origins`` → a list of trimmed, de-duplicated origins (R5.2).
+
+        ONE tenant-authored list that later feeds TWO enforcement points (CloudFront
+        ``frame-ancestors`` — task 5.2 — and the SAM public API CORS ``Access-Control-Allow-Origin``
+        — task 5.3). This shaper is the single authoring guard for both; the consumers read the
+        already-shaped attribute back, so writer and both enforcers cannot drift.
+
+        - ``None`` / absent / empty list → ``[]`` (back-compatible = standalone, no embed origins —
+          mirrors how ``mail_domain`` / ``mail_reply_to_default`` omit rather than default). The
+          caller writes nothing when the result is empty.
+        - a list whose every entry is a non-blank string → each entry is ``strip()``-ed and
+          de-duplicated **preserving first-seen order**, matching the conservative public-edge CORS
+          allow-list convention (``public_app._allowed_origins``: trim + de-dupe, NO scheme check).
+          A scheme check is deliberately NOT imposed — there is no runtime-validation precedent for
+          one in this codebase (the public edge and the SAM template both accept bare origin
+          strings), so the conservative non-blank-string rule is used.
+        - anything else — not a list, or a list containing a non-string / blank-only entry — is
+          REJECTED fail-loud with a clear :class:`ConfigWriteValidationError` (R8), so an admin's
+          malformed embed config surfaces as a 400 instead of silently becoming "standalone".
+        """
+        if raw is None:
+            return []
+        if not isinstance(raw, (list, tuple)):
+            raise ConfigWriteValidationError(
+                "config#mail 'application_embed_origins' must be a list of non-blank origin strings"
+            )
+        origins: list[str] = []
+        seen: set[str] = set()
+        for entry in raw:
+            if not isinstance(entry, str) or not entry.strip():
+                raise ConfigWriteValidationError(
+                    "config#mail 'application_embed_origins' entries must be non-blank strings"
+                )
+            origin = entry.strip()
+            if origin not in seen:
+                seen.add(origin)
+                origins.append(origin)
+        return origins
 
     @staticmethod
     def _shape_consent_notice(raw) -> dict | None:

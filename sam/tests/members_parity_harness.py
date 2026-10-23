@@ -410,6 +410,7 @@ class MembersParityHarness:
         self._original_deliver_getter: Callable[[], Any] | None = None
         self._original_mail_run_status_getter: Callable[[], Any] | None = None
         self._original_config_write_getter: Callable[[], Any] | None = None
+        self._original_preview_getter: Callable[[Any], Any] | None = None
         self._original_scope_config: Any = None
         self._original_overlay: Any = None
         self._original_grants: Any = None
@@ -462,6 +463,19 @@ class MembersParityHarness:
         # in-memory FakeDynamoTable, never a live projection table.
         self._original_config_write_getter = dispatch_mod.get_config_write_service
         dispatch_mod.get_config_write_service = lambda: self.config_write_service  # type: ignore[assignment]
+        # The application-form live-preview dispatch (spec 11, Task 1.4/1.5 — R7.2)
+        # resolves its service via dispatch_mod.get_application_preview_service(overlay),
+        # which in production builds a one-shot MembershipService over the PRODUCTION repo
+        # (needs a live MEMBERS_TABLE). Point it at a one-shot service over the harness's
+        # SAME in-memory fake repo (which holds the seeded catalog so membership-type
+        # options resolve) wired with the body overlay the route hands in — so the preview
+        # walkthrough runs get_public_field_config over the fake table, never live DynamoDB.
+        self._original_preview_getter = dispatch_mod.get_application_preview_service
+        dispatch_mod.get_application_preview_service = (  # type: ignore[assignment]
+            lambda overlay_provider: MembershipService(
+                self.repo, overlay_provider=overlay_provider
+            )
+        )
         app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
             {self.tenant_id: SAMPLE_SCOPE_CONFIG}
         )
@@ -487,6 +501,9 @@ class MembersParityHarness:
             if self._original_config_write_getter is not None:
                 dispatch_mod.get_config_write_service = self._original_config_write_getter  # type: ignore[assignment]
                 self._original_config_write_getter = None
+            if self._original_preview_getter is not None:
+                dispatch_mod.get_application_preview_service = self._original_preview_getter  # type: ignore[assignment]
+                self._original_preview_getter = None
             app._SCOPE_CONFIG_PROVIDER_OVERRIDE = self._original_scope_config
             app._OVERLAY_PROVIDER_OVERRIDE = self._original_overlay
             app._SCOPE_GRANTS_READER_OVERRIDE = self._original_grants
@@ -957,6 +974,28 @@ class MembersParityHarness:
                 {200},
                 {},
                 "resolved field config + dropdown options",
+            ),
+            # ── Application Form Builder — server-side live preview (spec 11, R7.2) ──
+            # The AUTHENTICATED, admin-gated preview seam: it runs the REAL
+            # get_public_field_config filter over the WORKING field_overlay in the request
+            # BODY (never the stored config#fields row) and returns the applicant-facing
+            # schema, so the in-app preview reuses the SAME server filtering authority the
+            # public form does (design §5.3/§6/§10). READ-ONLY (no DynamoDB mutation). Gate:
+            # members:admin — the walkthrough's default admin caller (_ADMIN_CAPS) satisfies
+            # it. A minimal, well-formed body overlay (empty fields/overrides) resolves to the
+            # fixed base and answers 200 with the applicant schema — the parity point is that
+            # the route ANSWERS (its filter/validation behaviour is pinned by the dedicated
+            # test_application_preview_dispatch.py). The literal /members/application-preview
+            # path is disjoint from every other /members/... route (no collision/shadowing).
+            (
+                "preview_application",
+                "POST",
+                "/members/application-preview",
+                {"fields": {}, "overrides": {}},
+                None,
+                {200},
+                {},
+                "live-preview the application form over a working field_overlay (R7.2)",
             ),
             (
                 "get_member",

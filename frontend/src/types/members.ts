@@ -532,6 +532,21 @@ export interface FieldConfigField {
    */
   scope?: { enabled?: boolean; required_for?: string[] } | null;
   /**
+   * The four per-field PUBLIC-APPLICATION attributes the Application Form Builder authors onto
+   * `config#fields` (spec 11, design §3.1/§4) and the SAM staff field-config read serves back so
+   * the builder can re-seed its toggles/controls after a save (`_serialize_field`). Absent on an
+   * older module build; the builder treats the resolved value as a fallback behind the working
+   * overlay. The SAM write path stays the authoritative enforcer (R8).
+   */
+  /** On the public application form? (the on-the-form toggle, R2/R3). */
+  application_visible?: boolean;
+  /** Required ON the form (may TIGHTEN an optional field, never RELAX a platform-required one, R3.1). */
+  application_required?: boolean;
+  /** Enum SUBSET of the field's own choices (R3.2); `null`/absent = the full set. */
+  application_choices?: string[] | null;
+  /** A platform-known validator token (R3.3); `null`/absent = no format check. */
+  format?: { checker: string; params?: Record<string, unknown> } | null;
+  /**
    * Whether the field belongs to the compact (always-visible) view. When
    * omitted, the page treats the field as full-view-only (overlay column).
    */
@@ -626,6 +641,18 @@ export interface FieldConfig {
     mail_certified: boolean;
     mail_reply_to_default?: string;
     consent_notice?: { version: string; text: Record<string, string> };
+    /**
+     * OPTIONAL scope-matched copy toggle (spec 10 D9a / spec 11 R5.4). Authored on the Mail
+     * sub-tab (one `config#mail` home, 0.3); the Application Form Builder only references it.
+     * Surfaced here so a `config#mail` write from the builder PRESERVES it verbatim.
+     */
+    application_scope_copy?: boolean;
+    /**
+     * OPTIONAL allowed embedding origin(s) (spec 11 R5.2 / S3). ONE tenant-authored list on
+     * `config#mail` feeding BOTH the CloudFront form's CSP `frame-ancestors` AND the SAM public
+     * API CORS. Authored by the Application Form Builder's form-shell panel (task 3.2).
+     */
+    application_embed_origins?: string[];
   };
   /**
    * The DELIVERED/LOADED status of this tenant's projected `config#*` rows (Members config
@@ -639,6 +666,28 @@ export interface FieldConfig {
    * Absent on an older module build (treated as "status unavailable").
    */
   config_status?: Record<string, string | number | null>;
+  /**
+   * The platform's known FORMAT-VALIDATOR tokens (spec 11, R3.3; SAM task 1.3). Served as a
+   * top-level key on `GET /members/field-config` — the sorted set of `field_formats.known_tokens()`
+   * (e.g. `["EMAIL", "IBAN"]`). The Application Form Builder's per-field `format` dropdown
+   * (`ApplicationFieldAttributes`) is fed STRICTLY by this list so the authored `format.checker`
+   * can only be a platform-known token and the dropdown never drifts from the registry (never a
+   * free-typed value). The SAM config-write path is the authoritative gate regardless (R8.1b);
+   * this is the convenience source for the UI. Absent on an older module build → the format
+   * control degrades to "no known formats" and offers only the "none" choice.
+   */
+  field_format_tokens?: string[];
+  /**
+   * The RAW stored `config#fields` overlay (`{ fields, overrides, functional_groups }`) — the
+   * authoring ROUND-TRIP seed (spec 11 bugfix). The Application Form Builder + the Field-
+   * configuration editor hold ONE working `field_overlay` object and PUT it back WHOLE via
+   * `writeFieldConfig` (the write REPLACES the `config#fields` row). Seeding that working object
+   * from THIS key — the exact SAM row they write — makes a save loss-free (GET and PUT symmetric
+   * on one table), instead of the retired Flask `members.field_overlay` param whose copy diverged
+   * (it lacked the per-field application attributes, so a save wiped prior selections). Absent on
+   * an older module build → the editor falls back to an empty overlay.
+   */
+  field_overlay?: Record<string, unknown>;
 }
 
 /** A configured scope dimension (mirrors the projected `config#scope` shape). */

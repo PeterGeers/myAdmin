@@ -39,6 +39,13 @@ vi.mock('../context/AuthContext', () => ({
   useAuth: () => ({ hasAnyRole: () => true }),
 }));
 
+// MembersPage reads `useTenant().currentTenant` for the export filename
+// (members-overview-tweaks Req 5.1/5.4). Stub the tenant context so the page
+// does not require a real TenantProvider in these table-focused tests.
+vi.mock('../context/TenantContext', () => ({
+  useTenant: () => ({ currentTenant: 'h-dcn' }),
+}));
+
 const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockListMembersPage = vi.mocked(membersApiService.listMembersPage);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
@@ -456,11 +463,15 @@ describe('MembersPage (Leden Overzicht)', () => {
       const search = screen.getByTestId('members-global-search') as HTMLInputElement;
       fireEvent.change(search, { target: { value: 'honda' } });
 
+      // Assert BOTH figures inside ONE waitFor so they are read from the SAME settled
+      // render: the search triggers a re-render, and a bare getByTestId immediately after
+      // the filtered-count waitFor can hit a transient frame where stat-total is momentarily
+      // not queryable (getElementError) under full-suite load — the observed CI flake. Total
+      // stays the full scoped set; only the filtered figure narrows.
       await waitFor(() => {
         expect(screen.getByTestId('stat-filtered')).toHaveTextContent('1');
+        expect(screen.getByTestId('stat-total')).toHaveTextContent('3');
       });
-      // Total stays the full scoped set; only the filtered figure narrows.
-      expect(screen.getByTestId('stat-total')).toHaveTextContent('3');
     });
 
     it('clear button restores all rows', async () => {
