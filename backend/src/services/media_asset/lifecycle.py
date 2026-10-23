@@ -725,10 +725,22 @@ class LifecycleMixin:
                     (dup_id, tenant),
                 )
 
-                # Delete duplicate's S3 object
+                # Delete duplicate's S3 object (delete-tolerance, P1): a failed
+                # S3 delete must not abort the merge — log and continue removing
+                # the DB row; the reference re-home is what matters for the user.
                 s3_key = dup_row["s3_key"] if isinstance(dup_row, dict) else dup_row[1]
                 bucket = dup_row["bucket"] if isinstance(dup_row, dict) else dup_row[2]
-                self._delete_raw(bucket, s3_key)
+                deleted_s3 = self._delete_raw(bucket, s3_key)
+                if not deleted_s3:
+                    _maslog().warning(
+                        "Merge duplicates: S3 delete failed, tolerating and "
+                        "removing DB row anyway: tenant=%s, dup_id=%s, bucket=%s, "
+                        "s3_key=%s",
+                        tenant,
+                        dup_id,
+                        bucket,
+                        s3_key,
+                    )
 
                 # Delete duplicate's DB record
                 cursor.execute(

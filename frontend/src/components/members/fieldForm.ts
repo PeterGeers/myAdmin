@@ -114,6 +114,31 @@ export function isEditableField(field: FieldConfigField): boolean {
 }
 
 /**
+ * A field is CALCULATED (derived / read-only) when it is NOT editable — the exact complement of
+ * {@link isEditableField} over the same per-field flag (`origin === 'calculated'` or the
+ * server-set `read_only`, R4.4). Defined as the complement so the edit/view partition can never
+ * drift from the editable rule.
+ *
+ * The edit modal EXCLUDES these fields from display (members-overview-tweaks R2.2); the view modal
+ * KEEPS them (R3.1) — the view renders the full resolved set, calculated fields included.
+ */
+export function isCalculatedField(field: FieldConfigField): boolean {
+  return !isEditableField(field);
+}
+
+/**
+ * Partition a resolved field list down to its EDITABLE fields, dropping every calculated field
+ * (members-overview-tweaks R2.1, R2.2). This is the set the Edit_Modal renders: every editable
+ * field is kept and every calculated field is excluded — not disabled, excluded. The view modal
+ * does NOT use this (R3.1, R3.2): it keeps the full resolved set.
+ *
+ * Order and identity are preserved for the kept fields — this only removes the calculated ones.
+ */
+export function editableFields(fields: FieldConfigField[]): FieldConfigField[] {
+  return fields.filter((f) => !isCalculatedField(f));
+}
+
+/**
  * Evaluate a field's `show_when` condition against the current form values (R4.12).
  *
  * Convention (shared verbatim with the server's `evaluate_show_when`): `show_when` is a map of

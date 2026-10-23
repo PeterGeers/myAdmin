@@ -178,6 +178,17 @@ class MailJob:
       (``{"kind": "csv"|"pdf_labels", "label_options": {...}|None}``) or ``None``.
     - ``rows`` — the result rows the worker needs to BUILD a ``to_fixed`` attachment from
       (empty for ``per_recipient``, which carries per-member merge values instead).
+    - ``tenant_name`` — the active tenant's DISPLAY name, used to NAME the export
+      (``{Tenant_Name}-{Pivot_Name}.csv``) and PREFIX the email subject
+      (members-overview-tweaks R5.2/R5.3/R5.5; design "the names must RIDE the envelope").
+      ``tenant_id`` / ``set_id`` are opaque keys, so the display names are stamped here at
+      enqueue time from the AUTHORITATIVE verified tenant context / the stored set — NEVER a
+      request-body value (verify-before-trust). ADDITIVE: defaults to ``""`` so an older
+      in-flight job enqueued before this field existed loads blank, and the worker (task 6.2)
+      falls back to a safe generic name rather than failing.
+    - ``pivot_name`` — the analytics set's DISPLAY name (``Pivot_Name``), the other half of
+      the export name + subject. Sourced from the stored set entry at enqueue time. ADDITIVE,
+      same ``""`` default + worker fallback as ``tenant_name``.
     """
 
     job_id: str
@@ -192,6 +203,8 @@ class MailJob:
     merge_values: Mapping[str, Any] = field(default_factory=dict)
     attachment: Mapping[str, Any] | None = None
     rows: tuple[Mapping[str, Any], ...] = ()
+    tenant_name: str = ""
+    pivot_name: str = ""
 
 
 @dataclass(frozen=True)

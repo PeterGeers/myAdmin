@@ -253,6 +253,51 @@ class MembersProjectionReader:
             functional_groups=functional_groups,
         )
 
+    def get_raw_fields_overlay(self, tenant_id: str) -> dict:
+        """Return the stored ``config#fields`` overlay in the AUTHORING WIRE shape — the
+        round-trip seed for the editors (spec 11 bugfix; one-key contract).
+
+        The authoring editors (Application Form Builder + the Field-configuration editor) hold ONE
+        working ``field_overlay`` object, then PUT it back WHOLE to ``config#fields`` (the write
+        REPLACES the row). For that round-trip to be loss-free AND reliable, GET and PUT must use
+        the SAME key names — otherwise a stored selection reads back under a key the editor does not
+        inspect and renders as "not selected" even though it persisted.
+
+        THE ONE-KEY CONTRACT (authoritative, do not reintroduce a second translator):
+
+        - **Storage** (the DynamoDB ``config#fields`` row) uses the attribute ``overrides`` for the
+          fixed-field override map. This is the resolver's canonical read key (:meth:`get_overlay`)
+          and the public-form path — it is NOT changed here and must stay ``overrides`` at rest.
+        - **The authoring WIRE shape** uses ``fixed_overrides`` — the key the whole frontend
+          overlay model (``overlayModel`` + ``MembersFieldModal`` + the Application Form Builder)
+          reads and writes, and the key the SAM write path already accepts.
+        - **This reader is the SINGLE read-side translator**: it serves the stored ``overrides``
+          map UNDER the wire key ``fixed_overrides``. Its symmetric counterpart is the write path's
+          ``fixed_overrides`` → ``overrides`` normalization (``ConfigWriteService``). Those two
+          boundary functions are the ONLY places storage↔wire key translation happens — the
+          frontend needs NO normalizer, so read and write are symmetric by construction.
+
+        A **missing** row → ``{"fields": {}, "fixed_overrides": {}, "functional_groups": []}``
+        (empty-is-valid, never an error). Carries the per-field application attributes
+        (``application_visible`` / ``application_required`` / ``application_choices`` / ``format``)
+        and every other authored key THROUGH unchanged, because the editor writes them back
+        unchanged. The write path stays the authoritative validator (R8).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        if row is None:
+            return {"fields": {}, "fixed_overrides": {}, "functional_groups": []}
+        raw_fields = row.get("fields")
+        # Storage key is ``overrides``; serve it under the authoring WIRE key ``fixed_overrides``
+        # (the one-key contract above) so the editor's read matches its write with no client-side
+        # translation. Storage at rest is unchanged — only the served shape is normalized here.
+        raw_overrides = row.get("overrides")
+        raw_groups = row.get("functional_groups")
+        return {
+            "fields": raw_fields if isinstance(raw_fields, dict) else {},
+            "fixed_overrides": raw_overrides if isinstance(raw_overrides, dict) else {},
+            "functional_groups": raw_groups if isinstance(raw_groups, list) else [],
+        }
+
     @staticmethod
     def _build_functional_group(spec: dict) -> FunctionalGroup:
         """Map a projected functional-group catalog entry onto a :class:`FunctionalGroup` (R4.9)."""
@@ -664,6 +709,53 @@ class MembersProjectionReader:
         if isinstance(reply_to, str) and reply_to.strip():
             return reply_to
         return None
+
+    def get_application_embed_origins(self, tenant_id: str) -> list[str]:
+        """Return the tenant's projected ``application_embed_origins`` from ``config#mail`` (R5.2).
+
+        The ONE tenant-authored embed-origin allow-list (authored onto ``config#mail`` by the
+        builder's form-shell panel, shaped + validated on write by
+        :meth:`sam.members.domain.config_write_service.ConfigWriteService._shape_embed_origins`).
+        It feeds TWO distinct enforcement points that MUST read the SAME list so they cannot
+        drift: the CloudFront form's CSP ``frame-ancestors`` (task 5.2, at the edge) and the SAM
+        public API CORS ``Access-Control-Allow-Origin`` (task 5.3, consumed here by
+        :func:`sam.members.handler.public_app._tenant_embed_origins`). This is the SAM read side
+        of that list.
+
+        The written attribute is ALREADY trimmed + de-duplicated (first-seen order) by the write
+        shaper, so this read is a verbatim pass-through with the SAME conservative guards as the
+        public-edge CORS convention (``public_app._allowed_origins``: trim + de-dupe, NO scheme
+        check). Re-trimming + re-de-duping here is belt-and-suspenders so a stray stored value
+        (a hand-edited row, a legacy entry) never surfaces a blank or duplicate origin.
+
+        **Empty-is-valid / fail-safe — never raises** (same discipline as ``get_mail_domain``):
+        an absent ``config#mail`` row, a missing attribute, a non-list value, or a list with no
+        usable (non-blank string) entries all resolve to ``[]`` = standalone (no cross-origin
+        embed permitted for this tenant). A per-request flood never crashes the CORS decision.
+
+        Args:
+            tenant_id: The tenant (partition key) whose embed-origin allow-list to resolve.
+
+        Returns:
+            The projected embed origins as a trimmed, de-duplicated list, or ``[]`` when
+            absent/unusable (fail-safe — the tenant permits no cross-origin embed).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_MAIL)
+        if row is None:
+            return []
+        raw = row.get("application_embed_origins")
+        if not isinstance(raw, (list, tuple)):
+            return []
+        origins: list[str] = []
+        seen: set[str] = set()
+        for entry in raw:
+            if not isinstance(entry, str):
+                continue
+            origin = entry.strip()
+            if origin and origin not in seen:
+                seen.add(origin)
+                origins.append(origin)
+        return origins
 
     # ── Tenant consent notice (Member Application Form D26/R12.1a/R12.1c, task 2.6) ────
     #

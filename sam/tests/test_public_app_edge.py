@@ -78,11 +78,14 @@ def _allow_form_origin(monkeypatch):
     (or no) mapping to assert the non-probeable 404.
     """
     monkeypatch.setenv(
-        public_app.ALLOWED_ORIGINS_ENV, "https://aanmelden.jabaki.nl,https://form.example"
+        public_app.ALLOWED_ORIGINS_ENV,
+        "https://aanmelden.jabaki.nl,https://form.example",
     )
     # Seed the thin slug→tenant_id projection the edge resolves against (D19/R2). `h-dcn` is the
     # slug used by _FIELD_CONFIG / _APPLICATIONS below, so it maps to a canonical tenant_id.
-    monkeypatch.setenv("PUBLIC_TENANT_SLUG_MAP", "h-dcn:h-dcn-tenant,form-slug:form-tenant")
+    monkeypatch.setenv(
+        "PUBLIC_TENANT_SLUG_MAP", "h-dcn:h-dcn-tenant,form-slug:form-tenant"
+    )
 
 
 def _body(resp: dict) -> dict:
@@ -209,7 +212,10 @@ def test_non_public_prefix_returns_404():
 
 def test_wrong_method_on_public_path_returns_404():
     # POST to field-config / GET to applications are not recognised routes → 404.
-    assert public_app.handler(_proxy_event("POST", _FIELD_CONFIG, body={}))["statusCode"] == 404
+    assert (
+        public_app.handler(_proxy_event("POST", _FIELD_CONFIG, body={}))["statusCode"]
+        == 404
+    )
     assert public_app.handler(_proxy_event("GET", _APPLICATIONS))["statusCode"] == 404
 
 
@@ -282,9 +288,7 @@ def test_slug_resolution_is_case_insensitive_at_the_edge(monkeypatch):
     # The resolver normalizes (trim + case-fold), so an upper-cased slug on the path still resolves
     # to the same tenant and reaches the pending-service 501 (D19 — the slug is a DNS host label).
     monkeypatch.setenv("PUBLIC_TENANT_SLUG_MAP", "hdcn:h-dcn-tenant")
-    resp = public_app.handler(
-        _proxy_event("GET", "/public/members/HDCN/field-config")
-    )
+    resp = public_app.handler(_proxy_event("GET", "/public/members/HDCN/field-config"))
     assert resp["statusCode"] == 501
 
 
@@ -314,7 +318,9 @@ def test_allowlisted_origin_is_echoed_not_wildcard():
         "GET", _FIELD_CONFIG, headers={"Origin": "https://aanmelden.jabaki.nl"}
     )
     resp = public_app.handler(event)
-    assert resp["headers"]["Access-Control-Allow-Origin"] == "https://aanmelden.jabaki.nl"
+    assert (
+        resp["headers"]["Access-Control-Allow-Origin"] == "https://aanmelden.jabaki.nl"
+    )
     assert resp["headers"]["Access-Control-Allow-Origin"] != "*"
     assert "Origin" in resp["headers"].get("Vary", "")
 
@@ -378,7 +384,9 @@ def test_cors_header_echoed_on_non_probeable_404():
     )
     assert resp["statusCode"] == 404
     assert _body(resp)["code"] == "errors.api.notFound"
-    assert resp["headers"]["Access-Control-Allow-Origin"] == "https://aanmelden.jabaki.nl"
+    assert (
+        resp["headers"]["Access-Control-Allow-Origin"] == "https://aanmelden.jabaki.nl"
+    )
     assert resp["headers"]["Access-Control-Allow-Origin"] != "*"
 
 
@@ -416,3 +424,220 @@ def test_oversized_base64_encoded_payload_returns_neutral_400(monkeypatch):
     resp = public_app.handler(event)
     assert resp["statusCode"] == 400
     assert _body(resp)["code"] == "errors.api.badRequest"
+
+
+# ── Per-tenant embed-origin CORS reflection (application-form-builder task 5.3/5.4 — R5.2) ──
+#
+# The ONE tenant-authored `application_embed_origins` list (authored onto `config#mail`, task 5.1)
+# feeds the SAM public API CORS: for a route that resolves to an allow-listed tenant, an Origin on
+# THAT tenant's list is echoed into `Access-Control-Allow-Origin` IN ADDITION to the static
+# stack-wide baseline (`PUBLIC_FORM_ALLOWED_ORIGINS`). These pin:
+#   * a tenant-configured origin (NOT in the static baseline) IS reflected on that tenant's route;
+#   * an un-configured tenant / a disallowed origin is NOT reflected (fail-closed, no `*`);
+#   * the per-tenant list is honoured on the recognised-route 501 (service pending);
+#   * a projection read error degrades to the static baseline only (CORS never crashes a response).
+#
+# The slug→tenant map (`PUBLIC_TENANT_SLUG_MAP`, seeded by the autouse fixture) resolves the
+# `h-dcn` slug on `_FIELD_CONFIG`/`_APPLICATIONS` to tenant_id `h-dcn-tenant`, so these fakes key
+# on that resolved tenant_id — never the raw slug (verify-before-trust: CORS reads the RESOLVED
+# tenant's authored list).
+
+_TENANT_EMBED_ORIGIN = "https://members.h-dcn.nl"
+
+
+class _FakeEmbedOriginReader:
+    """A stand-in for ``MembersProjectionReader`` that returns a canned per-tenant origin list.
+
+    ``public_app._tenant_embed_origins`` constructs ``MembersProjectionReader()`` and calls
+    ``get_application_embed_origins(tenant_id)``; monkeypatching the name to this fake avoids any
+    DynamoDB/projection dependency while exercising the real CORS union logic. Keyed on the
+    RESOLVED tenant_id so a tenant not in the map returns ``[]`` (un-configured = standalone).
+    """
+
+    def __init__(self, by_tenant: dict[str, list[str]] | None = None):
+        self._by_tenant = by_tenant or {}
+
+    def get_application_embed_origins(self, tenant_id: str) -> list[str]:
+        return list(self._by_tenant.get(tenant_id, []))
+
+
+def test_tenant_configured_embed_origin_is_reflected_in_cors(monkeypatch):
+    # R5.2: an Origin that is NOT in the static stack-wide baseline but IS on the resolved
+    # tenant's `application_embed_origins` is echoed back — the tenant's own embedding site may
+    # call the public endpoints cross-origin. (`h-dcn` slug → `h-dcn-tenant` via the fixture.)
+    monkeypatch.setattr(
+        public_app,
+        "MembersProjectionReader",
+        lambda *a, **k: _FakeEmbedOriginReader(
+            {"h-dcn-tenant": [_TENANT_EMBED_ORIGIN]}
+        ),
+    )
+    event = _proxy_event("GET", _FIELD_CONFIG, headers={"Origin": _TENANT_EMBED_ORIGIN})
+    resp = public_app.handler(event)
+    assert resp["statusCode"] == 501  # recognised route, service pending
+    assert resp["headers"]["Access-Control-Allow-Origin"] == _TENANT_EMBED_ORIGIN
+    assert resp["headers"]["Access-Control-Allow-Origin"] != "*"
+    assert "Origin" in resp["headers"].get("Vary", "")
+
+
+def test_static_baseline_still_reflected_alongside_tenant_origins(monkeypatch):
+    # The per-tenant list AUGMENTS, never replaces, the static baseline: an Origin on the
+    # stack-wide `PUBLIC_FORM_ALLOWED_ORIGINS` is still echoed for a tenant that also has its own
+    # (distinct) embed origins configured.
+    monkeypatch.setattr(
+        public_app,
+        "MembersProjectionReader",
+        lambda *a, **k: _FakeEmbedOriginReader(
+            {"h-dcn-tenant": [_TENANT_EMBED_ORIGIN]}
+        ),
+    )
+    event = _proxy_event(
+        "GET", _FIELD_CONFIG, headers={"Origin": "https://aanmelden.jabaki.nl"}
+    )
+    resp = public_app.handler(event)
+    assert (
+        resp["headers"]["Access-Control-Allow-Origin"] == "https://aanmelden.jabaki.nl"
+    )
+
+
+def test_unconfigured_tenant_does_not_reflect_a_non_baseline_origin(monkeypatch):
+    # An un-configured tenant (no `application_embed_origins`) + an Origin that is NOT on the
+    # static baseline → fail-closed: the header is dropped, never a `*`. The reader returns [] for
+    # the resolved tenant.
+    monkeypatch.setattr(
+        public_app,
+        "MembersProjectionReader",
+        lambda *a, **k: _FakeEmbedOriginReader({}),  # h-dcn-tenant has no origins
+    )
+    event = _proxy_event("GET", _FIELD_CONFIG, headers={"Origin": _TENANT_EMBED_ORIGIN})
+    resp = public_app.handler(event)
+    assert resp["statusCode"] == 501
+    assert "Access-Control-Allow-Origin" not in resp["headers"]
+
+
+def test_origin_allowed_for_one_tenant_is_not_reflected_for_another(monkeypatch):
+    # Per-tenant isolation (Property 5): an Origin configured for tenant A is NOT echoed on a
+    # DIFFERENT tenant's route. `form-slug` → `form-tenant` (seeded by the fixture) has no origins,
+    # so `h-dcn-tenant`'s embed origin is not reflected there.
+    monkeypatch.setattr(
+        public_app,
+        "MembersProjectionReader",
+        lambda *a, **k: _FakeEmbedOriginReader(
+            {"h-dcn-tenant": [_TENANT_EMBED_ORIGIN]}
+        ),
+    )
+    event = _proxy_event(
+        "GET",
+        "/public/members/form-slug/field-config",
+        headers={"Origin": _TENANT_EMBED_ORIGIN},
+    )
+    resp = public_app.handler(event)
+    assert resp["statusCode"] == 501  # form-slug resolves (fixture), service pending
+    assert "Access-Control-Allow-Origin" not in resp["headers"]
+
+
+def test_tenant_embed_origin_is_not_reflected_on_a_non_probeable_404(monkeypatch):
+    # The non-probeable-404 contract (R2.3/R1a.4) is preserved: an UNKNOWN slug never resolves to a
+    # tenant, so its 404 carries ONLY the static baseline — it must stay indistinguishable from an
+    # unknown-path 404. A tenant's embed origin must NOT leak onto an unknown-slug 404 (there is no
+    # resolved tenant to read it from).
+    monkeypatch.setattr(
+        public_app,
+        "MembersProjectionReader",
+        lambda *a, **k: _FakeEmbedOriginReader(
+            {"h-dcn-tenant": [_TENANT_EMBED_ORIGIN]}
+        ),
+    )
+    unknown_slug = public_app.handler(
+        _proxy_event(
+            "GET",
+            "/public/members/not-a-tenant/field-config",
+            headers={"Origin": _TENANT_EMBED_ORIGIN},
+        )
+    )
+    assert unknown_slug["statusCode"] == 404
+    # The tenant origin is NOT on the static baseline and the slug did not resolve → not reflected.
+    assert "Access-Control-Allow-Origin" not in unknown_slug["headers"]
+
+
+@pytest.mark.parametrize(
+    "confirmed_origin",
+    ["https://sites.google.com", "https://portal.h-dcn.nl"],
+)
+def test_confirmed_v1_targets_are_reflected_for_the_configured_tenant(
+    monkeypatch, confirmed_origin
+):
+    # R5.2/R9.2: the two CONFIRMED v1 external embed targets — a Google Site
+    # (`https://sites.google.com`) and the h-dcn event portal (`https://portal.h-dcn.nl`) — are
+    # each reflected into `Access-Control-Allow-Origin` on the resolved tenant's route when that
+    # tenant has authored them. Neither is on the static baseline, so this exercises the
+    # per-tenant union path with the REAL targets the spec names (not a stand-in origin).
+    monkeypatch.setattr(
+        public_app,
+        "MembersProjectionReader",
+        lambda *a, **k: _FakeEmbedOriginReader(
+            {
+                "h-dcn-tenant": [
+                    "https://sites.google.com",
+                    "https://portal.h-dcn.nl",
+                ]
+            }
+        ),
+    )
+    event = _proxy_event("GET", _FIELD_CONFIG, headers={"Origin": confirmed_origin})
+    resp = public_app.handler(event)
+    assert resp["statusCode"] == 501  # recognised route, service pending
+    assert resp["headers"]["Access-Control-Allow-Origin"] == confirmed_origin
+    assert resp["headers"]["Access-Control-Allow-Origin"] != "*"
+
+
+def test_confirmed_v1_target_denied_for_an_unconfigured_tenant(monkeypatch):
+    # R9.2 "deny others": the h-dcn portal is reflected for the tenant that authored it, but a
+    # DIFFERENT tenant (`form-slug` → `form-tenant`, no origins) does NOT reflect it — fail-closed,
+    # never a `*`. This is the deny-half of "reflect the configured origins and deny others" with
+    # the confirmed target.
+    monkeypatch.setattr(
+        public_app,
+        "MembersProjectionReader",
+        lambda *a, **k: _FakeEmbedOriginReader(
+            {"h-dcn-tenant": ["https://sites.google.com", "https://portal.h-dcn.nl"]}
+        ),
+    )
+    event = _proxy_event(
+        "GET",
+        "/public/members/form-slug/field-config",
+        headers={"Origin": "https://portal.h-dcn.nl"},
+    )
+    resp = public_app.handler(event)
+    assert resp["statusCode"] == 501  # form-slug resolves (fixture), service pending
+    assert "Access-Control-Allow-Origin" not in resp["headers"]
+
+
+def test_cors_degrades_to_static_baseline_when_projection_read_errors(monkeypatch):
+    # Fail-safe (Property 2 / R4.1 discipline): the CORS decision must never crash a public
+    # response. If resolving the per-tenant origins raises (e.g. a projection/table error), the
+    # edge degrades to the static baseline only — the response is still well-formed and the static
+    # allow-listed Origin is still honoured.
+    class _BoomReader:
+        def get_application_embed_origins(self, tenant_id):
+            raise RuntimeError("projection unavailable")
+
+    monkeypatch.setattr(
+        public_app, "MembersProjectionReader", lambda *a, **k: _BoomReader()
+    )
+    # A static-baseline Origin is still echoed despite the per-tenant read blowing up.
+    static_ok = public_app.handler(
+        _proxy_event(
+            "GET", _FIELD_CONFIG, headers={"Origin": "https://aanmelden.jabaki.nl"}
+        )
+    )
+    assert static_ok["statusCode"] == 501
+    assert (
+        static_ok["headers"]["Access-Control-Allow-Origin"]
+        == "https://aanmelden.jabaki.nl"
+    )
+    # A tenant-only Origin is dropped (the per-tenant list could not be read) — fail-closed, no `*`.
+    tenant_only = public_app.handler(
+        _proxy_event("GET", _FIELD_CONFIG, headers={"Origin": _TENANT_EMBED_ORIGIN})
+    )
+    assert "Access-Control-Allow-Origin" not in tenant_only["headers"]

@@ -67,6 +67,12 @@ class FakeTable:
         key = (item[schema.PARTITION_KEY_ATTR], item[schema.SORT_KEY_ATTR])
         self.store[key] = dict(item)
 
+    def put_item(self, Item: dict) -> dict:
+        """boto3 Table.put_item shim (write side) — lets the real write repository persist into
+        this same fake table so a write→read round-trip can be asserted end to end."""
+        self.put(Item)
+        return {}
+
     def query(self, KeyConditionExpression=None):
         tenant_id = _tenant_from_condition(KeyConditionExpression)
         self.query_counts[tenant_id] = self.query_counts.get(tenant_id, 0) + 1
@@ -430,6 +436,78 @@ class TestGetOverlay:
         assert isinstance(overlay, TenantOverlay)
         assert dict(overlay.fields) == {}
         assert dict(overlay.overrides) == {}
+
+
+# ---------------------------------------------------------------------------
+# Raw config#fields overlay read — the authoring ROUND-TRIP seed (spec 11 bugfix)
+#
+# get_raw_fields_overlay returns the stored `{fields, overrides, functional_groups}` VERBATIM
+# (minus key + version) so the authoring editors LOAD the exact object they PUT back to the SAME
+# SAM row — a save is loss-free (GET/PUT symmetric on one table), fixing the "prior selections
+# wiped on save" bug. A missing row → clean empty overlay (empty-is-valid), never an error.
+# ---------------------------------------------------------------------------
+
+
+class TestGetRawFieldsOverlay:
+    def test_raw_overlay_round_trips_the_stored_slices_verbatim(self):
+        table = FakeTable()
+        fields = {
+            "motor_type": {
+                "key": "motor_type",
+                "type": "string",
+                "application_visible": True,
+                "application_required": True,
+                "application_choices": ["BMW", "Honda"],
+                "format": {"checker": "EMAIL", "params": {"strict": True}},
+            }
+        }
+        overrides = {"personal.city": {"functional_group": "address", "order": 3}}
+        item = _config_fields_item("h-dcn", fields, overrides)
+        item["functional_groups"] = [
+            {"key": "address", "label": {"en": "Address"}, "order": 1}
+        ]
+        table.put(item)
+
+        reader = MembersProjectionReader(table=table)
+        raw = reader.get_raw_fields_overlay("h-dcn")
+
+        # The slices come back in the AUTHORING WIRE shape — the stored `overrides` map served
+        # under the wire key `fixed_overrides` (one-key contract) — incl. the four application
+        # attributes, so a PUT of this object round-trips with no loss.
+        assert raw["fields"] == fields
+        assert raw["fixed_overrides"] == overrides
+        assert raw["functional_groups"] == [
+            {"key": "address", "label": {"en": "Address"}, "order": 1}
+        ]
+        # The storage key `overrides` is NOT leaked to the editor (one wire key only).
+        assert "overrides" not in raw
+        # No key/version leak into the authoring body.
+        assert schema.PARTITION_KEY_ATTR not in raw
+        assert schema.SORT_KEY_ATTR not in raw
+        assert schema.VERSION_ATTR not in raw
+
+    def test_raw_overlay_missing_row_is_empty_not_an_error(self):
+        reader = MembersProjectionReader(table=FakeTable())  # nothing seeded
+        raw = reader.get_raw_fields_overlay("unconfigured")
+        assert raw == {"fields": {}, "fixed_overrides": {}, "functional_groups": []}
+
+    def test_raw_overlay_absent_slices_default_to_empty_containers(self):
+        table = FakeTable()
+        # A row with only `fields` — overrides / functional_groups absent on the stored item.
+        item = {
+            schema.PARTITION_KEY_ATTR: "h-dcn",
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
+            "fields": {"notes": {"key": "notes", "type": "string"}},
+            schema.VERSION_ATTR: 1,
+        }
+        table.put(item)
+
+        raw = MembersProjectionReader(table=table).get_raw_fields_overlay("h-dcn")
+        assert raw["fields"] == {"notes": {"key": "notes", "type": "string"}}
+        assert raw["fixed_overrides"] == {}
+        assert raw["functional_groups"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -1219,6 +1297,132 @@ class TestConfigMailWriteReadRoundTrip:
         )  # From fallback applies
 
 
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# application-form-builder Task 5.3 — get_application_embed_origins: the SAM read side of the
+# ONE tenant-authored embed-origin list on config#mail (authored by task 5.1's _shape_embed_
+# origins). It feeds BOTH the CloudFront form `frame-ancestors` (task 5.2) and the SAM public
+# API CORS `Access-Control-Allow-Origin` (task 5.3, consumed by public_app._tenant_embed_origins).
+# Same read discipline as the sibling config#mail accessors: one partition Query (shared cache),
+# empty-is-valid / fail-safe (→ [], never raises), trim + de-dupe belt-and-suspenders.
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+
+class TestGetApplicationEmbedOrigins:
+    def test_returns_projected_origins_verbatim(self):
+        """A projected list of origins is returned (already shaped by the write path)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                application_embed_origins=[
+                    "https://members.h-dcn.nl",
+                    "https://aanmelden.h-dcn.nl",
+                ],
+            )
+        )
+        assert MembersProjectionReader(table=table).get_application_embed_origins(
+            "h-dcn"
+        ) == ["https://members.h-dcn.nl", "https://aanmelden.h-dcn.nl"]
+
+    def test_missing_row_fails_safe_to_empty_list(self):
+        """No config#mail row at all → [] (standalone, no cross-origin embed), never raises."""
+        table = FakeTable()  # nothing seeded
+        assert (
+            MembersProjectionReader(table=table).get_application_embed_origins(
+                "unconfigured"
+            )
+            == []
+        )
+
+    def test_missing_attribute_fails_safe_to_empty_list(self):
+        """A config#mail row without the attribute → [] (an un-authored tenant is standalone)."""
+        table = FakeTable()
+        table.put(_config_mail_item_full("h-dcn"))  # no embed origins authored
+        assert (
+            MembersProjectionReader(table=table).get_application_embed_origins("h-dcn")
+            == []
+        )
+
+    def test_non_list_values_fail_safe_to_empty_list(self):
+        """A non-list stored value (hand-edited / legacy) degrades to [] — never raises."""
+        for raw in ("https://x.example", None, 123, {}):
+            table = FakeTable()
+            table.put(_config_mail_item_full("h-dcn", application_embed_origins=raw))
+            reader = MembersProjectionReader(table=table)
+            assert reader.get_application_embed_origins("h-dcn") == [], f"raw={raw!r}"
+
+    def test_blank_and_non_string_entries_are_dropped(self):
+        """Belt-and-suspenders read guard: blank/non-string entries are skipped (not raised)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                application_embed_origins=[
+                    "  https://members.h-dcn.nl  ",  # trimmed
+                    "   ",  # blank → dropped
+                    42,  # non-string → dropped
+                    "https://members.h-dcn.nl",  # duplicate of the trimmed entry → de-duped
+                ],
+            )
+        )
+        assert MembersProjectionReader(table=table).get_application_embed_origins(
+            "h-dcn"
+        ) == ["https://members.h-dcn.nl"]
+
+    def test_tenant_isolation(self):
+        """Each tenant's embed origins answer only from its own partition — no bleed."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "tenant-a", application_embed_origins=["https://a.example"]
+            )
+        )
+        table.put(
+            _config_mail_item_full(
+                "tenant-b", application_embed_origins=["https://b.example"]
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_application_embed_origins("tenant-a") == ["https://a.example"]
+        assert reader.get_application_embed_origins("tenant-b") == ["https://b.example"]
+
+    def test_shares_partition_cache_with_sibling_mail_accessors(self):
+        """The embed-origins read shares the per-invocation partition cache (one Query)."""
+        table = FakeTable()
+        table.put(
+            _config_mail_item_full(
+                "h-dcn",
+                mail_domain="h-dcn.nl",
+                application_embed_origins=["https://members.h-dcn.nl"],
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        reader.get_mail_domain("h-dcn")
+        reader.get_application_embed_origins("h-dcn")
+        assert table.query_counts["h-dcn"] == 1
+
+    def test_round_trips_through_the_sam_owned_write_path(self):
+        """Property 1: put_config('mail', {application_embed_origins: [...]}) → reader returns it."""
+        from sam.members.domain.config_write_version import next_write_stamp
+        from sam.members.repository.projection_config_write_repository import (
+            MembersConfigWriteRepository,
+        )
+
+        table = _WritableFakeTable()
+        MembersConfigWriteRepository(table=table).put_config(
+            tenant_id="h-dcn",
+            config_id=schema.CONFIG_ID_MAIL,
+            attributes={
+                "mail_enabled": True,
+                "application_embed_origins": ["https://members.h-dcn.nl"],
+            },
+            version=next_write_stamp(),
+        )
+        assert MembersProjectionReader(table=table).get_application_embed_origins(
+            "h-dcn"
+        ) == ["https://members.h-dcn.nl"]
+
+
 # ---------------------------------------------------------------------------
 # get_config_status — delivered/loaded projection status (Phase 0 step 3)
 # ---------------------------------------------------------------------------
@@ -1364,3 +1568,87 @@ class TestGetMailConfig:
         reader = MembersProjectionReader(table=table)
         assert reader.get_mail_config("tenant-a")["mail_domain"] == "a.example"
         assert reader.get_mail_config("tenant-b")["mail_domain"] == "b.example"
+
+
+# ---------------------------------------------------------------------------
+# WRITE -> READ round-trip SYMMETRY (the "what you save is what you see" test)
+#
+# The one-key contract: storage uses `overrides`; the authoring WIRE uses `fixed_overrides`.
+# The write service normalizes wire->storage (fixed_overrides -> overrides); the reader's
+# get_raw_fields_overlay normalizes storage->wire (overrides -> fixed_overrides). This test runs
+# the REAL ConfigWriteService + REAL MembersConfigWriteRepository + REAL MembersProjectionReader
+# over ONE shared fake table and asserts that what the editor PUTs it reads back IDENTICALLY —
+# the end-to-end guard that would have caught the base-field "deselected after save" bug.
+# ---------------------------------------------------------------------------
+
+
+class TestConfigFieldsWriteReadRoundTripSymmetry:
+    def _stack(self, table):
+        from sam.members.domain.config_write_service import ConfigWriteService
+        from sam.members.repository.projection_config_write_repository import (
+            MembersConfigWriteRepository,
+        )
+
+        writer = MembersConfigWriteRepository(table=table)
+        # Fresh reader PER merge (factory) — mirrors production; a shared cached reader would
+        # serve stale pre-write state to the merge. A separate reader instance for assertions.
+        service = ConfigWriteService(
+            writer, overlay_reader_factory=lambda: MembersProjectionReader(table=table)
+        )
+        reader = MembersProjectionReader(table=table)
+        return service, reader
+
+    def test_fixed_overrides_round_trip_identically_wire_to_wire(self):
+        table = FakeTable()
+        service, reader = self._stack(table)
+
+        # The editor PUTs the AUTHORING WIRE shape: base selections under `fixed_overrides`.
+        body = {
+            "fields": {"motor_type": {"key": "motor_type", "type": "string"}},
+            "fixed_overrides": {
+                "personal.city": {"application_visible": True},
+                "membership.status": {"application_visible": True},
+            },
+            "functional_groups": [{"key": "personal", "order": 1}],
+        }
+        service.put_config("h-dcn", "fields", body)
+
+        # Reading it back yields the SAME wire shape — base selections under `fixed_overrides`,
+        # on-form flags intact. (Storage at rest is `overrides`; both boundaries translate.)
+        got = reader.get_raw_fields_overlay("h-dcn")
+        assert got["fixed_overrides"]["personal.city"]["application_visible"] is True
+        assert (
+            got["fixed_overrides"]["membership.status"]["application_visible"] is True
+        )
+        assert "motor_type" in got["fields"]
+        # No stray `overrides` wire key leaks to the editor (one wire key only).
+        assert "overrides" not in got
+
+    def test_storage_at_rest_still_uses_overrides_key(self):
+        # The resolver + public path read storage `overrides`; the write must keep storing it there.
+        table = FakeTable()
+        service, _ = self._stack(table)
+        service.put_config(
+            "h-dcn",
+            "fields",
+            {"fixed_overrides": {"personal.city": {"application_visible": True}}},
+        )
+        stored = table.store[
+            ("h-dcn", schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"))
+        ]
+        assert "overrides" in stored  # storage key unchanged
+        assert "fixed_overrides" not in stored  # wire key is never persisted
+        assert stored["overrides"]["personal.city"]["application_visible"] is True
+
+    def test_resolver_get_overlay_still_sees_the_override(self):
+        # The domain resolver read (get_overlay) consumes storage `overrides` and must still find
+        # the override after a wire-shaped write — proves the public/resolver path is unaffected.
+        table = FakeTable()
+        service, reader = self._stack(table)
+        service.put_config(
+            "h-dcn",
+            "fields",
+            {"fixed_overrides": {"personal.city": {"application_visible": True}}},
+        )
+        overlay = reader.get_overlay("h-dcn")
+        assert "personal.city" in overlay.overrides

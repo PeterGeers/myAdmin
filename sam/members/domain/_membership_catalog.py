@@ -1,4 +1,5 @@
 """Membership-service Lidmaatschap Beheer CATALOG surface (M1 split): catalog reads / writes and the serialization helpers. Mixed into ``MembershipService`` -- bodies verbatim."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -120,8 +121,8 @@ class CatalogMixin:
                 raise MembershipTypeValidationError({"order": "must be an integer"})
 
         updated = MembershipTypeEntry(
-            tenant_id=tenant_id,          # authoritative — never the body
-            type_code=type_code,          # the path is authoritative for identity
+            tenant_id=tenant_id,  # authoritative — never the body
+            type_code=type_code,  # the path is authoritative for identity
             label=label,
             active=active,
             order=order,
@@ -148,7 +149,9 @@ class CatalogMixin:
         return self._serialize_catalog_entry(retired)
 
     @staticmethod
-    def _entry_from_body(tenant_id: str, body: Mapping[str, Any]) -> MembershipTypeEntry:
+    def _entry_from_body(
+        tenant_id: str, body: Mapping[str, Any]
+    ) -> MembershipTypeEntry:
         """Build a :class:`MembershipTypeEntry` from a client create body (unvalidated).
 
         Stamps the authoritative ``tenant_id`` (never a body value — Property 2) and reads the
@@ -286,7 +289,10 @@ class CatalogMixin:
                 "enabled": bool(field.scope.enabled),
                 "required_for": list(field.scope.required_for),
             }
-        if field.member_number_format is not None and not field.member_number_format.is_empty():
+        if (
+            field.member_number_format is not None
+            and not field.member_number_format.is_empty()
+        ):
             payload["member_number_format"] = (
                 CatalogMixin._serialize_member_number_format(field.member_number_format)
             )
@@ -302,4 +308,24 @@ class CatalogMixin:
             payload["options"] = list(field.choices)
         else:
             payload["options"] = None
+
+        # Public member-application attributes (spec 11; D20 / R4.2 / R4a / R4b / R7.1). The
+        # Application Form Builder AUTHORS these onto `config#fields` and reads them BACK through
+        # this staff serializer to re-seed its on-the-form toggles + per-field controls after a
+        # save. They were previously DEAD on this read (resolved onto `ResolvedField`, consumed by
+        # the public read/create path, but never serialized here) — so the builder reseeded every
+        # field OFF after a save even though the write persisted. Emit them verbatim, mirroring the
+        # frontend `OverlayField` shape; the server stays the authoritative enforcer (R8).
+        payload["application_visible"] = bool(field.application_visible)
+        payload["application_required"] = bool(field.application_required)
+        payload["application_choices"] = (
+            list(field.application_choices)
+            if field.application_choices is not None
+            else None
+        )
+        payload["format"] = (
+            {"checker": field.format.checker, "params": dict(field.format.params)}
+            if field.format is not None
+            else None
+        )
         return payload

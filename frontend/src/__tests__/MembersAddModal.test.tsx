@@ -46,6 +46,12 @@ vi.mock('../context/AuthContext', () => ({
   }),
 }));
 
+// MembersPage reads the active tenant for the export filename (members-overview-tweaks Req 5.1);
+// this test renders the page without a TenantProvider, so stub useTenant to a fixed tenant.
+vi.mock('../context/TenantContext', () => ({
+  useTenant: () => ({ currentTenant: 'h-dcn' }),
+}));
+
 const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);

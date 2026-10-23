@@ -218,13 +218,24 @@ class ExecuteAndDeliverService:
 
         # 5. Fan out into enqueue job(s) per the delivery mode, STAMPING the resolved From +
         #    the user's Reply-To onto every job (both modes) so the worker forwards them.
+        #
+        #    The export DISPLAY names also ride every job (members-overview-tweaks R5.2/5.3/5.5):
+        #    `pivot_name` is the stored set's user-authored name (`entry.name` — the set is the
+        #    authoritative source, never a request body); `tenant_name` is the AUTHORITATIVE
+        #    `tenant_id` from the verified context (opaque key today — the SAM plane projects no
+        #    tenant display name — but still verify-before-trust: never a body value, and the
+        #    worker sanitizes/falls back). The worker (task 6.2) composes
+        #    `{Tenant_Name}-{Pivot_Name}.csv` + the subject prefix from these.
+        pivot_name = entry.name if isinstance(entry.name, str) else ""
         if mode == DELIVERY_MODE_PER_RECIPIENT:
             return self._deliver_per_recipient(
-                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to
+                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to,
+                tenant_name=tenant_id, pivot_name=pivot_name,
             )
         if mode == DELIVERY_MODE_TO_FIXED:
             return self._deliver_to_fixed(
-                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to
+                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to,
+                tenant_name=tenant_id, pivot_name=pivot_name,
             )
         # The entity validates the mode at save time, so an unknown mode here is a stored-data
         # fault; refuse it loudly rather than enqueue nothing silently.
@@ -329,6 +340,10 @@ class ExecuteAndDeliverService:
         delivery = body.as_delivery()
         result_rows = list(body.result_rows)
 
+        # An ad-hoc compose carries no saved set, so there is no authoritative pivot display
+        # name to stamp — the export display names are left blank and the worker (task 6.2)
+        # falls back to a safe generic name. (`tenant_name`/`pivot_name` default to "" on the
+        # helpers.)
         if body.mode == DELIVERY_MODE_PER_RECIPIENT:
             return self._deliver_per_recipient(
                 tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to
@@ -348,6 +363,9 @@ class ExecuteAndDeliverService:
         result_rows: Sequence[Mapping[str, Any]],
         from_address: str,
         reply_to: str | None,
+        *,
+        tenant_name: str = "",
+        pivot_name: str = "",
     ) -> DeliveryOutcome:
         """Enqueue ONE job per result row, each with that member's merge values + the template.
 
@@ -385,6 +403,8 @@ class ExecuteAndDeliverService:
                 reply_to=reply_to,
                 template_id=template_ref,
                 merge_values=merge_values,
+                tenant_name=tenant_name,
+                pivot_name=pivot_name,
             )
             self._queue.enqueue(job)
             job_ids.append(job_id)
@@ -420,6 +440,9 @@ class ExecuteAndDeliverService:
         result_rows: Sequence[Mapping[str, Any]],
         from_address: str,
         reply_to: str | None,
+        *,
+        tenant_name: str = "",
+        pivot_name: str = "",
     ) -> DeliveryOutcome:
         """Enqueue ONE job carrying the fixed recipients + the attachment descriptor.
 
@@ -470,6 +493,8 @@ class ExecuteAndDeliverService:
             template_id=template_ref,
             attachment=attachment,
             rows=tuple(dict(r) for r in result_rows),
+            tenant_name=tenant_name,
+            pivot_name=pivot_name,
         )
         self._queue.enqueue(job)
 

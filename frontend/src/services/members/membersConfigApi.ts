@@ -16,6 +16,30 @@ export async function getFieldConfig<T = unknown>(): Promise<T> {
 }
 
 /**
+ * POST /members/application-preview — the Application Form Builder's server-side LIVE PREVIEW
+ * (spec 11 task 4.2 / R7.2; design §4/§5.3/§6/§9 S1·S2/§10).
+ *
+ * Runs the REAL `MembershipService.get_public_field_config` filter over the WORKING `field_overlay`
+ * the admin is editing — carried in the request BODY, never the stored `config#fields` row — and
+ * returns the applicant-facing schema the public form's `ApplicationFormRenderer` consumes. This is
+ * the single filtering authority (zero client mirror, zero drift — correctness property 4) and is
+ * READ-ONLY (the route never writes / mutates DynamoDB).
+ *
+ * `members:admin`-gated and tenant-from-the-verified-JWT exactly like the sibling config reads/
+ * writes (`membersApiClient` attaches the Bearer token + `X-Tenant`); the body carries ONLY the
+ * working overlay. Unlike the PUBLIC read, the preview deliberately BYPASSES the send-ready gate,
+ * so the admin can preview BEFORE the sender is certified (R6.2) — the readiness panel carries the
+ * "not available" state, not the preview.
+ *
+ * Unwraps the module's `{ data }` envelope so the caller receives the schema (`{ fields, locales,
+ * notice }`). A non-2xx (401/403 gate, 400 on a malformed overlay — e.g. an enum subset ⊄ choices)
+ * propagates as the structured ApiError thrown by `postJson`.
+ */
+export async function previewApplicationFieldConfig<T = unknown>(overlay: unknown): Promise<T> {
+  return unwrapData<T>(await postJson<unknown>('/members/application-preview', overlay));
+}
+
+/**
  * The SAM-owned config ids writable through `PUT /members/config/{configId}` (Requirement 2.1).
  * The route rejects any id outside this closed set with a 400/404, so the client surface mirrors it.
  */

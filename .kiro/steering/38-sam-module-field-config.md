@@ -79,6 +79,8 @@ Members is the reference — read it, don't re-invent:
 
 - `35-sam-module-architecture-sam.md` — the SAM layering (domain owns field resolution) + the
   rule-of-three/CODE-shared-DATA-per-module boundary this file applies to the field model.
-- `36-config-and-parameters.md` — how tenant/module config is stored (Flask writes) and projected
-  (SAM reads) across planes; the versioned `config#...` rails rule 4 rides on.
+- `36-config-and-parameters.md` — how tenant/module config is stored and projected across planes; the
+  versioned `config#...` rails rule 4 rides on. (Members config authoring is **SAM-owned** — the
+  `config#*` rows are written via `PUT /members/config/{configId}`; the earlier Flask
+  writes-config#* / SAM-reads projection path is retired for authoring and must not be revived.)
 - `37-shared-building-blocks.md` — where a shared capability lands IF/when extraction triggers.

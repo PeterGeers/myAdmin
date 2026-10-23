@@ -40,6 +40,7 @@ import {
   ZZPTripImport,
   MembersPage,
   MemberAnalyticsPage,
+  MembersMailPage,
   TenantAdminDashboard,
   SysAdminDashboard,
   PasskeySettings,
@@ -353,6 +354,22 @@ export function AppRoutes(props: AppRoutesProps) {
           <Box minH="100vh" bg="gray.900">
             {renderPageHeader(`📊 ${t('members:analytics.title')}`)}
             <MemberAnalyticsPage />
+          </Box>
+        </ProtectedRoute>
+      );
+
+    case 'members-mail':
+      // Tenant administrator > members > mail (the Members_Mail_Area): hosts the
+      // relocated applications inbox (members-overview-tweaks Req 6.2). Guarded
+      // for the tenant-admin role like the other tenant-admin routes.
+      return (
+        <ProtectedRoute
+          requiredRoles={['Tenant_Admin']}
+          onLoginSuccess={() => setCurrentPage('menu')}
+        >
+          <Box minH="100vh" bg="gray.900">
+            {renderPageHeader(`📬 ${t('members:mail.title')}`)}
+            <MembersMailPage />
           </Box>
         </ProtectedRoute>
       );

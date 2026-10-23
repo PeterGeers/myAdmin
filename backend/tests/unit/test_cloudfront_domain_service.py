@@ -21,12 +21,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 def mock_env(monkeypatch):
     """Set environment variables for CloudFrontDomainService."""
     monkeypatch.setenv("AWS_DEFAULT_REGION", "eu-west-1")
-    monkeypatch.setenv(
-        "CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID", "E1234DISTRIBUTION"
-    )
+    monkeypatch.setenv("CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID", "E1234DISTRIBUTION")
     monkeypatch.setenv(
         "CLOUDFRONT_KVS_ARN",
         "arn:aws:cloudfront::123456789:key-value-store/test-kvs",
+    )
+    monkeypatch.setenv(
+        "CLOUDFRONT_EMBED_ORIGINS_KVS_ARN",
+        "arn:aws:cloudfront::123456789:key-value-store/embed-origins-kvs",
     )
     monkeypatch.setenv("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "d1234abcd.cloudfront.net")
 
@@ -268,3 +270,161 @@ class TestDeleteKvsMapping:
         result = service.delete_kvs_mapping("www.acme-rentals.nl")
 
         assert result is False
+
+
+EMBED_KVS_ARN = "arn:aws:cloudfront::123456789:key-value-store/embed-origins-kvs"
+FORM_HOST = "tenant-member-application.jabaki.nl"
+
+
+class TestFormatFrameAncestorsValue:
+    """Tests for the application_embed_origins → CSP value formatter (Task 5.2)."""
+
+    def test_list_joined_space_separated(self):
+        from services.cloudfront_domain_service import CloudFrontDomainService
+
+        value = CloudFrontDomainService._format_frame_ancestors_value(
+            ["https://www.acme.nl", "https://portal.acme.nl"]
+        )
+        assert value == "https://www.acme.nl https://portal.acme.nl"
+
+    def test_blanks_and_whitespace_dropped(self):
+        from services.cloudfront_domain_service import CloudFrontDomainService
+
+        value = CloudFrontDomainService._format_frame_ancestors_value(
+            ["  https://a.nl  ", "", "   ", "https://b.nl"]
+        )
+        assert value == "https://a.nl https://b.nl"
+
+    def test_empty_list_returns_empty(self):
+        from services.cloudfront_domain_service import CloudFrontDomainService
+
+        assert CloudFrontDomainService._format_frame_ancestors_value([]) == ""
+        assert CloudFrontDomainService._format_frame_ancestors_value(None) == ""
+
+    def test_prejoined_string_normalised(self):
+        from services.cloudfront_domain_service import CloudFrontDomainService
+
+        value = CloudFrontDomainService._format_frame_ancestors_value(
+            "https://a.nl   https://b.nl"
+        )
+        assert value == "https://a.nl https://b.nl"
+
+
+class TestPutApplicationEmbedOrigins:
+    """Tests for CloudFrontDomainService.put_application_embed_origins (Task 5.2)."""
+
+    def test_put_origins_success(self, mock_boto3):
+        """A configured origins list is written to the embed-origins KVS."""
+        service, _, _, mock_kvs = mock_boto3
+
+        mock_kvs.describe_key_value_store.return_value = {"ETag": "E_ORIG1"}
+        mock_kvs.put_key.return_value = {}
+
+        result = service.put_application_embed_origins(
+            FORM_HOST, ["https://www.acme.nl", "https://portal.acme.nl"]
+        )
+
+        assert result is True
+        mock_kvs.put_key.assert_called_once_with(
+            KvsARN=EMBED_KVS_ARN,
+            Key=FORM_HOST,
+            Value="https://www.acme.nl https://portal.acme.nl",
+            IfMatch="E_ORIG1",
+        )
+
+    def test_empty_origins_deletes_mapping_standalone(self, mock_boto3):
+        """No origins (standalone) clears the key instead of writing an empty value."""
+        service, _, _, mock_kvs = mock_boto3
+
+        mock_kvs.describe_key_value_store.return_value = {"ETag": "E_ORIG2"}
+        mock_kvs.delete_key.return_value = {}
+
+        result = service.put_application_embed_origins(FORM_HOST, [])
+
+        assert result is True
+        mock_kvs.put_key.assert_not_called()
+        mock_kvs.delete_key.assert_called_once_with(
+            KvsARN=EMBED_KVS_ARN,
+            Key=FORM_HOST,
+            IfMatch="E_ORIG2",
+        )
+
+    def test_put_origins_uses_embed_kvs_not_domain_kvs(self, mock_boto3):
+        """The embed path targets the dedicated embed-origins KVS ARN, not the domain KVS."""
+        service, _, _, mock_kvs = mock_boto3
+
+        mock_kvs.describe_key_value_store.return_value = {"ETag": "E_ORIG3"}
+        mock_kvs.put_key.return_value = {}
+
+        service.put_application_embed_origins(FORM_HOST, ["https://www.acme.nl"])
+
+        assert mock_kvs.put_key.call_args[1]["KvsARN"] == EMBED_KVS_ARN
+
+    def test_put_origins_no_kvs_arn_is_noop_success(self, mock_boto3, monkeypatch):
+        """When the embed-origins KVS ARN is unset, the put is a non-fatal no-op."""
+        service, _, _, mock_kvs = mock_boto3
+        service.embed_origins_kvs_arn = ""
+
+        result = service.put_application_embed_origins(
+            FORM_HOST, ["https://www.acme.nl"]
+        )
+
+        assert result is True
+        mock_kvs.put_key.assert_not_called()
+
+    def test_put_origins_client_error_returns_false(self, mock_boto3):
+        """A KVS API error surfaces as False."""
+        service, _, _, mock_kvs = mock_boto3
+
+        mock_kvs.describe_key_value_store.return_value = {"ETag": "E_ORIG4"}
+        mock_kvs.put_key.side_effect = ClientError(
+            {"Error": {"Code": "ValidationException", "Message": "Invalid"}},
+            "PutKey",
+        )
+
+        result = service.put_application_embed_origins(
+            FORM_HOST, ["https://www.acme.nl"]
+        )
+
+        assert result is False
+
+
+class TestDeleteApplicationEmbedOrigins:
+    """Tests for CloudFrontDomainService.delete_application_embed_origins (Task 5.2)."""
+
+    def test_delete_origins_success(self, mock_boto3):
+        service, _, _, mock_kvs = mock_boto3
+
+        mock_kvs.describe_key_value_store.return_value = {"ETag": "E_ORIG5"}
+        mock_kvs.delete_key.return_value = {}
+
+        result = service.delete_application_embed_origins(FORM_HOST)
+
+        assert result is True
+        mock_kvs.delete_key.assert_called_once_with(
+            KvsARN=EMBED_KVS_ARN,
+            Key=FORM_HOST,
+            IfMatch="E_ORIG5",
+        )
+
+    def test_delete_origins_not_found_idempotent(self, mock_boto3):
+        service, _, _, mock_kvs = mock_boto3
+
+        mock_kvs.describe_key_value_store.return_value = {"ETag": "E_ORIG6"}
+        mock_kvs.delete_key.side_effect = ClientError(
+            {"Error": {"Code": "ResourceNotFoundException", "Message": "missing"}},
+            "DeleteKey",
+        )
+
+        result = service.delete_application_embed_origins(FORM_HOST)
+
+        assert result is True
+
+    def test_delete_origins_no_kvs_arn_is_noop_success(self, mock_boto3):
+        service, _, _, mock_kvs = mock_boto3
+        service.embed_origins_kvs_arn = ""
+
+        result = service.delete_application_embed_origins(FORM_HOST)
+
+        assert result is True
+        mock_kvs.delete_key.assert_not_called()
