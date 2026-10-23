@@ -1076,8 +1076,14 @@ class MailSendWorker:
 #: path separators (``/`` ``\``) and ASCII control chars, EXCEPT tab/newline/CR which are left in
 #: so the ``\s+`` collapse turns them into a single space rather than deleting them outright.
 #: Mirrors the frontend ``sanitize`` character class.
+#:
+#: The ``\u000e-\u001f`` control-char span is written as the literals ``\u000e`` ``\u000f`` plus
+#: the range ``\u0010-\u001f`` — a COSMETIC split covering the IDENTICAL code points. It exists
+#: only to satisfy CodeQL ``py/overly-large-range`` (which flags a single wide range as a common
+#: typo site); do NOT "simplify" it back to ``\u000e-\u001f`` or the alert returns. Keep this form
+#: and the frontend mirror in lockstep.
 _EXPORT_SANITIZE_STRIP = re.compile(
-    "[/\\\\\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]"
+    "[/\\\\\u0000-\u0008\u000b\u000c\u000e\u000f\u0010-\u001f\u007f]"
 )
 _EXPORT_WHITESPACE_RUN = re.compile(r"\s+")
 
