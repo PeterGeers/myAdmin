@@ -44,7 +44,7 @@ from collections.abc import Mapping
 
 from services import projection_schema as schema
 
-from sam.members.domain import field_formats
+from sam.members.domain import field_formats, form_slug
 from sam.members.domain.config_write_version import next_write_stamp
 from sam.members.domain.fixed_fields import field_by_key
 
@@ -200,6 +200,15 @@ class ConfigWriteService:
         Each per-field ``scope`` sub-object is preserved **verbatim** (R7.3): the service copies the
         field spec through unchanged so Task 2 can derive ``config#scope`` from the per-field
         ``scope`` attributes. It reshapes nothing inside a field spec.
+
+        Application-form slug (spec 12 Task 1.1 / R4.2, design §Data Models): the row also carries
+        the form's own public ``slug`` plus the publish-state metadata ``published_at`` /
+        ``published_version`` (both authored by the publish path, Task 2.2). On a fields write this
+        service authors the ``slug`` from the body — validating its FORMAT with the landing
+        ``SLUG_PATTERN`` rules (:func:`form_slug.validate_slug_format`) and rejecting a malformed
+        slug fail-loud with the standard caller-safe envelope — while CARRYING the publish-state
+        metadata through from the current stored row (a plain fields save never fabricates or wipes
+        it). Slug UNIQUENESS is NOT checked here (that is the Task-1.2 ``_slugs/{slug}`` marker).
         """
         if not isinstance(body, Mapping):
             raise ConfigWriteValidationError(
@@ -245,12 +254,75 @@ class ConfigWriteService:
         # re-checked too.
         self._validate_application_attributes(fields, overrides)
 
-        # Author exactly the three reader-read attributes — no default_page_size (R7.2).
-        return {
+        # Author the three reader-read overlay attributes — no default_page_size (R7.2) — PLUS the
+        # application-form slug + publish-state metadata (spec 12 Task 1.1 / R4.2, design §Data
+        # Models). ``slug`` comes from the body (format-validated below); ``published_at`` /
+        # ``published_version`` are carried through from the current stored row (publish owns them,
+        # Task 2.2) so a plain fields save never fabricates or wipes publish state.
+        attributes: dict = {
             "fields": fields,
             "overrides": overrides,
             "functional_groups": functional_groups,
         }
+        self._author_form_slug(attributes, body, tenant_id)
+        return attributes
+
+    def _author_form_slug(
+        self, attributes: dict, body: Mapping, tenant_id: str
+    ) -> None:
+        """Author ``slug`` + carry ``published_at`` / ``published_version`` onto the fields row.
+
+        Spec 12 Task 1.1 (R4.2, design §Data Models). The application form's own public ``slug`` is
+        stored on the ``config#fields`` row (NOT in Flask ``tenant_slugs``, D1). On a fields write:
+
+        - If the body carries a ``slug``, validate its FORMAT with the landing ``SLUG_PATTERN``
+          rules (:func:`form_slug.validate_slug_format`); a malformed slug raises a caller-safe
+          :class:`ConfigWriteValidationError` (→ HTTP 400), nothing is written. An explicit
+          ``null`` CLEARS the slug (``slug: None``). A body that OMITS ``slug`` leaves the stored
+          slug untouched (carried through from the current row).
+        - ``published_at`` / ``published_version`` are publish-state owned by the publish path
+          (Task 2.2); a plain fields save never authors them from the body — they are carried
+          through from the current stored row (defaulting to ``None`` on a never-published row).
+
+        Uniqueness is deliberately NOT enforced here — within-tenant uniqueness is the Task-1.2
+        ``_slugs/{slug}`` conditional-put claim; this step is slug FORMAT + the field only.
+        """
+        current = self._current_fields_row(tenant_id)
+
+        # slug: body value (validated) when the key is present, else carry the stored slug.
+        if "slug" in body:
+            slug = body.get("slug")
+            if slug is not None:
+                error = form_slug.validate_slug_format(slug)
+                if error is not None:
+                    raise ConfigWriteValidationError(
+                        f"config#fields slug is invalid: {error}"
+                    )
+            attributes["slug"] = slug
+        else:
+            attributes["slug"] = current.get("slug")
+
+        # publish-state: owned by the publish path — carry through, never author on a fields save.
+        attributes["published_at"] = current.get("published_at")
+        attributes["published_version"] = current.get("published_version")
+
+    def _current_fields_row(self, tenant_id: str) -> dict:
+        """The current stored ``config#fields`` row (for carrying publish-state through), or ``{}``.
+
+        Reuses the merge reader seam (fresh per call when a factory is wired; the injected shared
+        instance in tests; ``None`` → legacy, no current row). Returns ``{}`` when there is no
+        reader, no tenant, or no stored row — so a never-authored tenant carries ``None``
+        publish-state and whatever ``slug`` the body supplies.
+        """
+        reader = self._merge_reader()
+        if (
+            reader is None
+            or not tenant_id
+            or not hasattr(reader, "get_raw_fields_overlay")
+        ):
+            return {}
+        current = reader.get_raw_fields_overlay(tenant_id)
+        return current if isinstance(current, Mapping) else {}
 
     def _merge_fields_slices(
         self,

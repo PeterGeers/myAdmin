@@ -400,22 +400,12 @@ Parameters:
       samconfig (e.g. `https://aanmelden.jabaki.nl`). Empty default = fail-closed, never a wildcard.
     Default: ""
 
-  # PublicTenantSlugMap (D19, R2): the thin SAM-plane PROJECTION of the landing-page slug mechanism
-  #   — comma-separated `<slug>:<tenant_id>` pairs the public edge's `EnvTenantSlugReader` resolves
-  #   slug→tenant_id from (verify-before-trust: a slug SELECTS an allow-listed tenant, never grants
-  #   one). This is the smallest honest projection of the landing mapping (`<slug>.jabaki.nl` + the
-  #   CloudFront KVS `myadmin-domain-slug-mapping`, `infrastructure/landing-pages.tf`) that keeps the
-  #   Flask⇄SAM boundary clean and the route wiring testable; a richer DynamoDB/KVS-backed reader is
-  #   a change behind the `tenant_slug_reader` seam (Phase 7/10 seeding), not here. Empty default =
-  #   an empty allow-list (every slug → non-probeable 404), never a guessed tenant.
-  PublicTenantSlugMap:
-    Type: String
-    Description: >-
-      Thin slug→tenant_id projection for the public intake edge (D19/R2), surfaced as the
-      `PUBLIC_TENANT_SLUG_MAP` env var. Comma-separated `<slug>:<tenant_id>` pairs (e.g.
-      `hdcn:h-dcn`). Empty default = empty allow-list (every slug is a non-probeable 404), never a
-      guessed tenant. Per env via samconfig.
-    Default: ""
+  # PublicTenantSlugMap — REMOVED (spec 12 task 7.1, R7.3). The public edge no longer resolves
+  #   slug→tenant_id from an env projection; it reads the `_slugs/{slug}` bucket marker
+  #   (`S3SlugMarkerStore`, OQ4) via `TenantDirectory` (task 1.4). The slug is now DATA on
+  #   `config#fields` + a bucket marker, so no parameter/env var is needed and the CI
+  #   `--parameter-overrides` footgun that blanked this param (decision 1a / D7) can no longer
+  #   affect the form. Swap first (task 1.4), delete second (here).
 
   # --- Public API throttle + usage plan (R10.1, D17, task 7.1) ----------------
   # The public application-intake API (`MembersPublicApi`) is the plane's ONLY unauthenticated
@@ -1550,10 +1540,14 @@ Resources:
           #   tenant's own `application_embed_origins` from `config#mail` (application-form-builder
           #   task 5.3) — read READ-ONLY via the `GOVERNANCE_PROJECTION_TABLE` grant below; no new
           #   env/grant needed.
-          # PUBLIC_TENANT_SLUG_MAP: the thin slug→tenant_id projection (D19) the edge's
-          #   `EnvTenantSlugReader` resolves against — empty = every slug is a non-probeable 404.
+          # NOTE (spec 12 task 7.1): `PUBLIC_TENANT_SLUG_MAP` / the `PublicTenantSlugMap`
+          #   parameter are REMOVED. The public edge now resolves slug→tenant_id from DATA via the
+          #   `_slugs/{slug}` bucket marker (`S3SlugMarkerStore`, OQ4) injected into
+          #   `TenantDirectory` at `handler/public_app.py` (task 1.4). Nothing in the Lambda
+          #   runtime reads the env projection any more, so the param is gone (swap first, delete
+          #   second — R7.3). This also closes the CI `--parameter-overrides` blast radius that
+          #   blanked the map (spec 12 decision 1a / D7).
           PUBLIC_FORM_ALLOWED_ORIGINS: !Ref PublicFormAllowedOrigins
-          PUBLIC_TENANT_SLUG_MAP: !Ref PublicTenantSlugMap
       Events:
         # The TWO public routes (design §3), registered on the SEPARATE public API ONLY — never on
         # `MembersApi`. Each is an explicit method+path (NOT a catch-all `{proxy+}`) so the public

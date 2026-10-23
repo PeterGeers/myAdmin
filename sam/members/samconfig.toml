@@ -103,12 +103,9 @@ parameter_overrides = [
   #   form hostname is supplied here. (`aanmelden.jabaki.nl` is the intake-form origin; adjust when
   #   the real hostname is finalized — Phase 9/10.)
   "PublicFormAllowedOrigins=https://aanmelden.jabaki.nl",
-  # PublicTenantSlugMap (D19, R2): the thin slug→tenant_id projection of the landing-page slug
-  #   mechanism the public edge resolves against (verify-before-trust — a slug SELECTS an
-  #   allow-listed tenant, never grants one). `hdcn:h-dcn` is the first/only certified tenant today;
-  #   a richer DynamoDB/KVS-backed reader is a change behind the tenant_slug_reader seam (Phase
-  #   7/10 seeding from the landing mapping), not a samconfig change.
-  "PublicTenantSlugMap=hdcn:h-dcn",
+  # PublicTenantSlugMap REMOVED (spec 12 task 7.1, R7.3): the slug→tenant_id resolution is now
+  #   DATA-backed (`_slugs/{slug}` bucket marker, OQ4) — no param/env var to seed per env, and the
+  #   `--parameter-overrides` replace-not-merge footgun (decision 1a / D7) can no longer blank it.
   # --- Public API throttle + usage plan (R10.1, D17, task 7.1) — the PROD rate/burst ---
   # The abuse-hardening half of the public edge: API Gateway's native stage throttle + a usage
   # plan bound to the public API's stage (NO WAF — D17/R10.4). At a member-application form's
@@ -203,11 +200,10 @@ parameter_overrides = [
   "SchedulerGroupName=members-schedules-test",
   # --- Public application-intake form: CORS allow-list + slug→tenant projection (D27, task 1.3) ---
   # TEST siblings of the prod public-edge wiring. A distinct TEST form origin so the TEST public API
-  # is only callable from the TEST form (fail-closed on anything else — never `*`). The slug map
-  # points the SAME `hdcn` slug at the `h-dcn` tenant (the TEST projection is its own table/data but
-  # the slug→tenant contract is identical); a richer reader is a seam change, not a samconfig one.
+  # is only callable from the TEST form (fail-closed on anything else — never `*`).
+  # PublicTenantSlugMap REMOVED here too (spec 12 task 7.1, R7.3): slug→tenant_id is now the
+  # DATA-backed `_slugs/{slug}` bucket marker (OQ4), identical contract on TEST without a param.
   "PublicFormAllowedOrigins=https://aanmelden-test.jabaki.nl",
-  "PublicTenantSlugMap=hdcn:h-dcn",
   # --- Public API throttle + usage plan (R10.1, D17, task 7.1) — the TEST rate/burst ---
   # TEST siblings of the prod public-edge throttle, run TIGHTER (5/s steady, 10 burst) than prod:
   # TEST shares the nonprofit-deploy account's API Gateway throttle budget with prod, and a TEST

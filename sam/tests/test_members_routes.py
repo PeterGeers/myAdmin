@@ -62,22 +62,26 @@ def test_route_map_covers_eighteen_behaviours_total():
     # transition_membership + bulk_transition_memberships; status is a plain field edit now) = 48.
     # ...plus the SAM-owned config WRITE route (members-config-sam-owned-write-path Task 1.6 —
     # PUT /members/config/{configId}, the single write door for config#fields/scope/mail) = 49.
-    # ...plus the Application Form Builder server-side live-preview route
-    # (application-form-builder Task 1.4, R7.2 — POST /members/application-preview, members:admin,
-    # runs the real get_public_field_config filter over the request-body field_overlay; READ-ONLY)
-    # = 50.
+    # (The Application Form Builder server-side live-preview route POST /members/application-preview
+    # was RETIRED — spec 12 redesign C / R3, task 5.2: preview is now in-browser — so the count is
+    # back to 49, NOT 50.)
+    # ...plus the EXPLICIT application-form publish route (spec 12 Task 2.1, §C4/R5 —
+    # POST /members/application-form/publish, members:admin, readiness-gated; the route + gate are
+    # real, the live S3 write is task 2.2/dormant) = 50.
     assert len(ROUTES) == 50
 
 
 def test_route_map_groups_match_the_design_c1_counts():
     # Member CRUD 8 + field-config 1 + config-write 1 (members-config-sam-owned-write-path
-    # Task 1.6 — PUT /members/config/{configId}) + application-preview 1
-    # (application-form-builder Task 1.4 — POST /members/application-preview) = 11 · membership
+    # Task 1.6 — PUT /members/config/{configId}) = 10 · membership
     # lifecycle 7 · delegates 2 ·
     # payments 1 · catalog reads 2 (list + get, task 3.4) + catalog writes 3 (create + update +
     # delete, task 5.3) = 5 · analytics 14 (sets: create+list+get+update+delete, F-012; preferred
     # list: get+save, R11.2; column preferences: get+save, session-columns R6; stored mail
     # templates: create+list+get+update+delete, pivot-output-actions R2 task 2.3).
+    # (application-preview retired — spec 12 task 5.2.) PLUS the explicit application-form publish
+    # route (spec 12 Task 2.1 — POST /members/application-form/publish, members:admin,
+    # readiness-gated) grouped with the admin-config surface = MEMBER is 11.
     assert len(routes_by_group(RouteGroup.MEMBER)) == 11
     # Membership lifecycle is 5 after the two transition routes were retired
     # (retire-members-status-lifecycle-engine): create + list + get + update + delete.
@@ -112,9 +116,12 @@ def test_route_map_includes_each_named_behaviour():
         # SAM-owned config WRITE (members-config-sam-owned-write-path Task 1.6 —
         # PUT /members/config/{configId})
         "write_config",
-        # Application Form Builder server-side live preview (application-form-builder Task 1.4,
-        # R7.2 — POST /members/application-preview; members:admin; READ-ONLY)
-        "preview_application",
+        # (The Application Form Builder server-side live-preview route `preview_application`
+        #  POST /members/application-preview was RETIRED — spec 12 redesign C / R3, task 5.2:
+        #  preview is now in-browser — so it is no longer in the route map.)
+        # Application-form PUBLISH (spec 12 Task 2.1 — POST /members/application-form/publish,
+        # members:admin, readiness-gated; route + gate real, live write task 2.2/dormant)
+        "publish_application_form",
         # membership lifecycle
         "create_membership",
         "list_memberships",
@@ -175,11 +182,49 @@ def test_route_map_includes_each_named_behaviour():
     assert set(route_names()) == expected
 
 
+def test_publish_application_form_route_is_registered_admin_gated_not_self_service():
+    # spec 12 Task 2.1 (§C4 / R5, OQ1=option 1): the EXPLICIT publish route is registered as
+    # (POST, /members/application-form/publish), members:admin, self_service=False, in the MEMBER
+    # group (with the admin-config surface). The route + readiness gate are real; the live S3 write
+    # is task 2.2 (dormant).
+    by_name = {s.name: s for s in ROUTES}
+    assert "publish_application_form" in by_name
+    spec = by_name["publish_application_form"]
+    assert (spec.method.value, spec.path) == (
+        "POST",
+        "/members/application-form/publish",
+    )
+    assert spec.capability == "members:admin"
+    assert spec.self_service is False
+    assert spec.group is RouteGroup.MEMBER
+    # The (method, path) is in the route set.
+    endpoints = {(s.method.value, s.path) for s in ROUTES}
+    assert ("POST", "/members/application-form/publish") in endpoints
+
+
+def test_publish_route_declared_before_member_id_routes():
+    # The literal `application-form` prefix must be declared BEFORE the `/members/{member_id}`
+    # routes so the router (first-match-in-declaration-order) never lets the `{member_id}`
+    # placeholder shadow it. (They are also disjoint by segment count, but declaration order is the
+    # contract the task calls out.)
+    names = list(route_names())
+    assert names.index("publish_application_form") < names.index("get_member")
+
+
 def test_route_map_has_no_duplicate_endpoints_or_names():
     endpoints = [(s.method.value, s.path) for s in ROUTES]
     names = [s.name for s in ROUTES]
     assert len(endpoints) == len(set(endpoints))
     assert len(names) == len(set(names))
+
+
+def test_retired_application_preview_route_is_gone():
+    # spec 12 (redesign C / R3, task 5.2): the server-side live-preview route is RETIRED — preview
+    # is now entirely in-browser. Neither its name nor its (method, path) may be registered, so the
+    # endpoint can never be reached again.
+    assert "preview_application" not in set(route_names())
+    endpoints = {(s.method.value, s.path) for s in ROUTES}
+    assert ("POST", "/members/application-preview") not in endpoints
 
 
 def test_every_route_is_gated_by_capability_or_self_service():

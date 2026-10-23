@@ -151,23 +151,34 @@ def test_public_function_app_env_is_derived_from_stage(template):
     assert app_env.value[2] == "AppEnv"
 
 
-def test_public_function_wires_cors_and_slug_env_from_params(template):
-    """The public edge's CORS allow-list + slug projection are env vars fed from parameters."""
+def test_public_function_wires_cors_env_from_params(template):
+    """The public edge's CORS allow-list is an env var fed from a parameter."""
     env_vars = template["Resources"]["MembersPublicFunction"]["Properties"][
         "Environment"
     ]["Variables"]
     origins = env_vars["PUBLIC_FORM_ALLOWED_ORIGINS"]
     assert isinstance(origins, _CfnTag) and origins.tag == "Ref"
     assert origins.value == "PublicFormAllowedOrigins"
-    slug_map = env_vars["PUBLIC_TENANT_SLUG_MAP"]
-    assert isinstance(slug_map, _CfnTag) and slug_map.tag == "Ref"
-    assert slug_map.value == "PublicTenantSlugMap"
+
+
+def test_public_function_no_longer_carries_the_slug_map_env_task_7_1(template):
+    """Task 7.1 (R7.3): `PUBLIC_TENANT_SLUG_MAP` is REMOVED — the edge resolves slug→tenant_id
+
+    from the `_slugs/{slug}` bucket marker (OQ4, task 1.4), not an env projection. No stale env
+    var may remain (and the CI `--parameter-overrides` footgun that blanked it, D7, is closed).
+    """
+    env_vars = template["Resources"]["MembersPublicFunction"]["Properties"][
+        "Environment"
+    ]["Variables"]
+    assert "PUBLIC_TENANT_SLUG_MAP" not in env_vars
 
 
 def test_public_function_now_carries_least_privilege_iam_task_7_1(template):
     """Task 7.1 ADDS the least-privilege IAM the task-1.3 wiring deferred — Policies now present."""
     props = template["Resources"]["MembersPublicFunction"]["Properties"]
-    assert "Policies" in props, "task 7.1 wires the public fn's least-privilege IAM (R10.5)"
+    assert "Policies" in props, (
+        "task 7.1 wires the public fn's least-privilege IAM (R10.5)"
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -240,22 +251,42 @@ def test_authenticated_api_cors_is_still_wildcard(template):
 # -----------------------------------------------------------------------------
 
 
-def test_public_form_origin_and_slug_map_params_exist_with_failclosed_defaults(template):
+def test_public_form_origin_param_exists_with_failclosed_default(template):
     params = template["Parameters"]
-    # Empty defaults are fail-closed (no `*` origin, empty allow-list) — never a dangerous default.
+    # Empty default is fail-closed (no `*` origin) — never a dangerous default.
     assert params["PublicFormAllowedOrigins"]["Default"] == ""
-    assert params["PublicTenantSlugMap"]["Default"] == ""
 
 
-def test_samconfig_supplies_public_edge_params_per_env(samconfig):
-    """Both envs supply a concrete (non-wildcard) form origin + a slug→tenant projection."""
+def test_public_tenant_slug_map_param_is_removed_task_7_1(template):
+    """Task 7.1 (R7.3): the `PublicTenantSlugMap` parameter is gone — slug→tenant_id is now
+
+    DATA-backed (`_slugs/{slug}` bucket marker, OQ4), so no parameter is needed and the
+    `--parameter-overrides` replace-not-merge footgun (D7 / decision 1a) can no longer blank it.
+    """
+    assert "PublicTenantSlugMap" not in template["Parameters"]
+
+
+def test_samconfig_supplies_public_form_origin_per_env(samconfig):
+    """Both envs supply a concrete (non-wildcard) form origin."""
     for env in ("test", "prod"):
         overrides = _override_map(samconfig, env)
         origin = overrides.get("PublicFormAllowedOrigins", "")
-        assert origin.strip() != "", f"{env}: public form origin must be supplied (no `*`)"
+        assert origin.strip() != "", (
+            f"{env}: public form origin must be supplied (no `*`)"
+        )
         assert "*" not in origin
-        slug_map = overrides.get("PublicTenantSlugMap", "")
-        assert ":" in slug_map, f"{env}: slug→tenant projection must carry a <slug>:<tenant> pair"
+
+
+def test_samconfig_no_longer_supplies_the_slug_map_per_env_task_7_1(samconfig):
+    """Task 7.1 (R7.3): neither env carries a `PublicTenantSlugMap` override any more — the slug
+
+    is DATA on `config#fields` + the `_slugs/{slug}` bucket marker (OQ4), not a samconfig param.
+    """
+    for env in ("test", "prod"):
+        overrides = _override_map(samconfig, env)
+        assert "PublicTenantSlugMap" not in overrides, (
+            f"{env}: PublicTenantSlugMap must be removed from samconfig (task 7.1)"
+        )
 
 
 def test_public_api_outputs_a_distinct_invoke_url(template):

@@ -196,43 +196,15 @@ ROUTES: tuple[RouteSpec, ...] = (
             "membership_type dropdown = the tenant's active catalog entries."
         ),
     ),
-    # ── Application Form Builder — server-side live preview (spec 11, R7.2) ───────────
+    # ── Application Form Builder — live preview is IN-BROWSER (spec 12, redesign C / R3) ──
     #
-    # The AUTHENTICATED, admin-gated preview seam the Application Form Builder debounces its
-    # WORKING (unsaved) `field_overlay` to. It runs the REAL `get_public_field_config` filter
-    # over the overlay carried in the request BODY (not the stored config#fields row) and returns
-    # the applicant-facing schema, so the in-app preview reuses the SAME server filtering authority
-    # the public form does — no client-side mirror to drift (design §5.3/§6/§10, R7.1/R7.2).
+    # The former server-side preview route `POST /members/application-preview` (spec 11 R7.2) has
+    # been RETIRED. Preview is now entirely in-browser: the builder feeds its WORKING draft through
+    # a pure client filter that reproduces `get_public_field_config`'s applicant-facing selection and
+    # renders it with the shared `ApplicationFormRenderer` — no server round-trip, no debounce
+    # (spec 12 design §C2 / D4, task 5.2). The PUBLIC `get_public_field_config` read + the publish
+    # path remain the authoritative server filter; only the authenticated preview round-trip is gone.
     #
-    # READ-ONLY: it NEVER writes (no DynamoDB mutation) — it resolves the body overlay in memory,
-    # filters, and returns. It is the authoring counterpart of the PUBLIC
-    # `get_public_field_config` read, but on the AUTHENTICATED members API (gated by the sam/shared
-    # verified-JWT + entitlement toolkit), NOT the public edge; and it deliberately SKIPS the
-    # send-ready gate the public read enforces, so an admin can preview the form BEFORE the sender
-    # is certified (R6.2) — the readiness panel (not the preview) carries the "not available" state.
-    #
-    # Gate: `members:admin` (Tenant_Admin) — the SAME single-capability gate `write_config` uses
-    # (authoring/previewing the tenant's application form is an administrative concern, never a
-    # plain member/read action). tenant resolved from the verified token, never the body.
-    #
-    # The literal `/members/application-preview` path is a POST and is disjoint from every other
-    # `/members/...` route (the only other POST under `/members` are the `/members` create and the
-    # literal `search`/`mail`/`analytics-sets`/`templates` prefixes), so there is no (method, path)
-    # collision or shadowing. Declared beside `get_field_config` for cohesion (both are field-schema
-    # reads the builder consumes).
-    RouteSpec(
-        name="preview_application",
-        method=HttpMethod.POST,
-        path="/members/application-preview",
-        group=RouteGroup.MEMBER,
-        capability=CAP_MEMBERS_ADMIN,
-        self_service=False,
-        summary=(
-            "Run the real get_public_field_config filter over the field_overlay in the request "
-            "body and return the applicant-facing schema (live preview, R7.2). READ-ONLY (never "
-            "writes). Gate: members:admin (Tenant_Admin); skips the send-ready gate (R6.2)."
-        ),
-    ),
     # ── Config write — SAM-owned config#* rows (spec 02, Task 1.6) ───────────────────
     #
     # The single WRITE entry point for the three SAM-owned governance_projection config rows
@@ -761,6 +733,41 @@ ROUTES: tuple[RouteSpec, ...] = (
         summary=(
             "Delete a schedule (hard delete; 404 if absent, R5). Gate: members:admin OR "
             "(members:write + the ['*'] all-regions grant)."
+        ),
+    ),
+    # ── Application-form PUBLISH — explicit, readiness-gated (spec 12 §C4 / R5, OQ1=opt 1) ──
+    #
+    # The EXPLICIT publish action (NOT save-triggered): a deliberate, readiness-gated control that
+    # renders the tenant's current config#fields/config#mail into the static form artifact and
+    # (task 2.2) writes it to the shared public-pages bucket + invalidates CloudFront. Saving the
+    # draft (`PUT /members/config/{configId}`) NEVER republishes — editing and going-live are
+    # distinct steps (R5.1a); the in-browser preview covers "see before commit". The route +
+    # readiness gate are REAL here (task 2.1); the live S3 render/write/invalidation is task 2.2
+    # and stays DORMANT until the owner-run hosting migration (task 0.1) cuts over.
+    #
+    # Gate: members:admin (CAP_MEMBERS_ADMIN), self_service=False — publishing a tenant's public
+    # form is an administrative concern (like write_config / the catalog writes / delete_member),
+    # never something a plain member/write caller may do. Group MEMBER — it sits with the
+    # admin-config surface (write_config), the same grouping choice write_config made.
+    #
+    # The LITERAL `/members/application-form/publish` path is disjoint from `/members/{member_id}`
+    # (the first segment past `/members/` is the literal `application-form`, a NEW first segment
+    # matched by this route before the `{member_id}` placeholder could capture it) and from every
+    # other `/members/...` literal route (config / analytics-sets / templates / schedules / mail /
+    # mail-runs / field-config / column-preferences / me / search / export). DECLARED BEFORE the
+    # `{member_id}` routes so the literal prefix matches FIRST (the router returns the first
+    # matching route in declaration order for a method).
+    RouteSpec(
+        name="publish_application_form",
+        method=HttpMethod.POST,
+        path="/members/application-form/publish",
+        group=RouteGroup.MEMBER,
+        capability=CAP_MEMBERS_ADMIN,
+        self_service=False,
+        summary=(
+            "Publish the tenant's application form as a static slug-addressed artifact "
+            "(explicit, readiness-gated: slug + certified sender + ≥1 on-form field, R5.4). "
+            "Gate: members:admin. Live S3 write is task 2.2 (dormant until the hosting migration)."
         ),
     ),
     RouteSpec(

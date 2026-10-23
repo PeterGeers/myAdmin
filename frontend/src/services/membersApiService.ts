@@ -102,11 +102,11 @@ export {
 // --- Config resource group (field-config + membership-type catalog + SAM config write) ---
 export {
   getFieldConfig,
-  previewApplicationFieldConfig,
   listMembershipTypes,
   createMembershipType,
   updateMembershipType,
   deactivateMembershipType,
+  publishApplicationForm,
   writeConfig,
   writeFieldConfig,
   writeScopeConfig,
@@ -115,4 +115,5 @@ export {
 export type {
   MembersWritableConfigId,
   MembersConfigWriteResult,
+  MembersApplicationPublishResult,
 } from './members/membersConfigApi';

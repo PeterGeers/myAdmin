@@ -63,6 +63,10 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from sam.members.domain.analytics_set import AnalyticsSetValidationError
+from sam.members.domain.application_publish import (
+    PublishNotReady,
+    PublishPipelineNotWired,
+)
 from sam.members.domain.error_codes import FieldError  # noqa: F401 (surface compat)
 from sam.members.domain.execute_and_deliver import (
     AdHocMailInvalid,
@@ -417,7 +421,10 @@ class _ProjectionDefaultPageSizeProvider:
 
 #: The default-page-size provider handed to the domain service — a stable indirection that
 #: reads a fresh projection each call (see :class:`_ProjectionDefaultPageSizeProvider`).
-_DEFAULT_PAGE_SIZE_PROVIDER: DefaultPageSizeProvider = _ProjectionDefaultPageSizeProvider()
+_DEFAULT_PAGE_SIZE_PROVIDER: DefaultPageSizeProvider = (
+    _ProjectionDefaultPageSizeProvider()
+)
+
 
 def _build_tenant_hooks() -> TenantHookRegistry:
     """Build the unified Rung-3 hook registry with each tenant's hooks registered (design C5).
@@ -1036,9 +1043,7 @@ def _authenticate_and_authorize(
             config_provider=config_provider,
             grants_reader=grants_reader,
         )
-        scope_dimension_key = _gating_dimension_key(
-            tenant_id, provider=config_provider
-        )
+        scope_dimension_key = _gating_dimension_key(tenant_id, provider=config_provider)
         return RequestContext(
             tenant_id=tenant_id,
             sub=str(sub) if sub is not None else None,
@@ -1135,40 +1140,10 @@ def _get_membership_service() -> MembershipService:
     return _SERVICE
 
 
-def build_application_preview_service(
-    overlay_provider: TenantOverlayProvider,
-) -> MembershipService:
-    """Build a one-shot :class:`MembershipService` for the LIVE PREVIEW (spec 11, R7.2).
-
-    The Application Form Builder's server-side preview (``POST /members/application-preview``)
-    must run the REAL :meth:`MembershipService.get_public_field_config` filter over the WORKING
-    ``field_overlay`` the admin is editing — NOT the stored ``config#fields`` row. This builds a
-    membership service wired EXACTLY like the production one (same tenant-scoped repository + the
-    same scope-config / consent / mail / membership-type catalog seams, so the preview's
-    membership-type options, scope-sourced enums and consent-notice version are the tenant's REAL
-    ones), with ONE substitution: the overlay provider is the caller-supplied
-    :class:`TenantOverlayProvider` that serves the request-body overlay instead of the projection.
-
-    So the preview reuses the one filtering authority (zero drift, correctness property 4) and is
-    READ-ONLY by construction — ``get_public_field_config`` only reads. It is a fresh service per
-    preview (never the warm module singleton), so a preview can never disturb the production
-    service's captured overlay provider.
-
-    The scheduler port is intentionally omitted (the preview never schedules); the repository
-    resolves its table lazily + fail-fast, so building this touches no AWS until the catalog read
-    the filter performs — the SAME read the staff/public field-config already does. Tests inject a
-    service over an in-memory fake repo by patching the ``_dispatch`` seam that calls this.
-    """
-    return MembershipService(
-        DynamoDbMembersRepository(),
-        overlay_provider=overlay_provider,
-        tenant_hooks=_TENANT_HOOKS,
-        scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
-        mail_gate_provider=_MAIL_GATE_PROVIDER,
-        mail_config_provider=_MAIL_CONFIG_PROVIDER,
-        config_status_provider=_CONFIG_STATUS_PROVIDER,
-        default_page_size_provider=_DEFAULT_PAGE_SIZE_PROVIDER,
-    )
+# NOTE (spec 12, redesign C / R3): the one-shot `build_application_preview_service` that backed the
+# retired `POST /members/application-preview` route has been removed — preview is now in-browser
+# (task 5.2). The production `MembershipService` + its `get_public_field_config` (used by the public
+# edge and the publish path) are unchanged.
 
 
 def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> Any:
@@ -1250,6 +1225,36 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
         logger.info("Members route '%s' resolved but not implemented yet", spec.name)
         return _error(
             501, "Not implemented", code="errors.api.notImplemented", route=spec.name
+        )
+    except PublishNotReady as exc:
+        # The application-form publish (spec 12 Task 2.1, R5.4) was REFUSED by the readiness gate
+        # BEFORE any write: a precondition (slug / certified sender / ≥1 on-form field) is missing,
+        # so NO artifact was emitted. Unlike the NEUTRAL public 409 (ApplicationNotAvailable), this
+        # is the verified Tenant_Admin publishing their OWN form — "show, don't silently block"
+        # (spec 11 R6): the TYPED reason is surfaced so the frontend Publish button (task 6.2) can
+        # explain exactly what to fix. Mapped to a 409 (the request is well-formed + authorized,
+        # but the form is not in a publishable state — distinct from a 422 malformed body / a 404).
+        return _error(
+            409,
+            "The application form is not ready to publish",
+            code=exc.code,
+            reason=exc.reason.value,
+        )
+    except PublishPipelineNotWired:
+        # The tenant PASSED the readiness gate but the live publish pipeline is task 2.2 — the
+        # route + readiness gate are REAL (task 2.1) and only the live S3 render/write + CloudFront
+        # invalidation is dormant (additionally gated on the owner-run hosting migration, task 0.1
+        # / R6.4). Mapped to a caller-safe 501 (the route resolved + the tenant is ready, but the
+        # behaviour is not built yet) — never a 500, never str(e). Task 2.2 removes this seam.
+        logger.info(
+            "Members application-form publish reached the ready seam but the live pipeline "
+            "is not wired yet (task 2.2, migration-gated)"
+        )
+        return _error(
+            501,
+            "Publish pipeline not yet wired",
+            code="errors.application.publishNotWired",
+            route=spec.name,
         )
     except MemberNotFound:
         # Missing member within the tenant, OR out of the caller's scope on a READ —

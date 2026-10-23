@@ -292,11 +292,20 @@ class MembersProjectionReader:
         # translation. Storage at rest is unchanged — only the served shape is normalized here.
         raw_overrides = row.get("overrides")
         raw_groups = row.get("functional_groups")
-        return {
+        wire = {
             "fields": raw_fields if isinstance(raw_fields, dict) else {},
             "fixed_overrides": raw_overrides if isinstance(raw_overrides, dict) else {},
             "functional_groups": raw_groups if isinstance(raw_groups, list) else [],
         }
+        # Application-form slug + publish-state (spec 12 Task 1.1 / R4, design §Data Models): carry
+        # the form's own ``slug`` plus ``published_at`` / ``published_version`` THROUGH on the raw
+        # round-trip so a plain fields save reads them back and the write service can preserve them
+        # (publish owns ``published_*``, Task 2.2). Only surfaced when STORED — a pre-slug row omits
+        # them, so the empty-is-valid shape above is unchanged for a never-slugged tenant.
+        for attr in ("slug", "published_at", "published_version"):
+            if attr in row:
+                wire[attr] = row.get(attr)
+        return wire
 
     @staticmethod
     def _build_functional_group(spec: dict) -> FunctionalGroup:
@@ -558,6 +567,42 @@ class MembersProjectionReader:
         if isinstance(page_size, bool) or not isinstance(page_size, int):
             return None
         return page_size if page_size > 0 else None
+
+    # ── Forward slug reader (tenant → slug, spec 12 Task 1.3 / R4; design C3) ───────────
+
+    def get_form_slug(self, tenant_id: str) -> str | None:
+        """Return the tenant's application-form ``slug`` from ``config#fields``, or ``None``.
+
+        The FORWARD half of the spec-12 slug mapping (design C3): tenant → slug, resolved by the
+        NORMAL ``tenant_id``-pinned partition read (the same shared, cached Query the sibling
+        config reads use). The form's own public ``slug`` was added to the ``config#fields`` row by
+        Task 1.1 and is carried through the authoring round-trip by :meth:`get_raw_fields_overlay`;
+        this accessor is the RESOLVED read of it (e.g. the publish path / the slug-display surface
+        reads a tenant's current slug here).
+
+        The REVERSE lookup (slug → ``tenant_id``) deliberately does NOT live on this
+        ``tenant_id``-PK table — a slug-keyed item would break its structural-isolation invariant
+        (``template.yaml``). That is the ``_slugs/{slug}`` bucket marker (OQ4,
+        :class:`sam.members.repository.slug_marker_store.S3SlugMarkerStore`), NOT this reader.
+
+        Empty-is-valid / fail-safe (same discipline as :meth:`get_default_page_size`): a **missing**
+        ``config#fields`` row, a missing ``slug`` attribute, or a non-string / blank value all
+        resolve to ``None`` (the tenant has no public form address yet) — never a raise, never a
+        guessed slug.
+
+        Args:
+            tenant_id: The tenant (partition key) whose form slug to resolve.
+
+        Returns:
+            The projected non-blank ``slug`` string, or ``None`` when absent/unusable.
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        if row is None:
+            return None
+        slug = row.get("slug")
+        if not isinstance(slug, str) or not slug.strip():
+            return None
+        return slug.strip()
 
     # ── Mail-enabled gate (pivot-output-actions R0, design §6.3) ───────────────────────
 
