@@ -1077,13 +1077,20 @@ class MailSendWorker:
 #: so the ``\s+`` collapse turns them into a single space rather than deleting them outright.
 #: Mirrors the frontend ``sanitize`` character class.
 #:
-#: The ``\u000e-\u001f`` control-char span is written as the literals ``\u000e`` ``\u000f`` plus
-#: the range ``\u0010-\u001f`` — a COSMETIC split covering the IDENTICAL code points. It exists
-#: only to satisfy CodeQL ``py/overly-large-range`` (which flags a single wide range as a common
-#: typo site); do NOT "simplify" it back to ``\u000e-\u001f`` or the alert returns. Keep this form
-#: and the frontend mirror in lockstep.
+#: The C0 control chars are ENUMERATED as individual ``\uXXXX`` literals (U+0000–U+0008,
+#: U+000B, U+000C, U+000E–U+001F) plus ``\u007f`` (DEL) — deliberately NOT a range. A range
+#: of control chars (e.g. ``\u000e-\u001f``) trips CodeQL ``py/overly-large-range``; enumerating
+#: the exact code points removes the range entirely so there is nothing for that query to flag,
+#: while matching the IDENTICAL set of characters. Tab (U+0009), LF (U+000A) and CR (U+000D) are
+#: intentionally OMITTED so the ``\s+`` collapse turns them into a single space. Keep this form
+#: and the frontend ``sanitize`` mirror in lockstep — do NOT re-introduce a range.
 _EXPORT_SANITIZE_STRIP = re.compile(
-    "[/\\\\\u0000-\u0008\u000b\u000c\u000e\u000f\u0010-\u001f\u007f]"
+    "[/\\\\"
+    "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008"
+    "\u000b\u000c"
+    "\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017"
+    "\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f"
+    "\u007f]"
 )
 _EXPORT_WHITESPACE_RUN = re.compile(r"\s+")
 
