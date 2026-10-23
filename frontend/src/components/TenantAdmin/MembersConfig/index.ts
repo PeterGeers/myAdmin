@@ -4,7 +4,8 @@
 export { MembersConfigEditor, default } from './MembersConfigEditor';
 export { MembersMailConfigEditor } from './MembersMailConfigEditor';
 export { ApplicationFormBuilder } from './ApplicationFormBuilder';
-export { ApplicationFieldList } from './ApplicationFieldList';
+export { ApplicationFieldModalList } from './ApplicationFieldModalList';
+export { ApplicationFieldModal } from './ApplicationFieldModal';
 export { ApplicationFieldAttributes } from './ApplicationFieldAttributes';
 export { ApplicationFormShellPanel } from './ApplicationFormShellPanel';
 export { ApplicationReadinessPanel } from './ApplicationReadinessPanel';

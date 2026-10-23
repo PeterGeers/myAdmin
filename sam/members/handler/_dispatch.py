@@ -25,7 +25,6 @@ from services import projection_schema as schema
 
 from sam.members.domain.config_write_service import ConfigWriteValidationError
 from sam.members.domain.execute_and_deliver import AdHocMailBody
-from sam.members.domain.field_resolver import OverlayError
 from sam.members.repository.members_cursor import CursorError
 from sam.members.handler._http import AcceptedResult, ParsedRequest
 from sam.members.handler.routes import CAP_MEMBERS_ADMIN, RouteSpec
@@ -320,93 +319,68 @@ def get_config_write_service() -> Any:
     return _CONFIG_WRITE_SERVICE
 
 
-# ── Application-form live-preview seam (spec 11, Task 1.4 — R7.2) ──────────────────────
+# ── Application-form publish service seam (spec 12 Task 2.1 — design §C4 / R5) ─────────
 #
-# The `preview_application` route (`POST /members/application-preview`, members:admin) runs the
-# REAL `MembershipService.get_public_field_config` filter over the WORKING `field_overlay` the
-# admin is editing — carried in the request BODY, not the stored config#fields row — and returns
-# the applicant-facing schema (design §5.3/§6/§10, R7.2). It REUSES the one server filter (zero
-# drift, correctness property 4) and is READ-ONLY (never writes / no DynamoDB mutation).
+# The `publish_application_form` route (`POST /members/application-form/publish`) is backed by the
+# standalone :class:`~sam.members.domain.application_publish.ApplicationPublishService` (NOT the
+# MembershipService). It owns the readiness gate (slug + certified sender + ≥1 on-form field,
+# R5.4) — REAL and tested here — and the publish seam, whose live S3 render/write + CloudFront
+# invalidation is task 2.2 and stays DORMANT (the seam raises PublishPipelineNotWired). It is
+# resolved lazily once (warm-reuse), mirroring :func:`get_config_write_service`. A test replaces
+# :data:`_APPLICATION_PUBLISH_SERVICE` (or patches :func:`get_application_publish_service`) with a
+# service over in-memory fakes, so no AWS is touched. The service's three seams are satisfied by
+# ONE DynamoDB-backed projection reader (``get_form_slug`` / ``is_mail_certified`` /
+# ``get_mail_domain``) plus the public field-config read (the single filter authority, reused via
+# the MembershipService's ``get_public_field_config``) — no readiness logic is duplicated.
+
+#: The module-global publish service, built once at cold start (``None`` until first use).
+_APPLICATION_PUBLISH_SERVICE: Any = None
+
+
+def get_application_publish_service() -> Any:
+    """Return the module-global application-form publish service, built once at cold start (2.1).
+
+    Wires the :class:`~sam.members.domain.application_publish.ApplicationPublishService` over its
+    three read-only seams, all satisfied without duplicating any readiness logic:
+
+      * the forward slug reader + the certified-sender provider are BOTH the DynamoDB-backed
+        :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader`
+        (its ``get_form_slug`` satisfies ``FormSlugReader``; its ``is_mail_certified`` /
+        ``get_mail_domain`` satisfy the shared ``MailReadinessProvider`` the submit gate uses);
+      * the on-form-field count reads the public field-config through the SINGLE filter authority
+        (the production :class:`~sam.members.domain.membership_service.MembershipService`'s
+        ``get_public_field_config``) — reused via :func:`sam.members.handler.app._get_membership_service`
+        so publish and submit never drift on "which fields are on the form".
+
+    The table resolves lazily + fail-fast on first use, so importing the module (and the auth-only
+    tests) never touches AWS. Tests patch this accessor (or set ``_APPLICATION_PUBLISH_SERVICE``)
+    to inject a service over in-memory fakes.
+    """
+    global _APPLICATION_PUBLISH_SERVICE
+    if _APPLICATION_PUBLISH_SERVICE is None:
+        from sam.members.domain.application_publish import ApplicationPublishService
+        from sam.members.handler.app import _get_membership_service
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
+
+        reader = MembersProjectionReader()
+        _APPLICATION_PUBLISH_SERVICE = ApplicationPublishService(
+            slug_reader=reader,
+            readiness_provider=reader,
+            field_config_reader=_get_membership_service(),
+        )
+    return _APPLICATION_PUBLISH_SERVICE
+
+
+# ── Application-form live preview is IN-BROWSER (spec 12, redesign C / R3) ─────────────
 #
-# To feed the body overlay through the SAME parse the production read uses (no reimplementation),
-# we build the `TenantOverlay` via a fresh `MembersProjectionReader.get_overlay` over a one-row
-# in-memory table that returns the body (normalized to the storage `overrides` key) as the tenant's
-# `config#fields` row. That is the authoritative wire→overlay translation, identical to the live
-# read path. The resulting overlay provider is handed to `app.build_application_preview_service`,
-# which wires a one-shot membership service (production repo + seams, this overlay) the preview
-# calls `get_public_field_config` on. The build accessor is resolved via the `app` facade so a test
-# can patch it (or `get_application_preview_service`) to inject a service over in-memory fakes.
-
-
-class _BodyOverlayTable:
-    """A one-row in-memory DynamoDB-`query` stand-in serving a body overlay as `config#fields`.
-
-    :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader` reads a
-    tenant's overlay by `query`-ing the tenant partition and finding the `config#fields` row, then
-    parsing it with its authoritative `_build_overlay_field` / `_build_override` helpers. To reuse
-    that EXACT parse for the preview's WORKING overlay — rather than re-implementing the wire→model
-    mapping — this fake `table` returns a single `config#fields` item built from the request body.
-    It is READ-ONLY (only `query`); the preview never mutates anything.
-    """
-
-    def __init__(self, tenant_id: str, fields_row: Mapping[str, Any]):
-        self._tenant_id = tenant_id
-        self._item = dict(fields_row)
-
-    def query(self, **_kwargs: Any) -> dict[str, Any]:
-        # The reader keys only on the partition (tenant); it then classifies rows by sort key.
-        # We return exactly the one config#fields row for this tenant.
-        return {"Items": [self._item]}
-
-
-def _body_overlay_provider(tenant_id: str, overlay_body: Mapping[str, Any]) -> Any:
-    """Build a `TenantOverlayProvider` over the request-body `field_overlay` (preview, R7.2).
-
-    Reuses the production reader's parse by seeding a fresh
-    :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader` with a
-    one-row fake table whose `config#fields` item IS the body overlay. The authoring wire shape
-    uses `fixed_overrides` for the fixed-field override map while the reader reads the storage key
-    `overrides` (the one-key contract) — so we normalize `fixed_overrides` → `overrides` here, the
-    SAME normalization the write path applies, before handing the row to the reader. A missing /
-    non-object body yields an empty overlay (fixed base only), never an error.
-    """
-    from services import projection_schema as schema
-
-    from sam.members.repository.projection_config_reader import MembersProjectionReader
-
-    body = overlay_body if isinstance(overlay_body, Mapping) else {}
-
-    raw_fields = body.get("fields")
-    # Accept the authoring wire key `fixed_overrides` (what overlayModel / the builder send) and
-    # normalize to the storage key `overrides` the reader parses — identical to the write path.
-    raw_overrides = body.get("overrides")
-    if not raw_overrides:
-        raw_overrides = body.get("fixed_overrides")
-    raw_groups = body.get("functional_groups")
-
-    fields_row = {
-        schema.PARTITION_KEY_ATTR: tenant_id,
-        schema.SORT_KEY_ATTR: schema.build_sort_key(
-            schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS
-        ),
-        "fields": raw_fields if isinstance(raw_fields, Mapping) else {},
-        "overrides": raw_overrides if isinstance(raw_overrides, Mapping) else {},
-        "functional_groups": raw_groups if isinstance(raw_groups, (list, tuple)) else [],
-    }
-    return MembersProjectionReader(table=_BodyOverlayTable(tenant_id, fields_row))
-
-
-def get_application_preview_service(overlay_provider: Any) -> MembershipService:
-    """Resolve the one-shot preview membership service over a body overlay (spec 11, R7.2).
-
-    Delegates to :func:`sam.members.handler.app.build_application_preview_service`, resolved via
-    the ``app`` facade so a test can patch EITHER this accessor or that builder to inject a service
-    over an in-memory fake repo (no AWS). Kept as a thin indirection (not a direct import at module
-    top) to avoid the ``app`` ↔ ``_dispatch`` import cycle and to preserve the existing patch seams.
-    """
-    from sam.members.handler import app
-
-    return app.build_application_preview_service(overlay_provider)
+# The former `preview_application` seam (`POST /members/application-preview`, spec 11 R7.2) — a
+# one-shot membership service built over the request-body overlay to run `get_public_field_config`
+# — has been RETIRED. Preview is now entirely in-browser (the builder reproduces the applicant-
+# facing selection with a pure client filter and the shared renderer, spec 12 §C2 / D4, task 5.2),
+# so the body-overlay provider + the one-shot preview-service builder are gone. The PUBLIC
+# `get_public_field_config` read + the publish path remain the authoritative server filter.
 
 
 def _caller_is_tenant_admin(ctx: RequestContext) -> bool:
@@ -734,34 +708,6 @@ def dispatch_route(
         # nothing (R2.3/R2.4, design C3/C8).
         return service.get_field_config(tenant_id)
 
-    if name == "preview_application":
-        # Application Form Builder live preview (spec 11, R7.2): run the REAL
-        # `get_public_field_config` filter over the WORKING `field_overlay` in the request BODY
-        # (never the stored config#fields row) and return the applicant-facing schema. The
-        # tenant is AUTHORITATIVE from the verified context (never the body — verify-before-trust,
-        # correctness property 5); the body carries ONLY the working overlay the admin is editing.
-        #
-        # READ-ONLY: a one-shot membership service is built over the body overlay (production repo
-        # + seams, this overlay) and only `get_public_field_config` is called — no write, no
-        # DynamoDB mutation. It deliberately bypasses the public read's send-ready gate (that gate
-        # lives on `ApplicationService`, not here), so an admin can preview BEFORE the sender is
-        # certified (R6.2); the readiness panel carries the "not available" state, not the preview.
-        #
-        # A malformed overlay surfaces fail-loud as a caller-safe 400: a broken enum SUBSET
-        # (`application_choices` ⊄ the field's choices) raises `OverlayError` from the real filter,
-        # re-raised here as a `ConfigWriteValidationError` (→ 400 at the edge) rather than a 500 —
-        # it is bad caller DATA, not a server fault. Everything else returns the 200 schema the
-        # public form's renderer consumes (filter parity).
-        overlay_provider = _body_overlay_provider(tenant_id, _write_body(request))
-        preview_service = get_application_preview_service(overlay_provider)
-        try:
-            return preview_service.get_public_field_config(tenant_id)
-        except OverlayError as exc:
-            raise ConfigWriteValidationError(
-                "application-preview field_overlay is invalid: "
-                f"{'; '.join(f'{k}: {v}' for k, v in exc.reasons.items())}"
-            ) from exc
-
     if name == "get_member":
         member_id = _require_path_param(ctx, "member_id")
         return service.get_member(
@@ -1050,6 +996,29 @@ def dispatch_route(
             tenant_id, config_id, _write_body(request)
         )
 
+    # ── Application-form PUBLISH — explicit, readiness-gated (spec 12 Task 2.1, §C4/R5) ──
+    #
+    # The edge has already verified the JWT, resolved `tenant_id` from the verified token (never
+    # the body — verify-before-trust, Property 2), and enforced the members:admin entitlement
+    # (the route's gate) BEFORE reaching here. This branch delegates to the standalone publish
+    # service, which:
+    #   1. Enforces READINESS before any (future) write (R5.4): a stored slug (R4, the form's
+    #      public address) + a certified sender (the SAME authoritative is_send_ready predicate
+    #      the submit gate uses — certified flag AND a projected domain, reused not duplicated) +
+    #      ≥1 on-form field (counted off get_public_field_config, the single filter authority). A
+    #      missing precondition raises PublishNotReady (→ a clear members:admin-facing 409 at the
+    #      edge) and NO write is attempted — never a broken artifact.
+    #   2. On a READY tenant, reaches the publish seam. Per the task-2.1 "scaffold, handler
+    #      dormant" scope the live S3 render/write + CloudFront invalidation is task 2.2 — the
+    #      seam raises PublishPipelineNotWired (→ a caller-safe 501 at the edge). Task 2.2 swaps
+    #      the stub for the real pipeline; the success shape then mirrors the frontend caller's
+    #      MembersApplicationPublishResult (success, slug, published_version, published_at).
+    # `tenant_id` is AUTHORITATIVE from the verified context; this POST carries no path params and
+    # the body is not trusted for tenant (the whole publish target is the verified tenant's form).
+    if name == "publish_application_form":
+        publish_service = get_application_publish_service()
+        return publish_service.publish(tenant_id)
+
     # ── Group MEMBER (writes — task 5.2) ──────────────────────────────────────────────
     if name == "create_member":
         return service.create_member(
@@ -1206,6 +1175,7 @@ __all__ = [
     "_require_path_param",
     "_write_body",
     "dispatch_route",
+    "get_application_publish_service",
     "get_config_write_service",
     "get_execute_and_deliver_service",
     "get_mail_run_status_service",

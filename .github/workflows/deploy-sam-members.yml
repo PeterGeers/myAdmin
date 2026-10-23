@@ -107,6 +107,21 @@ jobs:
         # fail-closed). Never committed / never in samconfig (steering 43).
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        # ⚠️ CI FOOTGUN — a bare `--parameter-overrides` REPLACES the whole samconfig param set,
+        #    it does NOT merge (spec 12 D7 / R7.4; root cause of decision 1a).
+        #    When `$OVERRIDE` below is non-empty, SAM uses ONLY the `Key=Val` pairs passed on the
+        #    CLI and IGNORES every `parameter_overrides` entry in samconfig.toml [<config-env>];
+        #    any param not re-passed falls back to its template `Default`. That is exactly how the
+        #    old `PublicTenantSlugMap` silently deployed EMPTY on an OpenRouter-key deploy and the
+        #    `hdcn` slug stopped resolving (spec 12, decision 1a). That specific blast radius is now
+        #    CLOSED — the slug is DATA-backed (`_slugs/{slug}` marker, task 1.4/7.1), so it no
+        #    longer rides a template param. But the footgun is LATENT for ANY other samconfig param
+        #    (e.g. the Cognito pool ARN, table names) the day a second override is added here.
+        #    RECOMMENDED CI FOLLOW-UP (not done here — this is a flagged NOTE, not a behavior
+        #    change; deploy workflows are sensitive, steering 43): make the override MERGE, not
+        #    replace — either re-pass ALL of samconfig's params alongside OpenRouterApiKey, or move
+        #    to a `--parameter-overrides-file` / env-specific param file so a secret-carrying deploy
+        #    can never blank a samconfig param again.
         run: |
           OVERRIDE=""
           if [ -n "$OPENROUTER_API_KEY" ]; then

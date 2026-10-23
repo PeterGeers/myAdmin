@@ -44,10 +44,11 @@ Task 1.3 (this change) wires the delegation seam's FIRST step and the routes/API
   ``public_app.handler`` entrypoint (the detailed least-privilege IAM + API Gateway throttle /
   usage plan are task 7.1, not here);
 - slug → ``tenant_id`` resolution is wired into :func:`_dispatch_public`: the Task-1.2
-  ``domain/tenant_directory`` resolver, injected with the Task-1.3 concrete
-  ``repository/tenant_slug_reader`` (the thin env-projection of the landing slug map, D19), so a
-  forged/unknown slug becomes a non-probeable 404 and an allow-listed slug carries its canonical
-  ``tenant_id`` forward (verify-before-trust, R2).
+  ``domain/tenant_directory`` resolver, injected (task 1.4) with the concrete
+  ``repository/slug_marker_store`` ``S3SlugMarkerStore`` — the ``_slugs/{slug}`` bucket-marker
+  reverse reader resolved by OQ4 (a scan-free ``get_object``, NOT a config/env scan) — behind the
+  UNCHANGED ``TenantSlugReader`` Protocol, so a forged/unknown slug becomes a non-probeable 404 and
+  an allow-listed slug carries its canonical ``tenant_id`` forward (verify-before-trust, R2).
 
 Still pending (later same-plane tasks, intentionally NOT built here): the two service calls behind
 the resolved tenant — ``ApplicationService.get_public_field_config`` (Phase 4) and
@@ -77,7 +78,7 @@ from sam.members.handler._http import (
     _response,
 )
 from sam.members.repository.projection_config_reader import MembersProjectionReader
-from sam.members.repository.tenant_slug_reader import EnvTenantSlugReader
+from sam.members.repository.slug_marker_store import S3SlugMarkerStore
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -427,17 +428,31 @@ def _slug_from_path(request: ParsedRequest) -> str:
 
 
 def _tenant_directory() -> TenantDirectory:
-    """Build the slug→``tenant_id`` resolver wired to the SAM-plane concrete reader (task 1.3).
+    """Build the slug→``tenant_id`` resolver wired to the SAM-plane concrete reader (task 1.4).
 
-    Injects the concrete :class:`~sam.members.repository.tenant_slug_reader.EnvTenantSlugReader`
-    (the thin env-projection of the landing slug map, D19) into the storage-agnostic Task-1.2
-    :class:`TenantDirectory`. Constructed per request — the reader resolves its backing projection
-    at call time, so a stack param / a test ``monkeypatch.setenv`` is honoured without any module
-    reload. This is the single place the public edge binds the resolver to its backing store;
-    swapping the store (env projection → DynamoDB row / KVS read) is a change behind the reader
-    seam only, never here.
+    Injects the concrete :class:`~sam.members.repository.slug_marker_store.S3SlugMarkerStore`
+    (the ``_slugs/{slug}`` bucket-marker reverse reader resolved by OQ4 — a scan-free
+    ``get_object`` on the shared public-pages bucket) into the storage-agnostic Task-1.2
+    :class:`TenantDirectory`. The marker store satisfies the UNCHANGED
+    :class:`~sam.members.domain.tenant_directory.TenantSlugReader` Protocol by duck-typing
+    (``resolve_slug(slug) -> str | None``), so this is a localized swap of the backing reader
+    behind the seam (design D5/C5) — the resolver and the edge handler are UNCHANGED in logic
+    and verify-before-trust / non-probeable 404 behaviour is preserved (R7.1/R7.2).
+
+    Task 1.4 replaces the former ``EnvTenantSlugReader`` (the thin ``PUBLIC_TENANT_SLUG_MAP``
+    env projection) IN PLACE: the reverse-lookup MECHANISM is now the bucket marker, not a
+    config/env scan. Task 7.1 then REMOVED ``PUBLIC_TENANT_SLUG_MAP`` from
+    ``template.yaml``/``samconfig.toml`` entirely (swap first, delete second) — the slug is
+    DATA on ``config#fields`` + the ``_slugs/{slug}`` marker, so no param/env var backs it.
+
+    Constructed per request — ``S3SlugMarkerStore`` resolves its S3 client + bucket LAZILY +
+    fail-fast from ``LANDING_PAGES_BUCKET`` on first use, so import touches no AWS and a test can
+    inject a fake store by monkeypatching :data:`S3SlugMarkerStore` on this module (mirroring the
+    ``MembersProjectionReader`` injection seam). This is the single place the public edge binds
+    the resolver to its backing store; swapping the store again is a change behind the reader
+    seam only, never a ripple through the resolver or its callers.
     """
-    return TenantDirectory(EnvTenantSlugReader())
+    return TenantDirectory(S3SlugMarkerStore())
 
 
 def _dispatch_public(request: ParsedRequest) -> Any:

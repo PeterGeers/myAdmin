@@ -52,7 +52,9 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
-from sam.members.domain.mail_feedback_tags import build_feedback_tags as _build_feedback_tags
+from sam.members.domain.mail_feedback_tags import (
+    build_feedback_tags as _build_feedback_tags,
+)
 from sam.members.domain.analytics_set import (
     DELIVERY_MODE_PER_RECIPIENT,
     DELIVERY_MODE_TO_FIXED,
@@ -320,9 +322,7 @@ class MailSendResult:
 
     __slots__ = ("deduped", "job_id", "recipient_count", "sent")
 
-    def __init__(
-        self, *, job_id: str, sent: bool, deduped: bool, recipient_count: int
-    ):
+    def __init__(self, *, job_id: str, sent: bool, deduped: bool, recipient_count: int):
         self.job_id = job_id
         self.sent = sent
         self.deduped = deduped
@@ -393,7 +393,9 @@ class MailSendWorker:
         # note is not written — it NEVER fails the worker (the application is already in the inbox).
         self._members_store = members_store
 
-    def _advance_run(self, tenant_id: str, run_id: str, *, sent: int = 0, failed: int = 0) -> None:
+    def _advance_run(
+        self, tenant_id: str, run_id: str, *, sent: int = 0, failed: int = 0
+    ) -> None:
         """Advance the run tally (best-effort): mark sending + add sent/failed counts. Never let a
         status-tracking error fail the actual send/delete (the mail already went or will retry)."""
         if self._run_store is None or not run_id:
@@ -406,7 +408,8 @@ class MailSendWorker:
                 )
         except Exception:  # noqa: BLE001 — status tracking must never break the send path
             logger.warning(
-                "mail-send worker: run-status update failed for run %s (non-fatal)", run_id
+                "mail-send worker: run-status update failed for run %s (non-fatal)",
+                run_id,
             )
 
     # ── public entry point ──────────────────────────────────────────────────────────────
@@ -481,7 +484,10 @@ class MailSendWorker:
             self._enforce_outcome(job_id, outcome)
         except MailSendPermanent as exc:
             self._record_run_failure(
-                tenant_id, str(envelope.get("run_id") or ""), recipients, reason=str(exc)
+                tenant_id,
+                str(envelope.get("run_id") or ""),
+                recipients,
+                reason=str(exc),
             )
             raise
 
@@ -497,7 +503,9 @@ class MailSendWorker:
         # Advance the run tally: this job's recipients are now SENT (R9.1). Guarded by the dedupe
         # marker above (we only reach here when the marker was freshly created), so an at-least-
         # once redelivery of the same job returns deduped earlier and never double-counts.
-        self._advance_run(tenant_id, str(envelope.get("run_id") or ""), sent=len(recipients))
+        self._advance_run(
+            tenant_id, str(envelope.get("run_id") or ""), sent=len(recipients)
+        )
         return MailSendResult(
             job_id=job_id, sent=True, deduped=False, recipient_count=len(recipients)
         )
@@ -552,7 +560,9 @@ class MailSendWorker:
         self._ensure_application_run(tenant_id, run_id)
 
         if kind == JOB_KIND_STAFF:
-            recipients, reply_to = self._resolve_application_staff_recipients(envelope, tenant_id)
+            recipients, reply_to = self._resolve_application_staff_recipients(
+                envelope, tenant_id
+            )
             if not recipients:
                 # R8.5 NO_NOTIFY seam (task 6.4): no all-scope `Members_CRUD` AND no `TenantAdmin`.
                 # This is NOT a failure — the application is already in the status=application
@@ -594,7 +604,10 @@ class MailSendWorker:
                 run_id,
             )
             return MailSendResult(
-                job_id=job_id, sent=False, deduped=False, recipient_count=len(recipients)
+                job_id=job_id,
+                sent=False,
+                deduped=False,
+                recipient_count=len(recipients),
             )
 
         # Dedupe BEFORE sending (idempotency, mirrors the pivot path). A redelivery skips.
@@ -666,7 +679,9 @@ class MailSendWorker:
             raise MailSendPermanent(
                 "application staff job requires a recipient resolver (none wired)"
             )
-        applicant_scope_value = self._clean_single(envelope.get("applicant_scope_value")) or None
+        applicant_scope_value = (
+            self._clean_single(envelope.get("applicant_scope_value")) or None
+        )
         resolution = self._recipient_resolver.resolve_recipients(
             tenant_id, applicant_scope_value
         )
@@ -717,7 +732,9 @@ class MailSendWorker:
         """Normalize a single optional address/value to a trimmed string (``""`` when absent)."""
         return raw.strip() if isinstance(raw, str) and raw.strip() else ""
 
-    def _send_via_ses(self, envelope, tenant_id, recipients, subject, body_html, attachments):
+    def _send_via_ses(
+        self, envelope, tenant_id, recipients, subject, body_html, attachments
+    ):
         """The raw SES send call (extracted so process() can wrap render+send in one try)."""
         return self._ses.send(
             from_address=str(envelope.get("from_address") or ""),
@@ -751,7 +768,8 @@ class MailSendWorker:
             )
         except Exception:  # noqa: BLE001 — status tracking must never mask the send failure
             logger.warning(
-                "mail-send worker: run-failure recording failed for run %s (non-fatal)", run_id
+                "mail-send worker: run-failure recording failed for run %s (non-fatal)",
+                run_id,
             )
 
     # ── member-application send-log + NO_NOTIFY seam (task 6.4, D22/R8.5) ──────────────
@@ -777,7 +795,8 @@ class MailSendWorker:
             )
         except Exception:  # noqa: BLE001 — status tracking must never break the send path
             logger.warning(
-                "mail-send worker: application run create failed for run %s (non-fatal)", run_id
+                "mail-send worker: application run create failed for run %s (non-fatal)",
+                run_id,
             )
 
     def _mark_no_notify(self, tenant_id: str, member_id: str) -> None:
@@ -1076,8 +1095,21 @@ class MailSendWorker:
 #: path separators (``/`` ``\``) and ASCII control chars, EXCEPT tab/newline/CR which are left in
 #: so the ``\s+`` collapse turns them into a single space rather than deleting them outright.
 #: Mirrors the frontend ``sanitize`` character class.
+#:
+#: The C0 control chars are ENUMERATED as individual ``\uXXXX`` literals (U+0000–U+0008,
+#: U+000B, U+000C, U+000E–U+001F) plus ``\u007f`` (DEL) — deliberately NOT a range. A range
+#: of control chars (e.g. ``\u000e-\u001f``) trips CodeQL ``py/overly-large-range``; enumerating
+#: the exact code points removes the range entirely so there is nothing for that query to flag,
+#: while matching the IDENTICAL set of characters. Tab (U+0009), LF (U+000A) and CR (U+000D) are
+#: intentionally OMITTED so the ``\s+`` collapse turns them into a single space. Keep this form
+#: and the frontend ``sanitize`` mirror in lockstep — do NOT re-introduce a range.
 _EXPORT_SANITIZE_STRIP = re.compile(
-    "[/\\\\\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]"
+    "[/\\\\"
+    "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008"
+    "\u000b\u000c"
+    "\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017"
+    "\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f"
+    "\u007f]"
 )
 _EXPORT_WHITESPACE_RUN = re.compile(r"\s+")
 

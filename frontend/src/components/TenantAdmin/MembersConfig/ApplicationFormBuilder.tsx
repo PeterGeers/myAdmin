@@ -22,8 +22,9 @@
  * This task stands up the sub-tab root: the load, the single working-overlay state + commit wiring,
  * and the four-panel layout. The four panel bodies are PLACEHOLDERS here; the real sub-components
  * are built in later tasks:
- *   - field list + per-field attributes — `ApplicationFieldList` / `ApplicationFieldAttributes`
- *     (tasks 2.3 / 3.1);
+ *   - group ▸ field surface + per-field modal — `ApplicationFieldModalList` /
+ *     `ApplicationFieldModal` (spec 12 task 4.1, redesign A — replaces the retired spec-11
+ *     `ApplicationFieldList` toggle-list + `ApplicationFieldAttributes` buried panel);
  *   - form-shell panel — `ApplicationFormShellPanel` (task 3.2);
  *   - readiness panel — `ApplicationReadinessPanel` (task 4.1);
  *   - live preview — `ApplicationFormPreview` (task 4.2).
@@ -50,11 +51,15 @@ import {
   saveMembersParameter,
 } from '../../../services/membersConfigService';
 import { getSlug } from '../../../services/landingPageApi';
-import { listMembershipTypes } from '../../../services/members/membersConfigApi';
+import {
+  listMembershipTypes,
+  publishApplicationForm,
+} from '../../../services/members/membersConfigApi';
+import { computeReadiness } from './applicationReadiness';
 import type { MembersConfigValue } from '../../../types/membersConfig';
 import type { FieldConfig, MembershipType } from '../../../types/members';
-import { ApplicationFieldList } from './ApplicationFieldList';
-import { ApplicationFieldAttributes } from './ApplicationFieldAttributes';
+import { ApplicationFieldModalList } from './ApplicationFieldModalList';
+import { ApplicationFieldModal } from './ApplicationFieldModal';
 import { ApplicationFormShellPanel } from './ApplicationFormShellPanel';
 import { ApplicationReadinessPanel } from './ApplicationReadinessPanel';
 import { ApplicationFormPreview } from './ApplicationFormPreview';
@@ -78,6 +83,12 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingMail, setSavingMail] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  // Whether a Save has committed draft changes that have NOT yet been (re)published (spec 12
+  // R5.1a — save ≠ publish). Set on any successful field/mail save, cleared on a successful
+  // publish and on a fresh load. Drives the "draft has unpublished changes" hint so the admin
+  // sees that going-live is a separate, deliberate step.
+  const [savedSincePublish, setSavedSincePublish] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // The resolved field config — the source for the field list + its current application attributes,
@@ -94,9 +105,10 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   const [overlay, setOverlay] = useState<MembersConfigValue>({});
   // Baseline to detect unsaved edits (one Save → one request).
   const [baseline, setBaseline] = useState<string>('{}');
-  // The field selected in the list whose application attributes the attributes panel authors
-  // (task 3.1). Selection drives the panel; it is NOT persisted (pure view state).
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  // The field whose per-field MODAL is open (spec 12 task 4.1 / redesign A). Clicking a field in
+  // the group ▸ field surface opens the modal for it; `null` = the modal is closed. Pure view state
+  // (never persisted) — the modal authors the ONE working overlay through the shared engine.
+  const [modalFieldKey, setModalFieldKey] = useState<string | null>(null);
 
   // The form-shell working values (slug/URL display, embed, consent — task 3.2). Seeded from the
   // loaded `config#mail` + the landing-page slug; committed once via `saveMembersMailConfig` →
@@ -110,6 +122,9 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   const load = async () => {
     setLoading(true);
     setError(null);
+    // A fresh load reflects the authoritative stored state; any "unpublished changes" accounting
+    // restarts from the loaded publish stamp.
+    setSavedSincePublish(false);
     try {
       // Load the resolved field config FIRST — it carries the RAW stored `config#fields`
       // overlay (`field_overlay`) the builder seeds + writes back (spec 11 bugfix). GET and PUT
@@ -173,7 +188,10 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       const res = await saveMembersParameter('field_overlay', overlay, null);
       if (res.success) {
         toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
+        // Save ≠ publish (spec 12 R5.1a): a successful save commits the draft but the live form is
+        // unchanged until a deliberate Publish — mark the draft as having unpublished changes.
         await load();
+        setSavedSincePublish(true);
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 6000 });
       }
@@ -205,7 +223,9 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       const res = await saveMembersMailConfig(body);
       if (res.success) {
         toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
+        // Save ≠ publish (spec 12 R5.1a): mark the draft as having unpublished changes.
         await load();
+        setSavedSincePublish(true);
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 6000 });
       }
@@ -218,6 +238,68 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       });
     } finally {
       setSavingMail(false);
+    }
+  };
+
+  // Readiness (spec 12 R5.4 / spec 11 R6) — reuse the SAME computation the readiness panel uses so
+  // the Publish gate and the readiness panel can never disagree: certified sender + slug + ≥1
+  // on-form field, over the loaded config, the ONE working overlay, and the FORM slug.
+  const readiness = useMemo(
+    () => computeReadiness(fieldConfig, overlay, shell.slug),
+    [fieldConfig, overlay, shell.slug],
+  );
+
+  // Whether the form has ever been published (spec 12 R5 — `published_version`/`published_at` on
+  // `config#fields`). Drives first-publish vs republish copy and the unpublished-changes hint.
+  const everPublished = Boolean(
+    (typeof fieldConfig?.published_version === 'number' && fieldConfig.published_version > 0) ||
+    (typeof fieldConfig?.published_at === 'string' && fieldConfig.published_at.trim()),
+  );
+
+  // The draft has unpublished changes (spec 12 R5.1a — surface save ≠ publish) when there are
+  // edits not yet live: unsaved draft dirt, a save committed since the last publish, OR a ready
+  // form that has never been published (its config exists but no live artifact does yet).
+  const hasUnpublishedChanges =
+    dirty || mailDirty || savedSincePublish || (!everPublished && readiness.isSendReady);
+
+  /**
+   * Deliberately publish the application form (spec 12 R5 / OQ1 = option 1): the ONE explicit
+   * go-live action. It calls `POST /members/application-form/publish` — NEVER triggered by a Save
+   * (save ≠ publish). The SAM route re-renders the live artifact from the tenant's CURRENT stored
+   * `config#fields`/`config#mail`, so publishing an unsaved draft would publish stale state; the
+   * builder therefore saves nothing here — it publishes what is SAVED, and the unpublished-changes
+   * hint tells the admin to Save first if they have pending edits.
+   *
+   * NOTE (spec 12 Phase 2/3): the live S3 write is DORMANT until the hosting migration + IAM land
+   * and the SAM route (task 2.1) ships; until then the call may 404 — surfaced as a normal error
+   * toast, not a crash. The button + readiness + save≠publish UX are account-agnostic and land now.
+   */
+  const handlePublish = async () => {
+    setPublishing(true);
+    try {
+      const res = await publishApplicationForm();
+      if (res.success) {
+        toast({ title: t('Gepubliceerd', 'Published'), status: 'success', duration: 3000 });
+        // A successful publish makes the live form match the saved config → no unpublished changes.
+        setSavedSincePublish(false);
+        await load();
+      } else {
+        toast({
+          title: 'Error',
+          description: t('Publiceren is mislukt', 'Publish failed'),
+          status: 'error',
+          duration: 6000,
+        });
+      }
+    } catch (e) {
+      toast({
+        title: 'Error',
+        description: e instanceof Error ? e.message : String(e),
+        status: 'error',
+        duration: 6000,
+      });
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -245,10 +327,9 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
     // pronounces the bilingual labels correctly (WCAG 2.2 AA / NFR — nl/en `lang` wiring).
     <Box data-testid="application-form-builder" lang={lang}>
       {/*
-        Four-panel layout (R1.3 / design §3). The panel bodies are PLACEHOLDERS in this scaffold;
-        the sub-components (ApplicationFieldList/-Attributes, -FormShellPanel, -ReadinessPanel,
-        -FormPreview) land in tasks 2.3/3.1/3.2/4.1/4.2 and consume the one working `overlay`,
-        the resolved `fieldConfig`, and the two commit handlers.
+        Four-panel layout (R1.3 / design §3). The sub-components (ApplicationFieldModalList +
+        ApplicationFieldModal, -FormShellPanel, -ReadinessPanel, -FormPreview) consume the one
+        working `overlay`, the resolved `fieldConfig`, and the two commit handlers.
       */}
       <Grid
         templateColumns={{ base: '1fr', lg: '2fr 1fr' }}
@@ -273,39 +354,18 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
               'Choose which fields appear on the public application form.',
             )}
           </Text>
-          {/* R2 — the grouped/ordered field list + per-row on-the-form toggle. It mutates the ONE
-              working overlay via overlayModel.upsertField; the single Save below commits it (§3.1).
-              Selecting a row drives the per-field attributes panel below (task 3.1). */}
-          <ApplicationFieldList
+          {/* R1.1 (spec 12, redesign A) — the grouped/ordered group ▸ field surface. A row-click
+              OPENS the per-field modal (below); there is no inline toggle and no buried attributes
+              panel anymore. The retired `ApplicationFieldList` toggle-list + `ApplicationFieldAttributes`
+              panel are replaced by this list + `ApplicationFieldModal`. The modal authors the ONE
+              working overlay via the shared engine (overlayModel.upsertField); the single Save below
+              commits it (§3.1). */}
+          <ApplicationFieldModalList
             fieldConfig={fieldConfig}
             overlay={overlay}
-            onChange={setOverlay}
+            onOpenField={setModalFieldKey}
             lang={lang}
-            selectedKey={selectedKey}
-            onSelect={setSelectedKey}
           />
-
-          {/* R3/R4 — the selected field's application attributes (required / subset / format). It
-              authors the SAME one working overlay via overlayModel.upsertField (task 3.1 / §3.1). */}
-          <Box
-            borderTopWidth="1px"
-            borderColor="gray.700"
-            mt={4}
-            pt={4}
-            data-testid="application-form-builder-field-attributes"
-          >
-            <Heading size="xs" mb={3} color="gray.400" textTransform="uppercase">
-              {t('Veldinstellingen', 'Field attributes')}
-            </Heading>
-            <ApplicationFieldAttributes
-              fieldConfig={fieldConfig}
-              selectedKey={selectedKey}
-              overlay={overlay}
-              onChange={setOverlay}
-              membershipTypeCatalog={membershipTypeCatalog}
-              lang={lang}
-            />
-          </Box>
         </GridItem>
 
         {/* Slot 2 — form-shell panel (slug/URL, embed, consent; R5; task 3.2). */}
@@ -330,6 +390,11 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
             onSaveMail={handleSaveMail}
             savingMail={savingMail}
             mailDirty={mailDirty}
+            readiness={readiness}
+            onPublish={handlePublish}
+            publishing={publishing}
+            hasUnpublishedChanges={hasUnpublishedChanges}
+            everPublished={everPublished}
             lang={lang}
           />
         </GridItem>
@@ -370,13 +435,20 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
           <Heading size="sm" mb={2} color="gray.300">
             {t('Voorbeeld', 'Live preview')}
           </Heading>
-          {/* R7 — the live preview: an IN-APP render of the public form via the shared spec-10
-              ApplicationFormRenderer, fed by POST /members/application-preview over the ONE working
-              overlay. It shows UNSAVED edits live (debounced) through the server's real filter — a
-              single rendering path AND a single filtering authority, no client mirror to drift
-              (R7.1/R7.2, design §4/§6/§9 S1·S2). The "open live form" link to the hosted form is the
-              form-shell panel's concern (R7.3). */}
-          <ApplicationFormPreview overlay={overlay} lang={lang} />
+          {/* R3 (spec 12, redesign C) — the live preview: an IN-BROWSER render of the public form
+              via the shared spec-10 ApplicationFormRenderer, fed by the PURE `buildPreviewConfig`
+              filter over the WORKING draft (resolved fieldConfig ⊕ the ONE working overlay). It
+              shows UNSAVED edits live with NO server round-trip — the retired
+              `POST /members/application-preview` is gone (task 5.2); the client filter reproduces
+              `get_public_field_config`'s applicant-facing selection, parity-pinned in task 5.3
+              (design §C2/D4). The "open live form" link to the hosted form is the form-shell panel's
+              concern (R3.3). */}
+          <ApplicationFormPreview
+            fieldConfig={fieldConfig}
+            overlay={overlay}
+            membershipTypeCatalog={membershipTypeCatalog}
+            lang={lang}
+          />
         </GridItem>
       </Grid>
 
@@ -405,6 +477,23 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
           </Button>
         </HStack>
       </Box>
+
+      {/* R1.1/R1.2 (spec 12, redesign A) — the per-field modal, opened by a row-click in the field
+          list above. It reuses `MembersFieldModal`'s engine (`resolveWriteTarget` / `upsertField`)
+          and renders the application-form attributes section ONLY when a form is in scope. The
+          builder IS the application-form authoring context, so `formInScope` is always true here;
+          the modal authors the ONE working overlay via `onChange`, committed by the single Save. */}
+      <ApplicationFieldModal
+        isOpen={modalFieldKey !== null}
+        onClose={() => setModalFieldKey(null)}
+        fieldKey={modalFieldKey}
+        fieldConfig={fieldConfig}
+        overlay={overlay}
+        onChange={setOverlay}
+        formInScope
+        membershipTypeCatalog={membershipTypeCatalog}
+        lang={lang}
+      />
     </Box>
   );
 };

@@ -16,30 +16,6 @@ export async function getFieldConfig<T = unknown>(): Promise<T> {
 }
 
 /**
- * POST /members/application-preview — the Application Form Builder's server-side LIVE PREVIEW
- * (spec 11 task 4.2 / R7.2; design §4/§5.3/§6/§9 S1·S2/§10).
- *
- * Runs the REAL `MembershipService.get_public_field_config` filter over the WORKING `field_overlay`
- * the admin is editing — carried in the request BODY, never the stored `config#fields` row — and
- * returns the applicant-facing schema the public form's `ApplicationFormRenderer` consumes. This is
- * the single filtering authority (zero client mirror, zero drift — correctness property 4) and is
- * READ-ONLY (the route never writes / mutates DynamoDB).
- *
- * `members:admin`-gated and tenant-from-the-verified-JWT exactly like the sibling config reads/
- * writes (`membersApiClient` attaches the Bearer token + `X-Tenant`); the body carries ONLY the
- * working overlay. Unlike the PUBLIC read, the preview deliberately BYPASSES the send-ready gate,
- * so the admin can preview BEFORE the sender is certified (R6.2) — the readiness panel carries the
- * "not available" state, not the preview.
- *
- * Unwraps the module's `{ data }` envelope so the caller receives the schema (`{ fields, locales,
- * notice }`). A non-2xx (401/403 gate, 400 on a malformed overlay — e.g. an enum subset ⊄ choices)
- * propagates as the structured ApiError thrown by `postJson`.
- */
-export async function previewApplicationFieldConfig<T = unknown>(overlay: unknown): Promise<T> {
-  return unwrapData<T>(await postJson<unknown>('/members/application-preview', overlay));
-}
-
-/**
  * The SAM-owned config ids writable through `PUT /members/config/{configId}` (Requirement 2.1).
  * The route rejects any id outside this closed set with a 400/404, so the client surface mirrors it.
  */
@@ -118,6 +94,48 @@ export async function writeScopeConfig(dimensions: unknown[]): Promise<MembersCo
  */
 export async function writeMailConfig(body: unknown): Promise<MembersConfigWriteResult> {
   return writeConfig('mail', body);
+}
+
+/**
+ * The authoritative result the SAM application-form publish route returns on a 200 (spec 12 R5 /
+ * design §C4, OQ1 = option 1). Publish RE-RENDERS the live static artifact from the tenant's
+ * current `config#fields`/`config#mail` through the single filter authority and REPLACES the prior
+ * version, bumping `published_version`/`published_at`. The write IS the published state.
+ *
+ * NOTE (spec 12 Phase 2, task 2.1): the SAM route itself is NOT built yet, and the live S3 write is
+ * DORMANT until the hosting migration (Phase 0.1) + IAM (Phase 3) land. This client caller exists so
+ * the frontend Publish button + readiness/save≠publish UX can land on the account-agnostic track
+ * now (Phase 6); tests mock it, and it will resolve for real once the route ships.
+ */
+export interface MembersApplicationPublishResult {
+  success: boolean;
+  /** The public slug the artifact was published under (`{slug}.jabaki.nl`). */
+  slug?: string;
+  /** The monotonic published version the row now carries (bumped on each publish). */
+  published_version?: number;
+  /** ISO-8601 timestamp of this publish. */
+  published_at?: string;
+}
+
+/**
+ * POST /members/application-form/publish — deliberately publish the application form (spec 12 R5 /
+ * design §C4, OQ1 = option 1).
+ *
+ * The EXPLICIT publish action: an admin-gated control that re-renders the live static artifact from
+ * the tenant's current `config#fields`/`config#mail` and REPLACES the prior published version.
+ * Saving a draft NEVER publishes — only this call does (save ≠ publish). `tenant_id` is resolved
+ * from the verified JWT at the edge, never the body, so this takes NO body. The route is
+ * readiness-gated server-side (slug + certified sender + ≥1 on-form field, R5.4); the builder also
+ * gates the button client-side as a convenience so an unready form never calls it.
+ *
+ * Unwraps the module's `{ data }` envelope. A non-2xx (auth/entitlement 401/403, readiness-refusal
+ * 409/422, unknown-route 404 while the SAM route is not yet deployed) propagates as the structured
+ * ApiError thrown by `postJson` — the caller surfaces a caller-safe message.
+ */
+export async function publishApplicationForm(): Promise<MembersApplicationPublishResult> {
+  return unwrapData<MembersApplicationPublishResult>(
+    await postJson<unknown>('/members/application-form/publish')
+  );
 }
 
 /**

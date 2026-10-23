@@ -509,6 +509,49 @@ class TestGetRawFieldsOverlay:
         assert raw["fixed_overrides"] == {}
         assert raw["functional_groups"] == []
 
+    def test_raw_overlay_carries_form_slug_and_publish_state_through(self):
+        """Spec 12 Task 1.1: when stored, the form slug + publish-state ride through the raw read
+        so a plain fields save reads them back (and the write service preserves them)."""
+        table = FakeTable()
+        item = {
+            schema.PARTITION_KEY_ATTR: "h-dcn",
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
+            "fields": {},
+            "overrides": {},
+            "functional_groups": [],
+            "slug": "hdcn-application-form",
+            "published_at": "2026-10-23T12:00:00+00:00",
+            "published_version": 3,
+            schema.VERSION_ATTR: 1,
+        }
+        table.put(item)
+
+        raw = MembersProjectionReader(table=table).get_raw_fields_overlay("h-dcn")
+        assert raw["slug"] == "hdcn-application-form"
+        assert raw["published_at"] == "2026-10-23T12:00:00+00:00"
+        assert raw["published_version"] == 3
+
+    def test_raw_overlay_omits_slug_keys_when_not_stored(self):
+        """A pre-slug row (no slug/publish-state stored) does NOT fabricate the keys — the
+        empty-is-valid shape is unchanged for a never-slugged tenant."""
+        table = FakeTable()
+        item = {
+            schema.PARTITION_KEY_ATTR: "h-dcn",
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
+            "fields": {},
+            schema.VERSION_ATTR: 1,
+        }
+        table.put(item)
+
+        raw = MembersProjectionReader(table=table).get_raw_fields_overlay("h-dcn")
+        assert "slug" not in raw
+        assert "published_at" not in raw
+        assert "published_version" not in raw
+
 
 # ---------------------------------------------------------------------------
 # Public member-application attributes on config#fields (task 3.3, seam c)

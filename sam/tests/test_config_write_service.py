@@ -86,7 +86,20 @@ def test_put_config_fields_delegates_shaped_attributes_and_version():
     assert call["tenant_id"] == _TENANT
     assert call["config_id"] == "fields"
     assert call["version"] == "2026-10-12T09:00:00+00:00"
-    assert set(call["attributes"]) == {"fields", "overrides", "functional_groups"}
+    # The three overlay slices PLUS the spec-12 form-slug attributes (slug + publish-state),
+    # authored on every fields write (Task 1.1 / R4.2).
+    assert set(call["attributes"]) == {
+        "fields",
+        "overrides",
+        "functional_groups",
+        "slug",
+        "published_at",
+        "published_version",
+    }
+    # No slug/publish-state in the body + no reader → all three carry through as None.
+    assert call["attributes"]["slug"] is None
+    assert call["attributes"]["published_at"] is None
+    assert call["attributes"]["published_version"] is None
 
 
 def test_put_config_fields_empty_body_authors_empty_containers():
@@ -96,6 +109,10 @@ def test_put_config_fields_empty_body_authors_empty_containers():
         "fields": {},
         "overrides": {},
         "functional_groups": [],
+        # spec 12 Task 1.1: slug + publish-state default to None when absent and no reader wired.
+        "slug": None,
+        "published_at": None,
+        "published_version": None,
     }
 
 
@@ -837,7 +854,21 @@ def test_validate_application_attributes_unauthored_tenant_writes_back_compatibl
     }
     _service(repo).put_config(_TENANT, "fields", body)
     attrs = repo.calls[0]["attributes"]
-    assert set(attrs) == {"fields", "overrides", "functional_groups"}
+    # The three reader overlay attributes PLUS the spec-12 form-slug attributes (slug +
+    # publish-state), authored on every fields write (Task 1.1); all three default to None for a
+    # tenant that authored no slug and has no reader wired. The pre-R8 app-attr inertness is
+    # unchanged for the overlay slices below.
+    assert set(attrs) == {
+        "fields",
+        "overrides",
+        "functional_groups",
+        "slug",
+        "published_at",
+        "published_version",
+    }
+    assert attrs["slug"] is None
+    assert attrs["published_at"] is None
+    assert attrs["published_version"] is None
     # No application_* / format keys injected into a spec that did not author them.
     assert attrs["fields"]["nickname"] == {"key": "nickname", "type": "string"}
     assert attrs["overrides"]["membership.member_number"] == {
@@ -966,3 +997,125 @@ def test_fields_write_without_reader_is_legacy_replace():
     }
     _service(repo).put_config(_TENANT, "fields", body)
     assert set(repo.calls[0]["attributes"]["fields"]) == {"x"}
+
+
+# ── config#fields FORM SLUG + publish-state (spec 12 Task 1.1 / R4.2, design §Data Models) ──────
+#
+# The application form carries its OWN public slug on the config#fields row (NOT in Flask
+# tenant_slugs, D1), plus publish-state metadata (published_at / published_version) owned by the
+# publish path (Task 2.2). This task adds the FIELD + FORMAT validation only:
+#   * a well-formed slug (landing SLUG_PATTERN rules) is authored onto the row;
+#   * a malformed slug is rejected fail-loud with the caller-safe ConfigWriteValidationError;
+#   * a plain fields save never fabricates or wipes publish-state — it carries it through;
+#   * an omitted slug carries the stored slug; an explicit null clears it.
+# UNIQUENESS is NOT checked here (that is the Task-1.2 _slugs/{slug} marker).
+
+
+def test_fields_write_accepts_and_stores_a_wellformed_slug():
+    repo = FakeWriteRepository()
+    body = {"fields": {}, "slug": "hdcn-application-form"}
+    _service(repo).put_config(_TENANT, "fields", body)
+    assert repo.calls[0]["attributes"]["slug"] == "hdcn-application-form"
+
+
+def test_fields_write_allows_slug_name_differing_from_tenant():
+    """R4.4: the slug STRING is independent of the tenant NAME — a NAME != tenant is allowed."""
+    repo = FakeWriteRepository()
+    body = {"fields": {}, "slug": "totally-different-name"}
+    _service(repo).put_config(_TENANT, "fields", body)
+    assert repo.calls[0]["attributes"]["slug"] == "totally-different-name"
+
+
+@pytest.mark.parametrize(
+    "bad_slug",
+    [
+        "",  # blank
+        "ab",  # too short (< 3)
+        "a" * 101,  # too long (> 100)
+        "HDCN",  # uppercase
+        "-hdcn",  # leading hyphen
+        "hdcn-",  # trailing hyphen
+        "hd--cn",  # consecutive hyphens
+        "hd cn",  # space
+        "hd_cn",  # underscore (not allowed)
+        "héllo",  # non-ascii
+        "admin",  # reserved
+        "api",  # reserved
+        123,  # not a string
+    ],
+)
+def test_fields_write_rejects_malformed_slug_fail_loud(bad_slug):
+    repo = FakeWriteRepository()
+    with pytest.raises(ConfigWriteValidationError):
+        _service(repo).put_config(_TENANT, "fields", {"fields": {}, "slug": bad_slug})
+    assert repo.calls == []  # nothing persisted on a validation failure
+
+
+def test_fields_write_malformed_slug_error_is_caller_safe():
+    """The rejection message names the slug problem (caller-safe), leaking no internals (R8)."""
+    repo = FakeWriteRepository()
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", {"fields": {}, "slug": "Bad Slug"})
+    assert "slug" in str(exc.value).lower()
+
+
+def test_fields_write_explicit_null_slug_clears_it():
+    repo = FakeWriteRepository()
+    stored = {
+        "fields": {},
+        "fixed_overrides": {},
+        "functional_groups": [],
+        "slug": "old-slug",
+    }
+    _service_with_reader(repo, stored).put_config(
+        _TENANT, "fields", {"fields": {}, "slug": None}
+    )
+    assert repo.calls[0]["attributes"]["slug"] is None
+
+
+def test_fields_write_omitting_slug_carries_the_stored_slug_through():
+    """A fields save that does NOT carry a slug preserves the stored one (no accidental wipe)."""
+    repo = FakeWriteRepository()
+    stored = {
+        "fields": {},
+        "fixed_overrides": {},
+        "functional_groups": [],
+        "slug": "hdcn-application-form",
+    }
+    body = {"fixed_overrides": {"personal.city": {"application_visible": True}}}
+    _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
+    assert repo.calls[0]["attributes"]["slug"] == "hdcn-application-form"
+
+
+def test_fields_write_never_authors_publish_state_from_the_body():
+    """published_at / published_version are publish-owned (Task 2.2) — a body can't forge them."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {},
+        "slug": "hdcn-application-form",
+        "published_at": "2099-01-01T00:00:00+00:00",  # forged — must be ignored
+        "published_version": 999,  # forged — must be ignored
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    attrs = repo.calls[0]["attributes"]
+    # No reader + a never-published row → carried-through publish-state is None, NOT the forged body.
+    assert attrs["published_at"] is None
+    assert attrs["published_version"] is None
+
+
+def test_fields_write_carries_stored_publish_state_through_on_a_plain_save():
+    """A plain fields save preserves the publish-state the publish path previously wrote."""
+    repo = FakeWriteRepository()
+    stored = {
+        "fields": {},
+        "fixed_overrides": {},
+        "functional_groups": [],
+        "slug": "hdcn-application-form",
+        "published_at": "2026-10-23T12:00:00+00:00",
+        "published_version": 3,
+    }
+    body = {"fixed_overrides": {"personal.city": {"application_visible": True}}}
+    _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
+    attrs = repo.calls[0]["attributes"]
+    assert attrs["published_at"] == "2026-10-23T12:00:00+00:00"
+    assert attrs["published_version"] == 3

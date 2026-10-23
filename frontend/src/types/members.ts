@@ -667,6 +667,27 @@ export interface FieldConfig {
    */
   config_status?: Record<string, string | number | null>;
   /**
+   * The application form's OWN public slug (spec 12 R4 / Phase 1), stored on the SAM `config#fields`
+   * row and served back here so the Application Form Builder can DISPLAY the resolved public URL
+   * (`{slug}.jabaki.nl`, R4.4) and gate Publish (R5.4). This is the FORM slug — distinct from, and
+   * independent of, the tenant's landing-page slug (Flask `tenant_slugs`); the slug STRING may
+   * differ from the tenant NAME (R4). Authored via the SAM `members:admin` config-write path (NOT
+   * the Landing Page editor). Absent/`null`/blank on an older module build or a form that has not
+   * yet authored one → the builder states the form has no public address yet (R3.3 / R4.4).
+   */
+  slug?: string | null;
+  /**
+   * The last successful publish timestamp (ISO-8601) on `config#fields` (spec 12 R5 / Phase 1).
+   * Absent/`null` = the form has never been published. Surfaced so the builder can show the
+   * save/publish distinction (a draft may have unpublished changes since this stamp).
+   */
+  published_at?: string | null;
+  /**
+   * The monotonically-incrementing published version on `config#fields` (spec 12 R5 / Phase 1).
+   * Absent/`null` = never published.
+   */
+  published_version?: number | null;
+  /**
    * The platform's known FORMAT-VALIDATOR tokens (spec 11, R3.3; SAM task 1.3). Served as a
    * top-level key on `GET /members/field-config` — the sorted set of `field_formats.known_tokens()`
    * (e.g. `["EMAIL", "IBAN"]`). The Application Form Builder's per-field `format` dropdown
