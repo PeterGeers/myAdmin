@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from services import projection_schema as schema
 
+from sam.members.domain.config_fields_crud_service import ConfigFieldsCrudError
 from sam.members.domain.config_write_service import ConfigWriteValidationError
 from sam.members.domain.execute_and_deliver import AdHocMailBody
 from sam.members.repository.members_cursor import CursorError
@@ -272,12 +273,27 @@ def get_mail_run_status_service() -> Any:
 # config-write dispatch lives here; the accessor is module-global so warm invocations reuse one
 # service.
 
-#: The CLOSED set of writable config ids the ROUTE accepts (R2.2/R2.5). The repository re-checks
-#: this (defense in depth), but the edge rejects an id outside the set FIRST, before any write —
-#: so `views`/unknown is a 400 and the write path is never entered (Config_Views_Residue never
-#: authored). The tokens come from the shared projection schema so route, repo, and reader agree.
+#: The CLOSED set of writable config ids the GENERIC ``write_config`` route (``PUT
+#: /members/config/{configId}`` → whole-object ``put_config``) accepts (R2.2/R2.5). The repository
+#: re-checks the writable surface (defense in depth), but the edge rejects an id outside the set
+#: FIRST, before any write — so `views`/unknown is a 400 and the write path is never entered
+#: (Config_Views_Residue never authored). The tokens come from the shared projection schema so
+#: route, repo, and reader agree.
+#:
+#: ``config#fields`` is DELIBERATELY EXCLUDED here (spec 03 Task 7.1 — R1.5 / R11.1): the generic
+#: whole-object door SHALL NOT dispatch ``fields`` to the whole-row ``put_config`` at all. The
+#: ONLY client-reachable write for ``config#fields`` is the Change-Op route (``PUT
+#: /members/config/fields`` → ``write_config_fields`` → ``apply_ops``). Removing ``fields`` from
+#: this set makes the dangerous whole-object replace STRUCTURALLY unreachable from a request — not
+#: merely shadowed by route declaration order (the literal ``/members/config/fields`` route winning
+#: over ``{configId}``). Even a direct ``PUT /members/config/fields`` that somehow reached this
+#: generic branch is now rejected here with a caller-safe 400 before any ``put_config``, so the
+#: whole-row replace cannot be misused to truncate the catalog (the root-cause defect). The
+#: whole-row ``put_config`` survives ONLY as an internal primitive — the C6 ``ensure_skeleton``
+#: create + the LIST→MAP migration — never on a client path. ``scope`` / ``mail`` keep their
+#: existing whole-object write contract (Task 7.1 is scoped to ``fields`` per R1.5).
 _WRITABLE_CONFIG_IDS = frozenset(
-    {schema.CONFIG_ID_FIELDS, schema.CONFIG_ID_SCOPE, schema.CONFIG_ID_MAIL}
+    {schema.CONFIG_ID_SCOPE, schema.CONFIG_ID_MAIL}
 )
 
 #: The module-global config-write service, built once at cold start (``None`` until first use).
@@ -317,6 +333,101 @@ def get_config_write_service() -> Any:
             overlay_reader_factory=MembersProjectionReader,
         )
     return _CONFIG_WRITE_SERVICE
+
+
+# ── config#fields Change-Op service seam (spec 03 Task 2.7 — design C1/C2) ────────────
+#
+# The `write_config_fields` route (`PUT /members/config/fields`, design-review Q7a) is backed by
+# the standalone :class:`~sam.members.domain.config_fields_crud_service.ConfigFieldsCrudService`
+# (NOT the ConfigWriteService whole-overlay path). It accepts a Change-Op list (identity-keyed
+# ops), decides storage placement server-side, and delegates each op to a single version-
+# conditional `update_item` path write via the SAME
+# :class:`~sam.members.repository.projection_config_write_repository.MembersConfigWriteRepository`
+# `apply_ops` contract — so a partial payload can never truncate the catalog (spec 03 root cause).
+# Resolved lazily once (warm-reuse), mirroring :func:`get_config_write_service`. A test replaces
+# :data:`_CONFIG_FIELDS_CRUD_SERVICE` (or patches :func:`get_config_fields_crud_service`) with a
+# service over an in-memory fake repo (+ optional fake reader), so no AWS is touched.
+#
+# The reader is wired as a FRESH per-request projection reader via a thin factory indirection
+# (same staleness argument as :func:`get_config_write_service`): the service reads the resolved
+# `config#fields` row STRONGLY-CONSISTENT only to validate + decide placement/version, so each op
+# must see current partition state, never a warm-container cache. Building the reader touches no
+# AWS (its table resolves lazily + fail-fast on the first Query).
+
+#: The module-global config#fields Change-Op service, built once at cold start (``None`` until first use).
+_CONFIG_FIELDS_CRUD_SERVICE: Any = None
+
+
+class _FreshReaderIndirection:
+    """A stable reader indirection that reads a FRESH projection per call.
+
+    The :class:`ConfigFieldsCrudService` holds one reader reference for its lifetime; to avoid a
+    stale warm-container partition cache (the validate-and-place read must reflect current state,
+    design-review Should-fix), every read delegates to a NEWLY built
+    :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader`. Forwards the
+    ``consistent_read`` kwarg the service passes (so the strongly-consistent validate-and-place
+    read reaches the underlying Query). Building the reader touches no AWS (lazy fail-fast table).
+
+    It exposes BOTH reads the Change-Op service needs: ``get_raw_fields_overlay`` (the authoring
+    WIRE shape for placement) and ``get_config_fields_version`` (the SEPARATE control-plane read
+    for the optimistic-lock ``version`` — never mixed into the wire shape, which feeds
+    ``field_overlay`` API responses and must not carry ``version``).
+    """
+
+    def get_raw_fields_overlay(self, tenant_id, consistent_read: bool = False):
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
+
+        reader = MembersProjectionReader()
+        try:
+            return reader.get_raw_fields_overlay(
+                tenant_id, consistent_read=consistent_read
+            )
+        except TypeError:
+            # A reader whose signature predates the consistent_read kwarg — fall back to the
+            # default read (the flag is a strengthening, not a placement precondition).
+            return reader.get_raw_fields_overlay(tenant_id)
+
+    def get_config_fields_version(self, tenant_id, consistent_read: bool = False):
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
+
+        reader = MembersProjectionReader()
+        try:
+            return reader.get_config_fields_version(
+                tenant_id, consistent_read=consistent_read
+            )
+        except TypeError:
+            return reader.get_config_fields_version(tenant_id)
+
+
+def get_config_fields_crud_service() -> Any:
+    """Return the module-global config#fields Change-Op service, built once at cold start (2.7).
+
+    Wires the :class:`~sam.members.domain.config_fields_crud_service.ConfigFieldsCrudService`
+    (design C1) over the net-new
+    :class:`~sam.members.repository.projection_config_write_repository.MembersConfigWriteRepository`
+    `apply_ops` path writer (design C2) + a fresh-per-call projection reader (the validate-and-
+    place read, :class:`_FreshReaderIndirection`). Both resolve their table lazily + fail-fast on
+    first use, so importing the module (and the auth-only tests) never touches AWS. Tests patch
+    this accessor (or set ``_CONFIG_FIELDS_CRUD_SERVICE``) to inject a service over in-memory fakes.
+    """
+    global _CONFIG_FIELDS_CRUD_SERVICE
+    if _CONFIG_FIELDS_CRUD_SERVICE is None:
+        from sam.members.domain.config_fields_crud_service import (
+            ConfigFieldsCrudService,
+        )
+        from sam.members.repository.projection_config_write_repository import (
+            MembersConfigWriteRepository,
+        )
+
+        _CONFIG_FIELDS_CRUD_SERVICE = ConfigFieldsCrudService(
+            MembersConfigWriteRepository(),
+            reader=_FreshReaderIndirection(),
+        )
+    return _CONFIG_FIELDS_CRUD_SERVICE
 
 
 # ── Application-form publish service seam (spec 12 Task 2.1 — design §C4 / R5) ─────────
@@ -553,6 +664,28 @@ class RouteNotImplemented(NotImplementedError):
         super().__init__(f"route '{route_name}' is not implemented yet")
 
 
+class StaleClientBundleError(RuntimeError):
+    """A ``config#fields`` write arrived in the RETIRED whole-overlay shape (spec 03 Task 5.3a).
+
+    During the deprecation window (design "Migration/rollout — Slice 3") the server still gets
+    the occasional write from a CACHED OLD SPA bundle that has not reloaded since the frontend
+    switched to the Change-Op contract. That bundle sends a WHOLE RECORD — ``fields`` /
+    ``overrides`` / ``fixed_overrides`` / ``functional_groups`` / ``field_overlay`` as a whole
+    object — instead of an ``ops`` Change-Op list. Without this guard such a body falls into the
+    GENERIC empty-ops :class:`ConfigFieldsCrudError` (a 400 "must carry a non-empty 'ops' list"),
+    which the user on a stale tab cannot act on.
+
+    This exception marks that specific shape so the edge can map it to an INTELLIGIBLE,
+    caller-safe "reload the app" response (a distinct machine code + a 409), DISTINCT from the
+    ops-validation 400 — so the SPA can render a dedicated "a newer version is available, please
+    reload" prompt rather than an obscure validation failure. It carries NO raw internals
+    (steering 39): the message names only the stale-client condition and the remedy.
+
+    A :class:`RuntimeError` (not a :class:`ConfigFieldsCrudError`/``ValueError``) so the handler
+    catches it on its OWN branch and never collapses it into the generic validation 400.
+    """
+
+
 def _require_path_param(ctx: RequestContext, name: str) -> str:
     """Return a required path parameter, or raise :class:`RouteNotImplemented`-free 400-ish.
 
@@ -639,6 +772,146 @@ def _write_body(request: ParsedRequest) -> Mapping[str, Any]:
     """
     body = request.body
     return body if isinstance(body, Mapping) else {}
+
+
+# ── config#fields Change-Op body → service dispatch (spec 03 Task 2.7 — Q7a) ──────────
+#
+# The `PUT /members/config/fields` body is a Change-Op LIST, not a whole overlay. Each op is an
+# identity-keyed intent the edge dispatches to the matching ConfigFieldsCrudService method — the
+# service owns storage placement + the version-conditional write. The edge is THIN: it only lifts
+# the JSON into method calls and never validates the op semantics (the service raises
+# ConfigFieldsCrudError → 400 / StaleVersionError → 409, mapped at the handler). `tenant_id` is
+# the VERIFIED tenant from the context — NEVER read off the body (steering 39).
+
+#: The accepted op `op` tokens → the ConfigFieldsCrudService method name they dispatch to. The
+#: ATTR ops (set_*) carry an `attrs` object; the WHOLE-entry ops (reset/delete) do not. Keeping
+#: the map here (not in the service) is the edge's only knowledge of the op vocabulary; the
+#: service enforces the disjoint attribute surfaces.
+_FIELDS_OP_METHODS = frozenset(
+    {
+        "set_field",
+        "set_field_application",
+        "reset_field",
+        "delete_field",
+        "set_group",
+        "delete_group",
+    }
+)
+
+#: The ops whose identity is a FIELD key (vs a GROUP key) and whether they carry an attrs payload.
+_FIELD_IDENTITY_OPS = frozenset(
+    {"set_field", "set_field_application", "reset_field", "delete_field"}
+)
+_ATTR_OPS = frozenset({"set_field", "set_field_application", "set_group"})
+
+#: The top-level keys that ONLY ever appear in the RETIRED whole-overlay / ``field_overlay``
+#: body shape a cached OLD SPA bundle sends (spec 03 Task 5.3a). A write body that carries any of
+#: these as a whole record — and no ``ops`` Change-Op list — is a stale-client write, mapped to
+#: the intelligible "reload the app" rejection rather than the generic empty-ops 400. These are
+#: the raw-shape keys steering 39 keeps OUT of the API surface, so their PRESENCE on a write body
+#: is itself the stale-bundle signal (a current bundle never sends them).
+_WHOLE_OVERLAY_BODY_KEYS = frozenset(
+    {"fields", "overrides", "fixed_overrides", "functional_groups", "field_overlay"}
+)
+
+
+def _dispatch_config_fields_ops(service: Any, tenant_id: str, request: ParsedRequest) -> dict:
+    """Apply a Change-Op list body to config#fields, op-by-op, via the injected service (2.7).
+
+    The body MUST be ``{"ops": [ {op, key|group, attrs?, client_op_id?}, ... ]}`` (a bare list is
+    also accepted for tolerance). The edge validates ONLY the envelope shape — an empty/absent ops
+    list, an op that is not an object, or an unknown ``op`` token is a deliberate caller-safe
+    :class:`ConfigFieldsCrudError` (→ 400). It does NOT validate op semantics (attribute surfaces,
+    placement, version): each op is handed to the matching service method, which owns that and
+    raises ``ConfigFieldsCrudError`` (→ 400) / ``StaleVersionError`` (→ 409). ``tenant_id`` is the
+    VERIFIED tenant — the body never carries a tenant (steering 39).
+
+    Returns an envelope ``{"success": True, "results": [<per-op service result>, ...]}`` so the
+    caller sees each op's authoritative new version (the service result verbatim).
+
+    Stale-SPA-bundle guard (TASK 5.3a — design "Migration/rollout Slice 3"): a body that carries
+    a RETIRED whole-overlay shape (``fields`` / ``overrides`` / ``fixed_overrides`` /
+    ``functional_groups`` / ``field_overlay`` as a whole record, no ``ops`` list) is a cached OLD
+    SPA bundle that has not reloaded since the Change-Op switch. It is rejected with a distinct
+    :class:`StaleClientBundleError` (→ an intelligible 409 "reload the app" the SPA can prompt on),
+    NOT the generic empty-ops 400 — so a user on a stale tab gets an actionable message.
+    """
+    body = request.body
+    # Accept either {"ops": [...]} (the canonical shape) or a bare list (tolerance).
+    if isinstance(body, Mapping):
+        raw_ops = body.get("ops")
+    elif isinstance(body, (list, tuple)):
+        raw_ops = body
+    else:
+        raw_ops = None
+
+    if not isinstance(raw_ops, (list, tuple)) or not raw_ops:
+        # BEFORE the generic empty-ops rejection: a whole-overlay body (the retired shape a cached
+        # old SPA bundle sends — a whole record keyed by `fields`/`overrides`/`fixed_overrides`/
+        # `functional_groups`/`field_overlay`, never an `ops` list) is a STALE CLIENT, not a
+        # malformed Change-Op envelope. Surface the intelligible "reload the app" rejection so the
+        # SPA prompts a reload instead of showing an obscure validation 400 (Task 5.3a).
+        if isinstance(body, Mapping) and _WHOLE_OVERLAY_BODY_KEYS.intersection(body):
+            raise StaleClientBundleError(
+                "This change was sent in a retired format by an out-of-date app version. "
+                "Please reload the page to get the latest version, then try again."
+            )
+        raise ConfigFieldsCrudError(
+            "config#fields write body must carry a non-empty 'ops' Change-Op list "
+            "(the whole-overlay body is no longer accepted on this route)"
+        )
+
+    results: list[Any] = []
+    for index, op in enumerate(raw_ops):
+        results.append(_apply_one_config_fields_op(service, tenant_id, op, index))
+    return {"success": True, "results": results}
+
+
+def _apply_one_config_fields_op(service: Any, tenant_id: str, op: Any, index: int) -> Any:
+    """Dispatch ONE Change-Op mapping to its ConfigFieldsCrudService method (2.7).
+
+    Validates only the op ENVELOPE (a mapping, a known ``op`` token, a non-empty identity); the
+    service owns the attribute-surface / placement / version semantics. The dotted or bare field
+    key is passed through verbatim (the service resolves placement). ``client_op_id`` is forwarded
+    when present (lost-response idempotency). A malformed envelope raises
+    :class:`ConfigFieldsCrudError` (→ caller-safe 400), naming the op INDEX, never echoing internals.
+    """
+    if not isinstance(op, Mapping):
+        raise ConfigFieldsCrudError(f"op[{index}] must be an object")
+    op_kind = op.get("op")
+    if op_kind not in _FIELDS_OP_METHODS:
+        raise ConfigFieldsCrudError(
+            f"op[{index}] has unknown op {op_kind!r}; must be one of "
+            f"{sorted(_FIELDS_OP_METHODS)}"
+        )
+
+    client_op_id = op.get("client_op_id")
+    client_op_id = client_op_id if isinstance(client_op_id, str) and client_op_id else None
+
+    # Identity: a FIELD op keys on `key` (accept `field_key` too); a GROUP op keys on `group`
+    # (accept `group_key` too). The service re-validates a blank identity, but surface a clear
+    # envelope error here so the caller sees WHICH op is malformed.
+    if op_kind in _FIELD_IDENTITY_OPS:
+        identity = op.get("key") or op.get("field_key")
+        identity_label = "key"
+    else:
+        identity = op.get("group") or op.get("group_key")
+        identity_label = "group"
+    if not isinstance(identity, str) or not identity:
+        raise ConfigFieldsCrudError(
+            f"op[{index}] ({op_kind}) requires a non-empty {identity_label!r} identity"
+        )
+
+    method = getattr(service, op_kind)
+    if op_kind in _ATTR_OPS:
+        attrs = op.get("attrs")
+        if not isinstance(attrs, Mapping):
+            raise ConfigFieldsCrudError(
+                f"op[{index}] ({op_kind}) requires an 'attrs' object of attribute changes"
+            )
+        return method(tenant_id, identity, attrs, client_op_id=client_op_id)
+    # reset_field / delete_field / delete_group — identity only, no attrs payload.
+    return method(tenant_id, identity, client_op_id=client_op_id)
 
 
 # The READ routes task 3.2 implements, dispatched by their stable route ``name``; the WRITE
@@ -971,22 +1244,44 @@ def dispatch_route(
     # verified the bearer JWT, resolved `tenant_id` from the verified token (never the body —
     # verify-before-trust, Property 2), and enforced the Tenant_Admin entitlement (the route's
     # members:admin gate) BEFORE reaching here. This branch:
-    #   1. Closes the write surface: `configId` MUST be in {fields, scope, mail}. An id outside
-    #      the set (incl. `views`) raises ConfigWriteValidationError → 400 at the edge, and the
-    #      write path is NEVER entered (no put_item), so Config_Views_Residue is never authored
-    #      (R2.2/R2.5). This is the PRIMARY route-level close; the repository re-checks the same
-    #      closed set as defense in depth (R2.3).
+    #   1. Closes the GENERIC whole-object write surface: `configId` MUST be in {scope, mail}. An
+    #      id outside the set (incl. `fields` and `views`) raises ConfigWriteValidationError → 400
+    #      at the edge, and the write path is NEVER entered (no put_item). `config#fields` is
+    #      excluded on purpose (spec 03 Task 7.1 — R1.5/R11.1): it is writable ONLY via the
+    #      Change-Op route (`write_config_fields` → `apply_ops`), so the dangerous whole-row
+    #      `put_config` replace is structurally unreachable from a client; `views` stays rejected
+    #      so Config_Views_Residue is never authored (R2.2/R2.5). This is the PRIMARY route-level
+    #      close; the repository's writable set still includes `fields` because the whole-row
+    #      `put_config` survives as an INTERNAL primitive (C6 skeleton create + migration only).
     #   2. Delegates to the config-write domain service (Component 2), which validates the
     #      per-`configId` body shape (raising ConfigWriteValidationError → 400 on a malformed
     #      body), stamps the monotonic row-level version, and persists via the write repository.
     # `tenant_id` is AUTHORITATIVE from the verified context; the body carries ONLY the per-id
     # attributes. On success the service returns `{success, configId, version}` which the edge
     # shapes into a 200 (R1.3).
+    # ── config#fields CHANGE-OP write — PUT /members/config/fields (spec 03 Task 2.7) ──
+    #
+    # The edge has already verified the JWT, resolved `tenant_id` from the verified token (never
+    # the body — steering 39), and enforced the members:admin entitlement (the route's gate)
+    # BEFORE reaching here. This branch dispatches the Change-Op list body op-by-op to the
+    # standalone ConfigFieldsCrudService (design C1), which decides storage placement server-side
+    # and issues a single version-conditional `update_item` path write per op — so a partial
+    # payload can never truncate the catalog. Op-semantic / placement / version errors surface as
+    # ConfigFieldsCrudError (→ 400) / StaleVersionError (→ 409) at the handler; `tenant_id` is
+    # AUTHORITATIVE from the verified context. The whole-overlay body is NOT accepted here (Q7a).
+    if name == "write_config_fields":
+        crud_service = get_config_fields_crud_service()
+        return _dispatch_config_fields_ops(crud_service, tenant_id, request)
+
     if name == "write_config":
         config_id = _require_path_param(ctx, "configId")
         if config_id not in _WRITABLE_CONFIG_IDS:
-            # Reject `views`/unknown at the route — no write, deliberate caller-safe 400
-            # (the write surface is closed to exactly the three SAM-owned ids, R2.2/R2.5).
+            # Reject `fields`/`views`/unknown at the route — no write, deliberate caller-safe 400.
+            # The GENERIC whole-object door is closed to exactly {scope, mail}: `config#fields` is
+            # DELIBERATELY excluded (spec 03 Task 7.1 — R1.5/R11.1) so the dangerous whole-row
+            # `put_config` replace is STRUCTURALLY unreachable from a client; `config#fields` is
+            # writable ONLY via the Change-Op route (`write_config_fields` → `apply_ops`). `views`
+            # stays rejected (Config_Views_Residue never authored, R2.5).
             raise ConfigWriteValidationError(
                 f"configId must be one of {sorted(_WRITABLE_CONFIG_IDS)}; "
                 f"{config_id!r} is not writable"
@@ -1170,6 +1465,7 @@ __all__ = [
     "CursorError",
     "MailRunNotFound",
     "RouteNotImplemented",
+    "StaleClientBundleError",
     "_parse_page_size",
     "_query_flag",
     "_require_path_param",

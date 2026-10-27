@@ -1,0 +1,205 @@
+{
+  "tenant_id": "h-dcn",
+  "fields": {
+    "additional_info": {
+      "functional_group": "administrative",
+      "label": {
+        "en": "Additional info",
+        "nl": "Aanvullende informatie"
+      },
+      "order": 15,
+      "required": false,
+      "type": "string"
+    },
+    "build_year": {
+      "application_visible": true
+    },
+    "deregistration_date": {
+      "application_visible": true,
+      "functional_group": "membership",
+      "label": {
+        "en": "Deregistration date",
+        "nl": "Afmelding"
+      },
+      "order": 60,
+      "required": false,
+      "type": "date"
+    },
+    "iban": {
+      "application_visible": true
+    },
+    "license_plate": {
+      "application_visible": true
+    },
+    "magazine_pref": {
+      "application_required": true
+    },
+    "motor_brand": {
+      "application_visible": true
+    },
+    "motor_type": {
+      "application_visible": true
+    },
+    "newsletter_pref": {
+      "application_visible": true
+    },
+    "notes": {
+      "functional_group": "administrative",
+      "label": {
+        "en": "Notes",
+        "nl": "Notities"
+      },
+      "order": 10,
+      "required": false,
+      "type": "string"
+    },
+    "payment_method": {
+      "application_visible": true
+    },
+    "referral_source": {
+      "application_visible": true,
+      "functional_group": "membership",
+      "label": {
+        "en": "Referral source",
+        "nl": "Wie/wat/waar"
+      },
+      "order": 50,
+      "required": false,
+      "type": "string"
+    },
+    "region": {
+      "application_visible": true
+    },
+    "termination_date": {
+      "application_visible": true,
+      "functional_group": "membership",
+      "label": {
+        "en": "Termination date",
+        "nl": "Beëindiging"
+      },
+      "order": 70,
+      "required": false,
+      "type": "date"
+    }
+  },
+  "overrides": {
+    "membership.member_number": {
+      "functional_group": "membership"
+    },
+    "membership.membership_type": {
+      "application_visible": true
+    },
+    "membership.status": {
+      "application_visible": true
+    },
+    "personal.birth_date": {
+      "application_visible": true
+    },
+    "personal.city": {
+      "application_visible": true
+    },
+    "personal.country": {
+      "application_visible": true
+    },
+    "personal.email": {
+      "application_visible": true
+    },
+    "personal.first_name": {
+      "application_visible": true
+    },
+    "personal.gender": {
+      "choices": [
+        {
+          "label": {
+            "en": "Man",
+            "nl": "Man"
+          },
+          "value": "man"
+        },
+        {
+          "label": {
+            "en": "Female",
+            "nl": "Vrouw"
+          },
+          "value": "vrouw"
+        }
+      ],
+      "label_en": "Gender",
+      "label_nl": "Geslacht",
+      "order": 60,
+      "type": "enum"
+    },
+    "personal.initials": {
+      "application_visible": true
+    },
+    "personal.last_name": {
+      "application_visible": true
+    },
+    "personal.name_infix": {
+      "application_visible": true
+    },
+    "personal.phone": {
+      "application_visible": true
+    },
+    "personal.postal_code": {
+      "application_visible": true
+    },
+    "personal.street": {
+      "label_en": "Street",
+      "label_nl": "Straat",
+      "order": 90,
+      "required": true,
+      "type": "string"
+    }
+  },
+  "functional_groups": {
+    "personal": {
+      "key": "personal",
+      "label": {
+        "en": "Personal",
+        "nl": "Persoonsgegevens"
+      },
+      "order": 10
+    },
+    "address": {
+      "key": "address",
+      "label": {
+        "en": "Address",
+        "nl": "Adres"
+      },
+      "order": 20
+    },
+    "membership": {
+      "key": "membership",
+      "label": {
+        "en": "Membership",
+        "nl": "Lidmaatschap"
+      },
+      "order": 30
+    },
+    "motor": {
+      "key": "motor",
+      "label": {
+        "en": "Motorcycle",
+        "nl": "Motor"
+      },
+      "order": 40
+    },
+    "financial": {
+      "key": "financial",
+      "label": {
+        "en": "Financial",
+        "nl": "Financiën"
+      },
+      "order": 50
+    },
+    "administrative": {
+      "key": "administrative",
+      "label": {
+        "en": "Administrative",
+        "nl": "Administratief"
+      },
+      "order": 60
+    }
+  }
+}

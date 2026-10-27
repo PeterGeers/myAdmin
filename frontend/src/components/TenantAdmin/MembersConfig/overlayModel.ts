@@ -3,12 +3,19 @@
  * step 11 — task 4.0).
  *
  * The whole group → field → attribute drill-down (tasks 4.4–4.8) authors the ONE `field_overlay`
- * param object. To keep the single-save contract structural rather than incidental (one save → one
- * request → one re-projection, `38-sam-module-field-config.md` rule 5 / Property 8), every modal
- * mutation goes through a PURE `(overlay, …) → overlay'` helper in this module — no network, no
- * React, no hidden state. The editor holds one working copy, these helpers transform it, and the
- * result is committed verbatim through `saveMembersParameter`. That makes "one object, one save"
- * impossible to violate by construction and makes the whole model trivially unit-testable.
+ * working object — this module is the IN-MEMORY WORKING BUFFER for the editor (spec 03 task 5.2).
+ * Every modal mutation goes through a PURE `(overlay, …) → overlay'` helper here — no network, no
+ * React, no hidden state. The editor holds one working copy and these helpers transform it; on Save
+ * the editor DIFFS the working copy against the loaded baseline into an identity-keyed Change-Op
+ * list (`deriveFieldConfigChangeOps` → `saveFieldConfigChangeOps` → `PUT /members/config/fields`).
+ *
+ * NOTE (spec 03 task 5.2): these helpers NO LONGER assemble a whole object for the server. The
+ * retired whole-object write (PUT the entire overlay back WHOLE, the catalog-truncation root cause)
+ * is gone; `withSlices` below is purely a BUFFER-REBUILD primitive the pure helpers share, not a
+ * server payload builder. The three-map / dotted-`{group}.{key}` layout a base-field override is
+ * keyed under is a BUFFER DETAIL only — it never crosses the wire (the Change-Op builder strips it
+ * to the bare identity and the server owns storage placement, steering 39). Keeping the buffer pure
+ * makes the drill-down trivially unit-testable.
  *
  * The stored shape (verified in code — `MembersConfigEditor` + the single-save suite fixture):
  *
@@ -262,8 +269,13 @@ export function createGroup(
 
 /**
  * EDIT a group's own attributes (`key` is the identity — a key rename also reassigns the fields
- * that reference the old key, so no field is orphaned). No-op when the group does not exist, or
- * when a rename would collide with another existing group.
+ * that reference the old key, so no field is orphaned). When the group is NOT yet in the working
+ * overlay — the PLATFORM BASE group case (`personal`, `motor`, …), which lives only in the server's
+ * resolved `functional_groups` catalog — the edit MATERIALIZES it as a new overlay entry (a tenant
+ * override of the base group's attributes). Without this, editing a base group's order/label was a
+ * silent NO-OP: the modal closed, nothing was written, nothing saved (bugfix — see
+ * root-cause-analysis.md; the display-side twin is the modal's `resolvedGroup` seed). Still a no-op
+ * only when a rename would collide with another existing group.
  */
 export function editGroup(
   overlay: MembersConfigValue | undefined,
@@ -272,7 +284,21 @@ export function editGroup(
 ): MembersConfigValue {
   const groups = groupList(overlay);
   const idx = groups.findIndex((g) => g.key === key);
-  if (idx < 0) return asOverlay(overlay);
+
+  // Base group not yet materialized into the overlay: create the override entry from the patch.
+  // (A rename of a not-yet-materialized base group keys the new entry by the renamed key and
+  // re-points its fields, mirroring the in-overlay rename path below.)
+  if (idx < 0) {
+    const nextKey = patch.key ?? key;
+    if (groups.some((g) => g.key === nextKey)) {
+      // Target key already exists as a real overlay group — refuse (caller validates).
+      return asOverlay(overlay);
+    }
+    const created = withSlices(overlay, {
+      functional_groups: [...groups, { ...patch, key: nextKey } as OverlayGroup],
+    });
+    return nextKey !== key ? reassignGroupKey(created, key, nextKey) : created;
+  }
 
   const nextKey = patch.key ?? key;
   if (nextKey !== key && groups.some((g) => g.key === nextKey)) {

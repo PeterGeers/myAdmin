@@ -248,36 +248,42 @@ def test_governance_projection_read_grant_stays_read_only(template):
 
 
 def test_governance_projection_write_is_a_single_scoped_putitem(template):
-    """The projection's ONLY write grant is the config write path: PutItem, tenant-pinned (R4).
+    """The projection's ONLY write grant is the config write path: PutItem + UpdateItem (R4).
 
     members-config-sam-owned-write-path (R4.1/R4.3/R4.5): Phase 1 makes DynamoDB
     governance_projection the system-of-record for the three SAM-owned ``config#*`` rows, so the
-    Members role now holds EXACTLY ONE write statement on the projection —
-    ``MembersWriteGovernanceProjectionConfig`` — granting ONLY ``dynamodb:PutItem`` (no
-    Update/Delete/BatchWrite anywhere on the projection — least privilege, R4.5), scoped to the
-    exact projection table ARN in this account/region. This REPLACES the old read-only invariant:
-    the projection is no longer a one-way read, but its write surface is a single, audited,
-    least-privilege PutItem.
+    Members role holds EXACTLY ONE write statement on the projection —
+    ``MembersWriteGovernanceProjectionConfig`` — scoped to the exact projection table ARN in this
+    account/region. This REPLACES the old read-only invariant: the projection is no longer a
+    one-way read, but its write surface is a single, audited, least-privilege grant.
+
+    config-fields-foolproof-crud (spec 03, task 2.1): Phase 2 writes config#* Change-Ops via
+    ``update_item`` PATH expressions (not a whole-row put_item replace), so the write grant now
+    carries ``dynamodb:UpdateItem`` IN ADDITION to ``dynamodb:PutItem`` (PutItem retained only for
+    the deliberate full-record create/migration primitive — C6/R1.5). Still least privilege:
+    DeleteItem/BatchWriteItem remain FORBIDDEN on the projection, and the resource is the exact
+    projection table ARN. (Local DynamoDB does not enforce IAM — the grant is exercised for real
+    only by the deployed-stage smoke test, spec 03 task 8.6.)
 
     Tenant isolation (R4.3) is APPLICATION-LAYER, NOT an IAM ``LeadingKeys`` condition: the
-    write_config route resolves ``tenant_id`` from the verified token and
-    ``MembersConfigWriteRepository.put_config`` pins it as the partition key. A
-    ``${aws:PrincipalTag/tenant_id}`` LeadingKeys pin is unsatisfiable on the single SHARED Members
-    Lambda role (no per-tenant principal tag) — it would deny every PutItem — so this grant is
-    deliberately UNCONDITIONED, matching the sibling read statement and the documented
-    ``LEADING_KEYS_IAM_POLICY_PLAN`` (plan-only, undeployed).
+    write_config route resolves ``tenant_id`` from the verified token and the write repository
+    pins it as the partition key. A ``${aws:PrincipalTag/tenant_id}`` LeadingKeys pin is
+    unsatisfiable on the single SHARED Members Lambda role (no per-tenant principal tag) — it
+    would deny every write — so this grant is deliberately UNCONDITIONED, matching the sibling
+    read statement and the documented ``LEADING_KEYS_IAM_POLICY_PLAN`` (plan-only, undeployed).
     """
-    destructive = {
-        "dynamodb:UpdateItem",
+    # DeleteItem/BatchWriteItem stay forbidden on the projection; UpdateItem is now ALLOWED on
+    # the config write grant (Change-Op update_item path), so it is no longer in this set.
+    forbidden = {
         "dynamodb:DeleteItem",
         "dynamodb:BatchWriteItem",
     }
     projection_stmts = _projection_statements(_iam_statements(template))
 
-    # No destructive write verb is granted on the projection by ANY statement.
+    # No forbidden destructive write verb is granted on the projection by ANY statement.
     for stmt in projection_stmts:
-        assert not (set(_actions_list(stmt)) & destructive), (
-            "the projection must never grant Update/Delete/BatchWrite (least privilege, R4.5)"
+        assert not (set(_actions_list(stmt)) & forbidden), (
+            "the projection must never grant Delete/BatchWrite (least privilege, R4.5)"
         )
 
     # Exactly one statement grants PutItem on the projection — the config write grant.
@@ -289,8 +295,12 @@ def test_governance_projection_write_is_a_single_scoped_putitem(template):
     )
     write_stmt = put_stmts[0]
     assert write_stmt["Sid"] == "MembersWriteGovernanceProjectionConfig"
-    # PutItem ONLY — no other verb rides along on the write grant (R4.5).
-    assert set(_actions_list(write_stmt)) == {"dynamodb:PutItem"}
+    # PutItem + UpdateItem — the Change-Op path writes via update_item (spec 03, task 2.1); no
+    # Delete/BatchWrite rides along on the write grant (R4.5).
+    assert set(_actions_list(write_stmt)) == {
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+    }
     # Tenant isolation (R4.3) is application-layer, so the grant carries NO IAM Condition. A
     # `${aws:PrincipalTag/tenant_id}` LeadingKeys pin is unsatisfiable on the shared Members
     # Lambda role (no per-tenant principal tag) and would deny every PutItem — the route +

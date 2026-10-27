@@ -103,11 +103,14 @@ from sam.members.domain.default_page_size import DefaultPageSizeProvider
 
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
+    ConfigFieldsCrudError,
     ConfigWriteValidationError,
     CursorError,  # noqa: F401 (surface compat: tests reach app.CursorError)
     MailRunNotFound,
     RouteNotImplemented,
+    StaleClientBundleError,
     dispatch_route,
+    get_config_fields_crud_service,  # noqa: F401 (surface compat: tests reach app.get_config_fields_crud_service)
     get_config_write_service,  # noqa: F401 (surface compat: tests reach app.get_config_write_service)
     get_execute_and_deliver_service,  # noqa: F401 (surface compat: tests reach app.get_execute_and_deliver_service)
     get_mail_run_status_service,  # noqa: F401 (surface compat: tests reach app.get_mail_run_status_service)
@@ -139,6 +142,7 @@ from sam.members.repository.members_repository import (
     DynamoDbMembersRepository,
 )
 from sam.members.repository.projection_config_reader import MembersProjectionReader
+from sam.members.repository.projection_config_write_repository import StaleVersionError
 from sam.members.tenants.hdcn.hooks import register_hdcn_hooks
 from sam.shared.auth_utils import (
     DecodedEntitlements,
@@ -1386,6 +1390,56 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             400,
             str(exc),
             code="errors.validation.failed",
+        )
+    except ConfigFieldsCrudError as exc:
+        # A DELIBERATE, caller-safe config#fields Change-Op validation error (spec 03 Task 2.7):
+        # a malformed ops envelope (empty/absent ops list, an op that is not an object, an unknown
+        # op token, a missing identity / attrs), or an out-of-surface attribute the disjoint op
+        # surfaces reject (an `application_*` attr on `set_field`, a definition attr on
+        # `set_field_application`). No write was committed (the service raises before `apply_ops`,
+        # or `apply_ops` rejects atomically). Mapped to a 400 with the explicit, caller-safe
+        # message (SAM-plane conventions, steering 35/39 — a deliberate validation error keeps its
+        # message; it carries no raw internals). Precedes the generic `except Exception` so a
+        # validation 400 is never mis-shaped as a 500.
+        return _error(
+            400,
+            str(exc),
+            code="errors.validation.failed",
+        )
+    except StaleClientBundleError as exc:
+        # STALE-SPA-BUNDLE guard (spec 03 Task 5.3a — design "Migration/rollout Slice 3"): a
+        # `PUT /members/config/fields` write arrived in the RETIRED whole-overlay shape (a whole
+        # record keyed by `fields`/`overrides`/`fixed_overrides`/`functional_groups`/
+        # `field_overlay`, no `ops` list) — i.e. a CACHED OLD SPA bundle that has not reloaded
+        # since the Change-Op switch. NO write was attempted (the guard fires at the edge before
+        # any op is derived). Mapped to a caller-safe 409 with a DISTINCT, stable machine code
+        # `errors.api.staleClient` — intentionally NOT the generic validation 400 and NOT the
+        # data-conflict `errors.api.conflict`, so the SPA can tell this apart and render a
+        # dedicated "a newer version is available — reload the app" prompt (the message is the
+        # actionable remedy; it carries NO raw internals, steering 39). 409 fits the existing
+        # error envelope (same "reload" family as the StaleVersionError 409) and keeps the
+        # response intelligible rather than silently broken. A RuntimeError subclass, so it MUST
+        # precede the generic `except Exception` to be caught as a 409, not a 500.
+        return _error(
+            409,
+            str(exc),
+            code="errors.api.staleClient",
+        )
+    except StaleVersionError:
+        # The config#fields Change-Op version-conditional write was REJECTED because the row
+        # changed under the caller (spec 03 design D5 / R6): the base version read no longer
+        # matches, so the atomic `update_item` failed its ConditionExpression and NO partial
+        # change was made. Mapped to a caller-safe 409 "reload and retry" with a stable code and
+        # NO internals (steering 39). By the time this fires the service (task 4.1) has ALREADY
+        # made its guarded one-shot auto-retry (re-read + re-derive + retry once for a shared-row
+        # conflict from an UNRELATED edit) and the client_op_id idempotency path has been checked
+        # in the repository — so a StaleVersionError reaching here is a genuine, repeated conflict
+        # on the SAME identity. A RuntimeError subclass, so it must precede the generic
+        # `except Exception` to be caught as a 409, not a 500.
+        return _error(
+            409,
+            "Config was changed by another edit — reload and retry",
+            code="errors.api.conflict",
         )
     except CursorError:
         # A client-supplied paging cursor (Req 25) that is malformed, stale, or does not belong

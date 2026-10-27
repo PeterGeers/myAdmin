@@ -54,14 +54,52 @@ export async function writeConfig(
 }
 
 /**
- * PUT /members/config/fields — author the `config#fields` row (Requirement 7).
+ * ONE config#fields Change-Op (spec 03 — config-fields-foolproof-crud, design C1; backend task 2.7).
  *
- * Thin convenience over {@link writeConfig} pinning the `fields` config id. `body` MUST be the SAM
- * `config#fields` shape — `fields` / `overrides` / `functional_groups` (NO `default_page_size`,
- * retired per Requirement 25) — matching `ConfigWriteService._validate_fields_body`.
+ * The client sends INTENT BY IDENTITY — a bare field `key` / group `group` + the attribute change —
+ * and the SERVER owns storage placement (which map, which dotted key). The client NEVER reconstructs
+ * `{group}.{key}` or the `fields`/`overrides` split (steering 39). Each op names its KIND:
+ *
+ *  - `set_field`             — field DEFINITION attrs only (`{type,label,order,required,visible,
+ *                              choices,options,scope,functional_group}`), NO `application_*`.
+ *  - `set_field_application` — the four form attrs only (`{application_visible,application_required,
+ *                              application_choices,format}`).
+ *  - `reset_field`           — revert a base/calculated field's override (REMOVE it).
+ *  - `delete_field`          — delete a tenant-added variable field.
+ *  - `set_group`             — group attrs (`{label,order}`); materializes a base group if absent.
+ *  - `delete_group`          — delete an (empty) group.
+ *
+ * `attrs` is the identity-keyed attribute patch (absent key = leave untouched; explicit `null` =
+ * remove that attribute). `client_op_id` is an OPTIONAL idempotency token a lost-response retry may
+ * carry so the server recognizes a replay rather than a spurious conflict.
  */
-export async function writeFieldConfig(body: unknown): Promise<MembersConfigWriteResult> {
-  return writeConfig('fields', body);
+export type FieldConfigChangeOp =
+  | { op: 'set_field'; key: string; attrs: Record<string, unknown>; client_op_id?: string }
+  | { op: 'set_field_application'; key: string; attrs: Record<string, unknown>; client_op_id?: string }
+  | { op: 'reset_field'; key: string; client_op_id?: string }
+  | { op: 'delete_field'; key: string; client_op_id?: string }
+  | { op: 'set_group'; group: string; attrs: Record<string, unknown>; client_op_id?: string }
+  | { op: 'delete_group'; group: string; client_op_id?: string };
+
+/**
+ * PUT /members/config/fields — apply a CHANGE-OP list to `config#fields` (spec 03 task 2.7).
+ *
+ * The authoritative, foolproof write path: the body is `{ ops: [...] }`, a list of identity-keyed
+ * Change-Ops (see {@link FieldConfigChangeOp}). The server validates each op, decides storage
+ * placement itself, and issues a single version-conditional `update_item` PATH write per op — so a
+ * partial payload can NEVER truncate the catalog (spec 03 root cause). This is the ONLY write path
+ * to this route — the retired whole-overlay body (`writeFieldConfig`) no longer exists (task 5.2).
+ *
+ * Unwraps the module's `{ data }` envelope. A non-2xx propagates as the structured ApiError thrown
+ * by `putJson`: a validation/malformed-op 400, an auth/entitlement 401/403, and a 409 when the
+ * version-conditional write lost the race (the caller surfaces "reload and retry").
+ */
+export async function applyFieldConfigChangeOps(
+  ops: FieldConfigChangeOp[]
+): Promise<MembersConfigWriteResult> {
+  return unwrapData<MembersConfigWriteResult>(
+    await putJson<unknown>('/members/config/fields', { ops })
+  );
 }
 
 /**

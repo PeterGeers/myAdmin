@@ -175,6 +175,29 @@ describe('overlayModel — group writes', () => {
     expect(groupExists(o1, 'motor')).toBe(true);
   });
 
+  it('editGroup MATERIALIZES a base group not yet in the overlay (regression: was a silent no-op)', () => {
+    // `financial` is a PLATFORM BASE group — present in the resolved catalog, absent from this
+    // overlay. Editing its order used to return the overlay UNCHANGED (modal closed, nothing saved).
+    const o0 = sampleOverlay();
+    expect(groupExists(o0, 'financial')).toBe(false);
+    const o1 = editGroup(o0, 'financial', { label_en: 'Financial', label_nl: 'Financieel', order: 50 });
+    const g = listGroups(o1).find((x) => x.key === 'financial');
+    expect(g).toBeDefined();
+    expect(g?.order).toBe(50);
+    expect(g?.label_en).toBe('Financial');
+    // input not mutated
+    expect(snapshot(o0)).not.toBe(snapshot(o1));
+  });
+
+  it('editGroup materialize is a real change (so the editor dirties + the save fires)', () => {
+    const o0 = sampleOverlay();
+    const o1 = editGroup(o0, 'financial', { order: 50 });
+    // The returned overlay DIFFERS from the input — this is what flips the editor's dirty state and
+    // makes the single Save commit (the missing network call in the bug report).
+    expect(JSON.stringify(o1)).not.toBe(JSON.stringify(o0));
+    expect(listGroups(o1).some((g) => g.key === 'financial')).toBe(true);
+  });
+
   it('deleteGroup removes an EMPTY group', () => {
     const o1 = createGroup(sampleOverlay(), { key: 'empty', order: 9 });
     const o2 = deleteGroup(o1, 'empty');

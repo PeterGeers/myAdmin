@@ -25,10 +25,11 @@ import { authenticatedGet } from './apiService';
 import { getParameters, createParameter, updateParameter } from './parameterService';
 import {
   getFieldConfig,
-  writeFieldConfig,
+  applyFieldConfigChangeOps,
   writeScopeConfig,
   writeMailConfig,
 } from './membersApiService';
+import type { FieldConfigChangeOp } from './members/membersConfigApi';
 
 export const MEMBERS_NAMESPACE = 'members';
 
@@ -324,11 +325,13 @@ export async function getMembersParameters(): Promise<Record<string, Parameter>>
  * Save-once: commit the whole `value` object for one `members.<key>` param in a single request
  * (task 2.6 / R3.5 / Property 8).
  *
- * Per-record SAM cutover (Requirement 13): the `field_overlay` save is repointed to the SAM-owned
- * write path `PUT /members/config/fields` (`config#fields` is now SAM's system-of-record). The SAM
- * write is **authoritative** — the returned row `version` IS the authored state, there is no
- * projection step to wait on, so this no longer surfaces a `projected` / `projection_error`
- * pending-projection signal for `field_overlay`.
+ * `config#fields` (`field_overlay`) is NO LONGER written here (spec 03 — config-fields-foolproof-crud,
+ * task 5.2). The whole-object overlay write that round-tripped the entire catalog to the server was
+ * the source of the repeated catalog-truncation bug (`.kiro/specs/Members/root-cause-analysis.md`);
+ * it is retired in favour of the identity-keyed Change-Op path {@link saveFieldConfigChangeOps} →
+ * `PUT /members/config/fields` (`{ops}` body). A `field_overlay` key here is now REJECTED fail-closed
+ * so a stray caller cannot resurrect the whole-object write by silently falling through to the Flask
+ * parameter path.
  *
  * Scope save (`scope_dimensions`) is the frontend cross-plane MIRROR (Requirement 22.5/26.2):
  * SAM `config#scope` is authoritative and written FIRST (`PUT /members/config/scope`), THEN the
@@ -338,9 +341,9 @@ export async function getMembersParameters(): Promise<Record<string, Parameter>>
  * authoritative, and the UI surfaces the mirror failure and offers retry (Requirement 22.6/26.5).
  *
  * The public signature and `{ success, error? }` return shape are kept stable so the editor
- * (`MembersParamSubEditor`) consumes the service unchanged (Requirement 13.3) — only the save
- * targets move (`field_overlay` → SAM config#fields; `scope_dimensions` → SAM config#scope first,
- * then the Flask mirror).
+ * (`MembersParamSubEditor`) consumes the service unchanged (Requirement 13.3) — `scope_dimensions`
+ * writes SAM config#scope first, then the Flask mirror. (`field_overlay` is no longer a valid
+ * target — see above.)
  *
  * Never per-field / per-keystroke; the caller passes the entire object exactly once.
  */
@@ -362,27 +365,24 @@ export async function saveMembersParameter(
   mirrorError?: string;
   version?: string;
 }> {
+  // `field_overlay` (config#fields) is NO LONGER written through this whole-object path (spec 03
+  // task 5.2 — it was the catalog-truncation root cause). Fail closed: the identity-keyed Change-Op
+  // path `saveFieldConfigChangeOps` → `PUT /members/config/fields` is the ONLY config#fields writer.
+  // Guarding here (rather than silently falling through to the Flask parameter path) stops a stray
+  // caller from resurrecting the retired whole-object write.
+  if (key === 'field_overlay') {
+    return {
+      success: false,
+      error:
+        'config#fields is written by identity via saveFieldConfigChangeOps, not the whole-object parameter path (spec 03 task 5.2).',
+    };
+  }
+
   // A members.* object param is always an object or list; never a bare null.
   // Normalize a nullish value to the right empty container so it satisfies the
   // request value type (which does not accept null).
   const normalized: Record<string, unknown> | unknown[] =
-    value == null ? (key === 'field_overlay' ? {} : []) : (value as Record<string, unknown> | unknown[]);
-
-  // `field_overlay` drives `config#fields` — repointed to the SAM write path (Requirement 13.1).
-  // The request body is the SAM `config#fields` shape (`fields` / `overrides` / `functional_groups`,
-  // which the field_overlay object already carries — NO `default_page_size`, retired per Req 25).
-  if (key === 'field_overlay') {
-    try {
-      const result = await writeFieldConfig(normalized);
-      // The SAM write is authoritative (Requirement 13.2): the returned version is the authored
-      // state — no pending-projection polling, so no `projected`/`projection_error` is surfaced.
-      return { success: result.success !== false };
-    } catch (e) {
-      // Surface a caller-safe message; the Members API throws a structured ApiError on non-2xx.
-      const error = e instanceof ApiError || e instanceof Error ? e.message : String(e);
-      return { success: false, error };
-    }
-  }
+    value == null ? [] : (value as Record<string, unknown> | unknown[]);
 
   // `scope_dimensions` is the frontend cross-plane bridge (Requirement 22.5 / 26.2/26.4): the
   // two planes never call each other at runtime, so the frontend writes EACH plane separately —
@@ -441,6 +441,48 @@ export async function saveMembersParameter(
     value_type: 'json',
     is_secret: false,
   });
+}
+
+// ---------------------------------------------------------------------------
+// config#fields — the SAM-owned CHANGE-OP save path (spec 03, Phase 5 / task 5.1).
+// ---------------------------------------------------------------------------
+
+/**
+ * Save-by-identity: apply a config#fields CHANGE-OP list via `PUT /members/config/fields`
+ * (spec 03 — config-fields-foolproof-crud, design C1; backend task 2.7).
+ *
+ * This is the Phase-5 REPLACEMENT for the whole-overlay `saveMembersParameter('field_overlay', …)`
+ * path. The configurator + the Application Form Builder derive the ops by IDENTITY from their
+ * working-overlay diff (`deriveFieldConfigChangeOps`) and hand them here; the server owns storage
+ * placement and issues one version-conditional `update_item` PATH write per op, so a partial
+ * payload can NEVER truncate the catalog (spec 03 root cause). The client never sends a whole
+ * catalog and never reconstructs a `{group}.{key}` storage key (steering 39).
+ *
+ * The SAM write is AUTHORITATIVE: on success the returned `version` IS the authored state (no
+ * projection step to wait on). An empty `ops` list is a no-op success (nothing changed). The
+ * stable `{ success, error?, version? }` shape mirrors `saveMembersParameter` so the editor
+ * consumes it unchanged. A non-2xx is caught and returned as `{ success: false, error }` with a
+ * caller-safe message — a 409 (version-conditional write lost the race) carries the ApiError's
+ * caller-safe "reload and retry" message, and `conflict: true` so the UI can surface a reload prompt.
+ */
+export async function saveFieldConfigChangeOps(
+  ops: FieldConfigChangeOp[],
+): Promise<{ success: boolean; error?: string; version?: string; conflict?: boolean }> {
+  // No changes to persist — a successful no-op (the caller's dirty check should prevent this, but
+  // never issue an empty-ops request the server would reject with a 400).
+  if (!ops || ops.length === 0) {
+    return { success: true };
+  }
+  try {
+    const result = await applyFieldConfigChangeOps(ops);
+    return { success: result.success !== false, version: result.version };
+  } catch (e) {
+    // The Members API throws a structured ApiError on non-2xx; surface a caller-safe message. A
+    // 409 is the stale-version "reload and retry" conflict — flag it so the UI can prompt a reload.
+    const conflict = e instanceof ApiError && e.status === 409;
+    const error = e instanceof ApiError || e instanceof Error ? e.message : String(e);
+    return { success: false, error, conflict };
+  }
 }
 
 // ---------------------------------------------------------------------------

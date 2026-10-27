@@ -68,7 +68,10 @@ def test_route_map_covers_eighteen_behaviours_total():
     # ...plus the EXPLICIT application-form publish route (spec 12 Task 2.1, §C4/R5 —
     # POST /members/application-form/publish, members:admin, readiness-gated; the route + gate are
     # real, the live S3 write is task 2.2/dormant) = 50.
-    assert len(ROUTES) == 50
+    # ...plus the config#fields CHANGE-OP write route (spec 03 Task 2.7, design-review Q7a —
+    # PUT /members/config/fields, members:admin; a Change-Op list body, declared BEFORE the
+    # generic /members/config/{configId} so the literal wins) = 51.
+    assert len(ROUTES) == 51
 
 
 def test_route_map_groups_match_the_design_c1_counts():
@@ -82,7 +85,10 @@ def test_route_map_groups_match_the_design_c1_counts():
     # (application-preview retired — spec 12 task 5.2.) PLUS the explicit application-form publish
     # route (spec 12 Task 2.1 — POST /members/application-form/publish, members:admin,
     # readiness-gated) grouped with the admin-config surface = MEMBER is 11.
-    assert len(routes_by_group(RouteGroup.MEMBER)) == 11
+    # PLUS the config#fields CHANGE-OP write route (spec 03 Task 2.7 — PUT /members/config/fields,
+    # members:admin; the identity-keyed Change-Op door for config#fields), also grouped with the
+    # admin-config surface = MEMBER is 12.
+    assert len(routes_by_group(RouteGroup.MEMBER)) == 12
     # Membership lifecycle is 5 after the two transition routes were retired
     # (retire-members-status-lifecycle-engine): create + list + get + update + delete.
     assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 5
@@ -116,6 +122,9 @@ def test_route_map_includes_each_named_behaviour():
         # SAM-owned config WRITE (members-config-sam-owned-write-path Task 1.6 —
         # PUT /members/config/{configId})
         "write_config",
+        # config#fields CHANGE-OP write (spec 03 Task 2.7 — PUT /members/config/fields;
+        # a Change-Op list body, declared before the generic write_config so the literal wins)
+        "write_config_fields",
         # (The Application Form Builder server-side live-preview route `preview_application`
         #  POST /members/application-preview was RETIRED — spec 12 redesign C / R3, task 5.2:
         #  preview is now in-browser — so it is no longer in the route map.)

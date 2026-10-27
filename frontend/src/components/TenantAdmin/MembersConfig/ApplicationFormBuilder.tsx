@@ -13,9 +13,11 @@
  * current `mail_config` body) and the tenant's `field_overlay` row, then holds exactly ONE working
  * `field_overlay` object in state. Every per-field attribute toggle is a pure `overlayModel`
  * transform of that one object (exactly as `MembersFieldModal` authors it) — no per-field network
- * call. The ONE **Save** commits the whole object via `saveMembersParameter('field_overlay', …)`
- * → `writeFieldConfig` → `PUT /members/config/fields`. The form-shell mail settings commit once via
- * `writeConfig('mail', body)` → `PUT /members/config/mail` (the Mail editor's existing path).
+ * call. The ONE **Save** derives a CHANGE-OP list from the (loaded baseline → edited working)
+ * overlay diff and commits it BY IDENTITY via `saveFieldConfigChangeOps` → `applyFieldConfigChangeOps`
+ * → `PUT /members/config/fields` with an `{ops}` body (spec 03 Phase 5 — the server owns storage
+ * placement; the client never sends a whole catalog or a `{group}.{key}` key, steering 39). The
+ * form-shell mail settings commit once via `writeConfig('mail', body)` → `PUT /members/config/mail`.
  *
  * ## This file (task 2.1) — the SCAFFOLD + four panel SLOTS
  *
@@ -48,8 +50,9 @@ import { useTranslation } from 'react-i18next';
 import {
   getMembersFieldConfig,
   saveMembersMailConfig,
-  saveMembersParameter,
+  saveFieldConfigChangeOps,
 } from '../../../services/membersConfigService';
+import { deriveFieldConfigChangeOps } from './fieldConfigChangeOps';
 import { getSlug } from '../../../services/landingPageApi';
 import {
   listMembershipTypes,
@@ -185,13 +188,33 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   const handleSaveFields = async () => {
     setSaving(true);
     try {
-      const res = await saveMembersParameter('field_overlay', overlay, null);
+      // Phase 5 (spec 03): the per-field application attributes commit by IDENTITY via the
+      // Change-Op path, not the whole overlay. Derive the ops from the loaded baseline → the edited
+      // working overlay — a form-builder edit is a `set_field_application` by the BARE field key
+      // (the four form attrs), with the server owning storage placement (steering 39). This replaces
+      // the retired whole-overlay `saveMembersParameter('field_overlay')`.
+      const baselineOverlay = JSON.parse(baseline) as MembersConfigValue;
+      const ops = deriveFieldConfigChangeOps(baselineOverlay, overlay);
+      const res = await saveFieldConfigChangeOps(ops);
       if (res.success) {
         toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
         // Save ≠ publish (spec 12 R5.1a): a successful save commits the draft but the live form is
         // unchanged until a deliberate Publish — mark the draft as having unpublished changes.
         await load();
         setSavedSincePublish(true);
+      } else if (res.conflict) {
+        // Version-conditional write lost the race → prompt a reload, then reload the latest state.
+        toast({
+          title: t('Opnieuw laden vereist', 'Reload required'),
+          description: t(
+            'De configuratie is door iemand anders gewijzigd. De laatste versie wordt opnieuw geladen.',
+            'The configuration was changed by someone else. Reloading the latest version.',
+          ),
+          status: 'warning',
+          duration: 9000,
+          isClosable: true,
+        });
+        await load();
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 6000 });
       }
