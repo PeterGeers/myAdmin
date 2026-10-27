@@ -102,6 +102,45 @@ fi
 echo "pre-commit: DB-access guards passed."
 
 # ---------------------------------------------------------------------------
+# SAM config#fields CRUD guard (spec 03 "config-fields-foolproof-crud" R11.2;
+# steering 39 → Enforcement). The SAM / DynamoDB counterpart to the DB-access
+# guards above: scripts/check_sam_config_crud.py fails on (a) a raw governance-
+# table put_item/update_item/delete_item OUTSIDE the sanctioned Change-Op write
+# repository (+ the C6 migration), and (b) a raw storage-shape key (field_overlay
+# /overrides/fixed_overrides/dotted {group}.{key}) in an API response. This keeps
+# the whole-record replace an internal primitive and the raw shape off the wire —
+# the proven partial-overlay-overwrites-full-record defect cannot be reintroduced.
+#
+# Scope: STAGED sam/**/*.py (the guard's own single-file CLI mode), mirroring the
+# staged-file scoping of the DB-access guards. The baseline tree is clean, so this
+# is wired BLOCKING from the start (report-only → clear baseline → blocking,
+# steering 39; the baseline was verified clean before flipping). A new sanctioned
+# write site is a reviewed allow-list addition in the guard, NEVER a --no-verify.
+# Pure AST static analysis (stdlib only): fast, offline. Bypassable with
+# `git commit --no-verify` by design (the nightly Full Test Suite is the
+# authoritative gate — this hook is fast local feedback only).
+# ---------------------------------------------------------------------------
+staged_sam_py=$(git diff --cached --name-only --diff-filter=ACM -- 'sam/**/*.py')
+sam_crud_files=""
+for f in $staged_sam_py; do
+    [ -f "$REPO_ROOT/$f" ] || continue
+    sam_crud_files="$sam_crud_files $f"
+done
+sam_crud_files=$(echo "$sam_crud_files" | xargs)
+
+if [ -n "$sam_crud_files" ]; then
+    echo "pre-commit: checking staged sam/ file(s) for config#fields CRUD violations..."
+    if ! (cd "$REPO_ROOT" && "$PY" scripts/check_sam_config_crud.py $sam_crud_files); then
+        echo "" >&2
+        echo "pre-commit: SAM config#fields CRUD guard failed — commit blocked." >&2
+        echo "  Fix the violations above (route the write through the Change-Op repository /" >&2
+        echo "  serve the resolved Flat_View), or bypass with 'git commit --no-verify'." >&2
+        exit 1
+    fi
+    echo "pre-commit: SAM config#fields CRUD guard passed."
+fi
+
+# ---------------------------------------------------------------------------
 # ruff-format guard (Req: prevent recurrence of the 2026-10-17 H3 CI-blocking
 # format drift). The authoritative backend CI gate runs
 #   ruff format --check src/ --exclude src/validate_pattern/

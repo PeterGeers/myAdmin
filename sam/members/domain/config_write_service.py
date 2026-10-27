@@ -44,7 +44,7 @@ from collections.abc import Mapping
 
 from services import projection_schema as schema
 
-from sam.members.domain import field_formats
+from sam.members.domain import field_formats, form_slug
 from sam.members.domain.config_write_version import next_write_stamp
 from sam.members.domain.fixed_fields import field_by_key
 
@@ -191,7 +191,9 @@ class ConfigWriteService:
 
         - ``fields`` — a mapping of ``{name: spec}``; each ``spec`` must be a mapping (R7.1).
         - ``overrides`` — a mapping of ``{dotted_key: spec}``; each ``spec`` must be a mapping.
-        - ``functional_groups`` — a list of mapping entries, each with a non-blank ``key``.
+        - ``functional_groups`` — a MAP keyed by group key (spec 03, design C6 / D2a), each entry a
+          mapping with a non-blank ``key``; a legacy LIST is still accepted and normalized to the
+          MAP during the LIST→MAP migration rollout (review Must-fix #4).
 
         It does **NOT** author ``default_page_size`` — that tenant-level scalar is RETIRED in favor
         of the per-user runtime Rows_Per_Page_Selector (R7.2 / Requirement 25). Any
@@ -200,6 +202,15 @@ class ConfigWriteService:
         Each per-field ``scope`` sub-object is preserved **verbatim** (R7.3): the service copies the
         field spec through unchanged so Task 2 can derive ``config#scope`` from the per-field
         ``scope`` attributes. It reshapes nothing inside a field spec.
+
+        Application-form slug (spec 12 Task 1.1 / R4.2, design §Data Models): the row also carries
+        the form's own public ``slug`` plus the publish-state metadata ``published_at`` /
+        ``published_version`` (both authored by the publish path, Task 2.2). On a fields write this
+        service authors the ``slug`` from the body — validating its FORMAT with the landing
+        ``SLUG_PATTERN`` rules (:func:`form_slug.validate_slug_format`) and rejecting a malformed
+        slug fail-loud with the standard caller-safe envelope — while CARRYING the publish-state
+        metadata through from the current stored row (a plain fields save never fabricates or wipes
+        it). Slug UNIQUENESS is NOT checked here (that is the Task-1.2 ``_slugs/{slug}`` marker).
         """
         if not isinstance(body, Mapping):
             raise ConfigWriteValidationError(
@@ -245,28 +256,98 @@ class ConfigWriteService:
         # re-checked too.
         self._validate_application_attributes(fields, overrides)
 
-        # Author exactly the three reader-read attributes — no default_page_size (R7.2).
-        return {
+        # Author the three reader-read overlay attributes — no default_page_size (R7.2) — PLUS the
+        # application-form slug + publish-state metadata (spec 12 Task 1.1 / R4.2, design §Data
+        # Models). ``slug`` comes from the body (format-validated below); ``published_at`` /
+        # ``published_version`` are carried through from the current stored row (publish owns them,
+        # Task 2.2) so a plain fields save never fabricates or wipes publish state.
+        attributes: dict = {
             "fields": fields,
             "overrides": overrides,
             "functional_groups": functional_groups,
         }
+        self._author_form_slug(attributes, body, tenant_id)
+        return attributes
+
+    def _author_form_slug(
+        self, attributes: dict, body: Mapping, tenant_id: str
+    ) -> None:
+        """Author ``slug`` + carry ``published_at`` / ``published_version`` onto the fields row.
+
+        Spec 12 Task 1.1 (R4.2, design §Data Models). The application form's own public ``slug`` is
+        stored on the ``config#fields`` row (NOT in Flask ``tenant_slugs``, D1). On a fields write:
+
+        - If the body carries a ``slug``, validate its FORMAT with the landing ``SLUG_PATTERN``
+          rules (:func:`form_slug.validate_slug_format`); a malformed slug raises a caller-safe
+          :class:`ConfigWriteValidationError` (→ HTTP 400), nothing is written. An explicit
+          ``null`` CLEARS the slug (``slug: None``). A body that OMITS ``slug`` leaves the stored
+          slug untouched (carried through from the current row).
+        - ``published_at`` / ``published_version`` are publish-state owned by the publish path
+          (Task 2.2); a plain fields save never authors them from the body — they are carried
+          through from the current stored row (defaulting to ``None`` on a never-published row).
+
+        Uniqueness is deliberately NOT enforced here — within-tenant uniqueness is the Task-1.2
+        ``_slugs/{slug}`` conditional-put claim; this step is slug FORMAT + the field only.
+        """
+        current = self._current_fields_row(tenant_id)
+
+        # slug: body value (validated) when the key is present, else carry the stored slug.
+        if "slug" in body:
+            slug = body.get("slug")
+            if slug is not None:
+                error = form_slug.validate_slug_format(slug)
+                if error is not None:
+                    raise ConfigWriteValidationError(
+                        f"config#fields slug is invalid: {error}"
+                    )
+            attributes["slug"] = slug
+        else:
+            attributes["slug"] = current.get("slug")
+
+        # publish-state: owned by the publish path — carry through, never author on a fields save.
+        attributes["published_at"] = current.get("published_at")
+        attributes["published_version"] = current.get("published_version")
+
+    def _current_fields_row(self, tenant_id: str) -> dict:
+        """The current stored ``config#fields`` row (for carrying publish-state through), or ``{}``.
+
+        Reuses the merge reader seam (fresh per call when a factory is wired; the injected shared
+        instance in tests; ``None`` → legacy, no current row). Returns ``{}`` when there is no
+        reader, no tenant, or no stored row — so a never-authored tenant carries ``None``
+        publish-state and whatever ``slug`` the body supplies.
+        """
+        reader = self._merge_reader()
+        if (
+            reader is None
+            or not tenant_id
+            or not hasattr(reader, "get_raw_fields_overlay")
+        ):
+            return {}
+        current = reader.get_raw_fields_overlay(tenant_id)
+        return current if isinstance(current, Mapping) else {}
 
     def _merge_fields_slices(
         self,
         tenant_id: str,
         fields_in: dict,
         overrides_in: dict,
-        functional_groups_in: list,
+        functional_groups_in: dict,
         body: Mapping,
-    ) -> tuple[dict, dict, list]:
+    ) -> tuple[dict, dict, dict]:
         """Merge the incoming config#fields slices onto the CURRENT stored row (bugfix).
 
         Read-modify-write so a PARTIAL body never wipes a slice it did not author. Per-key merge:
         an incoming ``fields``/``overrides`` spec replaces the stored entry for that key; a stored
-        key the body omits is preserved. ``functional_groups`` is replaced only when the body
-        carries a non-empty list (an ordered catalog — a present non-empty list is authoritative),
-        else the stored groups are kept.
+        key the body omits is preserved.
+
+        **``functional_groups`` is now a MAP keyed by group key** (spec 03, design C6 / D2a): it is
+        merged PER KEY exactly like ``fields`` / ``overrides`` — an incoming group entry replaces
+        the stored entry for that key, and a stored group the body omits is PRESERVED. This is the
+        structural fix for the occurrence-3 truncation: a partial groups payload can no longer wipe
+        the catalog, because a map merge never drops keys the body did not mention (the legacy LIST
+        replace-if-non-empty was what truncated 6→1). The reader dual-reads, so a stored legacy LIST
+        row is normalized to a MAP here before the merge — a write migrates the groups shape forward
+        as a side effect, never backward.
 
         Falls back to the incoming slices verbatim (legacy replace) when no overlay reader is wired
         (unit tests) or the reader yields nothing — so a never-authored tenant writes exactly what
@@ -292,29 +373,26 @@ class ConfigWriteService:
         if not isinstance(cur_overrides_raw, dict):
             cur_overrides_raw = current.get("overrides")
         cur_overrides = cur_overrides_raw if isinstance(cur_overrides_raw, dict) else {}
+        # The reader now serves ``functional_groups`` as a MAP (dual-reading a legacy LIST row), so
+        # this is already ``{gkey: entry}`` — merge it per key like the other two slices.
         cur_groups = (
             current.get("functional_groups")
-            if isinstance(current.get("functional_groups"), list)
-            else []
+            if isinstance(current.get("functional_groups"), dict)
+            else {}
         )
 
         # Per-key merge: stored first, then incoming wins for the keys it carries.
         merged_fields = {**cur_fields, **fields_in}
         merged_overrides = {**cur_overrides, **overrides_in}
+        # functional_groups MAP merge: an incoming group replaces its key's stored entry; a stored
+        # group the body omits is PRESERVED (no truncation). A body that carried no groups leaves
+        # the stored catalog entirely intact.
+        merged_groups = {**cur_groups, **functional_groups_in}
 
-        # A field/override key the body EXPLICITLY clears (incoming spec present but empty-ish) is
-        # still a replace (the toggle-off case writes an empty/attr-stripped spec), so {**...}
-        # already handles it. We do NOT delete keys — deletion in these editors is an explicit
-        # field/group removal that sends the full slice, which the body-carries check below honours.
-
-        # functional_groups: replace only when the body carried a non-empty list; else keep stored.
-        body_carried_groups = (
-            isinstance(body.get("functional_groups"), (list, tuple))
-            and len(body.get("functional_groups")) > 0
-        )
-        merged_groups = (
-            functional_groups_in if body_carried_groups else list(cur_groups)
-        )
+        # A field/override/group key the body EXPLICITLY clears (incoming spec present but
+        # empty-ish) is still a replace (the toggle-off case writes an empty/attr-stripped spec), so
+        # {**...} already handles it. We do NOT delete keys — deletion in these editors is an
+        # explicit field/group removal handled by Phase 2's REMOVE-path ops, not a merge.
 
         return merged_fields, merged_overrides, merged_groups
 
@@ -507,32 +585,64 @@ class ConfigWriteService:
         return {dotted: dict(spec) for dotted, spec in raw.items()}
 
     @staticmethod
-    def _validate_functional_groups(raw) -> list:
-        """Validate the ``functional_groups`` catalog; preserve each entry verbatim.
+    def _validate_functional_groups(raw) -> dict:
+        """Validate the ``functional_groups`` catalog; author it as a MAP keyed by group ``key``.
 
-        ``None`` / absent → ``[]``. Must be a list; each entry must be a mapping carrying a
-        non-blank ``key`` (the reader keys the catalog by ``key`` and skips keyless entries, so an
-        entry with no usable key is a malformed body here rather than a silently-dropped row).
+        **LIST→MAP migration (spec 03, design C6 / D2a / review Must-fix #4).** The stored shape is
+        migrating from an ordered LIST ``[{key, label, order}, …]`` (legacy) to a MAP
+        ``{key: {key, label, order}, …}`` (new, truncation-proof per-path ``update_item``). This
+        validator DUAL-ACCEPTS both wire shapes (a stale SPA bundle or a migrated one) and always
+        emits the canonical MAP the reader now dual-reads, so a write never regresses a row to the
+        legacy LIST:
+
+        - ``None`` / absent → ``{}`` (empty-is-valid).
+        - a **MAP** ``{gkey: entry}``: each ``entry`` must be a mapping; its own ``key`` (when a
+          non-blank string) is authoritative, else the map key fills it in. The entry's ``order`` /
+          ``label`` ride through verbatim (``order`` is re-homed into the entry, Q3a).
+        - a **LIST** ``[entry, …]``: each ``entry`` must be a mapping carrying a non-blank ``key``;
+          it is re-keyed by that ``key`` into the MAP.
+
+        A keyless/non-mapping entry is a malformed body (fail-loud 400), never a silently-dropped
+        row — the same strictness the pre-migration validator enforced.
         """
         if raw is None:
-            return []
-        if not isinstance(raw, (list, tuple)):
-            raise ConfigWriteValidationError(
-                "config#fields 'functional_groups' must be a list"
-            )
-        groups = []
-        for entry in raw:
-            if not isinstance(entry, Mapping):
-                raise ConfigWriteValidationError(
-                    "config#fields functional_groups entries must be objects"
-                )
-            key = entry.get("key")
-            if not isinstance(key, str) or not key.strip():
-                raise ConfigWriteValidationError(
-                    "config#fields functional_groups entries must carry a non-blank 'key'"
-                )
-            groups.append(dict(entry))
-        return groups
+            return {}
+        if isinstance(raw, Mapping):
+            groups: dict = {}
+            for gkey, entry in raw.items():
+                if not isinstance(entry, Mapping):
+                    raise ConfigWriteValidationError(
+                        "config#fields functional_groups entries must be objects"
+                    )
+                normalized = dict(entry)
+                key = normalized.get("key")
+                if not (isinstance(key, str) and key.strip()):
+                    if not (isinstance(gkey, str) and gkey.strip()):
+                        raise ConfigWriteValidationError(
+                            "config#fields functional_groups entries must carry a non-blank 'key'"
+                        )
+                    key = gkey
+                    normalized["key"] = gkey
+                groups[str(key)] = normalized
+            return groups
+        if isinstance(raw, (list, tuple)):
+            groups = {}
+            for entry in raw:
+                if not isinstance(entry, Mapping):
+                    raise ConfigWriteValidationError(
+                        "config#fields functional_groups entries must be objects"
+                    )
+                key = entry.get("key")
+                if not isinstance(key, str) or not key.strip():
+                    raise ConfigWriteValidationError(
+                        "config#fields functional_groups entries must carry a non-blank 'key'"
+                    )
+                groups[str(key)] = dict(entry)
+            return groups
+        raise ConfigWriteValidationError(
+            "config#fields 'functional_groups' must be a map keyed by group key "
+            "(a legacy list is also accepted during the LIST→MAP migration)"
+        )
 
     # ── config#scope validator (Task 3.3 / Requirement 8 / 22) ──────────────────────────
 

@@ -62,6 +62,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from sam.members.domain.application_publish import ApplicationPublishService
 from sam.members.domain.config_write_service import ConfigWriteService
 from sam.members.domain.field_resolver import StaticOverlayProvider
 from sam.members.domain.membership_service import MembershipService
@@ -85,6 +86,7 @@ from sam.members.migration.hdcn_backfill import (
 )
 from sam.members.migration.hdcn_catalog_seed import HDCN_MEMBERSHIP_TYPES
 from sam.members.repository.members_repository import DynamoDbMembersRepository
+from sam.members.repository.projection_config_reader import MembersProjectionReader
 from sam.members.repository.projection_config_write_repository import (
     MembersConfigWriteRepository,
 )
@@ -315,7 +317,9 @@ class _PassThroughPivot:
     result rows ARE the member rows, so the deliver step's enqueue fan-out is exercised without
     a real pivot engine (not built on the SAM plane yet, design §4.2)."""
 
-    def run(self, tenant_id: str, definition: Mapping[str, Any], rows: Any) -> list[Any]:
+    def run(
+        self, tenant_id: str, definition: Mapping[str, Any], rows: Any
+    ) -> list[Any]:
         return list(rows)
 
 
@@ -351,6 +355,45 @@ class _CertifiedMailConfig:
 
     def get_mail_local_part(self, tenant_id: str) -> str:
         return "noreply"
+
+
+class _HarnessFieldsCrudService:
+    """Minimal in-memory stand-in for ``ConfigFieldsCrudService`` (spec 03 Task 2.7 walkthrough).
+
+    Satisfies the six Change-Op methods the edge dispatches to and records each call. It does NOT
+    model the ``apply_ops`` placement / version-conditional ``update_item`` mechanics (those have
+    dedicated tests, and the harness's ``FakeDynamoTable`` does not model path ``update_item``);
+    the harness only needs to prove the ``PUT /members/config/fields`` route resolves to the
+    Change-Op dispatch and answers 200 for a well-formed body. Every method returns the uniform
+    service result shape (``{version, idempotent_replay}``) the dispatch echoes.
+    """
+
+    def __init__(self):
+        self.calls = []
+
+    def _record(self, method, *args, **kwargs):
+        self.calls.append({"method": method, "args": args, "kwargs": kwargs})
+        return {"version": "harness-v1", "idempotent_replay": False}
+
+    def set_field(self, tenant_id, field_key, def_attrs, *, client_op_id=None):
+        return self._record("set_field", tenant_id, field_key, def_attrs, client_op_id=client_op_id)
+
+    def set_field_application(self, tenant_id, field_key, app_attrs, *, client_op_id=None):
+        return self._record(
+            "set_field_application", tenant_id, field_key, app_attrs, client_op_id=client_op_id
+        )
+
+    def reset_field(self, tenant_id, field_key, *, client_op_id=None):
+        return self._record("reset_field", tenant_id, field_key, client_op_id=client_op_id)
+
+    def delete_field(self, tenant_id, field_key, *, client_op_id=None):
+        return self._record("delete_field", tenant_id, field_key, client_op_id=client_op_id)
+
+    def set_group(self, tenant_id, group_key, attrs, *, client_op_id=None):
+        return self._record("set_group", tenant_id, group_key, attrs, client_op_id=client_op_id)
+
+    def delete_group(self, tenant_id, group_key, *, client_op_id=None):
+        return self._record("delete_group", tenant_id, group_key, client_op_id=client_op_id)
 
 
 class MembersParityHarness:
@@ -405,12 +448,33 @@ class MembersParityHarness:
         self.config_write_service = ConfigWriteService(
             MembersConfigWriteRepository(table=self.table)
         )
+        # The config#fields CHANGE-OP service (spec 03 Task 2.7 — PUT /members/config/fields).
+        # The walkthrough exercises that the ROUTE resolves + answers 200 for a well-formed
+        # Change-Op body; the apply_ops mechanics (placement, version-conditional update_item)
+        # have their own dedicated tests, and the harness's FakeDynamoTable does not model
+        # update_item path expressions. So the harness wires a minimal in-memory stand-in that
+        # satisfies the six op methods and records the call — enough to prove the edge dispatches
+        # the Change-Op body to the service (not the whole-overlay generic door). No AWS.
+        self.config_fields_crud_service = _HarnessFieldsCrudService()
+        # The application-form publish service (spec 12 Task 2.1). Its readiness gate reads the
+        # SAME in-memory FakeDynamoTable: the slug + certified-sender facts come from a
+        # MembersProjectionReader over the fake table, the on-form-field count from the harness's
+        # MembershipService (the single filter authority). The harness tenant authors no slug, so
+        # publish refuses with the typed NO_SLUG readiness refusal (409) — a genuine "route
+        # answers as designed" outcome, not a 404/501. The live S3 write is task 2.2 (dormant).
+        _publish_reader = MembersProjectionReader(table=self.table)
+        self.publish_service = ApplicationPublishService(
+            slug_reader=_publish_reader,
+            readiness_provider=_publish_reader,
+            field_config_reader=self.service,
+        )
         self._original_service_getter: Callable[[], MembershipService] | None = None
         self._original_template_getter: Callable[[], TemplateService] | None = None
         self._original_deliver_getter: Callable[[], Any] | None = None
         self._original_mail_run_status_getter: Callable[[], Any] | None = None
         self._original_config_write_getter: Callable[[], Any] | None = None
-        self._original_preview_getter: Callable[[Any], Any] | None = None
+        self._original_config_fields_crud_getter: Callable[[], Any] | None = None
+        self._original_publish_getter: Callable[[], Any] | None = None
         self._original_scope_config: Any = None
         self._original_overlay: Any = None
         self._original_grants: Any = None
@@ -456,26 +520,33 @@ class MembersParityHarness:
         # backed service so the deliver walkthrough enqueues to the capturing queue, never SQS.
         dispatch_mod.get_execute_and_deliver_service = lambda: self.deliver_service  # type: ignore[assignment]
         self._original_mail_run_status_getter = dispatch_mod.get_mail_run_status_service
-        dispatch_mod.get_mail_run_status_service = lambda: MailRunStatusService(self.repo)  # type: ignore[assignment]
+        dispatch_mod.get_mail_run_status_service = lambda: MailRunStatusService(
+            self.repo
+        )  # type: ignore[assignment]
         # The config-write dispatch (members-config-sam-owned-write-path Task 1.6) resolves its
         # service via dispatch_mod.get_config_write_service; point it at the harness's
         # fake-table-backed service so the write_config walkthrough writes config#* rows to the
         # in-memory FakeDynamoTable, never a live projection table.
         self._original_config_write_getter = dispatch_mod.get_config_write_service
         dispatch_mod.get_config_write_service = lambda: self.config_write_service  # type: ignore[assignment]
-        # The application-form live-preview dispatch (spec 11, Task 1.4/1.5 — R7.2)
-        # resolves its service via dispatch_mod.get_application_preview_service(overlay),
-        # which in production builds a one-shot MembershipService over the PRODUCTION repo
-        # (needs a live MEMBERS_TABLE). Point it at a one-shot service over the harness's
-        # SAME in-memory fake repo (which holds the seeded catalog so membership-type
-        # options resolve) wired with the body overlay the route hands in — so the preview
-        # walkthrough runs get_public_field_config over the fake table, never live DynamoDB.
-        self._original_preview_getter = dispatch_mod.get_application_preview_service
-        dispatch_mod.get_application_preview_service = (  # type: ignore[assignment]
-            lambda overlay_provider: MembershipService(
-                self.repo, overlay_provider=overlay_provider
-            )
+        # The config#fields Change-Op dispatch (spec 03 Task 2.7) resolves its service via
+        # dispatch_mod.get_config_fields_crud_service; point it at the harness's in-memory
+        # stand-in so the write_config_fields walkthrough dispatches the Change-Op body without
+        # touching a live projection table (or the fake table's unmodelled update_item).
+        self._original_config_fields_crud_getter = (
+            dispatch_mod.get_config_fields_crud_service
         )
+        dispatch_mod.get_config_fields_crud_service = (
+            lambda: self.config_fields_crud_service
+        )  # type: ignore[assignment]
+        # The application-form publish dispatch (spec 12 Task 2.1) resolves its service via
+        # dispatch_mod.get_application_publish_service; point it at the harness's fake-table-backed
+        # service so the publish walkthrough runs the readiness gate over the in-memory table
+        # (never a live projection table or S3).
+        self._original_publish_getter = dispatch_mod.get_application_publish_service
+        dispatch_mod.get_application_publish_service = lambda: self.publish_service  # type: ignore[assignment]
+        # (The application-form live-preview dispatch seam was RETIRED — spec 12 redesign C / R3,
+        #  task 5.2: preview is now in-browser — so there is no preview service getter to override.)
         app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
             {self.tenant_id: SAMPLE_SCOPE_CONFIG}
         )
@@ -493,17 +564,30 @@ class MembersParityHarness:
                 app.get_template_service = self._original_template_getter  # type: ignore[assignment]
                 self._original_template_getter = None
             if self._original_deliver_getter is not None:
-                dispatch_mod.get_execute_and_deliver_service = self._original_deliver_getter  # type: ignore[assignment]
+                dispatch_mod.get_execute_and_deliver_service = (
+                    self._original_deliver_getter
+                )  # type: ignore[assignment]
                 self._original_deliver_getter = None
             if self._original_mail_run_status_getter is not None:
-                dispatch_mod.get_mail_run_status_service = self._original_mail_run_status_getter  # type: ignore[assignment]
+                dispatch_mod.get_mail_run_status_service = (
+                    self._original_mail_run_status_getter
+                )  # type: ignore[assignment]
                 self._original_mail_run_status_getter = None
             if self._original_config_write_getter is not None:
-                dispatch_mod.get_config_write_service = self._original_config_write_getter  # type: ignore[assignment]
+                dispatch_mod.get_config_write_service = (
+                    self._original_config_write_getter
+                )  # type: ignore[assignment]
                 self._original_config_write_getter = None
-            if self._original_preview_getter is not None:
-                dispatch_mod.get_application_preview_service = self._original_preview_getter  # type: ignore[assignment]
-                self._original_preview_getter = None
+            if self._original_config_fields_crud_getter is not None:
+                dispatch_mod.get_config_fields_crud_service = (
+                    self._original_config_fields_crud_getter
+                )  # type: ignore[assignment]
+                self._original_config_fields_crud_getter = None
+            if self._original_publish_getter is not None:
+                dispatch_mod.get_application_publish_service = (
+                    self._original_publish_getter
+                )  # type: ignore[assignment]
+                self._original_publish_getter = None
             app._SCOPE_CONFIG_PROVIDER_OVERRIDE = self._original_scope_config
             app._OVERLAY_PROVIDER_OVERRIDE = self._original_overlay
             app._SCOPE_GRANTS_READER_OVERRIDE = self._original_grants
@@ -919,8 +1003,11 @@ class MembersParityHarness:
         # {404 no-route, 501 not-implemented}. Where a request is intentionally minimal we
         # accept the module's honest client-error answer (e.g. 422/409) as "route answered".
         self.repo.create_mail_run(
-            self.tenant_id, "PARITY-RUN",
-            mode="per_recipient", triggered_by="admin-sub", recipient_count=1,
+            self.tenant_id,
+            "PARITY-RUN",
+            mode="per_recipient",
+            triggered_by="admin-sub",
+            recipient_count=1,
         )
         checks: list[tuple] = [
             # ── Member CRUD (8 h-dcn behaviours) ──
@@ -975,28 +1062,8 @@ class MembersParityHarness:
                 {},
                 "resolved field config + dropdown options",
             ),
-            # ── Application Form Builder — server-side live preview (spec 11, R7.2) ──
-            # The AUTHENTICATED, admin-gated preview seam: it runs the REAL
-            # get_public_field_config filter over the WORKING field_overlay in the request
-            # BODY (never the stored config#fields row) and returns the applicant-facing
-            # schema, so the in-app preview reuses the SAME server filtering authority the
-            # public form does (design §5.3/§6/§10). READ-ONLY (no DynamoDB mutation). Gate:
-            # members:admin — the walkthrough's default admin caller (_ADMIN_CAPS) satisfies
-            # it. A minimal, well-formed body overlay (empty fields/overrides) resolves to the
-            # fixed base and answers 200 with the applicant schema — the parity point is that
-            # the route ANSWERS (its filter/validation behaviour is pinned by the dedicated
-            # test_application_preview_dispatch.py). The literal /members/application-preview
-            # path is disjoint from every other /members/... route (no collision/shadowing).
-            (
-                "preview_application",
-                "POST",
-                "/members/application-preview",
-                {"fields": {}, "overrides": {}},
-                None,
-                {200},
-                {},
-                "live-preview the application form over a working field_overlay (R7.2)",
-            ),
+            # (The server-side live-preview walkthrough step was RETIRED — spec 12 redesign C /
+            #  R3, task 5.2: preview is now in-browser, no POST /members/application-preview route.)
             (
                 "get_member",
                 "GET",
@@ -1028,21 +1095,64 @@ class MembersParityHarness:
                 "delete a member",
             ),
             # ── SAM-owned config WRITE (members-config-sam-owned-write-path Task 1.6) ──
-            # The single write door for the three SAM-owned config#* rows. Gate: members:admin
+            # The generic write door for the SAM-owned config#* rows. Gate: members:admin
             # (Tenant_Admin) — the walkthrough's default admin caller (_ADMIN_CAPS) satisfies
-            # it. A valid configId (fields) + a well-formed body writes config#fields to the
+            # it. A valid configId (scope) + a well-formed body writes config#scope to the
             # harness's fake table (the config-write service is wired over it in install()) and
             # answers 200 with {success, configId, version}. The literal /members/config prefix
             # is declared BEFORE /{member_id}, so it never collides.
+            #
+            # NOTE (spec 03 Task 2.7): config#fields now has its OWN route
+            # (PUT /members/config/fields → write_config_fields, a Change-Op list body), declared
+            # BEFORE this generic /{configId} route so the literal wins. This generic-door
+            # walkthrough step therefore exercises `scope` (still served by write_config); the
+            # config#fields Change-Op route has its own dedicated dispatch tests.
             (
                 "write_config",
                 "PUT",
-                "/members/config/fields",
-                {"fields": {}, "overrides": {}, "functional_groups": []},
+                "/members/config/scope",
+                {"dimensions": []},
                 None,
                 {200},
                 {},
-                "write a SAM-owned config row (config#fields) via the single write door",
+                "write a SAM-owned config row (config#scope) via the generic write door",
+            ),
+            # ── config#fields CHANGE-OP write (spec 03 Task 2.7 — design-review Q7a) ──
+            # The dedicated identity-keyed Change-Op door for config#fields. Gate: members:admin
+            # (the default admin caller satisfies it). A well-formed ops body dispatches each op
+            # to the ConfigFieldsCrudService (the harness's in-memory stand-in records it) and
+            # answers 200 with {success, results}. The literal /members/config/fields is declared
+            # BEFORE the generic /{configId}, so it wins; the retired whole-overlay body is no
+            # longer accepted here — a stale-bundle body returns the intelligible 409
+            # `errors.api.staleClient` "reload the app" (Task 5.3a), covered by the dedicated
+            # dispatch tests.
+            (
+                "write_config_fields",
+                "PUT",
+                "/members/config/fields",
+                {"ops": [{"op": "set_group", "group": "personal", "attrs": {"order": 1}}]},
+                None,
+                {200},
+                {},
+                "apply a config#fields Change-Op list via the dedicated Change-Op door",
+            ),
+            # The EXPLICIT application-form publish route (spec 12 Task 2.1, §C4/R5). Gate:
+            # members:admin — the default admin caller satisfies it. The harness tenant has no
+            # slug authored on config#fields, so the readiness gate refuses with the typed
+            # NO_SLUG readiness refusal → a clear, admin-facing 409 (R5.4 show-don't-block). That
+            # is the route ANSWERING AS DESIGNED (not a 404 no-route / 501 not-implemented): the
+            # readiness gate is the real, testable behaviour of task 2.1; the live S3 write is
+            # task 2.2 (dormant). The literal /members/application-form/publish prefix is declared
+            # BEFORE /{member_id}, so it never collides.
+            (
+                "publish_application_form",
+                "POST",
+                "/members/application-form/publish",
+                None,
+                None,
+                {409},
+                {},
+                "publish the application form — readiness-gated (409: no slug yet, task 2.1)",
             ),
             # ── Membership lifecycle (5 h-dcn behaviours — transition routes retired) ──
             (
@@ -1297,18 +1407,33 @@ class MembersParityHarness:
                 "send an ad-hoc compose NOW — enqueues + returns 202 ACCEPTED (R2)",
             ),
             (
-                "list_mail_runs", "GET", "/members/mail-runs",
-                None, None, {200}, {},
+                "list_mail_runs",
+                "GET",
+                "/members/mail-runs",
+                None,
+                None,
+                {200},
+                {},
                 "list the tenant's send-run status records (R9)",
             ),
             (
-                "get_mail_run", "GET", "/members/mail-runs/PARITY-RUN",
-                None, None, {200}, {},
+                "get_mail_run",
+                "GET",
+                "/members/mail-runs/PARITY-RUN",
+                None,
+                None,
+                {200},
+                {},
                 "get one send-run tally + failure drill-down (R9)",
             ),
             (
-                "delete_mail_run", "DELETE", "/members/mail-runs/PARITY-RUN",
-                None, None, {200}, {},
+                "delete_mail_run",
+                "DELETE",
+                "/members/mail-runs/PARITY-RUN",
+                None,
+                None,
+                {200},
+                {},
                 "manually delete a send-run status record (R9.6)",
             ),
             # ── Schedules (new, pivot-output-actions R5 task 5.2) ──
@@ -1523,13 +1648,9 @@ class MembersParityHarness:
                     "__ASET_ID__", analytics_set_id.get("id", "missing")
                 )
             if "__TEMPLATE_ID__" in path:
-                path = path.replace(
-                    "__TEMPLATE_ID__", template_id.get("id", "missing")
-                )
+                path = path.replace("__TEMPLATE_ID__", template_id.get("id", "missing"))
             if "__SCHEDULE_ID__" in path:
-                path = path.replace(
-                    "__SCHEDULE_ID__", schedule_id.get("id", "missing")
-                )
+                path = path.replace("__SCHEDULE_ID__", schedule_id.get("id", "missing"))
             # The create_schedule body references the server-generated analytics-set id (R5 —
             # a schedule names the set it runs); resolve the body placeholder too, not just the
             # path, so the schedule points at the real (delivery-bearing) set.
@@ -1602,7 +1723,8 @@ class MembersParityHarness:
         record["tenant_id"] = self.tenant_id
         self.repo.save_member(self.tenant_id, record)
         self.call(
-            "POST", f"/members/{mid}/memberships",
+            "POST",
+            f"/members/{mid}/memberships",
             body={"membership_id": "MS-1", "status": "active"},
         )
 

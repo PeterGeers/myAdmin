@@ -1,0 +1,86 @@
+{
+  "_comment": "spec 03 Task 2.0 — the PRE-migration LEGACY shape of the real h-dcn config#fields row: functional_groups stored as an ordered LIST. Kept alongside the migrated hdcn_config_fields_overlay.json (MAP shape) so the LIST->MAP migration + dual-read are proven against REAL data, not a hand-built shape (steering 39). The fields/overrides slices are identical to the migrated fixture; only functional_groups differs (LIST here, MAP there).",
+  "tenant_id": "h-dcn",
+  "fields": {
+    "notes": {
+      "functional_group": "administrative",
+      "label": {
+        "en": "Notes",
+        "nl": "Notities"
+      },
+      "order": 10,
+      "required": false,
+      "type": "string"
+    },
+    "motor_brand": {
+      "application_visible": true
+    }
+  },
+  "overrides": {
+    "personal.gender": {
+      "choices": [
+        {
+          "label": {
+            "en": "Man",
+            "nl": "Man"
+          },
+          "value": "man"
+        }
+      ],
+      "label_en": "Gender",
+      "label_nl": "Geslacht",
+      "order": 60,
+      "type": "enum"
+    }
+  },
+  "functional_groups": [
+    {
+      "key": "personal",
+      "label": {
+        "en": "Personal",
+        "nl": "Persoonsgegevens"
+      },
+      "order": 10
+    },
+    {
+      "key": "address",
+      "label": {
+        "en": "Address",
+        "nl": "Adres"
+      },
+      "order": 20
+    },
+    {
+      "key": "membership",
+      "label": {
+        "en": "Membership",
+        "nl": "Lidmaatschap"
+      },
+      "order": 30
+    },
+    {
+      "key": "motor",
+      "label": {
+        "en": "Motorcycle",
+        "nl": "Motor"
+      },
+      "order": 40
+    },
+    {
+      "key": "financial",
+      "label": {
+        "en": "Financial",
+        "nl": "Financiën"
+      },
+      "order": 50
+    },
+    {
+      "key": "administrative",
+      "label": {
+        "en": "Administrative",
+        "nl": "Administratief"
+      },
+      "order": 60
+    }
+  ]
+}

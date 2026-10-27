@@ -103,6 +103,44 @@ grep -rn "import boto3\|boto3\.\(resource\|client\)\|\.Table(\|\.query(\|\.scan(
 # boto3.resource('dynamodb') built inline in a repository.
 grep -rn "boto3\.resource(\s*[\"']dynamodb" sam --include='*.py' \
   | grep -vE "dynamodb_client\.py|/tests/|\.aws-sam/"
+# SAM DATA-SHAPE boundary (steering 39): the above catch WHO calls DynamoDB; this catches WHAT
+# shape leaves the repository. Raw record shape (field_overlay / overrides / fixed_overrides /
+# dotted {group}.{key} keys) crossing into a domain service, an API response, or a DTO is a
+# boundary leak — consumers must receive a RESOLVED domain view, never the physical layout.
+# This is the exact class that caused the Members field-config drift (root-cause-analysis.md):
+# the client WAS confined, but the raw overlay shape was served to the frontend anyway.
+grep -rn "field_overlay\|fixed_overrides\|[\"']overrides[\"']" sam --include='*.py' \
+  | grep -vE "/repository/|/tests/|\.aws-sam/"
+# A repository exposing a RAW accessor (get_raw_* / *_overlay) on a cross-boundary path is the
+# smell that enables the leak — a repository returns resolved views, not the stored item (steering 39).
+grep -rn "def get_raw_\|def .*_overlay\b" sam --include='*.py' \
+  | grep -vE "/tests/|\.aws-sam/"
+# Frontend: reconstructing storage identity (dotted {group}.{key}) or consuming raw overlay shape
+# instead of the server's resolved view — the OTHER half of the same leak (steering 39).
+grep -rn "field_overlay\|fixed_overrides\|\`\${[^}]*group[^}]*}\.\${[^}]*key" frontend/src \
+  --include='*.ts' --include='*.tsx' | grep -v "test"
+# SAM FOOLPROOF-CRUD violations (ADR 0009 / steering 39 / spec "03 - config-fields-foolproof-crud").
+# The partial-overlay-overwrites-full-record defect (root-cause-analysis.md, proven 3×): a write must
+# be a Change-Op merged onto the resolved record, NEVER a whole-record replace, and ONLY the
+# Change-Op repository may touch the governance table directly.
+# (a) Raw DynamoDB write (put_item/update_item/delete_item) on the GOVERNANCE table OUTSIDE the
+#     sanctioned Change-Op write repository — a bypass of the Change-Op service that can truncate the
+#     row. Allow-list mirrors check_sam_config_crud.py RAW_WRITE_ALLOWED_FILES (the executable guard):
+#     the Change-Op write repo + the one-time C6 LIST->MAP migration are the ONLY sanctioned writers.
+grep -rn "put_item\|update_item\|delete_item" sam --include='*.py' \
+  | grep -vE "/repository/projection_config_write_repository\.py|/migration/functional_groups_list_to_map\.py|/tests/|\.aws-sam/"
+# (b) A handler/domain assembling or sending a WHOLE functional_groups / overlay object (whole-record
+#     replace smell) instead of a per-identity Change-Op (set_group/set_field/delete_*).
+grep -rn "functional_groups\s*=\s*\[\|\"functional_groups\":\|'functional_groups':" sam frontend/src \
+  --include='*.py' --include='*.ts' --include='*.tsx' \
+  | grep -vE "/repository/|/tests/|__tests__|\.aws-sam/|field_resolver|projection_config_reader"
+# (c) Frontend still writing the whole config#fields overlay (saveMembersParameter('field_overlay', …))
+#     instead of a Change-Op by identity — the retired overlay-model write path (spec 03 Phase 5).
+grep -rn "saveMembersParameter(\s*['\"]field_overlay\|writeFieldConfig\|resolveWriteTarget" frontend/src \
+  --include='*.ts' --include='*.tsx' | grep -v "test"
+# For each hit: is it the ONE sanctioned Change-Op repository/service (allowed), or a bypass that can
+# overwrite base definitions / truncate the catalog? A bypass is a HIGH-priority correctness finding,
+# not a style nit — it is the exact class behind the Members config corruptions.
 # SAM auth: handlers hand-rolling JWT/claim decoding instead of sam/shared (auth_utils /
 # entitlement_claim — JWTVerifier, load_pool_registry, the decoded-entitlement helpers).
 grep -rn "jwt\.decode\|jwks\|from jose\|import jwt\b" sam --include='*.py' \
@@ -243,6 +281,8 @@ Conform to Kiro spec conventions: include `requirements.md`, `tasks.md`,
 - Dead code: N items (with confidence).
 - Duplicate code: N patterns and their repeat counts + locations.
 - Framework/reusable-code bypasses: N sites re-implementing a shared building block, by plane (backend/sam/frontend), with the block each should adopt (incl. SAM handler→repository DynamoDB-boundary violations).
+- SAM data-shape boundary leaks (steering 39): N sites where raw record shape crosses the repository boundary — raw-shape keys (`field_overlay` / `overrides` / `fixed_overrides` / dotted `{group}.{key}`) in a domain/response/DTO, a repository `get_raw_*`/`*_overlay` accessor on a cross-boundary path, or a frontend reconstructing storage identity instead of using the resolved view. Record each with the resolved-view it should use instead. (This is the class behind the Members field-config drift — see `root-cause-analysis.md`.)
+- SAM foolproof-CRUD violations (ADR 0009 / steering 39 / spec `03 - config-fields-foolproof-crud`): N sites that can corrupt a `config#*` record — a raw `put_item`/`update_item`/`delete_item` on the governance table OUTSIDE the sanctioned Change-Op write repository, a handler/domain assembling a WHOLE `functional_groups`/overlay object (whole-record replace), or a frontend writing the whole `field_overlay` instead of a per-identity Change-Op. These are HIGH-priority CORRECTNESS findings (the partial-overlay-overwrites-full-record defect, proven 3× — `root-cause-analysis.md`), not style. Record each with the Change-Op it should use instead.
 - Type safety: N issues, by plane (backend/sam missing type hints, frontend `any`).
 - Mobile compliance: N not mobile-optimized (plus M explicitly exempt, listed separately).
 - Missing tests: N source files with no paired test, by plane (backend/sam/frontend) and by risk tier (plus M test-exempt, listed separately).
@@ -303,6 +343,17 @@ Before adding a helper/component, check whether one already exists (steering
 `37-shared-building-blocks.md`; grep the services/hooks/utils). Prefer adopting the shared
 building block over introducing a parallel implementation — the point of this task is to
 REDUCE code, not add more.
+
+### 1a. Keep raw store shape inside the repository (SAM plane)
+
+A store's raw record shape and its client belong to ONE repository (steering
+`39-backend-data-access-sam-dynamodb.md`). When fixing a data-shape boundary leak, move the
+logical→physical translation INTO the repository: it returns a RESOLVED domain view for reads and
+accepts a write by DOMAIN IDENTITY (field `key` + the change), deciding placement itself. Do not
+"fix" a leak by reshaping it in the handler/frontend — remove the raw shape from the boundary
+entirely. Prove the round-trip against a REAL record (e.g. the `h-dcn` `config#fields` row), not a
+hand-built fixture (spec 11: *trust runs, not inference*). This is the exact fix the Members
+field-config drift needs.
 
 ### 2. Consolidate duplicates into ONE home
 

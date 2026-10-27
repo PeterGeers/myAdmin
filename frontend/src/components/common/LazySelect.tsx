@@ -347,6 +347,16 @@ function LazySelectInner<V extends string = string>(props: LazySelectProps<V>): 
             aria-label={label}
             maxH="240px"
             overflowY="auto"
+            // A thin, ALWAYS-visible scrollbar so an overflowing option list (e.g. a 6+ group
+            // move-to-group picker) is discoverable — the platform's auto-hidden overlay scrollbar
+            // made options below the 240px fold look absent (they are present; search finds them).
+            sx={{
+              '&::-webkit-scrollbar': { width: '10px' },
+              '&::-webkit-scrollbar-thumb': { background: 'var(--chakra-colors-gray-500)', borderRadius: '8px' },
+              '&::-webkit-scrollbar-track': { background: 'var(--chakra-colors-gray-800)' },
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'var(--chakra-colors-gray-500) var(--chakra-colors-gray-800)',
+            }}
           >
             {isLoading && (
               <Box display="flex" alignItems="center" px={3} py={2} color="gray.300" fontSize={sizeStyle.fontSize}>

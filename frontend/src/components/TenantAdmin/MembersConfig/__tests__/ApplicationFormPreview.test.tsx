@@ -1,145 +1,142 @@
 /**
- * Tests for the Application live preview (spec 11, task 4.2; R7.1/R7.2/R7.4, design §4/§6/§9 S1·S2/§10).
+ * Tests for the Application live preview (spec 12 — Application Form Serving Redesign, task 5.1;
+ * R3.1/R3.2, design §C2 / D4).
  *
- * The change-with-tests pairing for the rewritten `ApplicationFormPreview` (the full dedicated
- * suite is task 4.3). It asserts the R7 contract this task owns — the preview is an IN-APP render
- * of the public form via the shared spec-10 `ApplicationFormRenderer`, fed by the server-side
- * `POST /members/application-preview` over the builder's WORKING overlay (zero client mirror, zero
- * drift):
- *  - it POSTs the working overlay to the preview service and renders the returned schema through
- *    `ApplicationFormRenderer` (R7.1/R7.2 — single filter authority + single render path);
- *  - a change to the working overlay re-POSTs and re-renders, so the preview reflects UNSAVED edits
- *    live (R7.1 / §9 S2);
- *  - rapid overlay changes are DEBOUNCED into fewer requests and the latest overlay wins;
+ * The change-with-tests pairing for the rewritten `ApplicationFormPreview`. Spec 12 retires the
+ * server round-trip (`POST /members/application-preview`, deleted in task 5.2): the preview is now
+ * an IN-BROWSER render of the public form via the shared spec-10 `ApplicationFormRenderer`, fed by
+ * the PURE `buildPreviewConfig` filter over the builder's WORKING draft (resolved `FieldConfig` ⊕
+ * the one `field_overlay`). This suite asserts the R3 contract:
+ *  - the preview renders the applicant-facing selection WITHOUT any network call — the preview API
+ *    is gone, so there is nothing to mock (R3.1/R3.2);
+ *  - a change to the WORKING overlay re-derives + re-renders in memory, so the preview reflects
+ *    UNSAVED edits live with no save and no round-trip (R3.1);
+ *  - only ON-form fields (`application_visible`, overlay ⊕ served) appear;
  *  - the preview is READ-ONLY — no submit control (R7.4);
- *  - a malformed-overlay error surfaces a neutral inline message instead of a blank/crashed form.
+ *  - an empty form (no on-form fields) shows the neutral empty state, not a blank/crashed form.
  *
- * The preview service is mocked so the test asserts the component's wiring (debounce → POST →
- * render) without a network; `debounceMs={0}` makes the POST deterministic/immediate.
+ * Fixtures use the bare `key` + `group` server shape (R2.3) — the resolved `FieldConfig` the builder
+ * loads from `GET /members/field-config`.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
-import { render, screen, waitFor } from '../../../../test-utils';
+import { render, screen } from '../../../../test-utils';
 import { ApplicationFormPreview } from '../ApplicationFormPreview';
-import type { PublicFieldConfig } from '../../../public/application/applicationFieldConfig';
-import { previewMembersApplicationConfig } from '../../../../services/membersConfigService';
+import type { FieldConfig, FieldConfigField } from '../../../../types/members';
+import type { MembersConfigValue } from '../../../../types/membersConfig';
 
-vi.mock('../../../../services/membersConfigService', () => ({
-  previewMembersApplicationConfig: vi.fn(),
-}));
+/**
+ * Guard that NO preview API exists to be called: the retired `previewMembersApplicationConfig`
+ * (and its underlying `previewApplicationFieldConfig`) must be gone from the service surface, so
+ * the in-browser preview can never silently fall back to a network round-trip.
+ */
+import * as membersConfigService from '../../../../services/membersConfigService';
+import * as membersApiService from '../../../../services/membersApiService';
 
-const mockPreview = vi.mocked(previewMembersApplicationConfig);
-
-/** A minimal applicant-facing schema the server preview would return for a working overlay. */
-function schemaWith(fieldKeys: string[]): PublicFieldConfig {
+/** A resolved field in the BARE `key` + `group` server shape (R2.3). */
+function field(key: string, group: string, extra: Partial<FieldConfigField> = {}): FieldConfigField {
   return {
-    fields: fieldKeys.map((key, i) => ({
-      key,
-      type: 'string',
-      label: { nl: `NL ${key}`, en: `Label ${key}` },
-      functional_group: 'personal',
-      order: i,
-      required: false,
-    })),
-    locales: ['nl', 'en'],
-    notice: null,
+    key,
+    group,
+    type: 'string',
+    label: { nl: `NL ${key}`, en: `Label ${key}` },
+    functional_group: group,
+    origin: 'fixed',
+    provenance: 'base',
+    ...extra,
   };
 }
 
-beforeEach(() => {
-  mockPreview.mockReset();
-});
+/** A resolved `FieldConfig` carrying the given fields. */
+function configWith(fields: FieldConfigField[]): FieldConfig {
+  return { fields } as FieldConfig;
+}
 
-describe('ApplicationFormPreview — in-app render via the server preview endpoint (R7.1/R7.2)', () => {
-  it('POSTs the working overlay and renders the returned schema through ApplicationFormRenderer', async () => {
-    mockPreview.mockResolvedValue(schemaWith(['personal.email']));
-    const overlay = { fields: { 'personal.email': { application_visible: true } } };
+describe('ApplicationFormPreview — in-browser render over the working draft (R3.1)', () => {
+  it('renders the applicant-facing selection with NO network call (the preview API is gone)', () => {
+    // The field is turned ON via the WORKING overlay (origin-aware override key for a base field).
+    const fieldConfig = configWith([field('email', 'personal')]);
+    const overlay: MembersConfigValue = {
+      fixed_overrides: { 'personal.email': { application_visible: true } },
+    };
 
-    render(<ApplicationFormPreview overlay={overlay} lang="en" debounceMs={0} />);
+    render(<ApplicationFormPreview fieldConfig={fieldConfig} overlay={overlay} lang="en" />);
 
-    // The preview POSTs the WORKING overlay to the single server filter (not a client mirror).
-    await waitFor(() => expect(mockPreview).toHaveBeenCalledWith(overlay));
-    // The returned schema is rendered through the shared renderer (one render path).
-    await screen.findByTestId('application-form-preview-render');
+    // Rendered through the shared renderer (one render path) — synchronously, no await needed.
+    expect(screen.getByTestId('application-form-preview-render')).toBeInTheDocument();
     expect(screen.getByTestId('application-form')).toBeInTheDocument();
-    expect(screen.getByText('Label personal.email')).toBeInTheDocument();
+    expect(screen.getByText('Label email')).toBeInTheDocument();
+
+    // No preview API is reachable at all — the service surface must not export it anymore.
+    expect(
+      (membersConfigService as Record<string, unknown>).previewMembersApplicationConfig,
+    ).toBeUndefined();
+    expect(
+      (membersApiService as Record<string, unknown>).previewApplicationFieldConfig,
+    ).toBeUndefined();
   });
 
-  it('reflects UNSAVED edits: a changed working overlay re-POSTs and re-renders the new schema', async () => {
-    mockPreview.mockResolvedValueOnce(schemaWith(['personal.email']));
+  it('reflects UNSAVED edits live: a changed working overlay re-renders the new field in memory', () => {
+    const fieldConfig = configWith([field('email', 'personal'), field('phone', 'personal')]);
+
     const { rerender } = render(
       <ApplicationFormPreview
-        overlay={{ fields: { 'personal.email': { application_visible: true } } }}
+        fieldConfig={fieldConfig}
+        overlay={{ fixed_overrides: { 'personal.email': { application_visible: true } } }}
         lang="en"
-        debounceMs={0}
       />,
     );
-    await screen.findByText('Label personal.email');
+    expect(screen.getByText('Label email')).toBeInTheDocument();
+    // `phone` is not on the form yet.
+    expect(screen.queryByText('Label phone')).not.toBeInTheDocument();
 
-    // The admin toggles another field ON (an UNSAVED edit) → the preview re-POSTs the new overlay
-    // and renders the new field, with NO save / round-trip to the hosted form (R7.1 / §9 S2).
-    mockPreview.mockResolvedValueOnce(schemaWith(['personal.email', 'personal.phone']));
+    // The admin toggles `phone` ON (an UNSAVED in-memory edit) → the preview re-derives + re-renders
+    // the new field with NO save and NO server round-trip (R3.1).
     rerender(
       <ApplicationFormPreview
+        fieldConfig={fieldConfig}
         overlay={{
-          fields: {
+          fixed_overrides: {
             'personal.email': { application_visible: true },
             'personal.phone': { application_visible: true },
           },
         }}
         lang="en"
-        debounceMs={0}
       />,
     );
-
-    await screen.findByText('Label personal.phone');
-    expect(screen.getByText('Label personal.email')).toBeInTheDocument();
-    expect(mockPreview).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('Label phone')).toBeInTheDocument();
+    expect(screen.getByText('Label email')).toBeInTheDocument();
   });
 
-  it('debounces rapid overlay changes into ONE request, and the latest overlay wins', async () => {
-    mockPreview.mockResolvedValue(schemaWith(['personal.email']));
-    vi.useFakeTimers();
-    try {
-      const { rerender } = render(
-        <ApplicationFormPreview overlay={{ fields: { a: { application_visible: true } } }} lang="en" />,
-      );
-      // Two quick successive edits within the debounce window.
-      rerender(
-        <ApplicationFormPreview overlay={{ fields: { b: { application_visible: true } } }} lang="en" />,
-      );
-      const latest = { fields: { c: { application_visible: true } } };
-      rerender(<ApplicationFormPreview overlay={latest} lang="en" />);
+  it('shows only ON-form fields — an unselected field is omitted (applicant-facing selection)', () => {
+    const fieldConfig = configWith([
+      field('email', 'personal', { application_visible: true }), // served ON
+      field('secret_note', 'personal'), // not on the form
+    ]);
 
-      // Nothing fired yet — the timer is still pending.
-      expect(mockPreview).not.toHaveBeenCalled();
+    render(<ApplicationFormPreview fieldConfig={fieldConfig} overlay={{}} lang="en" />);
 
-      vi.advanceTimersByTime(500);
-      // Exactly one POST, carrying the LATEST overlay (the earlier edits were debounced away).
-      expect(mockPreview).toHaveBeenCalledTimes(1);
-      expect(mockPreview).toHaveBeenCalledWith(latest);
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(screen.getByText('Label email')).toBeInTheDocument();
+    expect(screen.queryByText('Label secret_note')).not.toBeInTheDocument();
   });
 });
 
 describe('ApplicationFormPreview — read-only (R7.4)', () => {
-  it('renders no submit control (the preview cannot be submitted)', async () => {
-    mockPreview.mockResolvedValue(schemaWith(['personal.email']));
-    render(<ApplicationFormPreview overlay={{}} lang="en" debounceMs={0} />);
+  it('renders no submit control (the preview cannot be submitted)', () => {
+    const fieldConfig = configWith([field('email', 'personal', { application_visible: true })]);
+    render(<ApplicationFormPreview fieldConfig={fieldConfig} overlay={{}} lang="en" />);
 
-    await screen.findByTestId('application-form-preview-render');
+    expect(screen.getByTestId('application-form-preview-render')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /submit|versturen/i })).not.toBeInTheDocument();
   });
 });
 
-describe('ApplicationFormPreview — error surfacing', () => {
-  it('shows a neutral inline message when the overlay is rejected (no blank/crashed form)', async () => {
-    mockPreview.mockRejectedValue(new Error('application-preview field_overlay is invalid'));
-    render(<ApplicationFormPreview overlay={{}} lang="en" debounceMs={0} />);
+describe('ApplicationFormPreview — empty state', () => {
+  it('shows the neutral empty message when no field is on the form (no blank/crashed form)', () => {
+    const fieldConfig = configWith([field('email', 'personal')]); // nothing turned on
+    render(<ApplicationFormPreview fieldConfig={fieldConfig} overlay={{}} lang="en" />);
 
-    await screen.findByTestId('application-form-preview-error');
+    expect(screen.getByTestId('application-form-preview-empty')).toBeInTheDocument();
     expect(screen.queryByTestId('application-form-preview-render')).not.toBeInTheDocument();
   });
 });

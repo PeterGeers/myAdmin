@@ -1,0 +1,398 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "0.1 **PREREQUISITE (option a / R6.4 — RESOLVED to nonprofit, migration-first):** execute": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767714110
+      }
+    ],
+    "1.1 Extend `config#fields` with `slug` + `published_at` + `published_version` (design §Data Models).": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767714388
+      },
+      {
+        "executionId": "d9ce4b5d-cd13-41a9-9bcd-029f89f804a0",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792767935175
+      },
+      {
+        "executionId": "d9ce4b5d-cd13-41a9-9bcd-029f89f804a0",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792768625724
+      }
+    ],
+    "1.2 Implement the `_slugs/{slug}` bucket-marker claim (OQ4): a conditional `put_object`": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767714620
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792770221681
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792772009565
+      }
+    ],
+    "1.3 Forward slug reader (tenant→slug via the normal `tenant_id`-pinned read) on": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767714736
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792770227458
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792772015378
+      }
+    ],
+    "1.4 Add `ConfigFieldsSlugReader` implementing the EXISTING `TenantSlugReader` Protocol": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767714858
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792772027688
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792772488616
+      }
+    ],
+    "1.5 Tests (`sam/tests/`): slug format accept/reject; uniqueness conditional-put collision;": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767714957
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792772511580
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777059810
+      }
+    ],
+    "2.1 New `members:admin` route `POST /members/application-form/publish` (self_service=False) in": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767715050
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792778471325
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792779212292
+      }
+    ],
+    "2.2 Publish handler: render the artifact THROUGH `get_public_field_config` (single filter authority,": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767715144
+      }
+    ],
+    "2.3 Form-slug rename (design §Rename / D8): on a slug change, delete the old `{old-slug}/` artifact,": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767715282
+      }
+    ],
+    "2.4 Tests (`sam/tests/`): publish renders filter-parity output (reuse the `h-dcn` real-data": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767715379
+      }
+    ],
+    "3.1 Add a least-privilege IAM policy (new `.tf`) granting the SAM publish principal": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767715478
+      }
+    ],
+    "3.2 Confirm the published form host gets CSP `frame-ancestors` from the existing viewer-response": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767715578
+      }
+    ],
+    "3.3 `terraform plan -out=tf.plan`, READ it: confirm it ONLY ADDS the IAM and does NOT force-replace": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767715689
+      }
+    ],
+    "4.1 Replace the bespoke `ApplicationFieldList` toggle-list + buried panel: clicking a field opens a": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767715808
+      },
+      {
+        "executionId": "d9ce4b5d-cd13-41a9-9bcd-029f89f804a0",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792767936553
+      },
+      {
+        "executionId": "d9ce4b5d-cd13-41a9-9bcd-029f89f804a0",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792768626175
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792770211377
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792770215035
+      }
+    ],
+    "4.2 Enum-subset picker SOURCE adapts to field kind (reference→catalog, scope→dimension,": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767715906
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792770230918
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792772019243
+      }
+    ],
+    "4.3 All attributes write onto the ONE `field_overlay`, commit via the SAME": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767716049
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792772031190
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792772493456
+      }
+    ],
+    "4.4 Tests (`frontend/`): modal writes the four attributes correctly (subset only on choice fields;": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767716155
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777080180
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777743224
+      }
+    ],
+    "5.1 Render the preview IN-BROWSER: feed the WORKING draft to `ApplicationFormRenderer`; a pure": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767716253
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792772515580
+      }
+    ],
+    "5.2 DELETE `POST /members/application-preview` (SAM route + `_dispatch`) and its frontend debounce +": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767716355
+      },
+      {
+        "executionId": "1b924415-4ab7-44e2-b14e-db244f8c98de",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792772519355
+      }
+    ],
+    "5.3 Pin client-filter parity to the server `get_public_field_config` via a shared fixture test, so": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767716454
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777766942
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792778454723
+      }
+    ],
+    "5.4 Tests (`frontend/`): preview reflects unsaved edits live; parity fixture matches; the native": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767716553
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792778476461
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792779218950
+      }
+    ],
+    "6.1 Display the resolved public URL (`{slug}.jabaki.nl`) + an \"open live form\" link once a slug is": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767716690
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777084193
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777748592
+      }
+    ],
+    "6.2 **Explicit \"Publish\" button** (OQ1=option 1): a deliberate control that calls": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767716798
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777088292
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777753487
+      }
+    ],
+    "6.3 Keep the external-embed snippet + `application_embed_origins` authoring + `postMessage` resize": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767716897
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777092403
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777758167
+      }
+    ],
+    "6.4 Tests (`frontend/`): slug display/link states; the Publish button calls the publish route and a": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767716998
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777772191
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792778460053
+      }
+    ],
+    "7.1 Remove `PUBLIC_TENANT_SLUG_MAP` from `template.yaml`/`samconfig.toml` AFTER the resolver swap is": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767717107
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792777777101
+      },
+      {
+        "executionId": "5d3fe090-bf90-4fdc-a796-909edfc108d4",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792778465085
+      }
+    ],
+    "7.2 Verify end-to-end on live TEST (steering 43): publish `hdcn-application-form`, load": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767717220
+      }
+    ],
+    "7.3 Promote `test → main` via ONE reviewed PR (a merge to `main` IS a production deploy); confirm": [
+      {
+        "executionId": "f5c14377-ce62-4f23-a1ff-cc247a24091c",
+        "chatSessionId": "sess_797f5527-3564-486a-825f-b917cdaf2869",
+        "timestamp": 1792767717320
+      }
+    ],
+    "0.1 **⛔ OWNER-RUN PREREQUISITE — NOT agent-runnable (steering 43).** Execute": [
+      {
+        "executionId": "d9ce4b5d-cd13-41a9-9bcd-029f89f804a0",
+        "chatSessionId": "sess_7bd679fe-f1d6-48b1-84d7-a94aa063efc1",
+        "timestamp": 1792767923245
+      }
+    ]
+  }
+}

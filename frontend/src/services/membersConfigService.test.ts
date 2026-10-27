@@ -15,11 +15,13 @@ import {
   getMembersParameters,
   saveMembersParameter,
   saveMembersMailConfig,
+  saveFieldConfigChangeOps,
   getMembersParameterDefinitions,
   MEMBERS_NAMESPACE,
   MEMBERS_PARAM_KEYS,
   resolveFieldConfigLabel,
 } from './membersConfigService';
+import type { FieldConfigChangeOp } from './members/membersConfigApi';
 import * as parameterService from './parameterService';
 import * as apiService from './apiService';
 import * as membersApiService from './membersApiService';
@@ -35,10 +37,11 @@ vi.mock('./apiService', () => ({
   buildApiUrl: (e: string) => e,
 }));
 
-// The `field_overlay` save is repointed to the SAM Members write path (`PUT /members/config/fields`,
-// Requirement 13.1); mock that seam so we can assert the PUT target + authoritative handling.
+// config#fields is written BY IDENTITY via the Change-Op seam `applyFieldConfigChangeOps`
+// (spec 03 task 5.1/5.2). The whole-object `writeFieldConfig` writer was RETIRED in task 5.2, so it
+// is no longer mocked here — `saveMembersParameter('field_overlay', …)` fails closed instead.
 vi.mock('./membersApiService', () => ({
-  writeFieldConfig: vi.fn(),
+  applyFieldConfigChangeOps: vi.fn(),
   writeScopeConfig: vi.fn(),
   writeMailConfig: vi.fn(),
   getFieldConfig: vi.fn(),
@@ -214,19 +217,17 @@ describe('membersConfigService', () => {
   });
 
   // -------------------------------------------------------------------------
-  // field_overlay is SAM-owned (`config#fields`): the save is repointed to the
-  // Members SAM write path `PUT /members/config/fields` (Requirement 13.1), the
-  // write is authoritative (Requirement 13.2 — no pending-projection state), and
-  // the Flask parameter path is NO LONGER touched for field_overlay.
-  // Validates: Requirements 13.1, 13.2, 13.4
+  // field_overlay (config#fields) is written BY IDENTITY via the Change-Op path
+  // (`saveFieldConfigChangeOps`), NOT the whole-object parameter path. Spec 03
+  // task 5.2 RETIRED the whole-object overlay write (`writeFieldConfig` + the
+  // `field_overlay` branch of `saveMembersParameter`) — it was the catalog-
+  // truncation root cause. `saveMembersParameter('field_overlay', …)` now fails
+  // CLOSED so a stray caller cannot resurrect the whole-object write by silently
+  // falling through to the Flask parameter path.
+  // Validates: spec 03 R1.5 / R2 (task 5.2)
   // -------------------------------------------------------------------------
-  describe('saveMembersParameter — field_overlay repointed to SAM PUT /members/config/fields (R13)', () => {
-    it('PUTs the whole field_overlay object through writeFieldConfig, NOT the Flask parameter path', async () => {
-      vi.mocked(membersApiService.writeFieldConfig).mockResolvedValue({
-        success: true,
-        configId: 'fields',
-        version: '2026-10-12T10:00:00+00:00',
-      });
+  describe('saveMembersParameter — field_overlay whole-object write RETIRED (spec 03 task 5.2)', () => {
+    it('rejects a field_overlay save fail-closed (no whole-object write, no Flask fallback)', async () => {
       const overlay = {
         fields: { region: { type: 'string', scope: { enabled: true } } },
         overrides: {},
@@ -235,73 +236,90 @@ describe('membersConfigService', () => {
 
       const res = await saveMembersParameter('field_overlay', overlay);
 
-      expect(res.success).toBe(true);
-      // Exactly one SAM write, with the whole config#fields body (fields/overrides/functional_groups).
-      expect(membersApiService.writeFieldConfig).toHaveBeenCalledTimes(1);
-      expect(membersApiService.writeFieldConfig).toHaveBeenCalledWith(overlay);
-      // The Flask parameter path is never used for field_overlay anymore.
+      // Fail closed — the whole-object config#fields write no longer exists.
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/saveFieldConfigChangeOps/);
+      // NO whole-object SAM write seam is reached, and NO silent Flask parameter fallback.
+      expect(membersApiService.applyFieldConfigChangeOps).not.toHaveBeenCalled();
       expect(parameterService.createParameter).not.toHaveBeenCalled();
       expect(parameterService.updateParameter).not.toHaveBeenCalled();
     });
 
-    it('routes through SAM even when a tenant parameter row exists (no Flask create/update)', async () => {
-      vi.mocked(membersApiService.writeFieldConfig).mockResolvedValue({
-        success: true,
-        configId: 'fields',
-        version: '2026-10-12T10:05:00+00:00',
-      });
+    it('fails closed even when a legacy tenant parameter row exists (no Flask reroute)', async () => {
       const existing = {
         id: 202, namespace: 'members', key: 'field_overlay',
         value: {}, value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false,
       };
 
-      await saveMembersParameter('field_overlay', { fields: {} }, existing);
-
-      // config#fields is a SAM upsert — the presence of a legacy MySQL row does NOT reroute to Flask.
-      expect(membersApiService.writeFieldConfig).toHaveBeenCalledTimes(1);
-      expect(parameterService.updateParameter).not.toHaveBeenCalled();
-      expect(parameterService.createParameter).not.toHaveBeenCalled();
-    });
-
-    it('treats the SAM write as authoritative — no pending-projection state (R13.2)', async () => {
-      vi.mocked(membersApiService.writeFieldConfig).mockResolvedValue({
-        success: true,
-        configId: 'fields',
-        version: '2026-10-12T10:10:00+00:00',
-      });
-
-      const res = await saveMembersParameter('field_overlay', { fields: {} });
-
-      // The returned version IS the authored state; the service surfaces no projection-lag signal.
-      expect(res.success).toBe(true);
-      expect(res.projected).toBeUndefined();
-      expect(res.projection_error).toBeUndefined();
-    });
-
-    it('normalizes a nullish field_overlay to an empty object before the SAM write', async () => {
-      vi.mocked(membersApiService.writeFieldConfig).mockResolvedValue({
-        success: true,
-        configId: 'fields',
-        version: '2026-10-12T10:15:00+00:00',
-      });
-
-      await saveMembersParameter('field_overlay', null);
-
-      expect(membersApiService.writeFieldConfig).toHaveBeenCalledWith({});
-    });
-
-    it('surfaces a caller-safe error (success:false) when the SAM write rejects', async () => {
-      vi.mocked(membersApiService.writeFieldConfig).mockRejectedValue(
-        new ApiError(403, { error: 'Access denied' }),
-      );
-
-      const res = await saveMembersParameter('field_overlay', { fields: {} });
+      const res = await saveMembersParameter('field_overlay', { fields: {} }, existing);
 
       expect(res.success).toBe(false);
-      expect(res.error).toBe('Access denied');
-      // A failed SAM write must not silently fall back to the Flask parameter path.
+      expect(parameterService.updateParameter).not.toHaveBeenCalled();
+      expect(parameterService.createParameter).not.toHaveBeenCalled();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // saveFieldConfigChangeOps — the Phase-5 CHANGE-OP save path (spec 03 task 5.1).
+  //
+  // The configurator + Application Form Builder now write config#fields BY IDENTITY: they derive
+  // a Change-Op list and hand it here, which calls `applyFieldConfigChangeOps`
+  // (`PUT /members/config/fields` with `{ops}`). The SAM write is authoritative; an empty list is
+  // a no-op success; a 409 is surfaced as a caller-safe conflict (reload and retry). It NEVER
+  // touches the Flask parameter path and NEVER sends a whole-overlay body (steering 39).
+  // Validates: Requirements R2, R3, R6 (frontend slice).
+  // -------------------------------------------------------------------------
+  describe('saveFieldConfigChangeOps — the Change-Op write-by-identity path (spec 03 Phase 5)', () => {
+    it('applies the Change-Op list via applyFieldConfigChangeOps and returns the authoritative version', async () => {
+      vi.mocked(membersApiService.applyFieldConfigChangeOps).mockResolvedValue({
+        success: true, configId: 'fields', version: '2026-11-01T10:00:00+00:00',
+      });
+      const ops: FieldConfigChangeOp[] = [
+        { op: 'set_field', key: 'nickname', attrs: { label: { en: 'Nickname', nl: 'Bijnaam' } } },
+        { op: 'set_field_application', key: 'nickname', attrs: { application_visible: true } },
+      ];
+
+      const res = await saveFieldConfigChangeOps(ops);
+
+      expect(res.success).toBe(true);
+      expect(res.version).toBe('2026-11-01T10:00:00+00:00');
+      // Exactly one Change-Op write with the identity-keyed ops. The whole-overlay writer no
+      // longer exists (retired in task 5.2), so the only config#fields write seam is the Change-Op.
+      expect(membersApiService.applyFieldConfigChangeOps).toHaveBeenCalledTimes(1);
+      expect(membersApiService.applyFieldConfigChangeOps).toHaveBeenCalledWith(ops);
+      // No Flask parameter path is touched.
       expect(parameterService.createParameter).not.toHaveBeenCalled();
       expect(parameterService.updateParameter).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op success for an empty ops list (never issues an empty-ops request)', async () => {
+      const res = await saveFieldConfigChangeOps([]);
+      expect(res.success).toBe(true);
+      expect(membersApiService.applyFieldConfigChangeOps).not.toHaveBeenCalled();
+    });
+
+    it('surfaces a 409 as a caller-safe conflict (reload and retry)', async () => {
+      vi.mocked(membersApiService.applyFieldConfigChangeOps).mockRejectedValue(
+        new ApiError(409, { error: 'The configuration changed — reload and retry' }),
+      );
+
+      const res = await saveFieldConfigChangeOps([{ op: 'delete_group', group: 'motor' }]);
+
+      expect(res.success).toBe(false);
+      expect(res.conflict).toBe(true);
+      expect(res.error).toBe('The configuration changed — reload and retry');
+    });
+
+    it('surfaces a caller-safe error (success:false, not a conflict) on a non-409 rejection', async () => {
+      vi.mocked(membersApiService.applyFieldConfigChangeOps).mockRejectedValue(
+        new ApiError(400, { error: 'Field key is required' }),
+      );
+
+      const res = await saveFieldConfigChangeOps([{ op: 'set_field', key: '', attrs: { label: 'x' } }]);
+
+      expect(res.success).toBe(false);
+      expect(res.conflict).toBe(false);
+      expect(res.error).toBe('Field key is required');
     });
   });
 
@@ -452,8 +470,9 @@ describe('membersConfigService', () => {
       expect(membersApiService.writeMailConfig).toHaveBeenCalledTimes(1);
       expect(parameterService.createParameter).not.toHaveBeenCalled();
       expect(parameterService.updateParameter).not.toHaveBeenCalled();
-      // The field/scope SAM doors are not collateral-called by a mail save either.
-      expect(membersApiService.writeFieldConfig).not.toHaveBeenCalled();
+      // The field/scope SAM doors are not collateral-called by a mail save either. (config#fields
+      // is written only by the Change-Op door; the retired whole-overlay writer no longer exists.)
+      expect(membersApiService.applyFieldConfigChangeOps).not.toHaveBeenCalled();
       expect(membersApiService.writeScopeConfig).not.toHaveBeenCalled();
     });
 

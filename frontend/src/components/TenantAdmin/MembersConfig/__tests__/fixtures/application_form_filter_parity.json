@@ -1,0 +1,339 @@
+{
+  "$comment": [
+    "SHARED, CANONICAL parity fixture for spec 12 (Application Form Serving Redesign), task 5.3.",
+    "It pins the frontend in-browser preview filter (buildPreviewConfig, applicationPreviewFilter.ts)",
+    "to the SAM server filter authority (MembershipService.get_public_field_config) so retiring the",
+    "server preview endpoint (task 5.2) can never let the two silently drift (R3.2 / R9.1 / R9.2).",
+    "",
+    "ONE file is canonical: sam/tests/fixtures/application_form_filter_parity.json. The frontend test",
+    "root carries a byte-identical vendored copy at",
+    "frontend/src/components/TenantAdmin/MembersConfig/__tests__/fixtures/application_form_filter_parity.json;",
+    "a guard test on EACH plane asserts the two copies are byte-for-byte identical, so an edit to one",
+    "that is not mirrored to the other fails loudly. Both planes feed `input` to their REAL filter,",
+    "normalize the output to the plane-neutral `expected` shape, and assert equality against the SAME",
+    "`expected` block below.",
+    "",
+    "How each plane consumes `input`:",
+    " - FRONTEND: buildPreviewConfig takes an ALREADY-RESOLVED FieldConfig + the working overlay. The",
+    "   frontend adapter builds FieldConfig.fields straight from `input.resolved_fields` and applies no",
+    "   overlay (the application attributes are already resolved onto each field here).",
+    " - SAM: get_public_field_config resolves a TenantOverlay over the platform fixed base. The SAM",
+    "   adapter rebuilds that overlay from `input.resolved_fields`: every field whose `group` is",
+    "   `overlay` becomes a tenant-added OverlayField; the one `membership.membership_type` field is a",
+    "   fixed-field OVERRIDE carrying only the application attributes (its label/type/order/group come",
+    "   from the platform registry and are mirrored in `input.resolved_fields` + `expected` so the two",
+    "   planes agree).",
+    "",
+    "Shape notes:",
+    " - `input.resolved_fields` use the bare `key` + storage `group` server shape (R2.3).",
+    " - membership-type catalog labels use EQUAL nl/en text so the two planes' label resolution agree",
+    "   without weakening any assertion (the frontend catalog resolver collapses to one string).",
+    " - `expected.fields` is the canonical applicant-facing SELECTION both filters must produce, in",
+    "   resolver order (group, order, key). `options` is always present (null for a non-choice field)",
+    "   so the two normalized shapes compare like-for-like."
+  ],
+  "tenant_id": "h-dcn",
+  "consent_notice_version": "v7",
+  "membership_type_catalog": [
+    {
+      "type_code": "gewoon",
+      "label": {
+        "nl": "Gewoon lid",
+        "en": "Gewoon lid"
+      },
+      "active": true,
+      "order": 10
+    },
+    {
+      "type_code": "erelid",
+      "label": {
+        "nl": "Erelid",
+        "en": "Erelid"
+      },
+      "active": true,
+      "order": 20
+    },
+    {
+      "type_code": "donateur",
+      "label": {
+        "nl": "Donateur",
+        "en": "Donateur"
+      },
+      "active": true,
+      "order": 30
+    },
+    {
+      "type_code": "oudlid",
+      "label": {
+        "nl": "Oud lid",
+        "en": "Oud lid"
+      },
+      "active": false,
+      "order": 40
+    }
+  ],
+  "input": {
+    "resolved_fields": [
+      {
+        "key": "membership_type",
+        "group": "membership",
+        "type": "reference",
+        "label": {
+          "nl": "Lidmaatschapstype",
+          "en": "Membership type"
+        },
+        "functional_group": "membership",
+        "order": 30,
+        "required": true,
+        "origin": "fixed",
+        "provenance": "base_overridden",
+        "application_visible": true,
+        "application_required": true,
+        "application_choices": [
+          "gewoon",
+          "erelid"
+        ]
+      },
+      {
+        "key": "contact_email",
+        "group": "overlay",
+        "type": "string",
+        "label": {
+          "nl": "E-mailadres",
+          "en": "Email address"
+        },
+        "functional_group": "personal",
+        "order": 10,
+        "origin": "variable",
+        "provenance": "tenant_added",
+        "application_visible": true,
+        "application_required": true,
+        "format": {
+          "checker": "EMAIL"
+        }
+      },
+      {
+        "key": "nickname",
+        "group": "overlay",
+        "type": "string",
+        "label": {
+          "nl": "Bijnaam",
+          "en": "Nickname"
+        },
+        "functional_group": "personal",
+        "order": 20,
+        "origin": "variable",
+        "provenance": "tenant_added",
+        "application_visible": true,
+        "application_required": false
+      },
+      {
+        "key": "internal_note",
+        "group": "overlay",
+        "type": "string",
+        "label": {
+          "nl": "Interne notitie",
+          "en": "Internal note"
+        },
+        "functional_group": "personal",
+        "order": 25,
+        "origin": "variable",
+        "provenance": "tenant_added",
+        "application_visible": false
+      },
+      {
+        "key": "shirt_size",
+        "group": "overlay",
+        "type": "enum",
+        "label": {
+          "nl": "Maat",
+          "en": "Size"
+        },
+        "functional_group": "personal",
+        "order": 40,
+        "origin": "variable",
+        "provenance": "tenant_added",
+        "options": [
+          "s",
+          "m",
+          "l",
+          "xl"
+        ],
+        "application_visible": true,
+        "application_required": true,
+        "application_choices": [
+          "m",
+          "l"
+        ],
+        "show_when": {
+          "membership.membership_type": "gewoon"
+        }
+      },
+      {
+        "key": "colour",
+        "group": "overlay",
+        "type": "enum",
+        "label": {
+          "nl": "Kleur",
+          "en": "Colour"
+        },
+        "functional_group": "personal",
+        "order": 50,
+        "origin": "variable",
+        "provenance": "tenant_added",
+        "options": [
+          {
+            "value": "red",
+            "label": {
+              "nl": "Rood",
+              "en": "Red"
+            }
+          },
+          {
+            "value": "green",
+            "label": {
+              "nl": "Groen",
+              "en": "Green"
+            }
+          },
+          {
+            "value": "blue",
+            "label": {
+              "nl": "Blauw",
+              "en": "Blue"
+            }
+          }
+        ],
+        "application_visible": true,
+        "application_required": false
+      }
+    ]
+  },
+  "expected": {
+    "locales": [
+      "nl",
+      "en"
+    ],
+    "fields": [
+      {
+        "key": "membership.membership_type",
+        "type": "reference",
+        "label": {
+          "nl": "Lidmaatschapstype",
+          "en": "Membership type"
+        },
+        "functional_group": "membership",
+        "order": 30,
+        "required": true,
+        "options": [
+          {
+            "value": "gewoon",
+            "label": {
+              "nl": "Gewoon lid",
+              "en": "Gewoon lid"
+            }
+          },
+          {
+            "value": "erelid",
+            "label": {
+              "nl": "Erelid",
+              "en": "Erelid"
+            }
+          }
+        ]
+      },
+      {
+        "key": "overlay.contact_email",
+        "type": "string",
+        "label": {
+          "nl": "E-mailadres",
+          "en": "Email address"
+        },
+        "functional_group": "personal",
+        "order": 10,
+        "required": true,
+        "options": null,
+        "format": {
+          "checker": "EMAIL",
+          "params": {}
+        }
+      },
+      {
+        "key": "overlay.nickname",
+        "type": "string",
+        "label": {
+          "nl": "Bijnaam",
+          "en": "Nickname"
+        },
+        "functional_group": "personal",
+        "order": 20,
+        "required": false,
+        "options": null
+      },
+      {
+        "key": "overlay.shirt_size",
+        "type": "enum",
+        "label": {
+          "nl": "Maat",
+          "en": "Size"
+        },
+        "functional_group": "personal",
+        "order": 40,
+        "required": true,
+        "options": [
+          {
+            "value": "m",
+            "label": {
+              "nl": "m",
+              "en": "m"
+            }
+          },
+          {
+            "value": "l",
+            "label": {
+              "nl": "l",
+              "en": "l"
+            }
+          }
+        ],
+        "show_when": {
+          "membership.membership_type": "gewoon"
+        }
+      },
+      {
+        "key": "overlay.colour",
+        "type": "enum",
+        "label": {
+          "nl": "Kleur",
+          "en": "Colour"
+        },
+        "functional_group": "personal",
+        "order": 50,
+        "required": false,
+        "options": [
+          {
+            "value": "red",
+            "label": {
+              "nl": "Rood",
+              "en": "Red"
+            }
+          },
+          {
+            "value": "green",
+            "label": {
+              "nl": "Groen",
+              "en": "Green"
+            }
+          },
+          {
+            "value": "blue",
+            "label": {
+              "nl": "Blauw",
+              "en": "Blue"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

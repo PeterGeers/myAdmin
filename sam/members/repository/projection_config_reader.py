@@ -89,6 +89,52 @@ _CONFIG_ID_FIELDS = schema.CONFIG_ID_FIELDS
 _CONFIG_ID_MAIL = schema.CONFIG_ID_MAIL
 
 
+def _normalize_functional_groups(raw) -> dict:
+    """Normalize a stored ``functional_groups`` attribute to a MAP keyed by group ``key`` (spec 03,
+    design C6 / D2a / design-review Q3a).
+
+    **DUAL-READ (review Must-fix #4):** the storage shape is being migrated from an ordered LIST
+    ``[{key, label, order}, …]`` (legacy) to a MAP ``{key: {label, order}, …}`` (new, truncation-
+    proof per-path ``update_item``). Both shapes must resolve IDENTICALLY until every tenant row is
+    migrated AND all code is deployed — so this one normalizer is the single place that accepts
+    either:
+
+    - a **MAP** (new): each ``{group_key: entry}`` pair is kept; the entry's own ``key`` wins when
+      it carries one, else the map key fills it in (so ``order`` / ``label`` live in the entry —
+      the re-home is already done, Q3a). Non-dict entries are skipped (degrade gracefully).
+    - a **LIST** (legacy): each ``{key, …}`` entry is re-keyed by its ``key``; a keyless/non-dict
+      entry is skipped (mirrors the pre-migration loop ``for g in raw_groups``).
+    - anything else (``None`` / missing / wrong type) → ``{}`` (empty-is-valid, never an error).
+
+    Returns a ``{group_key: entry_dict}`` map; each ``entry_dict`` is guaranteed to carry its own
+    ``key`` so downstream builders stay shape-agnostic. The returned entries are shallow copies so
+    a caller may not mutate the stored row.
+    """
+    if isinstance(raw, Mapping):
+        groups: dict = {}
+        for gkey, entry in raw.items():
+            if not isinstance(entry, Mapping) or not gkey:
+                continue
+            normalized = dict(entry)
+            # The entry's own `key` is authoritative when present (so a round-trip is loss-free);
+            # otherwise the map key IS the group key — fill it in so the shape matches the LIST
+            # entries' `{key, …}` form the builders already consume.
+            normalized.setdefault("key", str(gkey))
+            groups[str(normalized.get("key") or gkey)] = normalized
+        return groups
+    if isinstance(raw, (list, tuple)):
+        groups = {}
+        for entry in raw:
+            if not isinstance(entry, Mapping):
+                continue
+            key = entry.get("key")
+            if not key:
+                continue
+            groups[str(key)] = dict(entry)
+        return groups
+    return {}
+
+
 class MembersProjectionReader:
     """Read-only Members config/grant reader backed by the governance projection (C4).
 
@@ -129,26 +175,43 @@ class MembersProjectionReader:
             self._table = schema.get_projection_table_resource()
         return self._table
 
-    def _query_partition(self, tenant_id: str) -> list[dict]:
+    def _query_partition(
+        self, tenant_id: str, *, consistent_read: bool = False
+    ) -> list[dict]:
         """Return all projected items for ``tenant_id`` (cached, read-only).
 
         One DynamoDB ``Query`` on the partition key. A missing/empty partition returns ``[]``
         (empty is valid). boto3 is imported lazily so the module imports cleanly where boto3's
         condition types aren't needed (a fake table in tests can bypass this by pre-seeding
         the cache).
+
+        ``consistent_read`` (spec 03 task 2.3, design C1 step 1 / design-review Should-fix): the
+        Change-Op CRUD service reads the resolved record STRONGLY-CONSISTENT ONLY to validate +
+        decide placement/version, so a stale eventually-consistent read never produces a spurious
+        409. A consistent read BYPASSES the per-invocation ``_partition_cache`` (reading, then
+        caching, an eventually-consistent copy would defeat the point) and passes
+        ``ConsistentRead=True`` down to the repository ``Query``. The default path
+        (``consistent_read=False``) is UNCHANGED — the normal, cached, eventually-consistent read
+        every existing reader method uses.
         """
         if not tenant_id:
             return []
-        if tenant_id in self._partition_cache:
+        if not consistent_read and tenant_id in self._partition_cache:
             return self._partition_cache[tenant_id]
 
         from boto3.dynamodb.conditions import Key
 
-        response = self.table.query(
-            KeyConditionExpression=Key(schema.PARTITION_KEY_ATTR).eq(tenant_id)
-        )
+        query_kwargs = {
+            "KeyConditionExpression": Key(schema.PARTITION_KEY_ATTR).eq(tenant_id)
+        }
+        if consistent_read:
+            query_kwargs["ConsistentRead"] = True
+        response = self.table.query(**query_kwargs)
         items = list(response.get("Items", []) or [])
-        self._partition_cache[tenant_id] = items
+        # Only the normal (eventually-consistent) read populates the shared cache; a strongly-
+        # consistent read is a point-in-time validate-and-place read, not a reusable snapshot.
+        if not consistent_read:
+            self._partition_cache[tenant_id] = items
         return items
 
     @staticmethod
@@ -231,7 +294,11 @@ class MembersProjectionReader:
         # `fixed_overrides` only); the dead `row.get("fixed_overrides")` read branch is removed
         # here, since no builder emits that attribute onto the projected row.
         raw_overrides = row.get("overrides") or {}
-        raw_groups = row.get("functional_groups") or []
+        # DUAL-READ (spec 03, design C6 / review Must-fix #4): accept BOTH the legacy LIST and the
+        # new MAP ``functional_groups`` storage shape, normalized to a MAP keyed by group key. This
+        # is what lets the LIST→MAP migration roll out without a flag day — a legacy LIST row and a
+        # migrated MAP row resolve to the SAME :class:`TenantOverlay`.
+        raw_groups = _normalize_functional_groups(row.get("functional_groups"))
         fields = {
             name: self._build_overlay_field(name, spec)
             for name, spec in raw_fields.items()
@@ -243,9 +310,8 @@ class MembersProjectionReader:
             if isinstance(spec, dict)
         }
         functional_groups = {
-            g["key"]: self._build_functional_group(g)
-            for g in raw_groups
-            if isinstance(g, dict) and g.get("key")
+            gkey: self._build_functional_group(entry)
+            for gkey, entry in raw_groups.items()
         }
         return TenantOverlay(
             fields=fields,
@@ -253,9 +319,17 @@ class MembersProjectionReader:
             functional_groups=functional_groups,
         )
 
-    def get_raw_fields_overlay(self, tenant_id: str) -> dict:
+    def get_raw_fields_overlay(
+        self, tenant_id: str, *, consistent_read: bool = False
+    ) -> dict:
         """Return the stored ``config#fields`` overlay in the AUTHORING WIRE shape — the
         round-trip seed for the editors (spec 11 bugfix; one-key contract).
+
+        ``consistent_read`` (spec 03 task 2.3): the Change-Op CRUD service passes
+        ``consistent_read=True`` so the validate-and-place read is STRONGLY-CONSISTENT (design C1
+        step 1 / design-review Should-fix) — the flag flows through to the repository ``Query``
+        (:meth:`_query_partition`). The editors' normal round-trip read keeps the default
+        (cached, eventually-consistent) behaviour.
 
         The authoring editors (Application Form Builder + the Field-configuration editor) hold ONE
         working ``field_overlay`` object, then PUT it back WHOLE to ``config#fields`` (the write
@@ -277,26 +351,46 @@ class MembersProjectionReader:
           boundary functions are the ONLY places storage↔wire key translation happens — the
           frontend needs NO normalizer, so read and write are symmetric by construction.
 
-        A **missing** row → ``{"fields": {}, "fixed_overrides": {}, "functional_groups": []}``
-        (empty-is-valid, never an error). Carries the per-field application attributes
-        (``application_visible`` / ``application_required`` / ``application_choices`` / ``format``)
-        and every other authored key THROUGH unchanged, because the editor writes them back
-        unchanged. The write path stays the authoritative validator (R8).
+        A **missing** row → ``{"fields": {}, "fixed_overrides": {}, "functional_groups": {}}``
+        (empty-is-valid, never an error). **``functional_groups`` is a MAP keyed by group key**
+        (spec 03, design C6 / D2a) — the new, truncation-proof storage shape; the LIST→MAP
+        migration (D2a) converts legacy rows, and this reader DUAL-READS both shapes
+        (:func:`_normalize_functional_groups`) so a pre-migration LIST row and a migrated MAP row
+        serve the SAME wire map during rollout (review Must-fix #4). Carries the per-field
+        application attributes (``application_visible`` / ``application_required`` /
+        ``application_choices`` / ``format``) and every other authored key THROUGH unchanged,
+        because the editor writes them back unchanged. The write path stays the authoritative
+        validator (R8).
         """
-        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        row = self._find_config_row(
+            tenant_id, _CONFIG_ID_FIELDS, consistent_read=consistent_read
+        )
         if row is None:
-            return {"fields": {}, "fixed_overrides": {}, "functional_groups": []}
+            return {"fields": {}, "fixed_overrides": {}, "functional_groups": {}}
         raw_fields = row.get("fields")
         # Storage key is ``overrides``; serve it under the authoring WIRE key ``fixed_overrides``
         # (the one-key contract above) so the editor's read matches its write with no client-side
         # translation. Storage at rest is unchanged — only the served shape is normalized here.
         raw_overrides = row.get("overrides")
-        raw_groups = row.get("functional_groups")
-        return {
+        # DUAL-READ + MAP normalize (spec 03, design C6): serve ``functional_groups`` as a MAP keyed
+        # by group key regardless of whether the stored row is a legacy LIST or a migrated MAP, so
+        # the round-trip seed is shape-stable across the migration rollout (review Must-fix #4).
+        wire = {
             "fields": raw_fields if isinstance(raw_fields, dict) else {},
             "fixed_overrides": raw_overrides if isinstance(raw_overrides, dict) else {},
-            "functional_groups": raw_groups if isinstance(raw_groups, list) else [],
+            "functional_groups": _normalize_functional_groups(
+                row.get("functional_groups")
+            ),
         }
+        # Application-form slug + publish-state (spec 12 Task 1.1 / R4, design §Data Models): carry
+        # the form's own ``slug`` plus ``published_at`` / ``published_version`` THROUGH on the raw
+        # round-trip so a plain fields save reads them back and the write service can preserve them
+        # (publish owns ``published_*``, Task 2.2). Only surfaced when STORED — a pre-slug row omits
+        # them, so the empty-is-valid shape above is unchanged for a never-slugged tenant.
+        for attr in ("slug", "published_at", "published_version"):
+            if attr in row:
+                wire[attr] = row.get(attr)
+        return wire
 
     @staticmethod
     def _build_functional_group(spec: dict) -> FunctionalGroup:
@@ -309,15 +403,34 @@ class MembersProjectionReader:
 
     @staticmethod
     def _build_options(specs) -> tuple[EnumOption, ...] | None:
-        """Map projected enum-option specs (``{value,label,roles?}``) onto :class:`EnumOption`s.
+        """Map projected enum-option specs onto :class:`EnumOption`s (ENUM fallback, R5.1).
 
-        A missing/empty list → ``None`` (no rich options); malformed entries are skipped
+        Accepts BOTH authored shapes a tenant enum value can arrive in, so an authored value is
+        never dropped on read (the ``_build_override`` ``options or choices`` fallback is only as
+        strong as what this coerces):
+
+        - a RICH entry ``{value, label{nl,en}?, roles?}`` (the authoring UI / Flask builder shape);
+        - a BARE string ``"man"`` — a plain ``choices`` value list, coerced to
+          ``EnumOption(value="man")`` with no label/roles. Without this a tenant-authored override
+          carrying bare-string ``choices`` (e.g. ``["man", "vrouw"]``) produced NO options, so the
+          resolver fell back to the fixed field's BASE choices and the tenant's values were silently
+          dropped (the config#fields enum-choices data-loss on read; R5.1 "a bare ``choices`` value
+          SHALL round-trip").
+
+        A missing/empty list → ``None`` (no rich options); malformed entries (a dict with no
+        ``value``, an empty/whitespace bare string, a non-str/non-dict entry) are skipped
         (empty-is-valid — projected config data degrades gracefully rather than raising).
         """
         if not specs or not isinstance(specs, (list, tuple)):
             return None
         options = []
         for o in specs:
+            if isinstance(o, str):
+                value = o.strip()
+                if not value:
+                    continue
+                options.append(EnumOption(value=value))
+                continue
             if not isinstance(o, dict) or "value" not in o:
                 continue
             roles = o.get("roles")
@@ -558,6 +671,42 @@ class MembersProjectionReader:
         if isinstance(page_size, bool) or not isinstance(page_size, int):
             return None
         return page_size if page_size > 0 else None
+
+    # ── Forward slug reader (tenant → slug, spec 12 Task 1.3 / R4; design C3) ───────────
+
+    def get_form_slug(self, tenant_id: str) -> str | None:
+        """Return the tenant's application-form ``slug`` from ``config#fields``, or ``None``.
+
+        The FORWARD half of the spec-12 slug mapping (design C3): tenant → slug, resolved by the
+        NORMAL ``tenant_id``-pinned partition read (the same shared, cached Query the sibling
+        config reads use). The form's own public ``slug`` was added to the ``config#fields`` row by
+        Task 1.1 and is carried through the authoring round-trip by :meth:`get_raw_fields_overlay`;
+        this accessor is the RESOLVED read of it (e.g. the publish path / the slug-display surface
+        reads a tenant's current slug here).
+
+        The REVERSE lookup (slug → ``tenant_id``) deliberately does NOT live on this
+        ``tenant_id``-PK table — a slug-keyed item would break its structural-isolation invariant
+        (``template.yaml``). That is the ``_slugs/{slug}`` bucket marker (OQ4,
+        :class:`sam.members.repository.slug_marker_store.S3SlugMarkerStore`), NOT this reader.
+
+        Empty-is-valid / fail-safe (same discipline as :meth:`get_default_page_size`): a **missing**
+        ``config#fields`` row, a missing ``slug`` attribute, or a non-string / blank value all
+        resolve to ``None`` (the tenant has no public form address yet) — never a raise, never a
+        guessed slug.
+
+        Args:
+            tenant_id: The tenant (partition key) whose form slug to resolve.
+
+        Returns:
+            The projected non-blank ``slug`` string, or ``None`` when absent/unusable.
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        if row is None:
+            return None
+        slug = row.get("slug")
+        if not isinstance(slug, str) or not slug.strip():
+            return None
+        return slug.strip()
 
     # ── Mail-enabled gate (pivot-output-actions R0, design §6.3) ───────────────────────
 
@@ -981,15 +1130,53 @@ class MembersProjectionReader:
             return None
         return row.get(schema.VERSION_ATTR)
 
+    def get_config_fields_version(
+        self, tenant_id: str, *, consistent_read: bool = False
+    ):
+        """Return the ``config#fields`` row's optimistic-lock ``version`` for the Change-Op path.
+
+        This is the CONTROL-PLANE read the Change-Op CRUD service (spec 03 task 2.3) uses to
+        resolve its ``base_version`` sentinel — DELIBERATELY SEPARATE from
+        :meth:`get_raw_fields_overlay`, which serves the AUTHORING WIRE shape and MUST NOT carry
+        ``version`` (that wire body is surfaced to the frontend under ``field_overlay``; the raw
+        overlay's contract is the stored ``{fields, overrides, functional_groups}`` *minus key and
+        version* — see ``test_members_projection_reader.py``). Mixing the control ``version`` into
+        the authoring wire shape would leak it into an API response, so the service reads it HERE
+        instead.
+
+        ``consistent_read`` flows to :meth:`_find_config_row` → :meth:`_query_partition` so the
+        validate-and-place read is STRONGLY-CONSISTENT (design C1 step 1 / design-review
+        Should-fix) and a stale eventually-consistent version can never produce a spurious 409.
+
+        Returns:
+            A tuple ``(present, version)``: ``present`` is ``True`` when a ``config#fields`` row
+            EXISTS for the tenant (so the service can distinguish an existing legacy row with no
+            ``version`` from no row at all — base_version case ii vs iii), and ``version`` is that
+            row's :data:`~services.projection_schema.VERSION_ATTR` value (or ``None`` when the row
+            is absent or legacy/versionless). A missing row → ``(False, None)`` (empty-is-valid,
+            never a raise).
+        """
+        row = self._find_config_row(
+            tenant_id, _CONFIG_ID_FIELDS, consistent_read=consistent_read
+        )
+        if row is None:
+            return (False, None)
+        return (True, row.get(schema.VERSION_ATTR))
+
     # ── internals ──────────────────────────────────────────────────────────────────────
 
-    def _find_config_row(self, tenant_id: str, config_id: str) -> dict | None:
+    def _find_config_row(
+        self, tenant_id: str, config_id: str, *, consistent_read: bool = False
+    ) -> dict | None:
         """Return the ``config#<config_id>`` row for ``tenant_id``, or ``None`` if absent.
 
         A missing row is valid (the caller collapses it to the empty/tenant-wide default);
-        this never raises on missing/empty data.
+        this never raises on missing/empty data. ``consistent_read`` flows to
+        :meth:`_query_partition` so the Change-Op validate-and-place read (task 2.3) can request a
+        strongly-consistent view of the partition; every normal reader keeps the cached,
+        eventually-consistent default.
         """
-        for item in self._query_partition(tenant_id):
+        for item in self._query_partition(tenant_id, consistent_read=consistent_read):
             record_type, id_parts = self._classify(item)
             if record_type != schema.RECORD_TYPE_CONFIG:
                 continue

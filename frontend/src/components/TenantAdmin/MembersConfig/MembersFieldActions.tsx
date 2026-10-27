@@ -36,8 +36,8 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import type { MembersConfigValue } from '../../../types/membersConfig';
-import type { FieldProvenance } from '../../../types/members';
-import { deleteField, editField, listGroups, moveFieldToGroup } from './overlayModel';
+import type { FieldProvenance, FunctionalGroup } from '../../../types/members';
+import { deleteField, editField, moveFieldToGroup } from './overlayModel';
 import { LazySelect } from '../../common/LazySelect';
 import type { LazyOption } from '../../common/lazySelect.types';
 import { resolveFieldConfigLabel } from '../../../services/membersConfigService';
@@ -47,6 +47,13 @@ export interface MembersFieldActionsProps {
   fieldKey: string;
   /** The field's group (the move-to-group picker excludes it as the current group). */
   currentGroupKey: string;
+  /**
+   * The RESOLVED functional-group catalog (Flat_View `fieldConfig.functional_groups`) — the SOURCE
+   * of move-to-group targets. Base catalog groups live in code and are absent from the sparse
+   * tenant overlay, so the picker MUST read the resolved catalog (not the overlay) or it would
+   * wrongly report "no other group available" (spec 03 resolved-view rule).
+   */
+  functionalGroups: FunctionalGroup[];
   /**
    * The field's DERIVED provenance (from the resolved field-config). Governs which actions are
    * offered. Absent → treated as `base` (the most conservative — no destructive delete).
@@ -64,6 +71,7 @@ export interface MembersFieldActionsProps {
 export const MembersFieldActions: React.FC<MembersFieldActionsProps> = ({
   fieldKey,
   currentGroupKey,
+  functionalGroups,
   provenance,
   overlay,
   onChange,
@@ -76,22 +84,14 @@ export const MembersFieldActions: React.FC<MembersFieldActionsProps> = ({
   const { isOpen: isDeleteOpen, onOpen: onDeleteOpen, onClose: onDeleteClose } = useDisclosure();
   const cancelRef = useRef<HTMLButtonElement>(null);
 
-  // Move-to-group picker options: all catalog-resolvable groups except the field's current one.
-  const groupOptions: LazyOption[] = listGroups(overlay)
+  // Move-to-group picker options: every RESOLVED catalog group except the field's current one.
+  // Sourced from the Flat_View `functionalGroups` (NOT the sparse overlay) — base groups live in
+  // code and are absent from the overlay, so reading the overlay here wrongly yielded an empty list.
+  const groupOptions: LazyOption[] = functionalGroups
     .filter((g) => g.key !== currentGroupKey)
     .map((g) => ({
       value: g.key,
-      // Fold-aware: a reloaded group carries the server-folded `label{nl,en}` dict (the save
-      // path drops the flat `label_<locale>` inputs). Prefer the flat input (fresh edit), else
-      // the folded dict, so a saved group name still shows in the move-to-group picker.
-      label: resolveFieldConfigLabel(
-        {
-          en: (g.label_en as string | undefined) ?? (g.label as { en?: string } | undefined)?.en,
-          nl: (g.label_nl as string | undefined) ?? (g.label as { nl?: string } | undefined)?.nl,
-        },
-        lang,
-        g.key,
-      ),
+      label: resolveFieldConfigLabel(g.label, lang, g.key),
     }));
 
   const handleDelete = () => {

@@ -1,0 +1,121 @@
+{
+  "pbtResults": {
+    "1. Confirm the listener body is extracted without a regex tag filter (Bug Condition check)": {
+      "status": "passed",
+      "lastRunTimestamp": 1792704578022
+    }
+  },
+  "executionHistory": {
+    "1. Confirm the listener body is extracted without a regex tag filter (Bug Condition check)": [
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704519238
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704527029
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704594843
+      }
+    ],
+    "2. Confirm the preserved secure-postMessage behavior by running the paired vitest (Preservation check)": [
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704519342
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704605234
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704657938
+      }
+    ],
+    "3.1 Replace the regex strip with a delimiter slice": [
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704519460
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704685557
+      }
+    ],
+    "3.2 Verify the bug condition check now passes": [
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704519542
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704689877
+      }
+    ],
+    "3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704519625
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704693290
+      }
+    ],
+    "4. Re-run CodeQL on the branch and confirm the PR gate is green (integration oracle)": [
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704519705
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704698011
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704824002
+      }
+    ],
+    "5. Checkpoint - Ensure all tests and gates pass": [
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704519828
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704828667
+      },
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704833441
+      }
+    ],
+    "3. (CONDITIONAL) Apply the slice-based fix — ONLY if task 1 found a regex tag-filter still present": [
+      {
+        "executionId": "d777c2a6-78a3-4522-bbc0-0ad5324360f2",
+        "chatSessionId": "sess_5b0f9411-a7a8-4f07-9937-482ef3c94196",
+        "timestamp": 1792704693438
+      }
+    ]
+  }
+}
