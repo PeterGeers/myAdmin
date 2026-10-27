@@ -23,7 +23,9 @@
  * that so both render paths agree.
  */
 
-import type { FieldConfig, FieldConfigField, Member } from '../../types/members';
+import type {
+  EnumOptionConfig, FieldConfig, FieldConfigField, LocalizedLabel, Member,
+} from '../../types/members';
 import { formatDate } from '../../utils/formatting';
 
 /** The read-only placeholder shown for an absent/blank value. */
@@ -99,6 +101,49 @@ export function isReadOnlyField(field: FieldConfigField): boolean {
 }
 
 /**
+ * Resolve a possibly-localized label to a plain string for `lang`, with the same
+ * fallback chain the Members surface uses everywhere (active locale → en → nl →
+ * fallback), never blank. Kept local so `fieldValue` stays dependency-light (no
+ * cross-import of `fieldForm`, which would introduce a cycle).
+ */
+function resolveEnumLabel(
+  label: string | LocalizedLabel | undefined,
+  lang: string,
+  fallback: string,
+): string {
+  if (!label) return fallback;
+  if (typeof label === 'string') return label || fallback;
+  return label[lang] || label.en || label.nl || fallback;
+}
+
+/**
+ * Map an enum/reference VALUE (the stored key, e.g. `active`) to its localized
+ * display LABEL (e.g. "Actief") using the field's rich `options`
+ * (`{ value, label{nl,en} }`, R4.11/R4.12). Returns `null` when the field has no
+ * rich options or none match the value, so the caller falls back to the raw
+ * value. A bare `string[]` options list has no label to resolve, so it also
+ * yields `null` (the value IS its own label there).
+ */
+function resolveEnumValueLabel(
+  field: FieldConfigField,
+  value: unknown,
+  lang: string,
+): string | null {
+  const options = field.options;
+  if (!Array.isArray(options) || options.length === 0) return null;
+  const target = String(value);
+  for (const opt of options) {
+    if (opt && typeof opt === 'object' && 'value' in opt) {
+      const rich = opt as EnumOptionConfig;
+      if (String(rich.value) === target) {
+        return resolveEnumLabel(rich.label, lang, target);
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Render a member field value for READ-ONLY display, honoring the field `type`.
  *
  * - `date` → localized date string (via `formatDate`); an unparseable value
@@ -125,6 +170,13 @@ export function renderFieldValue(
     if (formatted !== null) return formatted;
     // Unparseable date: fall back to the raw string rather than hide it.
   }
+
+  // Enum / reference: a member stores the option VALUE (key); present its
+  // localized LABEL from the resolved field `options` so a cell/detail row shows
+  // "Actief"/"Active", not the raw `active` key. Falls through to the raw value
+  // when the field has no rich options or none match.
+  const enumLabel = resolveEnumValueLabel(field, value, lang);
+  if (enumLabel !== null) return enumLabel;
 
   return String(value);
 }
