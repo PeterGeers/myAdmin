@@ -129,12 +129,10 @@ def test_resolved_base_fields_are_never_orphaned_into_an_other_group():
     # base/membership field may land outside the real catalog groups.
     reader, tenant_id = _reader_over_real_row()
     fields, config = _resolved_fields(reader, tenant_id)
-    catalog = {g.key for g in config.functional_groups} | {
-        "personal",
-        "address",
-        "membership",
-        "administrative",
-    }
+    # The catalog is DERIVED from the resolved functional-group set — NOT a hardcoded list. The
+    # resolved catalog is the single source of truth (spec 03); hand-listing group keys here was a
+    # tenant-specific assumption that wrongly flagged fields in groups it forgot (motor/financial).
+    catalog = {g.key for g in config.functional_groups}
 
     orphaned = [
         f.key for f in fields.values() if f.functional_group and f.functional_group not in catalog

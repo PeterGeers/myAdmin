@@ -226,7 +226,17 @@ export function findField(
   overlay: MembersConfigValue | undefined,
   key: string,
 ): OverlayFieldEntry | null {
-  return listAllFields(overlay).find((e) => e.key === key) ?? null;
+  const all = listAllFields(overlay);
+  // 1) exact storage-key match (`fields[key]` bare, or `fixed_overrides` dotted `{group}.{key}`).
+  const exact = all.find((e) => e.key === key);
+  if (exact) return exact;
+  // 2) BARE-key fallback (spec 03 bugfix): a base-field override is stored under the dotted
+  //    `{group}.{key}`, but callers (move-to-group, the actions slot) address it by its BARE key.
+  //    Match the dotted entry whose trailing `.key` segment equals the requested bare key so an
+  //    edit/move on a base field resolves instead of silently no-op'ing. (A plain `fields` entry
+  //    is already matched exactly above, so this only ever rescues a dotted override.)
+  const bare = all.find((e) => e.key.includes('.') && e.key.slice(e.key.indexOf('.') + 1) === key);
+  return bare ?? null;
 }
 
 // ---------------------------------------------------------------------------
@@ -360,7 +370,11 @@ export function editField(
   const entry = findField(overlay, key);
   if (!entry) return asOverlay(overlay);
   const slice = { ...mapSlice(overlay, entry.origin) };
-  const merged: Record<string, MembersConfigValue> = { ...(slice[key] as object) } as Record<
+  // The entry's ACTUAL storage key (dotted `{group}.{key}` for a base override) — NOT the caller's
+  // key, which may be the bare form (spec 03 bugfix — findField resolves bare→dotted so a
+  // move-to-group / edit on a base field no longer no-ops).
+  const storageKey = entry.key;
+  const merged: Record<string, MembersConfigValue> = { ...(slice[storageKey] as object) } as Record<
     string,
     MembersConfigValue
   >;
@@ -368,7 +382,7 @@ export function editField(
     if (v === undefined) delete merged[k];
     else merged[k] = v as MembersConfigValue;
   });
-  slice[key] = merged;
+  slice[storageKey] = merged;
   return withSlices(overlay, { [entry.origin]: slice });
 }
 
@@ -419,7 +433,9 @@ export function deleteField(
   const entry = findField(overlay, key);
   if (!entry) return asOverlay(overlay);
   const slice = { ...mapSlice(overlay, entry.origin) };
-  delete slice[key];
+  // Use the entry's ACTUAL storage key (dotted for a base override), not the caller's key, which
+  // may be the bare form (spec 03 bugfix — findField now resolves bare→dotted).
+  delete slice[entry.key];
   return withSlices(overlay, { [entry.origin]: slice });
 }
 

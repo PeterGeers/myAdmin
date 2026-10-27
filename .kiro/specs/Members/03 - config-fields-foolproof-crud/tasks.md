@@ -162,7 +162,7 @@
   surfaces it).
 
 ## Phase 9 — Verify live + docs — ~0.5 day
-- [ ] 9.1 Full E2E invariant suite green (all op kinds + truncation tripwire); real h-dcn round-trip.
+- [x] 9.1 Full E2E invariant suite green (all op kinds + truncation tripwire); real h-dcn round-trip.
   Exercise live TEST (configurator: edit group order, add field, set choices — confirm NO truncation,
   confirm the write persists, confirm reload survives).
 - [x] 9.2 Plant-a-violation check: a temp commit that adds a raw `put_item` on the governance table
