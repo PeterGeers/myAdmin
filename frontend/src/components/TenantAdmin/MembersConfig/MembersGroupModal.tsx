@@ -70,6 +70,16 @@ export interface MembersGroupModalProps {
    * `undefined` (resolved config unavailable) falls back to the working-overlay field count (R1.4).
    */
   resolvedFieldCount?: number;
+  /**
+   * The RESOLVED group definition (`{key, label{nl,en}, order}`) from the server's
+   * `functional_groups` catalog — the SAME source the groups TABLE displays from. The edit form
+   * seeds from this when the working overlay carries no entry for the group, which is the case for
+   * PLATFORM BASE groups (`personal`, `motor`, …): they exist in the resolved config but were never
+   * authored into the tenant overlay, so reading only the overlay left the edit form BLANK (an
+   * existing group showing empty key/label/order). Overlay still wins when present (an unsaved
+   * tenant edit), so this is a fallback, not an override. See `root-cause-analysis.md`.
+   */
+  resolvedGroup?: { key: string; label?: Record<string, unknown> | string; order?: number };
   lang: 'nl' | 'en';
 }
 
@@ -120,14 +130,30 @@ export const MembersGroupModal: React.FC<MembersGroupModalProps> = ({
   onChange,
   onOpenFields,
   resolvedFieldCount,
+  resolvedGroup,
   lang,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
 
-  const existingGroup = useMemo(
-    () => (mode === 'edit' && groupKey ? listGroups(overlay).find((g) => g.key === groupKey) : undefined),
-    [mode, groupKey, overlay],
-  );
+  // Seed source for the edit form (R4.1): the working OVERLAY entry wins (an unsaved tenant edit),
+  // but when the overlay carries no entry — the PLATFORM BASE group case (`personal`, `motor`, …),
+  // which lives only in the server's resolved `functional_groups` catalog — fall back to the
+  // RESOLVED group so the form shows its real key/label/order instead of blank. `formFromGroup`
+  // already reads a folded `label{nl,en}` dict, which is exactly the resolved group's label shape.
+  // (Bugfix: editing a base group opened an EMPTY form — see root-cause-analysis.md.)
+  const existingGroup = useMemo<OverlayGroup | undefined>(() => {
+    if (mode !== 'edit' || !groupKey) return undefined;
+    const fromOverlay = listGroups(overlay).find((g) => g.key === groupKey);
+    if (fromOverlay) return fromOverlay;
+    if (resolvedGroup && resolvedGroup.key === groupKey) {
+      return {
+        key: resolvedGroup.key,
+        label: resolvedGroup.label,
+        order: resolvedGroup.order,
+      } as OverlayGroup;
+    }
+    return undefined;
+  }, [mode, groupKey, overlay, resolvedGroup]);
 
   const [form, setForm] = useState<GroupForm>(() => formFromGroup(existingGroup));
   const [errors, setErrors] = useState<Record<string, string>>({});

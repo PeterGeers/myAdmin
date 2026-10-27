@@ -354,6 +354,35 @@ class TestGetOverlay:
         opts = reader.get_overlay("h-dcn").overrides["membership.status"].options
         assert tuple(o.value for o in opts) == ("from_options",)
 
+    def test_get_overlay_override_sources_enum_options_from_bare_string_choices(self):
+        """Task 3.1 (R5.1): a fixed-enum override authored with BARE-STRING ``choices`` round-trips.
+
+        The ``options or choices`` fallback (``_build_override``) must also carry a plain value
+        list (``["man", "vrouw", "anders"]``), not only the rich ``[{value,label}]`` shape — else
+        a tenant that authored bare-string choices had its values silently dropped and the resolver
+        fell back to the fixed field's BASE choices (the config#fields enum-choices data-loss on
+        read). Coerced to value-only :class:`EnumOption`s (no label/roles)."""
+        table = FakeTable()
+        overrides = {"personal.gender": {"choices": ["man", "vrouw", "anders"]}}
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        opts = reader.get_overlay("h-dcn").overrides["personal.gender"].options
+
+        assert opts is not None
+        assert tuple(o.value for o in opts) == ("man", "vrouw", "anders")
+
+    def test_get_overlay_override_bare_choices_skips_empty_and_blank_entries(self):
+        """Degrade-on-garbage (R5.1): empty/whitespace bare-string entries are skipped, real values
+        survive — a stray blank in an authored list never crashes the read nor fabricates a value."""
+        table = FakeTable()
+        overrides = {"personal.gender": {"choices": ["man", "", "  ", "vrouw"]}}
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        opts = reader.get_overlay("h-dcn").overrides["personal.gender"].options
+        assert tuple(o.value for o in opts) == ("man", "vrouw")
+
     def test_get_overlay_variable_field_carries_scope_attribute(self):
         """Phase 3 step 9 (R2.1): a projected field `scope` attribute → FieldScope (SAM read repr).
 
@@ -437,6 +466,43 @@ class TestGetOverlay:
         assert dict(overlay.fields) == {}
         assert dict(overlay.overrides) == {}
 
+    def test_get_overlay_dual_reads_legacy_list_and_new_map_groups_identically(self):
+        """DUAL-READ (spec 03, design C6 / review Must-fix #4): a legacy LIST functional_groups row
+        and a migrated MAP row resolve to the SAME `TenantOverlay.functional_groups` — the reader
+        accepts both storage shapes during the migration rollout and never diverges."""
+        groups_list = [
+            {"key": "personal", "label": {"en": "Personal"}, "order": 1},
+            {"key": "motor", "label": {"en": "Motor"}, "order": 2},
+        ]
+        groups_map = {
+            "personal": {"key": "personal", "label": {"en": "Personal"}, "order": 1},
+            "motor": {"key": "motor", "label": {"en": "Motor"}, "order": 2},
+        }
+
+        legacy = FakeTable()
+        legacy_item = _config_fields_item("legacy-tenant", {}, {})
+        legacy_item["functional_groups"] = groups_list
+        legacy.put(legacy_item)
+
+        migrated = FakeTable()
+        migrated_item = _config_fields_item("migrated-tenant", {}, {})
+        migrated_item["functional_groups"] = groups_map
+        migrated.put(migrated_item)
+
+        legacy_groups = MembersProjectionReader(table=legacy).get_overlay(
+            "legacy-tenant"
+        ).functional_groups
+        migrated_groups = MembersProjectionReader(table=migrated).get_overlay(
+            "migrated-tenant"
+        ).functional_groups
+
+        # Same keys, and each FunctionalGroup resolves identically (key/label/order).
+        assert set(legacy_groups) == set(migrated_groups) == {"personal", "motor"}
+        for gkey in ("personal", "motor"):
+            assert legacy_groups[gkey] == migrated_groups[gkey]
+        assert legacy_groups["motor"].order == 2
+        assert legacy_groups["personal"].label == {"en": "Personal"}
+
 
 # ---------------------------------------------------------------------------
 # Raw config#fields overlay read — the authoring ROUND-TRIP seed (spec 11 bugfix)
@@ -463,6 +529,8 @@ class TestGetRawFieldsOverlay:
         }
         overrides = {"personal.city": {"functional_group": "address", "order": 3}}
         item = _config_fields_item("h-dcn", fields, overrides)
+        # Stored as a legacy LIST — the reader DUAL-READS it (spec 03, design C6) and serves the
+        # canonical MAP keyed by group key.
         item["functional_groups"] = [
             {"key": "address", "label": {"en": "Address"}, "order": 1}
         ]
@@ -476,9 +544,11 @@ class TestGetRawFieldsOverlay:
         # attributes, so a PUT of this object round-trips with no loss.
         assert raw["fields"] == fields
         assert raw["fixed_overrides"] == overrides
-        assert raw["functional_groups"] == [
-            {"key": "address", "label": {"en": "Address"}, "order": 1}
-        ]
+        # functional_groups is a MAP keyed by group key (spec 03, design C6), each entry carrying
+        # its own `key` so the round-trip is loss-free.
+        assert raw["functional_groups"] == {
+            "address": {"key": "address", "label": {"en": "Address"}, "order": 1}
+        }
         # The storage key `overrides` is NOT leaked to the editor (one wire key only).
         assert "overrides" not in raw
         # No key/version leak into the authoring body.
@@ -489,7 +559,42 @@ class TestGetRawFieldsOverlay:
     def test_raw_overlay_missing_row_is_empty_not_an_error(self):
         reader = MembersProjectionReader(table=FakeTable())  # nothing seeded
         raw = reader.get_raw_fields_overlay("unconfigured")
-        assert raw == {"fields": {}, "fixed_overrides": {}, "functional_groups": []}
+        # Empty catalog is a MAP now (spec 03, design C6): `{}`, not `[]`.
+        assert raw == {"fields": {}, "fixed_overrides": {}, "functional_groups": {}}
+
+    def test_raw_overlay_dual_reads_legacy_list_and_new_map_identically(self):
+        """DUAL-READ (spec 03, design C6 / review Must-fix #4): a legacy LIST row and a migrated
+        MAP row carrying the SAME groups serve the IDENTICAL wire MAP — this is what lets the
+        LIST→MAP migration roll out without a flag day."""
+        groups_list = [
+            {"key": "personal", "label": {"en": "Personal"}, "order": 1},
+            {"key": "motor", "label": {"en": "Motor"}, "order": 2},
+        ]
+        groups_map = {
+            "personal": {"key": "personal", "label": {"en": "Personal"}, "order": 1},
+            "motor": {"key": "motor", "label": {"en": "Motor"}, "order": 2},
+        }
+
+        legacy = FakeTable()
+        legacy_item = _config_fields_item("legacy-tenant", {}, {})
+        legacy_item["functional_groups"] = groups_list
+        legacy.put(legacy_item)
+
+        migrated = FakeTable()
+        migrated_item = _config_fields_item("migrated-tenant", {}, {})
+        migrated_item["functional_groups"] = groups_map
+        migrated.put(migrated_item)
+
+        legacy_raw = MembersProjectionReader(table=legacy).get_raw_fields_overlay(
+            "legacy-tenant"
+        )
+        migrated_raw = MembersProjectionReader(table=migrated).get_raw_fields_overlay(
+            "migrated-tenant"
+        )
+
+        assert legacy_raw["functional_groups"] == groups_map
+        assert migrated_raw["functional_groups"] == groups_map
+        assert legacy_raw["functional_groups"] == migrated_raw["functional_groups"]
 
     def test_raw_overlay_absent_slices_default_to_empty_containers(self):
         table = FakeTable()
@@ -507,7 +612,8 @@ class TestGetRawFieldsOverlay:
         raw = MembersProjectionReader(table=table).get_raw_fields_overlay("h-dcn")
         assert raw["fields"] == {"notes": {"key": "notes", "type": "string"}}
         assert raw["fixed_overrides"] == {}
-        assert raw["functional_groups"] == []
+        # Absent groups → empty MAP (spec 03, design C6).
+        assert raw["functional_groups"] == {}
 
     def test_raw_overlay_carries_form_slug_and_publish_state_through(self):
         """Spec 12 Task 1.1: when stored, the form slug + publish-state ride through the raw read

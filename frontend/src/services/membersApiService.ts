@@ -108,7 +108,7 @@ export {
   deactivateMembershipType,
   publishApplicationForm,
   writeConfig,
-  writeFieldConfig,
+  applyFieldConfigChangeOps,
   writeScopeConfig,
   writeMailConfig,
 } from './members/membersConfigApi';
@@ -116,4 +116,5 @@ export type {
   MembersWritableConfigId,
   MembersConfigWriteResult,
   MembersApplicationPublishResult,
+  FieldConfigChangeOp,
 } from './members/membersConfigApi';

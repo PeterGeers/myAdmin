@@ -211,8 +211,15 @@ ROUTES: tuple[RouteSpec, ...] = (
     # (`config#fields` / `config#scope` / `config#mail`). The frontend PUTs
     # `/members/config/{configId}`; the edge verifies the bearer JWT, resolves `tenant_id` from
     # the verified token (NEVER the body), enforces the Tenant_Admin entitlement, and the
-    # dispatch validates `configId ∈ {fields, scope, mail}` (reject `views`/unknown with a 400,
+    # dispatch validates `configId ∈ {scope, mail}` (reject `fields`/`views`/unknown with a 400,
     # no write) before delegating to the config-write domain service (Component 1/2, design §API).
+    #
+    # `config#fields` is DELIBERATELY NOT served by this generic whole-object door (spec 03 Task
+    # 7.1 — R1.5/R11.1): the dangerous whole-row `put_config` replace is structurally unreachable
+    # from a client here; `config#fields` writes go ONLY through the Change-Op route below
+    # (`write_config_fields` → `apply_ops`). This is belt-and-braces with the literal-route-wins
+    # ordering — even a request that somehow reaches this generic branch with `configId=fields` is
+    # rejected with a 400 before any `put_config`. `scope`/`mail` keep their whole-object contract.
     #
     # Gate (design §API contract): Tenant_Admin for the resolved tenant_id → `members:admin`
     # (CAP_MEMBERS_ADMIN), the module's admin capability. A single-capability gate, NOT an
@@ -226,6 +233,44 @@ ROUTES: tuple[RouteSpec, ...] = (
     # search / export), so there is no (method, path) collision or shadowing. DECLARED BEFORE
     # the `{member_id}` routes so the literal prefix matches first (the router returns the first
     # matching route in declaration order for a method).
+    #
+    # ── config#fields CHANGE-OP write (spec 03 Task 2.7 — design-review Q7a) ─────────
+    #
+    # The LITERAL `PUT /members/config/fields` route carries a **Change-Op list** body — a list
+    # of identity-keyed ops (`set_field` / `set_field_application` / `reset_field` /
+    # `delete_field` / `set_group` / `delete_group`), each with its domain identity + attrs — NOT
+    # a whole overlay. The edge dispatches each op to the matching `ConfigFieldsCrudService`
+    # method (which decides storage placement server-side and issues a single version-conditional
+    # `update_item` path write, so a partial payload can NEVER truncate the catalog — spec 03
+    # root cause). The whole-overlay body is NO LONGER accepted on this route.
+    #
+    # DECLARED BEFORE `write_config` (the `/members/config/{configId}` generic route): both are
+    # PUT and `/members/config/fields` ALSO matches `{configId}=fields`, so the LITERAL must win
+    # (the router returns the first matching route in declaration order for a method). The generic
+    # `write_config` still serves `scope`/`mail`. Because the literal `/members/config/fields`
+    # route wins, a `PUT /members/config/fields` ALWAYS resolves HERE (write_config_fields), never
+    # to the generic door — so the stale-SPA deprecation guard (Task 5.3a, design Slice 3) lives
+    # in the Change-Op dispatch (`_dispatch_config_fields_ops`): a cached old bundle that sends the
+    # retired whole-overlay body (`fields`/`overrides`/`fixed_overrides`/`functional_groups`/
+    # `field_overlay`, no `ops` list) is rejected with a distinct `StaleClientBundleError` → a
+    # caller-safe 409 `errors.api.staleClient` "reload the app", NOT the generic empty-ops 400.
+    #
+    # Gate: members:admin (Tenant_Admin), same as `write_config` — authoring field config is an
+    # administrative concern; `tenant_id` is resolved from the verified token (NEVER the body,
+    # steering 39), a single-capability gate (not any-of, not self-service).
+    RouteSpec(
+        name="write_config_fields",
+        method=HttpMethod.PUT,
+        path="/members/config/fields",
+        group=RouteGroup.MEMBER,
+        capability=CAP_MEMBERS_ADMIN,
+        self_service=False,
+        summary=(
+            "Apply a Change-Op list to config#fields (set_field / set_field_application / "
+            "reset_field / delete_field / set_group / delete_group); server-owned placement, "
+            "version-conditional. Gate: members:admin (Tenant_Admin)."
+        ),
+    ),
     RouteSpec(
         name="write_config",
         method=HttpMethod.PUT,
@@ -234,8 +279,9 @@ ROUTES: tuple[RouteSpec, ...] = (
         capability=CAP_MEMBERS_ADMIN,
         self_service=False,
         summary=(
-            "Write a SAM-owned config row (configId ∈ {fields, scope, mail}); rejects "
-            "views/unknown with 400, no write. Gate: members:admin (Tenant_Admin)."
+            "Write a SAM-owned config row (configId ∈ {scope, mail}); rejects "
+            "fields/views/unknown with 400, no write (config#fields is Change-Op-only, "
+            "spec 03 Task 7.1). Gate: members:admin (Tenant_Admin)."
         ),
     ),
     # ── Column preferences — per-user overview columns (session-columns R6) ──────────

@@ -69,6 +69,8 @@ def test_put_config_fields_delegates_shaped_attributes_and_version():
     body = {
         "fields": {"nickname": {"key": "nickname", "type": "string"}},
         "overrides": {"membership.member_number": {"visible": False}},
+        # LIST→MAP migration (spec 03, design C6): a legacy LIST body is still accepted on the wire
+        # and normalized to the canonical MAP the reader now dual-reads (review Must-fix #4).
         "functional_groups": [
             {"key": "contact", "label": {"en": "Contact"}, "order": 1}
         ],
@@ -100,6 +102,11 @@ def test_put_config_fields_delegates_shaped_attributes_and_version():
     assert call["attributes"]["slug"] is None
     assert call["attributes"]["published_at"] is None
     assert call["attributes"]["published_version"] is None
+    # functional_groups is AUTHORED as a MAP keyed by group key (spec 03, design C6 / D2a) even
+    # when the body arrives as a legacy LIST — a write never regresses a row to the LIST shape.
+    assert call["attributes"]["functional_groups"] == {
+        "contact": {"key": "contact", "label": {"en": "Contact"}, "order": 1}
+    }
 
 
 def test_put_config_fields_empty_body_authors_empty_containers():
@@ -108,7 +115,8 @@ def test_put_config_fields_empty_body_authors_empty_containers():
     assert repo.calls[0]["attributes"] == {
         "fields": {},
         "overrides": {},
-        "functional_groups": [],
+        # Empty catalog is a MAP now (spec 03, design C6): `{}`, not `[]`.
+        "functional_groups": {},
         # spec 12 Task 1.1: slug + publish-state default to None when absent and no reader wired.
         "slug": None,
         "published_at": None,
@@ -166,7 +174,11 @@ def test_put_config_fields_preserves_override_scope_verbatim():
         {"fields": []},
         {"fields": {"x": "not-a-mapping"}},
         {"overrides": "nope"},
-        {"functional_groups": {"not": "a-list"}},
+        # functional_groups: a scalar is not a valid catalog shape (neither MAP nor LIST).
+        {"functional_groups": "not-a-catalog"},
+        # MAP shape (spec 03): an entry that is not an object is malformed.
+        {"functional_groups": {"contact": "not-an-object"}},
+        # LIST shape (legacy, still accepted): a keyless / blank-key entry is malformed.
         {"functional_groups": [{"label": {"en": "no key"}}]},
         {"functional_groups": [{"key": "  "}]},
     ],
@@ -877,13 +889,36 @@ def test_validate_application_attributes_unauthored_tenant_writes_back_compatibl
 
 
 class _FakeOverlayReader:
-    """A minimal overlay reader exposing get_raw_fields_overlay for merge-on-write tests."""
+    """A minimal overlay reader exposing get_raw_fields_overlay for merge-on-write tests.
+
+    Mirrors the REAL :class:`MembersProjectionReader.get_raw_fields_overlay` dual-read (spec 03,
+    design C6 / review Must-fix #4): ``functional_groups`` is served as a MAP keyed by group key
+    regardless of whether the seeded stored overlay uses the legacy LIST or the new MAP shape, so
+    these merge tests exercise the same normalized input the service sees in production.
+    """
 
     def __init__(self, overlay):
-        self._overlay = overlay
+        self._overlay = dict(overlay)
 
     def get_raw_fields_overlay(self, tenant_id):
-        return self._overlay
+        raw = dict(self._overlay)
+        raw["functional_groups"] = _normalize_groups(raw.get("functional_groups"))
+        return raw
+
+
+def _normalize_groups(raw) -> dict:
+    """Test-side mirror of the reader's LIST-or-MAP → MAP normalizer (keyed by group key)."""
+    if isinstance(raw, dict):
+        out = {}
+        for gkey, entry in raw.items():
+            if isinstance(entry, dict) and gkey:
+                e = dict(entry)
+                e.setdefault("key", str(gkey))
+                out[str(e.get("key") or gkey)] = e
+        return out
+    if isinstance(raw, (list, tuple)):
+        return {str(e["key"]): dict(e) for e in raw if isinstance(e, dict) and e.get("key")}
+    return {}
 
 
 def _service_with_reader(repo, overlay, version="2026-10-22T00:00:00+00:00"):
@@ -947,8 +982,10 @@ def test_fields_write_merges_partial_body_onto_stored_row_preserving_omitted_sli
     attrs = repo.calls[0]["attributes"]
     # The two stored tenant fields survive (body carried empty fields → preserved).
     assert set(attrs["fields"]) == {"motor_type", "magazine_pref"}
-    # The stored functional_groups survive (body carried [] → preserved).
-    assert [g["key"] for g in attrs["functional_groups"]] == ["personal", "motor"]
+    # The stored functional_groups survive (body carried no groups → preserved). The catalog is a
+    # MAP now (spec 03, design C6), merged per key — an empty body can never truncate it.
+    assert set(attrs["functional_groups"]) == {"personal", "motor"}
+    assert attrs["functional_groups"]["motor"]["order"] == 2
     # The pre-existing override survives AND the new base toggle is merged in.
     assert attrs["overrides"]["personal.first_name"]["label"] == {"en": "First"}
     assert attrs["overrides"]["personal.city"]["application_visible"] is True
@@ -973,18 +1010,43 @@ def test_fields_write_incoming_entry_replaces_stored_entry_for_the_same_key():
     assert city.get("application_visible") is None  # toggle-off cleared the attribute
 
 
-def test_fields_write_non_empty_functional_groups_replace_stored_catalog():
-    """A body that DOES carry functional_groups (the field-config editor) replaces the catalog."""
+def test_fields_write_partial_functional_groups_merge_per_key_never_truncate_catalog():
+    """LIST→MAP migration (spec 03, design C6 / D2a): the catalog is a MAP merged PER KEY, so a
+    body carrying ONE group ADDS/UPDATES that key and PRESERVES every other stored group — the
+    structural fix for the occurrence-3 truncation (the old LIST path replaced the whole catalog,
+    truncating 6→1). A partial groups payload can no longer wipe the catalog."""
     stored = {
         "fields": {},
         "overrides": {},
-        "functional_groups": [{"key": "old", "order": 1}],
+        "functional_groups": [
+            {"key": "old", "order": 1},
+            {"key": "keep_me", "order": 2},
+        ],
     }
     repo = FakeWriteRepository()
-    body = {"functional_groups": [{"key": "new", "order": 1}]}
+    # The configurator edits ONE group; the body carries only that group.
+    body = {"functional_groups": [{"key": "old", "label": {"en": "Renamed"}, "order": 9}]}
     _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
     groups = repo.calls[0]["attributes"]["functional_groups"]
-    assert [g["key"] for g in groups] == ["new"]
+    # MAP keyed by group key; the edited group is updated, the untouched group SURVIVES.
+    assert set(groups) == {"old", "keep_me"}
+    assert groups["old"]["label"] == {"en": "Renamed"}
+    assert groups["old"]["order"] == 9
+    assert groups["keep_me"]["order"] == 2
+
+
+def test_fields_write_adding_a_new_group_preserves_existing_catalog():
+    """Adding a brand-new group merges it in alongside the stored groups (no replace)."""
+    stored = {
+        "fields": {},
+        "overrides": {},
+        "functional_groups": [{"key": "personal", "order": 1}],
+    }
+    repo = FakeWriteRepository()
+    body = {"functional_groups": [{"key": "motor", "order": 2}]}
+    _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
+    groups = repo.calls[0]["attributes"]["functional_groups"]
+    assert set(groups) == {"personal", "motor"}
 
 
 def test_fields_write_without_reader_is_legacy_replace():
