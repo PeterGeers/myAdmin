@@ -700,13 +700,16 @@ export interface FieldConfig {
   field_format_tokens?: string[];
   /**
    * The RAW stored `config#fields` overlay (`{ fields, overrides, functional_groups }`) — the
-   * authoring ROUND-TRIP seed (spec 11 bugfix). The Application Form Builder + the Field-
-   * configuration editor hold ONE working `field_overlay` object and PUT it back WHOLE via
-   * `writeFieldConfig` (the write REPLACES the `config#fields` row). Seeding that working object
-   * from THIS key — the exact SAM row they write — makes a save loss-free (GET and PUT symmetric
-   * on one table), instead of the retired Flask `members.field_overlay` param whose copy diverged
-   * (it lacked the per-field application attributes, so a save wiped prior selections). Absent on
-   * an older module build → the editor falls back to an empty overlay.
+   * authoring ROUND-TRIP SEED (spec 11 bugfix). The Application Form Builder + the Field-
+   * configuration editor hold ONE working `field_overlay` object seeded from THIS key, mutate it
+   * in memory, and on Save DIFF it into an identity-keyed Change-Op list (`deriveFieldConfigChangeOps`
+   * → `saveFieldConfigChangeOps` → `PUT /members/config/fields` `{ops}` body — spec 03 task 5.1/5.2).
+   * The retired whole-object write that PUT the overlay back WHOLE (the catalog-truncation root
+   * cause) no longer exists; only this READ seed remains. Seeding from the exact SAM row the ops
+   * target makes the diff loss-free (GET and the server-owned writes are symmetric on one table),
+   * instead of the retired Flask `members.field_overlay` param whose copy diverged (it lacked the
+   * per-field application attributes, so a save wiped prior selections). Absent on an older module
+   * build → the editor falls back to an empty overlay.
    */
   field_overlay?: Record<string, unknown>;
 }

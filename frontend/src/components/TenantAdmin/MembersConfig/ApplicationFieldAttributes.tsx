@@ -37,8 +37,11 @@
  * This component NEVER makes a network call. Exactly like `ApplicationFieldList` and
  * `MembersFieldModal`, every change is a pure `overlayModel.upsertField` transform of the one
  * working overlay, bubbled up via `onChange`; the builder root (`ApplicationFormBuilder`) commits
- * that one object once via `saveMembersParameter('field_overlay', …)` → `PUT /members/config/fields`.
- * The overlay write target per field is provenance/origin-aware (mirrors the list's `writeTarget`
+ * that working overlay once by DIFFING it into an identity-keyed Change-Op list
+ * (`deriveFieldConfigChangeOps` → `saveFieldConfigChangeOps` → `PUT /members/config/fields` `{ops}`
+ * body — spec 03 task 5.1/5.2; the whole-object overlay write is retired). The overlay write target
+ * here only places the edit into the IN-MEMORY working buffer; it is provenance/origin-aware
+ * (mirrors the list's `writeTarget`
  * and the modal's `resolveWriteTarget`): a tenant-added field is authored under `fields[key]`, a
  * platform base field under `fixed_overrides[{group}.{key}]`.
  *

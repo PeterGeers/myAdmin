@@ -44,7 +44,10 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.config_write_service import ConfigWriteService
+from sam.members.domain.config_write_service import (
+    ConfigWriteService,
+    ConfigWriteValidationError,
+)
 from sam.members.handler import _dispatch as dispatch_mod
 from sam.members.handler import app
 
@@ -200,9 +203,11 @@ def test_write_config_tenant_not_in_entitlement_returns_403(repo):
 
 
 def test_write_config_admin_valid_write_returns_200(repo):
-    # A verified Tenant_Admin writing config#fields → 200 with the authoritative version, and the
-    # write path IS entered (one put recorded).
-    resp = app.handler(_event("fields", body=_valid_fields_body()))
+    # A verified Tenant_Admin writing a SAM-owned config row via the GENERIC route (scope) → 200
+    # with the authoritative version, and the write path IS entered (one put recorded).
+    # (config#fields now has its OWN Change-Op route — spec 03 Task 2.7 — so the generic
+    # write_config door is exercised here with `scope`, which it still serves.)
+    resp = app.handler(_event("scope", body={"dimensions": []}))
     assert resp["statusCode"] == 200
     assert len(repo.calls) == 1
 
@@ -212,10 +217,10 @@ def test_write_config_admin_valid_write_returns_200(repo):
 
 def test_write_config_tenant_resolved_from_token_not_body(repo):
     # Verify-before-trust: a rogue body tenant_id can NEVER redirect the write. The service is
-    # handed the VERIFIED tenant (h-dcn), not the "evil-tenant" the body carries.
-    body = _valid_fields_body()
-    body["tenant_id"] = "evil-tenant"
-    resp = app.handler(_event("fields", tenant=_TENANT, body=body))
+    # handed the VERIFIED tenant (h-dcn), not the "evil-tenant" the body carries. Exercised via
+    # the generic route with `scope` (config#fields has its own route now — spec 03 Task 2.7).
+    body = {"dimensions": [], "tenant_id": "evil-tenant"}
+    resp = app.handler(_event("scope", tenant=_TENANT, body=body))
     assert resp["statusCode"] == 200
     assert len(repo.calls) == 1
     assert repo.calls[0]["tenant_id"] == _TENANT
@@ -227,23 +232,89 @@ def test_write_config_tenant_resolved_from_token_not_body(repo):
 # ── Closed config-id write surface — accept {fields,scope,mail}, reject views/unknown ─
 
 
-@pytest.mark.parametrize("config_id", ["fields", "scope", "mail"])
-def test_write_config_accepts_the_three_sam_owned_ids(repo, config_id):
-    # All three SAM-owned ids are ACCEPTED at the route (pass the closed-set gate). `fields` (1.5)
-    # and `scope` (3.3) have wired validators; the `mail` validator lands in its own cutover step
-    # (Task 5). The key assertion here is that NONE of the three is rejected as an unknown id (no
-    # 400 from the closed-set guard). A fields-shaped body sent to `scope` has no `dimensions`
-    # key, which the scope validator reads as empty = tenant-wide (valid), so scope is also not a
-    # 400 — exactly what this asserts.
-    resp = app.handler(_event(config_id, body=_valid_fields_body()))
+# NOTE (spec 03 Task 2.7): `fields` is NO LONGER served by this generic /{configId} route — it
+# has its own literal Change-Op route (PUT /members/config/fields → write_config_fields), declared
+# BEFORE this generic route so the literal wins. The generic write_config door now serves exactly
+# {scope, mail}; its config#fields dispatch tests live in test_config_fields_change_op_dispatch.py.
+@pytest.mark.parametrize("config_id", ["scope", "mail"])
+def test_write_config_accepts_the_generic_sam_owned_ids(repo, config_id):
+    # The generic-route ids are ACCEPTED (pass the closed-set gate). `scope` (3.3) and `mail`
+    # (5.1) have wired validators; the key assertion is that neither is rejected as an unknown id
+    # (no 400 from the closed-set guard). An empty-ish body is valid tenant-wide / fail-closed.
+    resp = app.handler(_event(config_id, body={}))
     assert resp["statusCode"] != 400
 
 
-def test_write_config_fields_is_persisted(repo):
-    # The fully-wired id (1.5): config#fields reaches the repository.
+def test_write_config_fields_id_is_handled_by_the_change_op_route_not_the_generic_service(repo):
+    # spec 03 Task 2.7 / design-review Q7a: PUT /members/config/fields resolves to the dedicated
+    # Change-Op route, NOT this generic write_config door. The OLD whole-overlay body is no longer
+    # accepted there and the generic config-write service (this fixture's repo) is NEVER reached
+    # for `fields`. Task 5.3a: that retired whole-overlay body (`_valid_fields_body` is exactly
+    # the `fields`/`overrides`/`functional_groups` whole record) is now rejected as a STALE CLIENT
+    # — an intelligible 409 `errors.api.staleClient` "reload the app", not the generic 400.
+    from sam.members.handler.router import get_router
+
+    assert get_router().resolve("PUT", "/members/config/fields").spec.name == (
+        "write_config_fields"
+    )
     resp = app.handler(_event("fields", body=_valid_fields_body()))
-    assert resp["statusCode"] == 200
-    assert repo.calls[0]["config_id"] == "fields"
+    assert resp["statusCode"] == 409
+    assert json.loads(resp["body"])["code"] == "errors.api.staleClient"
+    assert [c for c in repo.calls if c["config_id"] == "fields"] == []
+
+
+# ── config#fields is STRUCTURALLY excluded from the generic whole-object door (Task 7.1) ──
+#
+# spec 03 Task 7.1 (R1.5 / R11.1): the dangerous whole-object `config#fields` replace must not be
+# reachable from a client. The primary structural enforcement is that the GENERIC `write_config`
+# route (`PUT /members/config/{configId}` → whole-row `put_config`) no longer accepts `fields` at
+# all — `config#fields` is writable ONLY via the Change-Op route (`write_config_fields` →
+# `apply_ops`). The literal-route-wins ordering already sends `/members/config/fields` to the
+# Change-Op door; this makes the exclusion a STRUCTURAL guarantee (belt-and-braces), so even a
+# request that reaches the generic branch with `configId=fields` is rejected before any
+# `put_config`. `scope`/`mail` keep their whole-object contract.
+
+
+def test_generic_write_config_surface_excludes_fields_but_keeps_scope_and_mail():
+    # The generic whole-object route's closed set must NOT contain `fields` (Task 7.1) while still
+    # serving `scope` and `mail`. This is the structural invariant behind the dispatch rejection.
+    from services import projection_schema as schema
+
+    assert schema.CONFIG_ID_FIELDS not in dispatch_mod._WRITABLE_CONFIG_IDS
+    assert schema.CONFIG_ID_SCOPE in dispatch_mod._WRITABLE_CONFIG_IDS
+    assert schema.CONFIG_ID_MAIL in dispatch_mod._WRITABLE_CONFIG_IDS
+
+
+def test_generic_write_config_branch_rejects_fields_and_never_reaches_put_config(repo):
+    # Belt-and-braces: even if a `configId=fields` request reached the GENERIC `write_config`
+    # dispatch branch directly (bypassing the literal-route-wins ordering), it is rejected with a
+    # caller-safe ConfigWriteValidationError (→ 400) BEFORE any `put_config`. The whole-row replace
+    # is structurally unreachable for `config#fields` from a request (Task 7.1 / R1.5 / R11.1).
+    from sam.members.handler.app import RequestContext
+    from sam.members.handler._http import ParsedRequest
+    from sam.members.handler.routes import ROUTES
+
+    write_config_spec = next(r for r in ROUTES if r.name == "write_config")
+    ctx = RequestContext(
+        tenant_id=_TENANT,
+        sub="admin-sub",
+        capability="members:admin",
+        path_params={"configId": "fields"},
+    )
+    request = ParsedRequest(
+        method="PUT",
+        path="/members/config/fields",
+        headers={},
+        query={},
+        body=_valid_fields_body(),
+    )
+
+    with pytest.raises(ConfigWriteValidationError):
+        dispatch_mod.dispatch_route(
+            service=None, spec=write_config_spec, request=request, ctx=ctx
+        )
+    # The whole-object write path was never entered for `fields`.
+    assert [c for c in repo.calls if c["config_id"] == "fields"] == []
 
 
 def test_write_config_scope_is_persisted_end_to_end(repo):
@@ -343,12 +414,13 @@ def test_write_config_unknown_id_rejection_is_caller_safe_400(repo):
 def test_write_config_success_returns_configid_and_authoritative_version(repo):
     # A valid write returns 200 whose data echoes the configId and the authoritative Version_Stamp
     # the service stamped (R1.3). The envelope is the platform {success:true, data} shape.
-    resp = app.handler(_event("fields", body=_valid_fields_body()))
+    # Exercised via the generic route with `scope` (config#fields has its own route now, 2.7).
+    resp = app.handler(_event("scope", body={"dimensions": []}))
     assert resp["statusCode"] == 200
     env = _envelope(resp)
     assert env["success"] is True
     assert env["data"]["success"] is True
-    assert env["data"]["configId"] == "fields"
+    assert env["data"]["configId"] == "scope"
     assert env["data"]["version"] == _VERSION
     # The authoritative version the caller sees is the SAME stamp written to the row.
     assert repo.calls[0]["version"] == _VERSION
@@ -373,7 +445,8 @@ def test_write_config_unexpected_exception_returns_generic_500_not_str_e(
         dispatch_mod, "get_config_write_service", lambda: _BoomService()
     )
 
-    resp = app.handler(_event("fields", body=_valid_fields_body()))
+    # Exercised via the generic route with `scope` (config#fields has its own route now, 2.7).
+    resp = app.handler(_event("scope", body={"dimensions": []}))
     assert resp["statusCode"] == 500
     env = _envelope(resp)
     assert env["success"] is False

@@ -191,7 +191,9 @@ class ConfigWriteService:
 
         - ``fields`` — a mapping of ``{name: spec}``; each ``spec`` must be a mapping (R7.1).
         - ``overrides`` — a mapping of ``{dotted_key: spec}``; each ``spec`` must be a mapping.
-        - ``functional_groups`` — a list of mapping entries, each with a non-blank ``key``.
+        - ``functional_groups`` — a MAP keyed by group key (spec 03, design C6 / D2a), each entry a
+          mapping with a non-blank ``key``; a legacy LIST is still accepted and normalized to the
+          MAP during the LIST→MAP migration rollout (review Must-fix #4).
 
         It does **NOT** author ``default_page_size`` — that tenant-level scalar is RETIRED in favor
         of the per-user runtime Rows_Per_Page_Selector (R7.2 / Requirement 25). Any
@@ -329,16 +331,23 @@ class ConfigWriteService:
         tenant_id: str,
         fields_in: dict,
         overrides_in: dict,
-        functional_groups_in: list,
+        functional_groups_in: dict,
         body: Mapping,
-    ) -> tuple[dict, dict, list]:
+    ) -> tuple[dict, dict, dict]:
         """Merge the incoming config#fields slices onto the CURRENT stored row (bugfix).
 
         Read-modify-write so a PARTIAL body never wipes a slice it did not author. Per-key merge:
         an incoming ``fields``/``overrides`` spec replaces the stored entry for that key; a stored
-        key the body omits is preserved. ``functional_groups`` is replaced only when the body
-        carries a non-empty list (an ordered catalog — a present non-empty list is authoritative),
-        else the stored groups are kept.
+        key the body omits is preserved.
+
+        **``functional_groups`` is now a MAP keyed by group key** (spec 03, design C6 / D2a): it is
+        merged PER KEY exactly like ``fields`` / ``overrides`` — an incoming group entry replaces
+        the stored entry for that key, and a stored group the body omits is PRESERVED. This is the
+        structural fix for the occurrence-3 truncation: a partial groups payload can no longer wipe
+        the catalog, because a map merge never drops keys the body did not mention (the legacy LIST
+        replace-if-non-empty was what truncated 6→1). The reader dual-reads, so a stored legacy LIST
+        row is normalized to a MAP here before the merge — a write migrates the groups shape forward
+        as a side effect, never backward.
 
         Falls back to the incoming slices verbatim (legacy replace) when no overlay reader is wired
         (unit tests) or the reader yields nothing — so a never-authored tenant writes exactly what
@@ -364,29 +373,26 @@ class ConfigWriteService:
         if not isinstance(cur_overrides_raw, dict):
             cur_overrides_raw = current.get("overrides")
         cur_overrides = cur_overrides_raw if isinstance(cur_overrides_raw, dict) else {}
+        # The reader now serves ``functional_groups`` as a MAP (dual-reading a legacy LIST row), so
+        # this is already ``{gkey: entry}`` — merge it per key like the other two slices.
         cur_groups = (
             current.get("functional_groups")
-            if isinstance(current.get("functional_groups"), list)
-            else []
+            if isinstance(current.get("functional_groups"), dict)
+            else {}
         )
 
         # Per-key merge: stored first, then incoming wins for the keys it carries.
         merged_fields = {**cur_fields, **fields_in}
         merged_overrides = {**cur_overrides, **overrides_in}
+        # functional_groups MAP merge: an incoming group replaces its key's stored entry; a stored
+        # group the body omits is PRESERVED (no truncation). A body that carried no groups leaves
+        # the stored catalog entirely intact.
+        merged_groups = {**cur_groups, **functional_groups_in}
 
-        # A field/override key the body EXPLICITLY clears (incoming spec present but empty-ish) is
-        # still a replace (the toggle-off case writes an empty/attr-stripped spec), so {**...}
-        # already handles it. We do NOT delete keys — deletion in these editors is an explicit
-        # field/group removal that sends the full slice, which the body-carries check below honours.
-
-        # functional_groups: replace only when the body carried a non-empty list; else keep stored.
-        body_carried_groups = (
-            isinstance(body.get("functional_groups"), (list, tuple))
-            and len(body.get("functional_groups")) > 0
-        )
-        merged_groups = (
-            functional_groups_in if body_carried_groups else list(cur_groups)
-        )
+        # A field/override/group key the body EXPLICITLY clears (incoming spec present but
+        # empty-ish) is still a replace (the toggle-off case writes an empty/attr-stripped spec), so
+        # {**...} already handles it. We do NOT delete keys — deletion in these editors is an
+        # explicit field/group removal handled by Phase 2's REMOVE-path ops, not a merge.
 
         return merged_fields, merged_overrides, merged_groups
 
@@ -579,32 +585,64 @@ class ConfigWriteService:
         return {dotted: dict(spec) for dotted, spec in raw.items()}
 
     @staticmethod
-    def _validate_functional_groups(raw) -> list:
-        """Validate the ``functional_groups`` catalog; preserve each entry verbatim.
+    def _validate_functional_groups(raw) -> dict:
+        """Validate the ``functional_groups`` catalog; author it as a MAP keyed by group ``key``.
 
-        ``None`` / absent → ``[]``. Must be a list; each entry must be a mapping carrying a
-        non-blank ``key`` (the reader keys the catalog by ``key`` and skips keyless entries, so an
-        entry with no usable key is a malformed body here rather than a silently-dropped row).
+        **LIST→MAP migration (spec 03, design C6 / D2a / review Must-fix #4).** The stored shape is
+        migrating from an ordered LIST ``[{key, label, order}, …]`` (legacy) to a MAP
+        ``{key: {key, label, order}, …}`` (new, truncation-proof per-path ``update_item``). This
+        validator DUAL-ACCEPTS both wire shapes (a stale SPA bundle or a migrated one) and always
+        emits the canonical MAP the reader now dual-reads, so a write never regresses a row to the
+        legacy LIST:
+
+        - ``None`` / absent → ``{}`` (empty-is-valid).
+        - a **MAP** ``{gkey: entry}``: each ``entry`` must be a mapping; its own ``key`` (when a
+          non-blank string) is authoritative, else the map key fills it in. The entry's ``order`` /
+          ``label`` ride through verbatim (``order`` is re-homed into the entry, Q3a).
+        - a **LIST** ``[entry, …]``: each ``entry`` must be a mapping carrying a non-blank ``key``;
+          it is re-keyed by that ``key`` into the MAP.
+
+        A keyless/non-mapping entry is a malformed body (fail-loud 400), never a silently-dropped
+        row — the same strictness the pre-migration validator enforced.
         """
         if raw is None:
-            return []
-        if not isinstance(raw, (list, tuple)):
-            raise ConfigWriteValidationError(
-                "config#fields 'functional_groups' must be a list"
-            )
-        groups = []
-        for entry in raw:
-            if not isinstance(entry, Mapping):
-                raise ConfigWriteValidationError(
-                    "config#fields functional_groups entries must be objects"
-                )
-            key = entry.get("key")
-            if not isinstance(key, str) or not key.strip():
-                raise ConfigWriteValidationError(
-                    "config#fields functional_groups entries must carry a non-blank 'key'"
-                )
-            groups.append(dict(entry))
-        return groups
+            return {}
+        if isinstance(raw, Mapping):
+            groups: dict = {}
+            for gkey, entry in raw.items():
+                if not isinstance(entry, Mapping):
+                    raise ConfigWriteValidationError(
+                        "config#fields functional_groups entries must be objects"
+                    )
+                normalized = dict(entry)
+                key = normalized.get("key")
+                if not (isinstance(key, str) and key.strip()):
+                    if not (isinstance(gkey, str) and gkey.strip()):
+                        raise ConfigWriteValidationError(
+                            "config#fields functional_groups entries must carry a non-blank 'key'"
+                        )
+                    key = gkey
+                    normalized["key"] = gkey
+                groups[str(key)] = normalized
+            return groups
+        if isinstance(raw, (list, tuple)):
+            groups = {}
+            for entry in raw:
+                if not isinstance(entry, Mapping):
+                    raise ConfigWriteValidationError(
+                        "config#fields functional_groups entries must be objects"
+                    )
+                key = entry.get("key")
+                if not isinstance(key, str) or not key.strip():
+                    raise ConfigWriteValidationError(
+                        "config#fields functional_groups entries must carry a non-blank 'key'"
+                    )
+                groups[str(key)] = dict(entry)
+            return groups
+        raise ConfigWriteValidationError(
+            "config#fields 'functional_groups' must be a map keyed by group key "
+            "(a legacy list is also accepted during the LIST→MAP migration)"
+        )
 
     # ── config#scope validator (Task 3.3 / Requirement 8 / 22) ──────────────────────────
 

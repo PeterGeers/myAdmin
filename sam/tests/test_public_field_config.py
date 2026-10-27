@@ -273,6 +273,148 @@ class TestBodyShape:
         assert schema["notice"] == {"version": None}
 
 
+# ── 4b. REFERENCE (membership_type) subset validates against the LIVE catalog ─────────
+#
+# Spec 03 Phase 3 task 3.3 (R5.3/R5.4; design C4 REFERENCE). `membership_type` is a REFERENCE
+# field: its resolved "choices" are the tenant's LIVE active catalog, NOT a static `field.choices`
+# list. So its application subset must be validated against the catalog, and a DANGLING subset
+# entry (a referenced type code no longer / not in the catalog) must FAIL LOUD on the public read
+# — never be silently dropped from the exposed options. This is the public-read half of the single
+# shared `application_choices` authority; the submit half (`validate_application_choice` /
+# `_membership_type_subset_error` + the R11 live-catalog reference check) is pinned in
+# `test_create_application_membership_type.py`. Together they prove read and submit AGREE: what the
+# form offers and what submit accepts cannot drift (R5.4).
+
+
+def _overlay_membership_type_subset(subset: tuple[str, ...]) -> TenantOverlay:
+    """Put `membership_type` on the public form with the given application subset (public-safe codes)."""
+    return TenantOverlay(
+        overrides={
+            "membership.membership_type": FixedFieldOverride(
+                application_visible=True,
+                application_required=True,
+                application_choices=subset,
+            ),
+        },
+        fields={},
+    )
+
+
+def _service_with_catalog(overlay: TenantOverlay, *active_codes: str) -> MembershipService:
+    repo = _ApplicationRepo()
+    for order, code in enumerate(active_codes, start=1):
+        repo.add_type(TENANT, _entry(TENANT, code, order=order * 10))
+    return MembershipService(
+        repo, overlay_provider=StaticOverlayProvider({TENANT: overlay})
+    )
+
+
+class TestMembershipTypeReferenceSubsetAgainstLiveCatalog:
+    def test_subset_filters_the_public_options_to_the_live_catalog_subset(self):
+        # Baseline: a subset that IS a subset of the live catalog exposes exactly those entries,
+        # in the declared public-safe set (R5.3 — the form offers only the public-safe types).
+        # The public schema emits the BARE key (`membership_type`), not the dotted storage key.
+        svc = _service_with_catalog(
+            _overlay_membership_type_subset(("gewoon",)), "gewoon", "erelid"
+        )
+        fields = _by_key(svc.get_public_field_config(TENANT)["fields"])
+        values = [o["value"] for o in fields["membership_type"]["options"]]
+        assert values == ["gewoon"]
+
+    def test_dangling_reference_fails_loud_not_silently_dropped(self):
+        # THE invariant (R5.3): a subset entry whose code is NOT in the tenant's live active
+        # catalog is a DANGLING reference. The public read must fail loud (OverlayError), NOT
+        # silently drop the entry and serve a short list — a silent drop is exactly the
+        # partial-corruption class this spec exists to prevent (root-cause-analysis).
+        svc = _service_with_catalog(
+            _overlay_membership_type_subset(("gewoon", "ghost")),  # ghost ∉ catalog
+            "gewoon",
+            "erelid",
+        )
+        with pytest.raises(OverlayError) as exc:
+            svc.get_public_field_config(TENANT)
+        # The failure names the dangling entry + the field (keyed by the dotted storage key), and
+        # attributes it to the catalog (REFERENCE), not to a static `field.choices` set.
+        reason = exc.value.reasons[MEMBERSHIP_TYPE_FIELD_KEY]
+        assert "ghost" in reason
+        assert "catalog" in reason.lower()
+
+    def test_dangling_reference_against_an_empty_catalog_also_fails_loud(self):
+        # A referenced type against an EMPTY catalog is still a dangling reference — fail loud,
+        # never serve an empty dropdown as if the config were valid.
+        svc = _service_with_catalog(_overlay_membership_type_subset(("gewoon",)))
+        with pytest.raises(OverlayError):
+            svc.get_public_field_config(TENANT)
+
+    def test_read_and_submit_use_the_same_authority_no_drift(self):
+        # R5.4 — one shared authority for the public read and the submit validator, so the form
+        # offer and the accepted set cannot drift. A subset that is a valid subset of the live
+        # catalog is exposed by the read; and a submitted value in that same exposed set is what
+        # submit accepts. We prove the READ side here against a known-good subset: the exposed
+        # option VALUES are exactly the subset the submit side gates against
+        # (`_membership_type_subset_error` rejects anything outside this same set — pinned in
+        # test_create_application_membership_type.py::TestExposedNonSubsetRejected).
+        svc = _service_with_catalog(
+            _overlay_membership_type_subset(("gewoon",)), "gewoon", "erelid"
+        )
+        fields = _by_key(svc.get_public_field_config(TENANT)["fields"])
+        exposed = {o["value"] for o in fields["membership_type"]["options"]}
+        # `erelid` is a valid, active STAFF type but is withheld from the form — the public read
+        # does not offer it, and the submit validator rejects it for the same reason (same subset).
+        assert exposed == {"gewoon"}
+        assert "erelid" not in exposed
+
+    def test_dangling_reference_fails_loud_on_read_AND_is_refused_at_submit(self):
+        # R5.3/R5.4 end-to-end INVARIANT, both halves in one test: a DANGLING `membership_type`
+        # subset entry (a code not in the tenant's live active catalog) must FAIL LOUD on the
+        # public READ (OverlayError, never a silent drop) AND that same dangling value must be
+        # REFUSED at SUBMIT (MemberValidationError, the authoritative R11 live-catalog reference
+        # check) — never silently accepted. This pins locally that the public read and the submit
+        # validator share ONE authority and cannot drift: a reference the catalog does not back is
+        # a loud failure on BOTH sides, not a short list on one and an accepted value on the other.
+        #
+        # Write-capable repo + submit helpers are imported here (not module-top) to avoid clashing
+        # with this read-only file's `_ApplicationRepo` (a catalog-only fake); the read half still
+        # uses the read-only service built by `_service_with_catalog`.
+        from sam.members.domain._membership_errors import MemberValidationError
+        from sam.members.domain.error_codes import MEMBERSHIP_TYPE_UNKNOWN_REFERENCE
+        from sam.tests.test_create_application_membership_type import (
+            _create,
+            _identity_body,
+            _overlay_membership_type_exposed,
+            _service,
+        )
+
+        # READ half: a visible field whose subset references `ghost` (∉ the live catalog) fails
+        # loud on the public read, naming the dangling entry against the catalog (REFERENCE).
+        read_svc = _service_with_catalog(
+            _overlay_membership_type_subset(("gewoon", "ghost")),  # ghost ∉ catalog
+            "gewoon",
+            "erelid",
+        )
+        with pytest.raises(OverlayError) as read_exc:
+            read_svc.get_public_field_config(TENANT)
+        assert "ghost" in read_exc.value.reasons[MEMBERSHIP_TYPE_FIELD_KEY]
+
+        # SUBMIT half: the SAME dangling code, admitted by the field's subset, is still refused by
+        # the authoritative live-catalog reference check — the subset gate never lets an off-catalog
+        # value through (the read's loud failure and the submit's refusal agree on one authority).
+        submit_svc = _service(
+            _overlay_membership_type_exposed(subset=("ghost",)),
+            catalog=[_entry(TENANT, "gewoon", order=10), _entry(TENANT, "erelid", order=20)],
+        )
+        with pytest.raises(MemberValidationError) as submit_exc:
+            _create(
+                submit_svc,
+                _identity_body(**{"membership.membership_type": "ghost"}),
+                session_key="s1",
+            )
+        assert (
+            submit_exc.value.errors[MEMBERSHIP_TYPE_FIELD_KEY].code
+            == MEMBERSHIP_TYPE_UNKNOWN_REFERENCE
+        )
+
+
 # ── 5. the ApplicationService facade delegates verbatim ───────────────────────────────
 
 

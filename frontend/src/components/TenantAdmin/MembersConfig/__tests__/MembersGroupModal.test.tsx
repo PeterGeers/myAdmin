@@ -109,3 +109,74 @@ describe('MembersGroupModal — fold-aware label seeding (group-label round-trip
     );
   });
 });
+
+/**
+ * Base-group seeding regression (empty edit form for a PLATFORM BASE group).
+ *
+ * The bug (observed live on PROD, h-dcn): clicking a base functional group (`personal`, `motor`, …)
+ * opened the edit modal with BLANK key/label/order, even though the group clearly exists (the groups
+ * TABLE shows it with its label, and the delete guard reports its field count). Root cause: base
+ * groups live ONLY in the server's resolved `functional_groups` catalog — they are NOT authored into
+ * the tenant's working overlay — so the modal's overlay-only read (`listGroups(overlay).find(...)`)
+ * returned undefined and the form seeded empty. The fix seeds from the `resolvedGroup` prop (the same
+ * resolved catalog the table displays) when the overlay has no entry. See root-cause-analysis.md.
+ */
+describe('MembersGroupModal — base-group seeding from the resolved catalog', () => {
+  const emptyOverlay = (): MembersConfigValue => ({
+    functional_groups: [],
+    fields: {},
+    fixed_overrides: {},
+  });
+
+  function renderWithResolved(
+    overlay: MembersConfigValue,
+    resolvedGroup: { key: string; label?: Record<string, unknown> | string; order?: number },
+  ) {
+    i18n.changeLanguage('en');
+    return render(
+      <I18nextProvider i18n={i18n}>
+        <MembersGroupModal
+          isOpen
+          onClose={vi.fn()}
+          mode="edit"
+          groupKey={resolvedGroup.key}
+          overlay={overlay}
+          onChange={vi.fn()}
+          resolvedFieldCount={15}
+          resolvedGroup={resolvedGroup}
+          lang="en"
+        />
+      </I18nextProvider>,
+    );
+  }
+
+  it('seeds key + bilingual label + order from resolvedGroup when the overlay has no entry (regression)', () => {
+    renderWithResolved(emptyOverlay(), {
+      key: 'motor',
+      label: { en: 'Motorcycle', nl: 'Motor' },
+      order: 40,
+    });
+    const modal = screen.getByTestId('members-group-modal');
+    expect((within(modal).getByLabelText('Group key') as HTMLInputElement).value).toBe('motor');
+    expect((within(modal).getByLabelText('Label (English)') as HTMLInputElement).value).toBe(
+      'Motorcycle',
+    );
+    expect((within(modal).getByLabelText('Label (Dutch)') as HTMLInputElement).value).toBe('Motor');
+  });
+
+  it('prefers the OVERLAY entry over resolvedGroup when the tenant has authored one (overlay wins)', () => {
+    const overlay: MembersConfigValue = {
+      functional_groups: [
+        { key: 'motor', label: { nl: 'Mijn Motor', en: 'My Motorcycle' }, order: 40 },
+      ],
+      fields: {},
+      fixed_overrides: {},
+    };
+    renderWithResolved(overlay, { key: 'motor', label: { en: 'Motorcycle', nl: 'Motor' }, order: 40 });
+    const modal = screen.getByTestId('members-group-modal');
+    // The tenant's authored (unsaved) label wins over the resolved base label.
+    expect((within(modal).getByLabelText('Label (English)') as HTMLInputElement).value).toBe(
+      'My Motorcycle',
+    );
+  });
+});

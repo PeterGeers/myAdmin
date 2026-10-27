@@ -596,8 +596,18 @@ Resources:
             # tenant + sort-key scoping are the application layer's job.
             - Sid: MembersWriteGovernanceProjectionConfig
               Effect: Allow
+              # config-fields-foolproof-crud (spec 03, task 2.1): Phase 2 writes config#*
+              # Change-Ops via `update_item` PATH expressions (not a whole-row put_item
+              # replace), so the write grant now needs `dynamodb:UpdateItem` IN ADDITION to
+              # `PutItem` (PutItem is retained ONLY for the deliberate full-record
+              # create/migration primitive — C6/R1.5). Still least-privilege: same exact
+              # projection table ARN, no DeleteItem/BatchWriteItem, no wider resource.
+              # NOTE: local DynamoDB does NOT enforce IAM, so this grant passes the E2E
+              # invariant harness regardless — it is proven ONLY by the deployed-stage smoke
+              # test (spec 03, task 8.6) that runs a real update_item against the TEST stack.
               Action:
                 - dynamodb:PutItem
+                - dynamodb:UpdateItem
               Resource:
                 - !Sub "arn:aws:dynamodb:${Region}:${AWS::AccountId}:table/${GovernanceProjectionTableName}"
             - Sid: MembersCrudMembersTable
