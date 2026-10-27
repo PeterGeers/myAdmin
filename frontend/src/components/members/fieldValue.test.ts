@@ -58,6 +58,57 @@ describe('fieldValue.renderFieldValue', () => {
     expect(renderFieldValue(field({ type: 'date' }), 'not-a-date', 'nl'))
       .toBe('not-a-date');
   });
+
+  describe('enum/reference value → localized label (status column bug)', () => {
+    const statusField = (): FieldConfigField => field({
+      key: 'status',
+      type: 'enum',
+      options: [
+        { value: 'active', label: { nl: 'Actief', en: 'Active' } },
+        { value: 'inactive', label: { nl: 'Inactief', en: 'Inactive' } },
+      ],
+    });
+
+    it('resolves the stored key to its label for the active locale', () => {
+      expect(renderFieldValue(statusField(), 'active', 'nl')).toBe('Actief');
+      expect(renderFieldValue(statusField(), 'active', 'en')).toBe('Active');
+      expect(renderFieldValue(statusField(), 'inactive', 'nl')).toBe('Inactief');
+    });
+
+    it('falls back to en then nl when the active locale label is missing', () => {
+      const f = field({
+        key: 'status',
+        type: 'enum',
+        options: [{ value: 'active', label: { en: 'Active', nl: 'Actief' } }],
+      });
+      // de is absent → en wins (en before nl).
+      expect(renderFieldValue(f, 'active', 'de')).toBe('Active');
+    });
+
+    it('falls back to the raw value when no option matches the stored key', () => {
+      expect(renderFieldValue(statusField(), 'archived', 'nl')).toBe('archived');
+    });
+
+    it('returns the raw value for a bare string[] options list (value IS its own label)', () => {
+      const f = field({ key: 'status', type: 'enum', options: ['active', 'inactive'] });
+      expect(renderFieldValue(f, 'active', 'nl')).toBe('active');
+    });
+
+    it('returns the raw value for an enum field with no options', () => {
+      expect(renderFieldValue(field({ key: 'status', type: 'enum' }), 'active', 'nl'))
+        .toBe('active');
+    });
+
+    it('uses the option value as the label fallback when the matched option has no label', () => {
+      const f = field({ key: 'status', type: 'enum', options: [{ value: 'active' }] });
+      expect(renderFieldValue(f, 'active', 'nl')).toBe('active');
+    });
+
+    it('still renders the dash for an absent enum value', () => {
+      expect(renderFieldValue(statusField(), null, 'nl')).toBe(EMPTY_CELL);
+      expect(renderFieldValue(statusField(), '', 'nl')).toBe(EMPTY_CELL);
+    });
+  });
 });
 
 describe('fieldValue.isColumnCandidate (R5.1 visibility gate)', () => {
