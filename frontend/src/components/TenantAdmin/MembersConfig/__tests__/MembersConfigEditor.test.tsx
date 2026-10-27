@@ -249,8 +249,12 @@ describe('MembersConfigEditor — Change-Op save path (spec 03 Phase 5 / task 5.
   it('an unauthored tenant authors by identity in a single Change-Op write (no whole-overlay body)', async () => {
     await renderEditor({}); // no existing row — the first Change-Op write creates the entry server-side
     fireEvent.click(screen.getByTestId('members-groups-add-btn'));
-    fireEvent.change(screen.getByLabelText('Group key'), { target: { value: 'personal' } });
-    fireEvent.change(screen.getByLabelText('Label (English)'), { target: { value: 'Personal' } });
+    // Author a GENUINELY NEW group (`address` is NOT in the seeded Flat_View catalog of
+    // {personal, motor}). The editor now seeds its working buffer from the resolved Flat_View
+    // (spec 03 bugfix — the 5.1↔5.3 seam), so re-adding an ALREADY-RESOLVED group (e.g. `personal`)
+    // is correctly a no-op; a brand-new key is the real "author by identity" case this test pins.
+    fireEvent.change(screen.getByLabelText('Group key'), { target: { value: 'address' } });
+    fireEvent.change(screen.getByLabelText('Label (English)'), { target: { value: 'Address' } });
     fireEvent.click(screen.getByTestId('members-group-modal-save-btn'));
 
     const save = screen.getByTestId('members-config-save');
@@ -263,7 +267,7 @@ describe('MembersConfigEditor — Change-Op save path (spec 03 Phase 5 / task 5.
     expect(mockCreate).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
     const ops = mockApplyChangeOps.mock.calls[0][0] as Array<Record<string, any>>;
-    expect(ops.some((o) => o.op === 'set_group' && o.group === 'personal')).toBe(true);
+    expect(ops.some((o) => o.op === 'set_group' && o.group === 'address')).toBe(true);
   });
 
   it('Save is disabled until there is an unsaved edit', async () => {

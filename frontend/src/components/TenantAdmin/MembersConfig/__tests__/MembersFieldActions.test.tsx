@@ -31,6 +31,17 @@ function overlay(): MembersConfigValue {
   };
 }
 
+// The RESOLVED functional-group catalog (Flat_View). Note `address` + `membership` exist here
+// but NOT in the sparse overlay() above — proving the picker reads the catalog, not the overlay.
+function resolvedGroups() {
+  return [
+    { key: 'personal', label: { en: 'Personal', nl: 'Persoonlijk' }, order: 1 },
+    { key: 'address', label: { en: 'Address', nl: 'Adres' }, order: 2 },
+    { key: 'membership', label: { en: 'Membership', nl: 'Lidmaatschap' }, order: 3 },
+    { key: 'motor', label: { en: 'Motorcycle', nl: 'Motor' }, order: 4 },
+  ];
+}
+
 function renderActions(
   provenance: FieldProvenance,
   props: Partial<React.ComponentProps<typeof MembersFieldActions>> = {},
@@ -39,6 +50,7 @@ function renderActions(
   const merged: React.ComponentProps<typeof MembersFieldActions> = {
     fieldKey: 'region',
     currentGroupKey: 'personal',
+    functionalGroups: resolvedGroups(),
     provenance,
     overlay: overlay(),
     onChange: vi.fn(),
@@ -123,5 +135,31 @@ describe('MembersFieldActions — the actions mutate the overlay', () => {
     fireEvent.mouseDown(screen.getByRole('option', { name: 'Motorcycle' }));
     const next = onChange.mock.calls[0][0] as Record<string, any>;
     expect(next.fields.region.functional_group).toBe('motor');
+  });
+});
+
+
+describe('MembersFieldActions — move-to-group reads the RESOLVED catalog, not the sparse overlay (bugfix)', () => {
+  it('offers base catalog groups (address) absent from the overlay as move targets', () => {
+    // currentGroupKey=personal; overlay only knows {personal, motor}; the RESOLVED catalog adds
+    // address + membership. Before the fix the picker read the overlay and showed "no other group".
+    renderActions('base', { currentGroupKey: 'personal' });
+    // the empty-state must NOT be shown
+    expect(
+      screen.queryByText(/Geen andere groep beschikbaar|No other group available/i),
+    ).not.toBeInTheDocument();
+    // the move control is present and addressable
+    expect(screen.getByTestId('members-field-action-move')).toBeInTheDocument();
+  });
+
+  it('still shows the empty-state only when the catalog has no OTHER group', () => {
+    // a catalog that contains ONLY the current group → genuinely nothing to move to
+    renderActions('base', {
+      currentGroupKey: 'solo',
+      functionalGroups: [{ key: 'solo', label: { en: 'Solo' }, order: 1 }],
+    });
+    expect(
+      screen.getByText(/Geen andere groep beschikbaar|No other group available/i),
+    ).toBeInTheDocument();
   });
 });
