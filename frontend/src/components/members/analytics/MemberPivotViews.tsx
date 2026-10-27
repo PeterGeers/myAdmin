@@ -120,7 +120,8 @@ import {
 import { applyApiError } from '../../../shared/api/applyApiError';
 import type { MemberAnalyticsAreaProps } from './areas/types';
 import { executeMemberPivot } from './memberPivotAdapter';
-import { generateCsvFromObjects, downloadCsv } from '../../../utils/csvExport';
+import { generateCsvFromObjects, downloadCsv, exportFileName } from '../../../utils/csvExport';
+import { useTenant } from '../../../context/TenantContext';
 import { recordAnalyticsOutput } from '../../../services/memberAnalyticsAuditService';
 import MemberFieldPicker, {
   type ExistingPivotModel,
@@ -170,6 +171,9 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
 }) => {
   const { t } = useTypedTranslation('members');
   const toast = useToast();
+  // The active tenant's name feeds the shared export filename rule
+  // (`{Tenant}-{Pivot}.csv`), same source as the Members Overview page.
+  const { currentTenant } = useTenant();
 
   // Saved member sets (R4.6/R5.2) — fetched from the Members API, which returns
   // ONLY this tenant's member sets (member-owned DynamoDB store, F-012). No
@@ -934,7 +938,12 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
       header: columnLabels[col.name] ?? col.name,
     }));
     const csv = generateCsvFromObjects(columns, exportRows);
-    downloadCsv(csv, 'member-analytics.csv');
+    // Name the download by the SELECTED pivot/set via the shared tenant-pivot
+    // rule (`{Tenant}-{Pivot}.csv`) instead of the old fixed `member-analytics.csv`.
+    // An ad-hoc pivot with no named set falls back to the generic `member-analytics`
+    // pivot label so the filename is still deterministic and never the fixed name.
+    const pivotName = selectedSet?.label || 'member-analytics';
+    downloadCsv(csv, exportFileName(currentTenant ?? '', pivotName));
 
     // Audit the export (C7 / R8.1): metadata only — the set that produced it, the
     // row count, and the output kind. NO member rows / PII leave the client; the
@@ -946,7 +955,7 @@ const MemberPivotViews: React.FC<MemberPivotViewsProps> = ({
       recordCount: exportRows.length,
       filterSummary: { columns: result.columns.length },
     });
-  }, [result, selectedSet, exportRows]);
+  }, [result, selectedSet, exportRows, currentTenant]);
 
   // --- "Send CSV by email" (Export-CSV menu, pivot-output-actions C5) --------
   // The Export action is a MENU: "Save locally" (handleExportCsv above) OR "Send CSV by email"
