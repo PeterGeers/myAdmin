@@ -36,9 +36,13 @@ on purpose — it points at the reference impl and the spec for detail, it does 
    (not off a coarse tenant row) and expose a read-side delivered/loaded status. Ship this from day
    one — don't retrofit observability.
 
-5. **One authoring surface.** A single typed editor/save path folds inputs into the stored shape:
-   **one save → one re-projection**. Never grow two doors to the same rows (no raw param table edits
-   alongside the typed editor for the module's namespace).
+5. **One authoring surface, written by Change-Op.** A single typed editor/save path folds inputs
+   into the stored shape: **one save → one re-projection**. Never grow two doors to the same rows (no
+   raw param table edits alongside the typed editor for the module's namespace). The save path writes
+   by **domain identity via a Change-Op** (single path `update_item`), never a whole-record replace —
+   the authoring client sends intent by identity and the server owns physical placement. The
+   contract (Change-Op / no whole-record replace / Merge_Target = Resolved_Record / version-conditional)
+   is owned by `39-backend-data-access-sam-dynamodb.md` and ADR 0009; this rule only points at it.
 
 6. **i18n = labels are plain per-language values stored in config; shipped resource files are a
    SEED/DEFAULT only.** A field's / group's / enum-option's label is a plain inline per-language
@@ -79,6 +83,11 @@ Members is the reference — read it, don't re-invent:
 
 - `35-sam-module-architecture-sam.md` — the SAM layering (domain owns field resolution) + the
   rule-of-three/CODE-shared-DATA-per-module boundary this file applies to the field model.
+- `39-backend-data-access-sam-dynamodb.md` — the resolved-view READ rule **and** the Change-Op WRITE
+  contract (no whole-record replace; Merge_Target = Resolved_Record; version-conditional) that the
+  "one authoring surface" (rule 5) save path follows. ADR 0009 is the decision record; the first and
+  hardest application is `config#fields` (spec `03 - config-fields-foolproof-crud`). This file does
+  not restate that contract — it points at it.
 - `36-config-and-parameters.md` — how tenant/module config is stored and projected across planes; the
   versioned `config#...` rails rule 4 rides on. (Members config authoring is **SAM-owned** — the
   `config#*` rows are written via `PUT /members/config/{configId}`; the earlier Flask

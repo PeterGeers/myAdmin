@@ -115,6 +115,26 @@ export const MembersGroupsTable: React.FC<MembersGroupsTableProps> = ({
     return m;
   }, [rows]);
 
+  /**
+   * Resolved group definition per key (`{key, label{nl,en}, order}`) from the server catalog — the
+   * edit modal seeds its form from this when the working overlay has no entry (PLATFORM BASE groups
+   * live only in the resolved config, not the tenant overlay). Without it, editing a base group
+   * opened a BLANK form (bugfix — see root-cause-analysis.md).
+   */
+  const resolvedGroupByKey = useMemo(() => {
+    const m: Record<string, { key: string; label?: Record<string, unknown> | string; order?: number }> = {};
+    groupResolvedFields(fieldConfig)
+      .filter((s) => s.resolved && s.group)
+      .forEach((s) => {
+        m[s.key] = {
+          key: s.key,
+          label: s.group?.label as Record<string, unknown> | string | undefined,
+          order: typeof s.group?.order === 'number' ? s.group.order : undefined,
+        };
+      });
+    return m;
+  }, [fieldConfig]);
+
   const { filters, setFilter, sortField, sortDirection, handleSort, processedData } =
     useFilterableTable<GroupRow>(rows, { initialFilters: { label: '', key: '' } });
 
@@ -240,6 +260,7 @@ export const MembersGroupsTable: React.FC<MembersGroupsTableProps> = ({
         onChange={onChange}
         onOpenFields={onOpenFields}
         resolvedFieldCount={selectedKey ? resolvedCountByKey[selectedKey] ?? 0 : 0}
+        resolvedGroup={selectedKey ? resolvedGroupByKey[selectedKey] : undefined}
         lang={lang}
       />
     </Box>

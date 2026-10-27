@@ -245,6 +245,24 @@ jobs:
     # scope. NOTE: scope `backend` no longer runs SAM — the module plane is
     # separately selectable (use `sam`, or `all` for everything).
     if: ${{ github.event_name == 'schedule' || inputs.scope == 'all' || inputs.scope == 'sam' }}
+    # Local DynamoDB for the Phase-1 invariant E2E suite (sam/tests/e2e, spec 03
+    # "config-fields-foolproof-crud" R11.3 / design C5). The e2e fixtures target the
+    # `amazon/dynamodb-local` container (steering 42) and SKIP cleanly when
+    # AWS_ENDPOINT_URL_DYNAMODB is unset — so running them in this gated job is what
+    # makes the invariant harness ACTUALLY RUN (not skip). An ungated/skipped test is
+    # exactly how the original truncation regression reached `main`; gating it here in
+    # the REQUIRED nightly suite closes that hole (R11.3). This uses no AWS creds and
+    # no OIDC — the emulator is offline, signed with dummy creds (steering 43: no
+    # secrets in CI; the deploy workflows own OIDC). Per-PR is not wired because the
+    # per-run container is heavy; the design (Risks: "Local-DynamoDB in CI") accepts
+    # nightly as the required gate.
+    services:
+      dynamodb-local:
+        image: amazon/dynamodb-local:latest
+        ports:
+          # Map the container's 8000 to host 8000 so the e2e conftest endpoint
+          # (http://localhost:8000, steering 42) reaches the emulator from the job.
+          - 8000:8000
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -272,6 +290,21 @@ jobs:
           # it is NOT a Lambda runtime dep, so it lives here and NOT in shared/requirements.txt.
           pip install pytest pytest-html hypothesis pyyaml==6.0.2 ruff==0.16.5
 
+      # SAM config#fields CRUD guard (spec 03 "config-fields-foolproof-crud" R11.2;
+      # steering 39 → Enforcement). The SAM / DynamoDB counterpart to the backend-lint
+      # job's "DB abstraction guards" step: AST static analysis (stdlib-only) that fails
+      # the job on (a) a raw governance-table put_item/update_item/delete_item OUTSIDE the
+      # sanctioned Change-Op write repository (+ the C6 migration), or (b) a raw storage-
+      # shape key (field_overlay/overrides/fixed_overrides/dotted {group}.{key}) in an API
+      # response. Run from the repo root (the guard resolves its scan path 'sam' relative
+      # to '.'). Authoritative, non-bypassable, BLOCKING gate: the baseline tree is clean,
+      # so a NEW raw-write bypass / raw-shape response fails this required nightly suite —
+      # closing the hole an ungated check left (R11.2). A sanctioned new write site is a
+      # reviewed allow-list addition in the guard, never a suppression.
+      - name: SAM config#fields CRUD guard
+        working-directory: .
+        run: python scripts/check_sam_config_crud.py
+
       - name: Run all SAM tests
         working-directory: sam
         run: |
@@ -283,6 +316,21 @@ jobs:
             --junitxml=reports/junit-results.xml \
             --html=reports/test-report.html --self-contained-html \
             2>&1 | tee reports/test-output.txt
+        env:
+          # Point the e2e invariant harness (sam/tests/e2e/conftest.py) at the
+          # dynamodb-local service container above. Setting this var is the SIGNAL the
+          # conftest uses: when it is set AND the endpoint answers, the invariant tests
+          # RUN; when it is unset they SKIP (a plain local unit run is unaffected). So
+          # these two env lines are what flip the gated suite from "skipped" to "run"
+          # (spec 03 R11.3). The region + dummy table name mirror the harness defaults
+          # (steering 42); dummy AWS creds let botocore sign — local DynamoDB ignores
+          # the signature and never reaches real AWS (steering 43: no real secrets).
+          AWS_ENDPOINT_URL_DYNAMODB: http://localhost:8000
+          AWS_REGION: eu-west-1
+          GOVERNANCE_PROJECTION_TABLE: e2e_config_fields_projection
+          AWS_ACCESS_KEY_ID: local
+          AWS_SECRET_ACCESS_KEY: local
+          AWS_SESSION_TOKEN: local
 
       # REPORT-ONLY (non-blocking): SAM has never been ruff-linted. Surface the
       # backlog as an artifact without failing the job. Flip to blocking in a

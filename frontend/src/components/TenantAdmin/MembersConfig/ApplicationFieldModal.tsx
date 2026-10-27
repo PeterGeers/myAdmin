@@ -15,14 +15,17 @@
  * The write engine is the SAME three primitives `MembersFieldModal` authors with — there is no
  * second overlay-write code path (design §C1 / R1.4):
  *   - `resolveWriteTarget` (ported verbatim from `MembersFieldModal`) derives the origin-aware
- *     overlay slice + key from the resolved field's provenance: a tenant-added field authors under
- *     `fields[key]`, a platform base field under `fixed_overrides[{group}.{key}]`, and a calculated
- *     field is read-only (never written);
+ *     IN-MEMORY working-buffer slice + key from the resolved field's provenance: a tenant-added
+ *     field authors under `fields[key]`, a platform base field under `fixed_overrides[{group}.{key}]`,
+ *     and a calculated field is read-only (never written). This placement is buffer-only — the dotted
+ *     `{group}.{key}` key NEVER crosses the wire; the Change-Op builder strips it to the bare identity
+ *     and the SERVER owns storage placement (spec 03 task 5.1/5.2, steering 39);
  *   - `buildField`/`upsertField` — every attribute the modal authors is a pure
  *     `overlayModel.upsertField` transform of the ONE working `field_overlay` object, bubbled up via
- *     `onChange`; the builder root commits that one object ONCE via
- *     `saveMembersParameter('field_overlay', …)` → `PUT /members/config/fields` (one object, one
- *     save — design §3.1 / steering 38 rule 5). This modal NEVER makes a network call.
+ *     `onChange`; the builder root commits that working overlay ONCE by diffing it into an
+ *     identity-keyed Change-Op list (`deriveFieldConfigChangeOps` → `saveFieldConfigChangeOps` →
+ *     `PUT /members/config/fields` `{ops}` body — the whole-object overlay write is retired). This
+ *     modal NEVER makes a network call.
  *
  * ## The application-form attributes section is shown ONLY when a form is in scope (R1.2)
  *

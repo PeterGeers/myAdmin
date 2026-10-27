@@ -1667,21 +1667,19 @@ class WritesMixin:
             # the config-write path is the authoritative gate that a `format.checker` is a known
             # token (R8.1b) — the frontend dropdown is convenience, never the only guard.
             "field_format_tokens": sorted(field_formats.known_tokens()),
-            # The RAW stored `config#fields` overlay (`fields` / `overrides` / `functional_groups`)
-            # — the authoring ROUND-TRIP seed (spec 11 bugfix). The Application Form Builder + the
-            # Field-configuration editor hold ONE working `field_overlay` object and PUT it back
-            # WHOLE (the write REPLACES the row); loading it from THIS same SAM row (not a divergent
-            # Flask copy) makes a save loss-free — GET and PUT are symmetric on one table. Carries
-            # every authored key (incl. the four application attributes) through verbatim so the
-            # editor writes them back unchanged; the write path stays the authoritative validator
-            # (R8). Served only when the injected overlay provider exposes the raw read (the
-            # production projection reader); a provider without it (StaticOverlayProvider in tests)
-            # yields the empty overlay, never an error.
-            "field_overlay": (
-                self._overlay_provider.get_raw_fields_overlay(tenant_id)
-                if hasattr(self._overlay_provider, "get_raw_fields_overlay")
-                else {"fields": {}, "fixed_overrides": {}, "functional_groups": []}
-            ),
+            # NOTE (spec 03 task 5.3, steering 39 guard): the RAW stored `config#fields` overlay
+            # (`fields` / `overrides` / `fixed_overrides` / `functional_groups`, dotted
+            # `{group}.{key}` keys) is DELIBERATELY NOT surfaced here. The raw storage shape MUST
+            # NOT cross the repository boundary into an API response (steering 39 / R2.3 / R3) —
+            # serving `field_overlay` was the root cause of the partial-overlay-overwrites-full-
+            # record drift (`.kiro/specs/Members/root-cause-analysis.md`): the frontend seeded a
+            # whole overlay object and PUT it back whole. Under the Change-Op model (spec 03, C3)
+            # the authoring editors seed from the Flat_View above (`fields` / `by_group` /
+            # `functional_groups`, each resolved field carrying its four application attributes via
+            # `_serialize_field`) and WRITE by domain identity (Change-Ops), never reconstructing a
+            # storage key. The raw reader (`get_raw_fields_overlay`) remains an INTERNAL helper —
+            # used only by the Change-Op CRUD service's validate-and-place step — and is never
+            # exposed on the API/cross-boundary path.
         }
 
     # ── Public application-form field config (seam a/c — task 4.1, R5.1–R5.3) ─────────

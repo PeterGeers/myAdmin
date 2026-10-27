@@ -357,6 +357,45 @@ class _CertifiedMailConfig:
         return "noreply"
 
 
+class _HarnessFieldsCrudService:
+    """Minimal in-memory stand-in for ``ConfigFieldsCrudService`` (spec 03 Task 2.7 walkthrough).
+
+    Satisfies the six Change-Op methods the edge dispatches to and records each call. It does NOT
+    model the ``apply_ops`` placement / version-conditional ``update_item`` mechanics (those have
+    dedicated tests, and the harness's ``FakeDynamoTable`` does not model path ``update_item``);
+    the harness only needs to prove the ``PUT /members/config/fields`` route resolves to the
+    Change-Op dispatch and answers 200 for a well-formed body. Every method returns the uniform
+    service result shape (``{version, idempotent_replay}``) the dispatch echoes.
+    """
+
+    def __init__(self):
+        self.calls = []
+
+    def _record(self, method, *args, **kwargs):
+        self.calls.append({"method": method, "args": args, "kwargs": kwargs})
+        return {"version": "harness-v1", "idempotent_replay": False}
+
+    def set_field(self, tenant_id, field_key, def_attrs, *, client_op_id=None):
+        return self._record("set_field", tenant_id, field_key, def_attrs, client_op_id=client_op_id)
+
+    def set_field_application(self, tenant_id, field_key, app_attrs, *, client_op_id=None):
+        return self._record(
+            "set_field_application", tenant_id, field_key, app_attrs, client_op_id=client_op_id
+        )
+
+    def reset_field(self, tenant_id, field_key, *, client_op_id=None):
+        return self._record("reset_field", tenant_id, field_key, client_op_id=client_op_id)
+
+    def delete_field(self, tenant_id, field_key, *, client_op_id=None):
+        return self._record("delete_field", tenant_id, field_key, client_op_id=client_op_id)
+
+    def set_group(self, tenant_id, group_key, attrs, *, client_op_id=None):
+        return self._record("set_group", tenant_id, group_key, attrs, client_op_id=client_op_id)
+
+    def delete_group(self, tenant_id, group_key, *, client_op_id=None):
+        return self._record("delete_group", tenant_id, group_key, client_op_id=client_op_id)
+
+
 class MembersParityHarness:
     """Wires the migrated Members module exactly as production does and walks it end-to-end.
 
@@ -409,6 +448,14 @@ class MembersParityHarness:
         self.config_write_service = ConfigWriteService(
             MembersConfigWriteRepository(table=self.table)
         )
+        # The config#fields CHANGE-OP service (spec 03 Task 2.7 — PUT /members/config/fields).
+        # The walkthrough exercises that the ROUTE resolves + answers 200 for a well-formed
+        # Change-Op body; the apply_ops mechanics (placement, version-conditional update_item)
+        # have their own dedicated tests, and the harness's FakeDynamoTable does not model
+        # update_item path expressions. So the harness wires a minimal in-memory stand-in that
+        # satisfies the six op methods and records the call — enough to prove the edge dispatches
+        # the Change-Op body to the service (not the whole-overlay generic door). No AWS.
+        self.config_fields_crud_service = _HarnessFieldsCrudService()
         # The application-form publish service (spec 12 Task 2.1). Its readiness gate reads the
         # SAME in-memory FakeDynamoTable: the slug + certified-sender facts come from a
         # MembersProjectionReader over the fake table, the on-form-field count from the harness's
@@ -426,6 +473,7 @@ class MembersParityHarness:
         self._original_deliver_getter: Callable[[], Any] | None = None
         self._original_mail_run_status_getter: Callable[[], Any] | None = None
         self._original_config_write_getter: Callable[[], Any] | None = None
+        self._original_config_fields_crud_getter: Callable[[], Any] | None = None
         self._original_publish_getter: Callable[[], Any] | None = None
         self._original_scope_config: Any = None
         self._original_overlay: Any = None
@@ -481,6 +529,16 @@ class MembersParityHarness:
         # in-memory FakeDynamoTable, never a live projection table.
         self._original_config_write_getter = dispatch_mod.get_config_write_service
         dispatch_mod.get_config_write_service = lambda: self.config_write_service  # type: ignore[assignment]
+        # The config#fields Change-Op dispatch (spec 03 Task 2.7) resolves its service via
+        # dispatch_mod.get_config_fields_crud_service; point it at the harness's in-memory
+        # stand-in so the write_config_fields walkthrough dispatches the Change-Op body without
+        # touching a live projection table (or the fake table's unmodelled update_item).
+        self._original_config_fields_crud_getter = (
+            dispatch_mod.get_config_fields_crud_service
+        )
+        dispatch_mod.get_config_fields_crud_service = (
+            lambda: self.config_fields_crud_service
+        )  # type: ignore[assignment]
         # The application-form publish dispatch (spec 12 Task 2.1) resolves its service via
         # dispatch_mod.get_application_publish_service; point it at the harness's fake-table-backed
         # service so the publish walkthrough runs the readiness gate over the in-memory table
@@ -520,6 +578,11 @@ class MembersParityHarness:
                     self._original_config_write_getter
                 )  # type: ignore[assignment]
                 self._original_config_write_getter = None
+            if self._original_config_fields_crud_getter is not None:
+                dispatch_mod.get_config_fields_crud_service = (
+                    self._original_config_fields_crud_getter
+                )  # type: ignore[assignment]
+                self._original_config_fields_crud_getter = None
             if self._original_publish_getter is not None:
                 dispatch_mod.get_application_publish_service = (
                     self._original_publish_getter
@@ -1032,21 +1095,46 @@ class MembersParityHarness:
                 "delete a member",
             ),
             # ── SAM-owned config WRITE (members-config-sam-owned-write-path Task 1.6) ──
-            # The single write door for the three SAM-owned config#* rows. Gate: members:admin
+            # The generic write door for the SAM-owned config#* rows. Gate: members:admin
             # (Tenant_Admin) — the walkthrough's default admin caller (_ADMIN_CAPS) satisfies
-            # it. A valid configId (fields) + a well-formed body writes config#fields to the
+            # it. A valid configId (scope) + a well-formed body writes config#scope to the
             # harness's fake table (the config-write service is wired over it in install()) and
             # answers 200 with {success, configId, version}. The literal /members/config prefix
             # is declared BEFORE /{member_id}, so it never collides.
+            #
+            # NOTE (spec 03 Task 2.7): config#fields now has its OWN route
+            # (PUT /members/config/fields → write_config_fields, a Change-Op list body), declared
+            # BEFORE this generic /{configId} route so the literal wins. This generic-door
+            # walkthrough step therefore exercises `scope` (still served by write_config); the
+            # config#fields Change-Op route has its own dedicated dispatch tests.
             (
                 "write_config",
                 "PUT",
-                "/members/config/fields",
-                {"fields": {}, "overrides": {}, "functional_groups": []},
+                "/members/config/scope",
+                {"dimensions": []},
                 None,
                 {200},
                 {},
-                "write a SAM-owned config row (config#fields) via the single write door",
+                "write a SAM-owned config row (config#scope) via the generic write door",
+            ),
+            # ── config#fields CHANGE-OP write (spec 03 Task 2.7 — design-review Q7a) ──
+            # The dedicated identity-keyed Change-Op door for config#fields. Gate: members:admin
+            # (the default admin caller satisfies it). A well-formed ops body dispatches each op
+            # to the ConfigFieldsCrudService (the harness's in-memory stand-in records it) and
+            # answers 200 with {success, results}. The literal /members/config/fields is declared
+            # BEFORE the generic /{configId}, so it wins; the retired whole-overlay body is no
+            # longer accepted here — a stale-bundle body returns the intelligible 409
+            # `errors.api.staleClient` "reload the app" (Task 5.3a), covered by the dedicated
+            # dispatch tests.
+            (
+                "write_config_fields",
+                "PUT",
+                "/members/config/fields",
+                {"ops": [{"op": "set_group", "group": "personal", "attrs": {"order": 1}}]},
+                None,
+                {200},
+                {},
+                "apply a config#fields Change-Op list via the dedicated Change-Op door",
             ),
             # The EXPLICIT application-form publish route (spec 12 Task 2.1, §C4/R5). Gate:
             # members:admin — the default admin caller satisfies it. The harness tenant has no
