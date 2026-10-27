@@ -20,8 +20,10 @@
  *
  * The editor holds ONE working `field_overlay` object in state. Every modal mutation is a pure
  * `overlayModel` transform applied to that object (never a network call). The ONE **Save** button
- * commits the whole object in a SINGLE request via `saveMembersParameter` (PUT the tenant row, or
- * POST to create it), then reloads. There is no per-field save, no second authoring door — group
+ * derives a CHANGE-OP list from the (loaded baseline → edited working) overlay diff and commits it
+ * BY IDENTITY in a SINGLE request via `saveFieldConfigChangeOps` → `PUT /members/config/fields`
+ * with an `{ops}` body (spec 03 Phase 5 — the server owns storage placement), then reloads. There
+ * is no per-field save, no second authoring door — group
  * create/edit/delete, field edits, attribute add/edit/delete, move-to-group, scope-as-attribute
  * (step 9) and the analytics alias (step 10) all author the one object through this one path.
  *
@@ -43,8 +45,10 @@ import { useTranslation } from 'react-i18next';
 import {
   getMembersFieldConfig,
   resolveFieldConfigLabel,
-  saveMembersParameter,
+  saveFieldConfigChangeOps,
 } from '../../../services/membersConfigService';
+import { deriveFieldConfigChangeOps } from './fieldConfigChangeOps';
+import { flatViewToOverlay } from './flatViewToOverlay';
 import { MembersConfigStatus } from './MembersConfigStatus';
 import { MembersGroupsTable } from './MembersGroupsTable';
 import { MembersFieldsTable } from './MembersFieldsTable';
@@ -103,11 +107,13 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
       const resolvedConfig = await getMembersFieldConfig();
       setConfigStatus(resolvedConfig?.config_status ?? {});
       setFieldConfig(resolvedConfig);
-      // Seed the ONE working overlay from the authoritative SAM row. The reader serves the
-      // overlay in the AUTHORING WIRE shape already (`fields` / `fixed_overrides` /
-      // `functional_groups`, the one-key contract) so read + write are symmetric — no client-side
-      // key translation.
-      const overlayValue = (resolvedConfig?.field_overlay as MembersConfigValue) ?? {};
+      // Seed the ONE working overlay from the RESOLVED Flat_View. Task 5.3 (steering 39) stopped
+      // the backend surfacing the raw `field_overlay`, so we reconstruct the authoring-wire overlay
+      // (`fields` / `fixed_overrides` / `functional_groups`) from the resolved `fields` the response
+      // DOES carry. Baseline == the same seed, so the editor is NOT dirty on load and the diff-based
+      // save (`deriveFieldConfigChangeOps`) emits an op ONLY for an identity the user actually edits
+      // — a move/relabel now finds its field in the buffer instead of no-op'ing on an empty overlay.
+      const overlayValue = flatViewToOverlay(resolvedConfig);
       setOverlay(overlayValue);
       setBaseline(JSON.stringify(overlayValue));
     } catch (e) {
@@ -128,27 +134,30 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await saveMembersParameter('field_overlay', overlay, null);
+      // Phase 5 (spec 03): write by IDENTITY, not the whole object. Derive the Change-Op list from
+      // the loaded baseline → the edited working overlay (set_field / set_group / set_field_application
+      // / reset_field / delete_field / delete_group), keyed by the BARE field/group key; the SERVER
+      // owns storage placement, so the client never sends a whole catalog or a `{group}.{key}` key
+      // (steering 39). This replaces the retired whole-overlay `saveMembersParameter('field_overlay')`.
+      const baselineOverlay = JSON.parse(baseline) as MembersConfigValue;
+      const ops = deriveFieldConfigChangeOps(baselineOverlay, overlay);
+      const res = await saveFieldConfigChangeOps(ops);
       if (res.success) {
-        // Honest delivery status (reliability): the save committed to MySQL, but if the
-        // projection to the module's DynamoDB config FAILED, say so instead of a false
-        // "Saved" — the edit is persisted but not yet live to the Members module.
-        if (res.projected === false) {
-          toast({
-            title: t('Opgeslagen, maar niet geprojecteerd', 'Saved, but not delivered'),
-            description:
-              res.projection_error ??
-              t(
-                'De wijziging is opgeslagen maar nog niet naar de module geprojecteerd.',
-                'The change was saved but has not yet been projected to the module.',
-              ),
-            status: 'warning',
-            duration: 9000,
-            isClosable: true,
-          });
-        } else {
-          toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
-        }
+        toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
+        await load();
+      } else if (res.conflict) {
+        // A version-conditional write lost the race (another admin edited the row): prompt a reload
+        // rather than a silent failure, then reload to pick up the latest state.
+        toast({
+          title: t('Opnieuw laden vereist', 'Reload required'),
+          description: t(
+            'De configuratie is door iemand anders gewijzigd. De laatste versie wordt opnieuw geladen.',
+            'The configuration was changed by someone else. Reloading the latest version.',
+          ),
+          status: 'warning',
+          duration: 9000,
+          isClosable: true,
+        });
         await load();
       } else {
         toast({ title: 'Error', description: res.error, status: 'error', duration: 6000 });
@@ -288,6 +297,7 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
               <MembersFieldActions
                 fieldKey={fieldModalKey}
                 currentGroupKey={openGroupKey}
+                functionalGroups={fieldConfig?.functional_groups ?? []}
                 provenance={provByKey[fieldModalKey]}
                 overlay={overlay}
                 onChange={setOverlay}

@@ -35,6 +35,37 @@ import pytest
 from sam.members.handler import public_app
 
 
+# ── Fake slug reader (task 1.4 — the `_slugs/{slug}` marker store behind the Protocol) ──
+#
+# Task 1.4 swapped the public edge's reverse-lookup reader from the `PUBLIC_TENANT_SLUG_MAP`
+# env projection (`EnvTenantSlugReader`) to the `_slugs/{slug}` bucket marker
+# (`S3SlugMarkerStore`, OQ4). The resolver (`TenantDirectory`) and the edge handler are
+# UNCHANGED — they still depend only on the `TenantSlugReader` Protocol (`resolve_slug`). So
+# the edge tests drive the SAME observable behaviour (non-probeable 404 / recognised-route 501)
+# through a fake reader injected the way the suite already injects `MembersProjectionReader`:
+# by monkeypatching the name `public_app.S3SlugMarkerStore` to a factory returning this fake.
+# No real AWS / S3 is touched; the marker store's own S3 mechanics are covered by
+# `test_slug_marker_store.py`.
+
+
+class _FakeSlugReader:
+    """A minimal `TenantSlugReader` (one method) standing in for `S3SlugMarkerStore` at the edge.
+
+    `_tenant_directory()` constructs `S3SlugMarkerStore()`; patching the module name to a factory
+    returning this fake lets a test seed a slug→tenant_id allow-list WITHOUT env or S3. Keys are
+    the ALREADY-normalized (trim + case-fold) slug the resolver passes down; a missing slug → None
+    (the only not-found signal — fail-safe, verify-before-trust).
+    """
+
+    def __init__(self, by_slug: dict[str, str] | None = None):
+        self._by_slug = dict(by_slug or {})
+
+    def resolve_slug(self, slug: str) -> str | None:
+        if not isinstance(slug, str) or not slug:
+            return None
+        return self._by_slug.get(slug)
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────────────
 
 
@@ -63,28 +94,40 @@ _FIELD_CONFIG = "/public/members/h-dcn/field-config"
 _APPLICATIONS = "/public/members/h-dcn/applications"
 
 
+#: The allow-list the autouse fixture seeds into the (faked) marker-store reader. `h-dcn` is the
+#: slug used by _FIELD_CONFIG / _APPLICATIONS; `form-slug` exercises per-tenant isolation. Both map
+#: to a canonical tenant_id distinct from the slug (the resolved tenant_id, not the slug, is what
+#: CORS / the service key on — verify-before-trust).
+_SEEDED_SLUGS = {"h-dcn": "h-dcn-tenant", "form-slug": "form-tenant"}
+
+
 @pytest.fixture(autouse=True)
 def _allow_form_origin(monkeypatch):
-    """Configure the public-form CORS allow-list AND the slug→tenant projection (R10.3, D19/R2).
+    """Configure the public-form CORS allow-list AND the slug→tenant reader (R10.3, R7/R2).
 
     The edge is fail-closed on CORS: with no ``PUBLIC_FORM_ALLOWED_ORIGINS`` it sets no
     ``Access-Control-Allow-Origin``. Most assertions here send a matching ``Origin``, so install
     a known allow-list; the fail-closed case sets its own env explicitly.
 
-    Task 1.3 also wires the slug resolver into the delegation seam, so a recognised route now
-    resolves ``{slug}`` → ``tenant_id`` against the ``PUBLIC_TENANT_SLUG_MAP`` allow-list BEFORE
-    reaching the pending service seam. Seed the ``h-dcn`` slug used throughout so a recognised,
-    allow-listed route reaches the pending-service 501; the unknown-slug cases install their own
-    (or no) mapping to assert the non-probeable 404.
+    Task 1.4 swapped the slug resolver's backing reader to the ``_slugs/{slug}`` bucket marker
+    (``S3SlugMarkerStore``, OQ4) behind the UNCHANGED ``TenantSlugReader`` Protocol. The edge
+    still resolves ``{slug}`` → ``tenant_id`` against that reader BEFORE reaching the pending
+    service seam. Inject a fake reader (no env, no S3) seeded with the ``h-dcn`` slug used
+    throughout so a recognised, allow-listed route reaches the pending-service 501; the
+    unknown-slug cases rely on the seeded map NOT containing their slug to assert the
+    non-probeable 404, and the empty-reader case installs its own factory.
     """
     monkeypatch.setenv(
         public_app.ALLOWED_ORIGINS_ENV,
         "https://aanmelden.jabaki.nl,https://form.example",
     )
-    # Seed the thin slug→tenant_id projection the edge resolves against (D19/R2). `h-dcn` is the
-    # slug used by _FIELD_CONFIG / _APPLICATIONS below, so it maps to a canonical tenant_id.
-    monkeypatch.setenv(
-        "PUBLIC_TENANT_SLUG_MAP", "h-dcn:h-dcn-tenant,form-slug:form-tenant"
+    # Swap the backing reader `_tenant_directory()` constructs to a seeded fake — the task-1.4
+    # localized swap behind the Protocol. The resolver/edge code is unchanged; only the backing
+    # store differs from the real `S3SlugMarkerStore()` (whose S3 mechanics are tested elsewhere).
+    monkeypatch.setattr(
+        public_app,
+        "S3SlugMarkerStore",
+        lambda *a, **k: _FakeSlugReader(_SEEDED_SLUGS),
     )
 
 
@@ -277,17 +320,26 @@ def test_unknown_slug_404_is_indistinguishable_from_unknown_path_404():
 
 
 def test_empty_slug_map_makes_every_slug_non_probeable_404(monkeypatch):
-    # Fail-safe: with no projection seeded, EVERY slug is not-found — never a guessed tenant.
-    monkeypatch.delenv("PUBLIC_TENANT_SLUG_MAP", raising=False)
+    # Fail-safe: with an EMPTY reader (no markers), EVERY slug is not-found — never a guessed
+    # tenant. The reader returns None for everything, so the edge returns the non-probeable 404.
+    monkeypatch.setattr(
+        public_app, "S3SlugMarkerStore", lambda *a, **k: _FakeSlugReader({})
+    )
     resp = public_app.handler(_proxy_event("GET", _FIELD_CONFIG))
     assert resp["statusCode"] == 404
     assert _body(resp)["code"] == "errors.api.notFound"
 
 
 def test_slug_resolution_is_case_insensitive_at_the_edge(monkeypatch):
-    # The resolver normalizes (trim + case-fold), so an upper-cased slug on the path still resolves
-    # to the same tenant and reaches the pending-service 501 (D19 — the slug is a DNS host label).
-    monkeypatch.setenv("PUBLIC_TENANT_SLUG_MAP", "hdcn:h-dcn-tenant")
+    # The resolver normalizes (trim + case-fold) BEFORE calling the reader, so an upper-cased slug
+    # on the path still resolves to the same tenant and reaches the pending-service 501 (D19 — the
+    # slug is a DNS host label). The fake reader is keyed on the lower-cased slug the resolver
+    # passes down, proving normalization lives in the UNCHANGED resolver, not the swapped reader.
+    monkeypatch.setattr(
+        public_app,
+        "S3SlugMarkerStore",
+        lambda *a, **k: _FakeSlugReader({"hdcn": "h-dcn-tenant"}),
+    )
     resp = public_app.handler(_proxy_event("GET", "/public/members/HDCN/field-config"))
     assert resp["statusCode"] == 501
 
@@ -300,6 +352,73 @@ def test_abuse_guard_runs_before_slug_resolution():
     )
     assert resp["statusCode"] == 400
     assert _body(resp)["code"] == "errors.api.badRequest"
+
+
+# ── Task 1.4 — reverse reader swapped to the `_slugs/{slug}` bucket marker (OQ4, R7.1/R7.2) ──
+#
+# The reverse-lookup MECHANISM is now the `S3SlugMarkerStore` (`_slugs/{slug}` marker, OQ4),
+# NOT the old `PUBLIC_TENANT_SLUG_MAP` env projection. The swap is a LOCALIZED change behind the
+# UNCHANGED `TenantSlugReader` Protocol (design D5/C5): the resolver and the edge handler are
+# unchanged in logic and verify-before-trust / non-probeable 404 is preserved. These pin the swap
+# itself — the edge binds the resolver to the marker store, and the real store is a Protocol-shaped
+# `TenantSlugReader` — WITHOUT re-asserting the slug outcomes already covered above.
+
+
+def test_edge_binds_the_resolver_to_the_marker_store_reader():
+    # The public edge constructs its resolver from `S3SlugMarkerStore` (the OQ4 reverse reader),
+    # NOT the retired `EnvTenantSlugReader`. Asserted STRUCTURALLY over the module source (AST) so
+    # the autouse fixture's runtime monkeypatch of the name does not mask the real import: the swap
+    # is in the committed code, not just a test shim.
+    import ast
+    import inspect
+
+    tree = ast.parse(inspect.getsource(public_app))
+    imported = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+    # The marker store is imported and the retired env reader is not — the swap is live in source.
+    assert "S3SlugMarkerStore" in imported
+    assert "EnvTenantSlugReader" not in imported
+    # `_tenant_directory()` constructs the marker store (the one wiring site). The CALL expression
+    # must be the marker store — assert on the AST call target, not the docstring prose (which
+    # names the retired `EnvTenantSlugReader` to explain the swap).
+    wiring = ast.parse(inspect.getsource(public_app._tenant_directory))
+    called = {
+        node.func.id
+        for node in ast.walk(wiring)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert "S3SlugMarkerStore" in called
+    assert "EnvTenantSlugReader" not in called
+
+
+def test_marker_store_satisfies_the_unchanged_tenant_slug_reader_protocol():
+    # The swap is behind the Protocol: the real `S3SlugMarkerStore` is a `TenantSlugReader` by
+    # duck-typing, so `TenantDirectory` (UNCHANGED) accepts it without any resolver/edge change.
+    from sam.members.domain.tenant_directory import TenantSlugReader
+    from sam.members.repository.slug_marker_store import S3SlugMarkerStore
+
+    # Build with injected bucket (no env, no AWS) just to construct the instance for the check.
+    store = S3SlugMarkerStore(client=object(), bucket="myadmin-public-pages-test")
+    assert isinstance(store, TenantSlugReader)
+
+
+def test_forged_blank_and_oversized_slugs_are_non_probeable_404_through_the_new_reader():
+    # Verify-before-trust / non-probeable (R7.2) is preserved end-to-end through the swapped
+    # reader: a forged slug, a blank slug segment, and an oversized (> MAX_SLUG_LENGTH) slug all
+    # collapse to the SAME 404 `errors.api.notFound` the allow-listed-but-unknown case returns.
+    from sam.members.domain.tenant_directory import MAX_SLUG_LENGTH
+
+    oversized = "a" * (MAX_SLUG_LENGTH + 1)
+    for slug in ("not-a-tenant", "%20", oversized):
+        resp = public_app.handler(
+            _proxy_event("GET", f"/public/members/{slug}/field-config")
+        )
+        assert resp["statusCode"] == 404, slug
+        assert _body(resp)["code"] == "errors.api.notFound", slug
 
 
 # ── R1a envelope + CORS (R10.3) ────────────────────────────────────────────────────────
@@ -437,7 +556,7 @@ def test_oversized_base64_encoded_payload_returns_neutral_400(monkeypatch):
 #   * the per-tenant list is honoured on the recognised-route 501 (service pending);
 #   * a projection read error degrades to the static baseline only (CORS never crashes a response).
 #
-# The slug→tenant map (`PUBLIC_TENANT_SLUG_MAP`, seeded by the autouse fixture) resolves the
+# The slug→tenant reader (the `_slugs/{slug}` marker store faked by the autouse fixture, OQ4) resolves the
 # `h-dcn` slug on `_FIELD_CONFIG`/`_APPLICATIONS` to tenant_id `h-dcn-tenant`, so these fakes key
 # on that resolved tenant_id — never the raw slug (verify-before-trust: CORS reads the RESOLVED
 # tenant's authored list).

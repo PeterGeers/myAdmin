@@ -565,17 +565,32 @@ def test_field_config_route_carries_the_format_tokens(inject_service):
     assert data["field_format_tokens"] == sorted(field_formats.known_tokens())
 
 
-class TestGetFieldConfigServesRawOverlay:
-    """spec 11 bugfix — the staff field-config read serves the RAW stored `config#fields` overlay.
+class TestGetFieldConfigDoesNotSurfaceRawOverlay:
+    """spec 03 task 5.3 (steering 39 guard) — the staff field-config read serves ONLY the Flat_View.
 
-    The authoring editors (Application Form Builder + the Field-configuration editor) seed their ONE
-    working `field_overlay` object from this key and PUT it back WHOLE — GET and PUT on the SAME SAM
-    row, so a save is loss-free. Previously they seeded from the retired Flask `members.field_overlay`
-    param (a divergent copy lacking the application attributes), so a save wiped prior selections.
+    Reversal of the earlier spec-11 "serve the raw overlay" behaviour: serving the raw stored
+    `config#fields` shape (`field_overlay` / `overrides` / `fixed_overrides` / dotted
+    `{group}.{key}` keys) to the frontend was the root cause of the partial-overlay-overwrites-
+    full-record drift (`.kiro/specs/Members/root-cause-analysis.md`). Under the Change-Op model
+    (spec 03, design C3 / R2.3 / R3, steering 39) the raw storage shape MUST NOT cross the
+    repository boundary into an API response.
+
+    The authoring editors now seed from the Flat_View (`fields` / `by_group` / `functional_groups`,
+    each resolved field carrying its four application attributes) and WRITE by domain identity
+    (Change-Ops) — they never receive or reconstruct a storage key. The raw reader
+    (`get_raw_fields_overlay`) stays an INTERNAL helper used only by the Change-Op CRUD service's
+    validate-and-place step.
     """
 
+    #: The raw-shape keys steering 39 forbids in an API response.
+    _RAW_SHAPE_KEYS = ("field_overlay", "overrides", "fixed_overrides")
+
     class _RawProvider:
-        """An overlay provider exposing the raw-overlay read (like the production reader)."""
+        """An overlay provider exposing the raw-overlay read (like the production reader).
+
+        Even when the provider CAN serve the raw shape, `get_field_config` must not surface it —
+        the guard is on the response, not on the provider's capabilities.
+        """
 
         def __init__(self, overlay):
             self._overlay = overlay
@@ -590,7 +605,8 @@ class TestGetFieldConfigServesRawOverlay:
         def get_raw_fields_overlay(self, tenant_id):
             return self._overlay
 
-    def test_field_overlay_is_served_verbatim_when_the_provider_exposes_it(self, repo):
+    def test_field_overlay_is_not_surfaced_even_when_the_provider_exposes_it(self, repo):
+        """steering 39 guard: no raw-shape key crosses the boundary, even with a raw-capable provider."""
         overlay = {
             "fields": {
                 "motor_type": {
@@ -604,19 +620,64 @@ class TestGetFieldConfigServesRawOverlay:
         }
         service = MembershipService(repo, overlay_provider=self._RawProvider(overlay))
         config = service.get_field_config("h-dcn")
-        assert config["field_overlay"] == overlay
+        for raw_key in self._RAW_SHAPE_KEYS:
+            assert raw_key not in config, (
+                f"get_field_config leaked the raw-shape key {raw_key!r} into its response "
+                "— steering 39 forbids the raw storage shape crossing the repository boundary"
+            )
+        # No dotted `{group}.{key}` top-level key leaked either.
+        assert not any("." in k for k in config), (
+            f"get_field_config leaked a dotted storage key: {sorted(config)}"
+        )
 
-    def test_field_overlay_defaults_empty_when_provider_lacks_the_raw_read(self, repo):
-        # StaticOverlayProvider has no get_raw_fields_overlay → the duck-typed guard yields empty.
+    def test_field_overlay_is_not_surfaced_when_provider_lacks_the_raw_read(self, repo):
+        """A provider WITHOUT the raw read must also yield a response free of raw-shape keys."""
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         config = service.get_field_config("h-dcn")
-        assert config["field_overlay"] == {
-            "fields": {},
-            "fixed_overrides": {},
-            "functional_groups": [],
-        }
+        for raw_key in self._RAW_SHAPE_KEYS:
+            assert raw_key not in config
 
-    def test_field_config_with_field_overlay_is_json_serializable(self, repo):
+    def test_flat_view_is_complete_for_the_authoring_editors(self, repo):
+        """The Flat_View carries everything the builder needs — so retiring `field_overlay` loses nothing.
+
+        Each resolved field (served under `fields`) carries the four application attributes
+        (`application_visible`, `application_required`, `application_choices`, `format`) plus its
+        definition attributes — the exact data the Application Form Builder previously re-seeded from
+        the raw `field_overlay`. Confirms the design claim that the Flat_View is sufficient (C3).
+        """
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+
+        # The Flat_View surfaces the UI needs are present.
+        assert "fields" in config and config["fields"], "Flat_View `fields` is empty"
+        assert "by_group" in config
+        assert "functional_groups" in config
+
+        # Every served field carries the four application attributes (the builder's re-seed source).
+        for field_payload in config["fields"]:
+            for app_attr in (
+                "application_visible",
+                "application_required",
+                "application_choices",
+                "format",
+            ):
+                assert app_attr in field_payload, (
+                    f"field {field_payload.get('key')!r} is missing {app_attr!r} in the Flat_View "
+                    "— the builder could not re-seed its on-form controls without the raw overlay"
+                )
+            # And the definition attributes the configurator edits.
+            for def_attr in (
+                "key",
+                "group",
+                "type",
+                "label",
+                "visible",
+                "order",
+                "functional_group",
+            ):
+                assert def_attr in field_payload
+
+    def test_field_config_is_json_serializable_without_the_overlay(self, repo):
         service = MembershipService(
             repo,
             overlay_provider=self._RawProvider(

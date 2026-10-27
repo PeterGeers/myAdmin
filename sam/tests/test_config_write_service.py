@@ -69,6 +69,8 @@ def test_put_config_fields_delegates_shaped_attributes_and_version():
     body = {
         "fields": {"nickname": {"key": "nickname", "type": "string"}},
         "overrides": {"membership.member_number": {"visible": False}},
+        # LIST→MAP migration (spec 03, design C6): a legacy LIST body is still accepted on the wire
+        # and normalized to the canonical MAP the reader now dual-reads (review Must-fix #4).
         "functional_groups": [
             {"key": "contact", "label": {"en": "Contact"}, "order": 1}
         ],
@@ -86,7 +88,25 @@ def test_put_config_fields_delegates_shaped_attributes_and_version():
     assert call["tenant_id"] == _TENANT
     assert call["config_id"] == "fields"
     assert call["version"] == "2026-10-12T09:00:00+00:00"
-    assert set(call["attributes"]) == {"fields", "overrides", "functional_groups"}
+    # The three overlay slices PLUS the spec-12 form-slug attributes (slug + publish-state),
+    # authored on every fields write (Task 1.1 / R4.2).
+    assert set(call["attributes"]) == {
+        "fields",
+        "overrides",
+        "functional_groups",
+        "slug",
+        "published_at",
+        "published_version",
+    }
+    # No slug/publish-state in the body + no reader → all three carry through as None.
+    assert call["attributes"]["slug"] is None
+    assert call["attributes"]["published_at"] is None
+    assert call["attributes"]["published_version"] is None
+    # functional_groups is AUTHORED as a MAP keyed by group key (spec 03, design C6 / D2a) even
+    # when the body arrives as a legacy LIST — a write never regresses a row to the LIST shape.
+    assert call["attributes"]["functional_groups"] == {
+        "contact": {"key": "contact", "label": {"en": "Contact"}, "order": 1}
+    }
 
 
 def test_put_config_fields_empty_body_authors_empty_containers():
@@ -95,7 +115,12 @@ def test_put_config_fields_empty_body_authors_empty_containers():
     assert repo.calls[0]["attributes"] == {
         "fields": {},
         "overrides": {},
-        "functional_groups": [],
+        # Empty catalog is a MAP now (spec 03, design C6): `{}`, not `[]`.
+        "functional_groups": {},
+        # spec 12 Task 1.1: slug + publish-state default to None when absent and no reader wired.
+        "slug": None,
+        "published_at": None,
+        "published_version": None,
     }
 
 
@@ -149,7 +174,11 @@ def test_put_config_fields_preserves_override_scope_verbatim():
         {"fields": []},
         {"fields": {"x": "not-a-mapping"}},
         {"overrides": "nope"},
-        {"functional_groups": {"not": "a-list"}},
+        # functional_groups: a scalar is not a valid catalog shape (neither MAP nor LIST).
+        {"functional_groups": "not-a-catalog"},
+        # MAP shape (spec 03): an entry that is not an object is malformed.
+        {"functional_groups": {"contact": "not-an-object"}},
+        # LIST shape (legacy, still accepted): a keyless / blank-key entry is malformed.
         {"functional_groups": [{"label": {"en": "no key"}}]},
         {"functional_groups": [{"key": "  "}]},
     ],
@@ -837,7 +866,21 @@ def test_validate_application_attributes_unauthored_tenant_writes_back_compatibl
     }
     _service(repo).put_config(_TENANT, "fields", body)
     attrs = repo.calls[0]["attributes"]
-    assert set(attrs) == {"fields", "overrides", "functional_groups"}
+    # The three reader overlay attributes PLUS the spec-12 form-slug attributes (slug +
+    # publish-state), authored on every fields write (Task 1.1); all three default to None for a
+    # tenant that authored no slug and has no reader wired. The pre-R8 app-attr inertness is
+    # unchanged for the overlay slices below.
+    assert set(attrs) == {
+        "fields",
+        "overrides",
+        "functional_groups",
+        "slug",
+        "published_at",
+        "published_version",
+    }
+    assert attrs["slug"] is None
+    assert attrs["published_at"] is None
+    assert attrs["published_version"] is None
     # No application_* / format keys injected into a spec that did not author them.
     assert attrs["fields"]["nickname"] == {"key": "nickname", "type": "string"}
     assert attrs["overrides"]["membership.member_number"] == {
@@ -846,13 +889,36 @@ def test_validate_application_attributes_unauthored_tenant_writes_back_compatibl
 
 
 class _FakeOverlayReader:
-    """A minimal overlay reader exposing get_raw_fields_overlay for merge-on-write tests."""
+    """A minimal overlay reader exposing get_raw_fields_overlay for merge-on-write tests.
+
+    Mirrors the REAL :class:`MembersProjectionReader.get_raw_fields_overlay` dual-read (spec 03,
+    design C6 / review Must-fix #4): ``functional_groups`` is served as a MAP keyed by group key
+    regardless of whether the seeded stored overlay uses the legacy LIST or the new MAP shape, so
+    these merge tests exercise the same normalized input the service sees in production.
+    """
 
     def __init__(self, overlay):
-        self._overlay = overlay
+        self._overlay = dict(overlay)
 
     def get_raw_fields_overlay(self, tenant_id):
-        return self._overlay
+        raw = dict(self._overlay)
+        raw["functional_groups"] = _normalize_groups(raw.get("functional_groups"))
+        return raw
+
+
+def _normalize_groups(raw) -> dict:
+    """Test-side mirror of the reader's LIST-or-MAP → MAP normalizer (keyed by group key)."""
+    if isinstance(raw, dict):
+        out = {}
+        for gkey, entry in raw.items():
+            if isinstance(entry, dict) and gkey:
+                e = dict(entry)
+                e.setdefault("key", str(gkey))
+                out[str(e.get("key") or gkey)] = e
+        return out
+    if isinstance(raw, (list, tuple)):
+        return {str(e["key"]): dict(e) for e in raw if isinstance(e, dict) and e.get("key")}
+    return {}
 
 
 def _service_with_reader(repo, overlay, version="2026-10-22T00:00:00+00:00"):
@@ -916,8 +982,10 @@ def test_fields_write_merges_partial_body_onto_stored_row_preserving_omitted_sli
     attrs = repo.calls[0]["attributes"]
     # The two stored tenant fields survive (body carried empty fields → preserved).
     assert set(attrs["fields"]) == {"motor_type", "magazine_pref"}
-    # The stored functional_groups survive (body carried [] → preserved).
-    assert [g["key"] for g in attrs["functional_groups"]] == ["personal", "motor"]
+    # The stored functional_groups survive (body carried no groups → preserved). The catalog is a
+    # MAP now (spec 03, design C6), merged per key — an empty body can never truncate it.
+    assert set(attrs["functional_groups"]) == {"personal", "motor"}
+    assert attrs["functional_groups"]["motor"]["order"] == 2
     # The pre-existing override survives AND the new base toggle is merged in.
     assert attrs["overrides"]["personal.first_name"]["label"] == {"en": "First"}
     assert attrs["overrides"]["personal.city"]["application_visible"] is True
@@ -942,18 +1010,43 @@ def test_fields_write_incoming_entry_replaces_stored_entry_for_the_same_key():
     assert city.get("application_visible") is None  # toggle-off cleared the attribute
 
 
-def test_fields_write_non_empty_functional_groups_replace_stored_catalog():
-    """A body that DOES carry functional_groups (the field-config editor) replaces the catalog."""
+def test_fields_write_partial_functional_groups_merge_per_key_never_truncate_catalog():
+    """LIST→MAP migration (spec 03, design C6 / D2a): the catalog is a MAP merged PER KEY, so a
+    body carrying ONE group ADDS/UPDATES that key and PRESERVES every other stored group — the
+    structural fix for the occurrence-3 truncation (the old LIST path replaced the whole catalog,
+    truncating 6→1). A partial groups payload can no longer wipe the catalog."""
     stored = {
         "fields": {},
         "overrides": {},
-        "functional_groups": [{"key": "old", "order": 1}],
+        "functional_groups": [
+            {"key": "old", "order": 1},
+            {"key": "keep_me", "order": 2},
+        ],
     }
     repo = FakeWriteRepository()
-    body = {"functional_groups": [{"key": "new", "order": 1}]}
+    # The configurator edits ONE group; the body carries only that group.
+    body = {"functional_groups": [{"key": "old", "label": {"en": "Renamed"}, "order": 9}]}
     _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
     groups = repo.calls[0]["attributes"]["functional_groups"]
-    assert [g["key"] for g in groups] == ["new"]
+    # MAP keyed by group key; the edited group is updated, the untouched group SURVIVES.
+    assert set(groups) == {"old", "keep_me"}
+    assert groups["old"]["label"] == {"en": "Renamed"}
+    assert groups["old"]["order"] == 9
+    assert groups["keep_me"]["order"] == 2
+
+
+def test_fields_write_adding_a_new_group_preserves_existing_catalog():
+    """Adding a brand-new group merges it in alongside the stored groups (no replace)."""
+    stored = {
+        "fields": {},
+        "overrides": {},
+        "functional_groups": [{"key": "personal", "order": 1}],
+    }
+    repo = FakeWriteRepository()
+    body = {"functional_groups": [{"key": "motor", "order": 2}]}
+    _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
+    groups = repo.calls[0]["attributes"]["functional_groups"]
+    assert set(groups) == {"personal", "motor"}
 
 
 def test_fields_write_without_reader_is_legacy_replace():
@@ -966,3 +1059,125 @@ def test_fields_write_without_reader_is_legacy_replace():
     }
     _service(repo).put_config(_TENANT, "fields", body)
     assert set(repo.calls[0]["attributes"]["fields"]) == {"x"}
+
+
+# ── config#fields FORM SLUG + publish-state (spec 12 Task 1.1 / R4.2, design §Data Models) ──────
+#
+# The application form carries its OWN public slug on the config#fields row (NOT in Flask
+# tenant_slugs, D1), plus publish-state metadata (published_at / published_version) owned by the
+# publish path (Task 2.2). This task adds the FIELD + FORMAT validation only:
+#   * a well-formed slug (landing SLUG_PATTERN rules) is authored onto the row;
+#   * a malformed slug is rejected fail-loud with the caller-safe ConfigWriteValidationError;
+#   * a plain fields save never fabricates or wipes publish-state — it carries it through;
+#   * an omitted slug carries the stored slug; an explicit null clears it.
+# UNIQUENESS is NOT checked here (that is the Task-1.2 _slugs/{slug} marker).
+
+
+def test_fields_write_accepts_and_stores_a_wellformed_slug():
+    repo = FakeWriteRepository()
+    body = {"fields": {}, "slug": "hdcn-application-form"}
+    _service(repo).put_config(_TENANT, "fields", body)
+    assert repo.calls[0]["attributes"]["slug"] == "hdcn-application-form"
+
+
+def test_fields_write_allows_slug_name_differing_from_tenant():
+    """R4.4: the slug STRING is independent of the tenant NAME — a NAME != tenant is allowed."""
+    repo = FakeWriteRepository()
+    body = {"fields": {}, "slug": "totally-different-name"}
+    _service(repo).put_config(_TENANT, "fields", body)
+    assert repo.calls[0]["attributes"]["slug"] == "totally-different-name"
+
+
+@pytest.mark.parametrize(
+    "bad_slug",
+    [
+        "",  # blank
+        "ab",  # too short (< 3)
+        "a" * 101,  # too long (> 100)
+        "HDCN",  # uppercase
+        "-hdcn",  # leading hyphen
+        "hdcn-",  # trailing hyphen
+        "hd--cn",  # consecutive hyphens
+        "hd cn",  # space
+        "hd_cn",  # underscore (not allowed)
+        "héllo",  # non-ascii
+        "admin",  # reserved
+        "api",  # reserved
+        123,  # not a string
+    ],
+)
+def test_fields_write_rejects_malformed_slug_fail_loud(bad_slug):
+    repo = FakeWriteRepository()
+    with pytest.raises(ConfigWriteValidationError):
+        _service(repo).put_config(_TENANT, "fields", {"fields": {}, "slug": bad_slug})
+    assert repo.calls == []  # nothing persisted on a validation failure
+
+
+def test_fields_write_malformed_slug_error_is_caller_safe():
+    """The rejection message names the slug problem (caller-safe), leaking no internals (R8)."""
+    repo = FakeWriteRepository()
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", {"fields": {}, "slug": "Bad Slug"})
+    assert "slug" in str(exc.value).lower()
+
+
+def test_fields_write_explicit_null_slug_clears_it():
+    repo = FakeWriteRepository()
+    stored = {
+        "fields": {},
+        "fixed_overrides": {},
+        "functional_groups": [],
+        "slug": "old-slug",
+    }
+    _service_with_reader(repo, stored).put_config(
+        _TENANT, "fields", {"fields": {}, "slug": None}
+    )
+    assert repo.calls[0]["attributes"]["slug"] is None
+
+
+def test_fields_write_omitting_slug_carries_the_stored_slug_through():
+    """A fields save that does NOT carry a slug preserves the stored one (no accidental wipe)."""
+    repo = FakeWriteRepository()
+    stored = {
+        "fields": {},
+        "fixed_overrides": {},
+        "functional_groups": [],
+        "slug": "hdcn-application-form",
+    }
+    body = {"fixed_overrides": {"personal.city": {"application_visible": True}}}
+    _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
+    assert repo.calls[0]["attributes"]["slug"] == "hdcn-application-form"
+
+
+def test_fields_write_never_authors_publish_state_from_the_body():
+    """published_at / published_version are publish-owned (Task 2.2) — a body can't forge them."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {},
+        "slug": "hdcn-application-form",
+        "published_at": "2099-01-01T00:00:00+00:00",  # forged — must be ignored
+        "published_version": 999,  # forged — must be ignored
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    attrs = repo.calls[0]["attributes"]
+    # No reader + a never-published row → carried-through publish-state is None, NOT the forged body.
+    assert attrs["published_at"] is None
+    assert attrs["published_version"] is None
+
+
+def test_fields_write_carries_stored_publish_state_through_on_a_plain_save():
+    """A plain fields save preserves the publish-state the publish path previously wrote."""
+    repo = FakeWriteRepository()
+    stored = {
+        "fields": {},
+        "fixed_overrides": {},
+        "functional_groups": [],
+        "slug": "hdcn-application-form",
+        "published_at": "2026-10-23T12:00:00+00:00",
+        "published_version": 3,
+    }
+    body = {"fixed_overrides": {"personal.city": {"application_visible": True}}}
+    _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
+    attrs = repo.calls[0]["attributes"]
+    assert attrs["published_at"] == "2026-10-23T12:00:00+00:00"
+    assert attrs["published_version"] == 3

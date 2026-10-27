@@ -8,8 +8,9 @@
  *  - the root loads the resolved field config + the `field_overlay` row (best-effort; a failed
  *    field-config fetch NEVER blocks authoring);
  *  - the four panel slots render (fields, form-shell, readiness, preview);
- *  - the single save path: one Save → EXACTLY one `writeFieldConfig` (→ `PUT /members/config/fields`),
- *    with NO per-field Flask create/update — the real `saveMembersParameter` un-mocked (Property 8);
+ *  - the single save path: one Save → EXACTLY one CHANGE-OP write (`applyFieldConfigChangeOps` →
+ *    `PUT /members/config/fields` with an `{ops}` list, keyed by identity — spec 03 Phase 5), with
+ *    NO per-field Flask create/update — the real `saveFieldConfigChangeOps` un-mocked (Property 8);
  *  - Save is disabled until there is an unsaved edit.
  *
  * Uses the project's real i18n + test-utils render so the bilingual `t(nl,en)` labels render.
@@ -29,9 +30,11 @@ const mockGetParams = vi.fn();
 const mockGetFieldConfig = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
-// field_overlay is SAM-owned (`config#fields`): the save goes through the Members API write path,
-// not parameterService. Capture it to COUNT and inspect the authored body.
-const mockWriteFieldConfig = vi.fn();
+// config#fields is SAM-owned and now written BY IDENTITY (spec 03, Phase 5): the per-field
+// application-attribute save derives a Change-Op list and calls `applyFieldConfigChangeOps`
+// (`PUT /members/config/fields` with `{ops}`). The whole-overlay `writeFieldConfig` writer was
+// RETIRED (spec 03 task 5.2) and no longer exists.
+const mockApplyChangeOps = vi.fn();
 // config#mail is SAM-owned too: the form-shell save goes through `writeMailConfig` →
 // `PUT /members/config/mail`. Capture it to COUNT and inspect the committed body (task 3.4 / R5.5).
 const mockWriteMailConfig = vi.fn();
@@ -44,26 +47,23 @@ vi.mock('../../../../services/membersConfigService', async () => {
     ...actual,
     getMembersParameters: (...a: unknown[]) => mockGetParams(...a),
     getMembersFieldConfig: (...a: unknown[]) => mockGetFieldConfig(...a),
-    // REAL save-once primitives — Property 8 (one save → one request) is asserted through them:
-    // `saveMembersParameter` (field_overlay) and `saveMembersMailConfig` (config#mail) both run
-    // un-mocked so the single-commit contract is proven end to end through the service, not a stub.
-    saveMembersParameter: actual.saveMembersParameter,
+    // REAL save primitives — the single-commit contract is proven end to end through the service:
+    // `saveFieldConfigChangeOps` (config#fields, identity-keyed) and `saveMembersMailConfig`
+    // (config#mail) both run un-mocked (they call the mocked Members API below).
+    saveFieldConfigChangeOps: actual.saveFieldConfigChangeOps,
     saveMembersMailConfig: actual.saveMembersMailConfig,
   };
 });
 
-// The field_overlay + config#mail saves delegate to the Members API SAM write path
-// (`PUT /members/config/fields` / `PUT /members/config/mail`).
+// The config#fields Change-Op + config#mail saves delegate to the Members API SAM write path
+// (`PUT /members/config/fields` with `{ops}` / `PUT /members/config/mail`).
 vi.mock('../../../../services/membersApiService', () => ({
-  writeFieldConfig: (...a: unknown[]) => mockWriteFieldConfig(...a),
+  applyFieldConfigChangeOps: (...a: unknown[]) => mockApplyChangeOps(...a),
   writeMailConfig: (...a: unknown[]) => mockWriteMailConfig(...a),
   getFieldConfig: vi.fn(),
-  // The live-preview panel (task 4.2) POSTs the working overlay to `POST /members/application-preview`
-  // via the REAL `previewMembersApplicationConfig` (spread from importActual above), which delegates
-  // here. Resolve a small schema so the preview slot renders without a real network call.
-  previewApplicationFieldConfig: vi
-    .fn()
-    .mockResolvedValue({ fields: [], locales: ['nl', 'en'], notice: null }),
+  // spec 12 (redesign C / R3, task 5.2): the live preview is now IN-BROWSER — it feeds the WORKING
+  // draft through the pure `buildPreviewConfig` filter to the shared renderer, with NO server
+  // round-trip. The retired `previewApplicationFieldConfig` is gone, so there is nothing to mock.
 }));
 
 // The scope_dimensions save (still Flask) delegates to parameterService; mock to COUNT requests.
@@ -87,8 +87,14 @@ vi.mock('../../../../services/landingPageApi', () => ({
 // catalog; the builder loads it best-effort via `listMembershipTypes`. Mock it so the scaffold load
 // is deterministic and makes no real network call (an un-mocked call rejects fail-closed → null).
 const mockListMembershipTypes = vi.fn();
+// The explicit Publish control (spec 12 task 6.2 / R5 / OQ1 = option 1) calls
+// `POST /members/application-form/publish` via `publishApplicationForm`. Capture it to COUNT the
+// publish route calls AND prove save ≠ publish end-to-end: a plain Save must NEVER fire it, and a
+// successful publish clears the "unpublished changes" state.
+const mockPublishApplicationForm = vi.fn();
 vi.mock('../../../../services/members/membersConfigApi', () => ({
   listMembershipTypes: (...a: unknown[]) => mockListMembershipTypes(...a),
+  publishApplicationForm: (...a: unknown[]) => mockPublishApplicationForm(...a),
 }));
 
 import { ApplicationFormBuilder } from '../ApplicationFormBuilder';
@@ -117,6 +123,8 @@ const FIELD_CONFIG: FieldConfig = {
     { key: 'email', functional_group: 'personal', provenance: 'tenant_added', type: 'string', label: { en: 'Email', nl: 'E-mail' } },
   ],
   functional_groups: [{ key: 'personal', order: 1 }],
+  // The platform's KNOWN format-validator tokens — the format picker in the modal offers ONLY these.
+  field_format_tokens: ['EMAIL', 'IBAN'],
   config_status: { fields: '2026-10-21T09:00:00', scope: 1, mail: null },
   // The Mail sub-tab owns these scalars on `config#mail` (spec 11 §0.3 / R5.4). The builder's
   // form-shell save must SEED from them and carry them through verbatim — it references (displays)
@@ -146,12 +154,18 @@ function seed(rows: Record<string, Parameter> = { field_overlay: overlayRow }, c
   mockGetFieldConfig.mockResolvedValue(cfg);
   mockCreate.mockResolvedValue({ success: true });
   mockUpdate.mockResolvedValue({ success: true });
-  mockWriteFieldConfig.mockResolvedValue({ success: true, configId: 'fields', version: '2026-10-21T10:00:00+00:00' });
+  mockApplyChangeOps.mockResolvedValue({ success: true, configId: 'fields', version: '2026-10-21T10:00:00+00:00' });
   mockWriteMailConfig.mockResolvedValue({ success: true, configId: 'mail', version: '2026-10-21T10:05:00+00:00' });
   mockGetSlug.mockResolvedValue({ success: true, data: { slug: 'h-dcn' } });
   mockListMembershipTypes.mockResolvedValue([
     { type_code: 'regular', label: { en: 'Regular', nl: 'Gewoon' }, active: true, order: 1 },
   ]);
+  mockPublishApplicationForm.mockResolvedValue({
+    success: true,
+    slug: 'h-dcn',
+    published_version: 1,
+    published_at: '2026-10-23T12:00:00+00:00',
+  });
 }
 
 async function renderBuilder(
@@ -212,19 +226,22 @@ describe('ApplicationFormBuilder — single save path (Property 8 / §3.1)', () 
     // nothing until a Save — and never touches the retired Flask param path.
     await waitFor(() => expect(mockGetFieldConfig).toHaveBeenCalledTimes(1));
     expect(mockGetParams).not.toHaveBeenCalled();
-    expect(mockWriteFieldConfig).not.toHaveBeenCalled();
+    expect(mockApplyChangeOps).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
-  it('toggling a field on the form sets application_visible in the ONE overlay with NO per-field write (§3.1)', async () => {
+  it('opening a field and toggling it on the form sets application_visible in the ONE overlay with NO per-field write (§3.1 / spec 12 R1.1)', async () => {
     await renderBuilder();
-    // Save starts disabled; a single field toggle is a pure overlay transform, not a network call.
+    // Save starts disabled; opening the modal and toggling is a pure overlay transform, not a call.
     expect(screen.getByTestId('application-form-builder-save')).toBeDisabled();
-    fireEvent.click(screen.getByTestId('application-field-toggle-email'));
+    // Spec 12 redesign A: clicking a field row OPENS the per-field modal (no inline toggle).
+    fireEvent.click(screen.getByTestId('application-field-row-email'));
+    expect(screen.getByTestId('application-field-modal')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('application-field-modal-on-form-toggle'));
 
     // The toggle mutated the in-memory overlay only — zero writes so far (no per-field request).
-    expect(mockWriteFieldConfig).not.toHaveBeenCalled();
+    expect(mockApplyChangeOps).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
     // The edit is now unsaved → Save enables + the indicator shows.
@@ -236,29 +253,31 @@ describe('ApplicationFormBuilder — single save path (Property 8 / §3.1)', () 
     ).toBeInTheDocument();
   });
 
-  it('one Save after a toggle → EXACTLY one writeFieldConfig carrying application_visible in the one object', async () => {
+  it('one Save after a modal toggle → EXACTLY one Change-Op write (set_field_application by identity, application_visible)', async () => {
     await renderBuilder();
-    fireEvent.click(screen.getByTestId('application-field-toggle-email'));
+    fireEvent.click(screen.getByTestId('application-field-row-email'));
+    fireEvent.click(screen.getByTestId('application-field-modal-on-form-toggle'));
     fireEvent.click(screen.getByTestId('application-form-builder-save'));
 
-    // The real saveMembersParameter routes the ONE overlay through the SAM write path exactly once.
-    await waitFor(() => expect(mockWriteFieldConfig).toHaveBeenCalledTimes(1));
-    // No Flask per-field path is touched (never a parallel write).
+    // The real saveFieldConfigChangeOps issues the identity-keyed write exactly once; the retired
+    // whole-overlay writer is GONE (steering 39 — no whole catalog crosses the wire).
+    await waitFor(() => expect(mockApplyChangeOps).toHaveBeenCalledTimes(1));
     expect(mockCreate).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
 
-    // The single committed body is the one overlay object, carrying the toggled attribute on the
-    // field's entry — email is a tenant-added field, so it lands under fields[email].
-    const body = mockWriteFieldConfig.mock.calls[0][0] as {
-      fields?: Record<string, { application_visible?: boolean }>;
-    };
-    expect(body.fields?.email?.application_visible).toBe(true);
+    // The derived ops name the field BY BARE IDENTITY in a disjoint set_field_application op
+    // carrying the four-attr surface — NO `{group}.{key}` key, NO whole catalog (server places it).
+    const ops = mockApplyChangeOps.mock.calls[0][0] as Array<Record<string, any>>;
+    const appOp = ops.find((o) => o.op === 'set_field_application' && o.key === 'email');
+    expect(appOp).toBeTruthy();
+    expect(appOp!.attrs.application_visible).toBe(true);
   });
 
-  it('PRESERVES prior application selections on save — seeds from the SAM overlay, not an empty Flask copy (regression)', async () => {
-    // The stored config#fields overlay (served as `field_overlay`) ALREADY has a field on the form
-    // from a prior session. Toggling a DIFFERENT field and saving must keep the prior one — the bug
-    // was seeding the working overlay empty (from Flask) so a save replaced the SAM row and wiped it.
+  it('PRESERVES prior application selections on save — a Change-Op touches ONLY the edited field, leaving others unaddressed (regression)', async () => {
+    // The stored config#fields overlay ALREADY has a field on the form from a prior session.
+    // Toggling a DIFFERENT field and saving must keep the prior one — under the Change-Op model
+    // this is STRUCTURAL: the save addresses ONLY the edited identity (email), so the prior
+    // selection (notes) is never written and the server leaves it physically untouched (spec 03).
     const cfgWithPrior: FieldConfig = {
       ...FIELD_CONFIG,
       fields: [
@@ -277,17 +296,58 @@ describe('ApplicationFormBuilder — single save path (Property 8 / §3.1)', () 
     };
     await renderBuilder(undefined, cfgWithPrior);
 
-    // Toggle a DIFFERENT field (email) on, then save.
-    fireEvent.click(screen.getByTestId('application-field-toggle-email'));
+    // Open a DIFFERENT field (email) and toggle it on via the modal, then save.
+    fireEvent.click(screen.getByTestId('application-field-row-email'));
+    fireEvent.click(screen.getByTestId('application-field-modal-on-form-toggle'));
     fireEvent.click(screen.getByTestId('application-form-builder-save'));
 
-    await waitFor(() => expect(mockWriteFieldConfig).toHaveBeenCalledTimes(1));
-    const body = mockWriteFieldConfig.mock.calls[0][0] as {
-      fields?: Record<string, { application_visible?: boolean }>;
-    };
-    // BOTH survive: the just-toggled field AND the prior-session selection (not wiped).
-    expect(body.fields?.email?.application_visible).toBe(true);
-    expect(body.fields?.notes?.application_visible).toBe(true);
+    await waitFor(() => expect(mockApplyChangeOps).toHaveBeenCalledTimes(1));
+    const ops = mockApplyChangeOps.mock.calls[0][0] as Array<Record<string, any>>;
+    // The EDITED field is written by identity…
+    const emailOp = ops.find((o) => o.op === 'set_field_application' && o.key === 'email');
+    expect(emailOp).toBeTruthy();
+    expect(emailOp!.attrs.application_visible).toBe(true);
+    // …and the prior-session selection is NEVER addressed — the Change-Op model leaves it untouched
+    // server-side (no whole-overlay body that could wipe it). This is the structural regression fix.
+    expect(ops.some((o) => o.key === 'notes')).toBe(false);
+  });
+
+  it('one Save after authoring ALL application attributes in the modal → EXACTLY one Change-Op write carrying them on a single set_field_application op (spec 12 task 4.3 / spec 03 R2)', async () => {
+    await renderBuilder();
+    // Open the field modal and author the on-the-form, required, AND format attributes — every one
+    // a pure transform of the SAME single working overlay (the four application attrs; email is a
+    // plain string tenant field so there is no subset picker).
+    fireEvent.click(screen.getByTestId('application-field-row-email'));
+    fireEvent.click(screen.getByTestId('application-field-modal-on-form-toggle')); // application_visible
+    fireEvent.click(screen.getByTestId('application-field-modal-required-toggle')); // application_required
+    fireEvent.change(screen.getByTestId('application-field-modal-format-select'), {
+      target: { value: 'EMAIL' }, // format — a KNOWN token
+    });
+
+    // Still zero writes until the single Save — authoring is pure overlay transforms (one object).
+    expect(mockApplyChangeOps).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+
+    // EXACTLY one Change-Op write — the three application attrs ride together on ONE identity-keyed
+    // set_field_application op (the disjoint four-attr surface), not three separate requests.
+    await waitFor(() => expect(mockApplyChangeOps).toHaveBeenCalledTimes(1));
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    const ops = mockApplyChangeOps.mock.calls[0][0] as Array<Record<string, any>>;
+    const appOp = ops.find((o) => o.op === 'set_field_application' && o.key === 'email');
+    expect(appOp).toBeTruthy();
+    // The three authored application attrs are all on the SAME op's attrs by bare identity; a
+    // definition op (set_field) must NOT carry these (disjoint surfaces, spec 03 design C1).
+    expect(appOp!.attrs.application_visible).toBe(true);
+    expect(appOp!.attrs.application_required).toBe(true);
+    expect(appOp!.attrs.format).toEqual({ checker: 'EMAIL' });
+    const defOp = ops.find((o) => o.op === 'set_field' && o.key === 'email');
+    if (defOp) {
+      expect(defOp.attrs.application_visible).toBeUndefined();
+      expect(defOp.attrs.application_required).toBeUndefined();
+      expect(defOp.attrs.format).toBeUndefined();
+    }
   });
 });
 
@@ -332,7 +392,7 @@ describe('ApplicationFormBuilder — single form-shell mail commit (task 3.4 / R
     await waitFor(() => expect(mockWriteMailConfig).toHaveBeenCalledTimes(1));
     // The form-shell mail commit is a DISTINCT single write from the field_overlay commit — saving
     // the mail settings never touches the config#fields write path (one object, one save per row).
-    expect(mockWriteFieldConfig).not.toHaveBeenCalled();
+    expect(mockApplyChangeOps).not.toHaveBeenCalled();
     expect(mockCreate).not.toHaveBeenCalled();
     expect(mockUpdate).not.toHaveBeenCalled();
 
@@ -382,7 +442,7 @@ describe('ApplicationFormBuilder — single form-shell mail commit (task 3.4 / R
 
     // Still EXACTLY one mail write — adding a second authored attribute does not add a request.
     await waitFor(() => expect(mockWriteMailConfig).toHaveBeenCalledTimes(1));
-    expect(mockWriteFieldConfig).not.toHaveBeenCalled();
+    expect(mockApplyChangeOps).not.toHaveBeenCalled();
 
     const body = mockWriteMailConfig.mock.calls[0][0] as {
       mail_enabled?: boolean;
@@ -410,5 +470,156 @@ describe('ApplicationFormBuilder — single form-shell mail commit (task 3.4 / R
     expect(body.mail_local_part).toBe('noreply');
     expect(body.mail_reply_to_default).toBe('board@h-dcn.nl');
     expect(body.application_scope_copy).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Task 6.4 — the explicit Publish wiring at the BUILDER level, where  */
+/*  the publish call actually fires: save ≠ publish end-to-end.         */
+/*  (spec 12 task 6.2 / R5 / OQ1 = option 1.)                           */
+/* ------------------------------------------------------------------ */
+describe('ApplicationFormBuilder — explicit Publish wiring (spec 12 task 6.2 / R5)', () => {
+  // The clean FIELD_CONFIG fixture has a certified sender + a slug, but no field is ON the form
+  // yet (the overlay's email carries `visible`, not `application_visible`), so the readiness gate
+  // disables Publish. Putting a field on the form via the per-field modal flips `hasFieldOnForm`
+  // → the gate opens; that one authoring step is what the publish path depends on.
+
+  it('Publish is readiness-gated: disabled on a clean load (no field on the form yet)', async () => {
+    await renderBuilder();
+    // Certified sender + slug are present from the fixture, but nothing is on the form → the
+    // publish gate (slug + certified sender + >=1 on-form field) is not satisfied.
+    expect(screen.getByTestId('application-form-shell-publish')).toBeDisabled();
+    // Nothing published on load — authoring never auto-publishes.
+    expect(mockPublishApplicationForm).not.toHaveBeenCalled();
+  });
+
+  it('a plain field Save does NOT publish — Save commits the draft but never calls the publish route (save ≠ publish)', async () => {
+    await renderBuilder();
+    // Put a field on the form and SAVE the draft (one PUT /members/config/fields).
+    fireEvent.click(screen.getByTestId('application-field-row-email'));
+    fireEvent.click(screen.getByTestId('application-field-modal-on-form-toggle'));
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+
+    // The field save fired exactly once through the real Change-Op save primitive…
+    await waitFor(() => expect(mockApplyChangeOps).toHaveBeenCalledTimes(1));
+    // …and the publish route was NEVER called by it. Save ≠ publish, end-to-end: committing the
+    // draft leaves the live form untouched until a deliberate Publish.
+    expect(mockPublishApplicationForm).not.toHaveBeenCalled();
+  });
+
+  it('a plain mail Save does NOT publish either (save ≠ publish for the config#mail path too)', async () => {
+    await renderBuilder();
+    // Author + save a form-shell (config#mail) change — the OTHER save path.
+    fireEvent.change(screen.getByTestId('application-form-shell-consent-en'), {
+      target: { value: 'I consent to the processing of my data.' },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('application-form-shell-save-mail')).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByTestId('application-form-shell-save-mail'));
+
+    await waitFor(() => expect(mockWriteMailConfig).toHaveBeenCalledTimes(1));
+    // Neither save path republishes.
+    expect(mockPublishApplicationForm).not.toHaveBeenCalled();
+  });
+
+  // A config whose email field is ALREADY on the form (served `application_visible: true` in the
+  // stored overlay) + a certified sender + slug, but NEVER published (no `published_version` /
+  // `published_at`). Readiness is fully satisfied → Publish is enabled, and because a ready form
+  // has never gone live, the builder treats it as having unpublished changes (the config exists
+  // but no live artifact does yet) — exactly the save≠publish state the hint surfaces.
+  const READY_NEVER_PUBLISHED: FieldConfig = {
+    ...FIELD_CONFIG,
+    field_overlay: {
+      functional_groups: [{ key: 'personal', label_en: 'Personal', label_nl: 'Persoonlijk', order: 1 }],
+      fields: {
+        email: {
+          type: 'string',
+          label_en: 'Email',
+          functional_group: 'personal',
+          visible: true,
+          application_visible: true,
+        },
+      },
+      fixed_overrides: {},
+    },
+  };
+
+  // The SAME config after a successful publish: the row now carries a `published_version` /
+  // `published_at`, and (the save≠publish bookkeeping cleared) there are no unpublished changes.
+  const PUBLISHED: FieldConfig = {
+    ...READY_NEVER_PUBLISHED,
+    published_version: 1,
+    published_at: '2026-10-23T12:00:00+00:00',
+  };
+
+  it('a ready-but-never-published form shows the "unpublished changes" hint, which a successful Publish CLEARS', async () => {
+    await renderBuilder(undefined, READY_NEVER_PUBLISHED);
+
+    // Readiness is satisfied (sender + slug + a field on the form) → Publish is enabled, and the
+    // ready-but-never-published form surfaces the unpublished-changes hint (save ≠ publish: a live
+    // artifact does not exist yet even though the config is ready).
+    await waitFor(() => expect(screen.getByTestId('application-form-shell-publish')).toBeEnabled());
+    expect(
+      screen.getByTestId('application-form-shell-unpublished-changes'),
+    ).toBeInTheDocument();
+    // Simply loading never publishes.
+    expect(mockPublishApplicationForm).not.toHaveBeenCalled();
+
+    // After a successful publish the builder re-reads the now-published config.
+    mockGetFieldConfig.mockResolvedValue(PUBLISHED);
+
+    // Publish deliberately → the publish route fires exactly once…
+    fireEvent.click(screen.getByTestId('application-form-shell-publish'));
+    await waitFor(() => expect(mockPublishApplicationForm).toHaveBeenCalledTimes(1));
+
+    // …and a SUCCESSFUL publish clears the unpublished-changes state (live now matches the stored
+    // config) → the hint disappears. The publish re-renders from stored config and writes NOTHING
+    // through the draft save paths (no field/mail write triggered by the publish itself).
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId('application-form-shell-unpublished-changes'),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockApplyChangeOps).not.toHaveBeenCalled();
+    expect(mockWriteMailConfig).not.toHaveBeenCalled();
+  });
+
+  it('a failed publish does NOT clear the unpublished-changes state (the draft is still ahead of live)', async () => {
+    mockPublishApplicationForm.mockResolvedValue({ success: false });
+    await renderBuilder(undefined, READY_NEVER_PUBLISHED);
+
+    await waitFor(() => expect(screen.getByTestId('application-form-shell-publish')).toBeEnabled());
+    expect(
+      screen.getByTestId('application-form-shell-unpublished-changes'),
+    ).toBeInTheDocument();
+
+    // Publish is attempted but fails → the route was called, but the live form did not change, so
+    // the unpublished-changes hint must REMAIN (the draft is still ahead of live).
+    fireEvent.click(screen.getByTestId('application-form-shell-publish'));
+    await waitFor(() => expect(mockPublishApplicationForm).toHaveBeenCalledTimes(1));
+    expect(
+      screen.getByTestId('application-form-shell-unpublished-changes'),
+    ).toBeInTheDocument();
+  });
+
+  it('a plain field Save on a ready form keeps the draft unpublished (save ≠ publish) — never fires the publish route', async () => {
+    // A ready form (field already on the form) that gets a further field-attribute edit + Save: the
+    // Save commits the draft but the live form is untouched — the publish route is never called.
+    await renderBuilder(undefined, READY_NEVER_PUBLISHED);
+    await waitFor(() => expect(screen.getByTestId('application-form-shell-publish')).toBeEnabled());
+
+    // Author another attribute (required) via the modal and Save the field_overlay.
+    fireEvent.click(screen.getByTestId('application-field-row-email'));
+    fireEvent.click(screen.getByTestId('application-field-modal-required-toggle'));
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+
+    await waitFor(() => expect(mockApplyChangeOps).toHaveBeenCalledTimes(1));
+    // Save ≠ publish, end-to-end: the draft commit never calls the publish route.
+    expect(mockPublishApplicationForm).not.toHaveBeenCalled();
+    // The unpublished-changes hint persists after a save (the live form is still behind the draft).
+    expect(
+      screen.getByTestId('application-form-shell-unpublished-changes'),
+    ).toBeInTheDocument();
   });
 });

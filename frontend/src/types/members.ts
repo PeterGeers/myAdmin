@@ -667,6 +667,27 @@ export interface FieldConfig {
    */
   config_status?: Record<string, string | number | null>;
   /**
+   * The application form's OWN public slug (spec 12 R4 / Phase 1), stored on the SAM `config#fields`
+   * row and served back here so the Application Form Builder can DISPLAY the resolved public URL
+   * (`{slug}.jabaki.nl`, R4.4) and gate Publish (R5.4). This is the FORM slug — distinct from, and
+   * independent of, the tenant's landing-page slug (Flask `tenant_slugs`); the slug STRING may
+   * differ from the tenant NAME (R4). Authored via the SAM `members:admin` config-write path (NOT
+   * the Landing Page editor). Absent/`null`/blank on an older module build or a form that has not
+   * yet authored one → the builder states the form has no public address yet (R3.3 / R4.4).
+   */
+  slug?: string | null;
+  /**
+   * The last successful publish timestamp (ISO-8601) on `config#fields` (spec 12 R5 / Phase 1).
+   * Absent/`null` = the form has never been published. Surfaced so the builder can show the
+   * save/publish distinction (a draft may have unpublished changes since this stamp).
+   */
+  published_at?: string | null;
+  /**
+   * The monotonically-incrementing published version on `config#fields` (spec 12 R5 / Phase 1).
+   * Absent/`null` = never published.
+   */
+  published_version?: number | null;
+  /**
    * The platform's known FORMAT-VALIDATOR tokens (spec 11, R3.3; SAM task 1.3). Served as a
    * top-level key on `GET /members/field-config` — the sorted set of `field_formats.known_tokens()`
    * (e.g. `["EMAIL", "IBAN"]`). The Application Form Builder's per-field `format` dropdown
@@ -679,13 +700,16 @@ export interface FieldConfig {
   field_format_tokens?: string[];
   /**
    * The RAW stored `config#fields` overlay (`{ fields, overrides, functional_groups }`) — the
-   * authoring ROUND-TRIP seed (spec 11 bugfix). The Application Form Builder + the Field-
-   * configuration editor hold ONE working `field_overlay` object and PUT it back WHOLE via
-   * `writeFieldConfig` (the write REPLACES the `config#fields` row). Seeding that working object
-   * from THIS key — the exact SAM row they write — makes a save loss-free (GET and PUT symmetric
-   * on one table), instead of the retired Flask `members.field_overlay` param whose copy diverged
-   * (it lacked the per-field application attributes, so a save wiped prior selections). Absent on
-   * an older module build → the editor falls back to an empty overlay.
+   * authoring ROUND-TRIP SEED (spec 11 bugfix). The Application Form Builder + the Field-
+   * configuration editor hold ONE working `field_overlay` object seeded from THIS key, mutate it
+   * in memory, and on Save DIFF it into an identity-keyed Change-Op list (`deriveFieldConfigChangeOps`
+   * → `saveFieldConfigChangeOps` → `PUT /members/config/fields` `{ops}` body — spec 03 task 5.1/5.2).
+   * The retired whole-object write that PUT the overlay back WHOLE (the catalog-truncation root
+   * cause) no longer exists; only this READ seed remains. Seeding from the exact SAM row the ops
+   * target makes the diff loss-free (GET and the server-owned writes are symmetric on one table),
+   * instead of the retired Flask `members.field_overlay` param whose copy diverged (it lacked the
+   * per-field application attributes, so a save wiped prior selections). Absent on an older module
+   * build → the editor falls back to an empty overlay.
    */
   field_overlay?: Record<string, unknown>;
 }

@@ -69,7 +69,10 @@ export const APPLICATION_FORM_PATH = '/apply';
 
 /** The flat panel state the form-shell UI binds to. */
 export interface ShellFormValues {
-  /** The resolved landing-page slug (null/absent = no public address yet, R5.1). */
+  /**
+   * The resolved FORM slug (spec 12 R4 — the form's OWN public slug on `config#fields`, falling
+   * back to the landing slug for an older build). `null`/absent = no public address yet (R4.4).
+   */
   slug: string | null;
   /** standalone (own page) or iframe-embedded (R5.2). */
   embedMode: EmbedMode;
@@ -215,10 +218,32 @@ export function embedOriginsToText(origins: string[] | null | undefined): string
 }
 
 /**
+ * Resolve the FORM slug the public URL is derived from (spec 12 R4 / Phase 1). The slug is now data
+ * on the SAM `config#fields` row (`cfg.slug`) — the form's OWN public address, independent of the
+ * tenant's landing-page slug and free to differ from the tenant NAME. Prefer that FORM slug when
+ * present; fall back to a caller-supplied slug (the landing slug the builder loaded best-effort —
+ * back-compat for an older module build that does not yet serve `config#fields.slug`). A blank/
+ * absent value on both yields `null` so the panel states the form has no public address yet (R4.4).
+ */
+export function deriveFormSlug(
+  cfg: FieldConfig | null | undefined,
+  fallbackSlug: string | null | undefined,
+): string | null {
+  const form = (cfg?.slug ?? '').trim();
+  if (form) return form;
+  return (fallbackSlug ?? '').trim() || null;
+}
+
+/**
  * Map the authoritative `GET /members/field-config` `mail_config` body onto the flat form-shell
  * values, flattening the nested `consent_notice`. A missing/absent `mail_config` (older build or
  * a load failure) yields defaults so the panel never blocks authoring. The embed mode is DERIVED:
  * a tenant with ≥1 configured origin is treated as `iframe`, otherwise `standalone`.
+ *
+ * The public slug is the FORM slug on `config#fields` (spec 12 R4), resolved via
+ * {@link deriveFormSlug}: `cfg.slug` wins when present, else the caller-supplied `slug` fallback
+ * (the landing slug, back-compat). So once a form authors its own slug the panel shows the FORM's
+ * address, not the landing one.
  *
  * The allowed-origin list is SEEDED with the {@link CONFIRMED_EMBED_ORIGINS} when the tenant has
  * authored NO origins yet (R5.2b): the admin starts the iframe editor from the known-good targets
@@ -232,7 +257,7 @@ export function mailConfigToShellValues(
   slug: string | null | undefined,
 ): ShellFormValues {
   const next: ShellFormValues = {
-    slug: (slug ?? '').trim() || null,
+    slug: deriveFormSlug(cfg, slug),
     embedMode: 'standalone',
     embedOrigins: [...CONFIRMED_EMBED_ORIGINS],
     consentVersion: '',

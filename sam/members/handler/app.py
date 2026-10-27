@@ -63,6 +63,10 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from sam.members.domain.analytics_set import AnalyticsSetValidationError
+from sam.members.domain.application_publish import (
+    PublishNotReady,
+    PublishPipelineNotWired,
+)
 from sam.members.domain.error_codes import FieldError  # noqa: F401 (surface compat)
 from sam.members.domain.execute_and_deliver import (
     AdHocMailInvalid,
@@ -99,11 +103,14 @@ from sam.members.domain.default_page_size import DefaultPageSizeProvider
 
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
+    ConfigFieldsCrudError,
     ConfigWriteValidationError,
     CursorError,  # noqa: F401 (surface compat: tests reach app.CursorError)
     MailRunNotFound,
     RouteNotImplemented,
+    StaleClientBundleError,
     dispatch_route,
+    get_config_fields_crud_service,  # noqa: F401 (surface compat: tests reach app.get_config_fields_crud_service)
     get_config_write_service,  # noqa: F401 (surface compat: tests reach app.get_config_write_service)
     get_execute_and_deliver_service,  # noqa: F401 (surface compat: tests reach app.get_execute_and_deliver_service)
     get_mail_run_status_service,  # noqa: F401 (surface compat: tests reach app.get_mail_run_status_service)
@@ -135,6 +142,7 @@ from sam.members.repository.members_repository import (
     DynamoDbMembersRepository,
 )
 from sam.members.repository.projection_config_reader import MembersProjectionReader
+from sam.members.repository.projection_config_write_repository import StaleVersionError
 from sam.members.tenants.hdcn.hooks import register_hdcn_hooks
 from sam.shared.auth_utils import (
     DecodedEntitlements,
@@ -417,7 +425,10 @@ class _ProjectionDefaultPageSizeProvider:
 
 #: The default-page-size provider handed to the domain service — a stable indirection that
 #: reads a fresh projection each call (see :class:`_ProjectionDefaultPageSizeProvider`).
-_DEFAULT_PAGE_SIZE_PROVIDER: DefaultPageSizeProvider = _ProjectionDefaultPageSizeProvider()
+_DEFAULT_PAGE_SIZE_PROVIDER: DefaultPageSizeProvider = (
+    _ProjectionDefaultPageSizeProvider()
+)
+
 
 def _build_tenant_hooks() -> TenantHookRegistry:
     """Build the unified Rung-3 hook registry with each tenant's hooks registered (design C5).
@@ -1036,9 +1047,7 @@ def _authenticate_and_authorize(
             config_provider=config_provider,
             grants_reader=grants_reader,
         )
-        scope_dimension_key = _gating_dimension_key(
-            tenant_id, provider=config_provider
-        )
+        scope_dimension_key = _gating_dimension_key(tenant_id, provider=config_provider)
         return RequestContext(
             tenant_id=tenant_id,
             sub=str(sub) if sub is not None else None,
@@ -1135,40 +1144,10 @@ def _get_membership_service() -> MembershipService:
     return _SERVICE
 
 
-def build_application_preview_service(
-    overlay_provider: TenantOverlayProvider,
-) -> MembershipService:
-    """Build a one-shot :class:`MembershipService` for the LIVE PREVIEW (spec 11, R7.2).
-
-    The Application Form Builder's server-side preview (``POST /members/application-preview``)
-    must run the REAL :meth:`MembershipService.get_public_field_config` filter over the WORKING
-    ``field_overlay`` the admin is editing — NOT the stored ``config#fields`` row. This builds a
-    membership service wired EXACTLY like the production one (same tenant-scoped repository + the
-    same scope-config / consent / mail / membership-type catalog seams, so the preview's
-    membership-type options, scope-sourced enums and consent-notice version are the tenant's REAL
-    ones), with ONE substitution: the overlay provider is the caller-supplied
-    :class:`TenantOverlayProvider` that serves the request-body overlay instead of the projection.
-
-    So the preview reuses the one filtering authority (zero drift, correctness property 4) and is
-    READ-ONLY by construction — ``get_public_field_config`` only reads. It is a fresh service per
-    preview (never the warm module singleton), so a preview can never disturb the production
-    service's captured overlay provider.
-
-    The scheduler port is intentionally omitted (the preview never schedules); the repository
-    resolves its table lazily + fail-fast, so building this touches no AWS until the catalog read
-    the filter performs — the SAME read the staff/public field-config already does. Tests inject a
-    service over an in-memory fake repo by patching the ``_dispatch`` seam that calls this.
-    """
-    return MembershipService(
-        DynamoDbMembersRepository(),
-        overlay_provider=overlay_provider,
-        tenant_hooks=_TENANT_HOOKS,
-        scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
-        mail_gate_provider=_MAIL_GATE_PROVIDER,
-        mail_config_provider=_MAIL_CONFIG_PROVIDER,
-        config_status_provider=_CONFIG_STATUS_PROVIDER,
-        default_page_size_provider=_DEFAULT_PAGE_SIZE_PROVIDER,
-    )
+# NOTE (spec 12, redesign C / R3): the one-shot `build_application_preview_service` that backed the
+# retired `POST /members/application-preview` route has been removed — preview is now in-browser
+# (task 5.2). The production `MembershipService` + its `get_public_field_config` (used by the public
+# edge and the publish path) are unchanged.
 
 
 def _dispatch(spec: RouteSpec, request: ParsedRequest, ctx: RequestContext) -> Any:
@@ -1250,6 +1229,36 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
         logger.info("Members route '%s' resolved but not implemented yet", spec.name)
         return _error(
             501, "Not implemented", code="errors.api.notImplemented", route=spec.name
+        )
+    except PublishNotReady as exc:
+        # The application-form publish (spec 12 Task 2.1, R5.4) was REFUSED by the readiness gate
+        # BEFORE any write: a precondition (slug / certified sender / ≥1 on-form field) is missing,
+        # so NO artifact was emitted. Unlike the NEUTRAL public 409 (ApplicationNotAvailable), this
+        # is the verified Tenant_Admin publishing their OWN form — "show, don't silently block"
+        # (spec 11 R6): the TYPED reason is surfaced so the frontend Publish button (task 6.2) can
+        # explain exactly what to fix. Mapped to a 409 (the request is well-formed + authorized,
+        # but the form is not in a publishable state — distinct from a 422 malformed body / a 404).
+        return _error(
+            409,
+            "The application form is not ready to publish",
+            code=exc.code,
+            reason=exc.reason.value,
+        )
+    except PublishPipelineNotWired:
+        # The tenant PASSED the readiness gate but the live publish pipeline is task 2.2 — the
+        # route + readiness gate are REAL (task 2.1) and only the live S3 render/write + CloudFront
+        # invalidation is dormant (additionally gated on the owner-run hosting migration, task 0.1
+        # / R6.4). Mapped to a caller-safe 501 (the route resolved + the tenant is ready, but the
+        # behaviour is not built yet) — never a 500, never str(e). Task 2.2 removes this seam.
+        logger.info(
+            "Members application-form publish reached the ready seam but the live pipeline "
+            "is not wired yet (task 2.2, migration-gated)"
+        )
+        return _error(
+            501,
+            "Publish pipeline not yet wired",
+            code="errors.application.publishNotWired",
+            route=spec.name,
         )
     except MemberNotFound:
         # Missing member within the tenant, OR out of the caller's scope on a READ —
@@ -1381,6 +1390,56 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             400,
             str(exc),
             code="errors.validation.failed",
+        )
+    except ConfigFieldsCrudError as exc:
+        # A DELIBERATE, caller-safe config#fields Change-Op validation error (spec 03 Task 2.7):
+        # a malformed ops envelope (empty/absent ops list, an op that is not an object, an unknown
+        # op token, a missing identity / attrs), or an out-of-surface attribute the disjoint op
+        # surfaces reject (an `application_*` attr on `set_field`, a definition attr on
+        # `set_field_application`). No write was committed (the service raises before `apply_ops`,
+        # or `apply_ops` rejects atomically). Mapped to a 400 with the explicit, caller-safe
+        # message (SAM-plane conventions, steering 35/39 — a deliberate validation error keeps its
+        # message; it carries no raw internals). Precedes the generic `except Exception` so a
+        # validation 400 is never mis-shaped as a 500.
+        return _error(
+            400,
+            str(exc),
+            code="errors.validation.failed",
+        )
+    except StaleClientBundleError as exc:
+        # STALE-SPA-BUNDLE guard (spec 03 Task 5.3a — design "Migration/rollout Slice 3"): a
+        # `PUT /members/config/fields` write arrived in the RETIRED whole-overlay shape (a whole
+        # record keyed by `fields`/`overrides`/`fixed_overrides`/`functional_groups`/
+        # `field_overlay`, no `ops` list) — i.e. a CACHED OLD SPA bundle that has not reloaded
+        # since the Change-Op switch. NO write was attempted (the guard fires at the edge before
+        # any op is derived). Mapped to a caller-safe 409 with a DISTINCT, stable machine code
+        # `errors.api.staleClient` — intentionally NOT the generic validation 400 and NOT the
+        # data-conflict `errors.api.conflict`, so the SPA can tell this apart and render a
+        # dedicated "a newer version is available — reload the app" prompt (the message is the
+        # actionable remedy; it carries NO raw internals, steering 39). 409 fits the existing
+        # error envelope (same "reload" family as the StaleVersionError 409) and keeps the
+        # response intelligible rather than silently broken. A RuntimeError subclass, so it MUST
+        # precede the generic `except Exception` to be caught as a 409, not a 500.
+        return _error(
+            409,
+            str(exc),
+            code="errors.api.staleClient",
+        )
+    except StaleVersionError:
+        # The config#fields Change-Op version-conditional write was REJECTED because the row
+        # changed under the caller (spec 03 design D5 / R6): the base version read no longer
+        # matches, so the atomic `update_item` failed its ConditionExpression and NO partial
+        # change was made. Mapped to a caller-safe 409 "reload and retry" with a stable code and
+        # NO internals (steering 39). By the time this fires the service (task 4.1) has ALREADY
+        # made its guarded one-shot auto-retry (re-read + re-derive + retry once for a shared-row
+        # conflict from an UNRELATED edit) and the client_op_id idempotency path has been checked
+        # in the repository — so a StaleVersionError reaching here is a genuine, repeated conflict
+        # on the SAME identity. A RuntimeError subclass, so it must precede the generic
+        # `except Exception` to be caught as a 409, not a 500.
+        return _error(
+            409,
+            "Config was changed by another edit — reload and retry",
+            code="errors.api.conflict",
         )
     except CursorError:
         # A client-supplied paging cursor (Req 25) that is malformed, stale, or does not belong
