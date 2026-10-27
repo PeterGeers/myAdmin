@@ -106,9 +106,22 @@ vi.mock('../../pivot/PivotResultTable', () => ({
 // --- Mock the reused CSV util (reuse csvExport.ts, don't reimplement). --------
 const generateCsvFromObjects = vi.fn();
 const downloadCsv = vi.fn();
-vi.mock('../../../utils/csvExport', () => ({
-  generateCsvFromObjects: (...args: unknown[]) => generateCsvFromObjects(...args),
-  downloadCsv: (...args: unknown[]) => downloadCsv(...args),
+// Spy generate/download but keep the REAL filename rule (exportFileName + its
+// sanitize) so the filename assertions below exercise the actual naming, not a stub.
+vi.mock('../../../utils/csvExport', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../utils/csvExport')>();
+  return {
+    ...actual,
+    generateCsvFromObjects: (...args: unknown[]) => generateCsvFromObjects(...args),
+    downloadCsv: (...args: unknown[]) => downloadCsv(...args),
+  };
+});
+
+// Stub the tenant context (same pattern as MembersPage) so the component's
+// useTenant() resolves without a real TenantProvider; the active tenant name
+// feeds the export filename (`{Tenant}-{Pivot}.csv`).
+vi.mock('../../../context/TenantContext', () => ({
+  useTenant: () => ({ currentTenant: 'h-dcn' }),
 }));
 
 // --- Mock the analytics audit signal so the CSV export's fire-and-forget audit
@@ -637,6 +650,11 @@ describe('MemberPivotViews', () => {
       expect(rows).toBe(produced.data);
       expect(downloadCsv).toHaveBeenCalledTimes(1);
       expect(downloadCsv.mock.calls[0][0]).toBe('col\nval');
+      // Filename follows the shared tenant-pivot rule, named by the SELECTED set
+      // ('Members by type'), not the old fixed `member-analytics.csv`.
+      const aggFilename = downloadCsv.mock.calls[0][1];
+      expect(aggFilename).toBe('h-dcn-Members by type.csv');
+      expect(aggFilename).not.toBe('member-analytics.csv');
 
       expect(recordAnalyticsOutput).toHaveBeenCalledTimes(1);
       const audit = recordAnalyticsOutput.mock.calls[0][0];
@@ -687,6 +705,8 @@ describe('MemberPivotViews', () => {
       );
       expect(rows).toBe(produced.data);
       expect(downloadCsv).toHaveBeenCalledTimes(1);
+      // Named by the selected LIST set ('Paper clubblad') via the shared rule.
+      expect(downloadCsv.mock.calls[0][1]).toBe('h-dcn-Paper clubblad.csv');
     });
 
     it('exports ONLY the table-filtered subset, not the full result', async () => {
