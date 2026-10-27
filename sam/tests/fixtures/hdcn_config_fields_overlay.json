@@ -12,7 +12,8 @@
       "type": "string"
     },
     "build_year": {
-      "application_visible": true
+      "application_visible": true,
+      "functional_group": "motor"
     },
     "deregistration_date": {
       "application_visible": true,
@@ -26,22 +27,28 @@
       "type": "date"
     },
     "iban": {
-      "application_visible": true
+      "application_visible": true,
+      "functional_group": "financial"
     },
     "license_plate": {
-      "application_visible": true
+      "application_visible": true,
+      "functional_group": "motor"
     },
     "magazine_pref": {
-      "application_required": true
+      "application_required": true,
+      "functional_group": "membership"
     },
     "motor_brand": {
-      "application_visible": true
+      "application_visible": true,
+      "functional_group": "motor"
     },
     "motor_type": {
-      "application_visible": true
+      "application_visible": true,
+      "functional_group": "motor"
     },
     "newsletter_pref": {
-      "application_visible": true
+      "application_visible": true,
+      "functional_group": "membership"
     },
     "notes": {
       "functional_group": "administrative",
@@ -54,7 +61,8 @@
       "type": "string"
     },
     "payment_method": {
-      "application_visible": true
+      "application_visible": true,
+      "functional_group": "financial"
     },
     "referral_source": {
       "application_visible": true,
@@ -68,7 +76,8 @@
       "type": "string"
     },
     "region": {
-      "application_visible": true
+      "application_visible": true,
+      "functional_group": "membership"
     },
     "termination_date": {
       "application_visible": true,

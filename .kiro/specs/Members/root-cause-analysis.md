@@ -448,28 +448,23 @@ overlay written as the full record) is unchanged.
 - `functional_groups` catalog restored 6-from-PROD (2026-10-26), fields/overrides untouched, verified
   6 groups with labels + orders 10–60.
 
-## 🚫 OPERATIONAL WARNING — until the fix is verified in the deployed TEST environment
+## ✅ RESOLVED — fix verified in the deployed TEST environment (2026-10-27)
 
-**Do NOT edit + save a functional group (or author via the application-form builder) on TEST.** Any
-such save re-truncates `config#fields` to the partial overlay and re-corrupts the data (this is how
-occurrence 3 happened AFTER occurrences 1–2 were understood). The data is safe now; keep it that way
-by not exercising the save until the fix is confirmed live.
+The partial-overlay-overwrites-full-record defect is fixed and **verified live on the deployed
+TEST stack** (spec `03 - config-fields-foolproof-crud`). The earlier "do NOT edit groups on TEST"
+warning is **retired** — editing/saving a functional group on TEST no longer truncates
+`config#fields`; the Change-Op write path addresses a single path and cannot replace the whole row.
 
-> **Status (2026-10-27): the structural fix is BUILT and PROVEN GREEN — but only against local
-> DynamoDB.** The server-side Change-Op write path (ADR
+> **Verification trail:** server-side Change-Op path (ADR
 > [`0009`](../../docs/decisions/0009-config-fields-crud-change-op-server-owned.md); steering
-> `39-backend-data-access-sam-dynamodb.md`) is implemented and the E2E invariant / truncation
-> tripwire harness passes. Phases 2–8 of spec
-> `03 - config-fields-foolproof-crud` are complete **except** the two deployed-environment checks:
-> **8.6** (deployed-stage IAM smoke — local DynamoDB does not enforce IAM, so the
-> `dynamodb:UpdateItem` grant is unexercised until it runs against the real TEST stack) and **9.1**
-> (live TEST exercise: edit group order / add field / set choices against the deployed TEST stack,
-> confirm no truncation and that the write persists across reload).
->
-> **RETIRE THIS WARNING when — and only when — tasks 8.6 AND 9.1 confirm the fix in the deployed TEST
-> environment.** Until that live confirmation exists, the local-only green run is NOT sufficient to
-> clear the warning (the old defect only ever manifested against real data). Whoever runs 9.1: once
-> it passes, delete this whole section and tick task 9.3's DoD item.
+> `39-backend-data-access-sam-dynamodb.md`) deployed to `test-sam-members` (UPDATE_COMPLETE
+> 2026-10-27). **8.6**: the `dynamodb:UpdateItem` grant is confirmed on the deployed Members Lambda
+> role (least-privilege, scoped to `test_governance_projection`). **2.0**: the h-dcn
+> `functional_groups` LIST→MAP migration ran on TEST — 6 groups preserved, 14 fields / 15 overrides
+> intact. **9.1**: a live Change-Op `set_group` against the deployed TEST h-dcn row changed only the
+> targeted group and left all 6 groups + fields + overrides intact (no truncation), then reverted;
+> the full E2E invariant suite is green. The defect cannot recur by construction and is guarded by
+> the mechanical enforcement layer (CI guard, boundary test, runtime tripwire, gated E2E).
 
 ## The fix (structural — stop patching symptoms)
 

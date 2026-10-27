@@ -48,6 +48,7 @@ import {
   saveFieldConfigChangeOps,
 } from '../../../services/membersConfigService';
 import { deriveFieldConfigChangeOps } from './fieldConfigChangeOps';
+import { flatViewToOverlay } from './flatViewToOverlay';
 import { MembersConfigStatus } from './MembersConfigStatus';
 import { MembersGroupsTable } from './MembersGroupsTable';
 import { MembersFieldsTable } from './MembersFieldsTable';
@@ -106,11 +107,13 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
       const resolvedConfig = await getMembersFieldConfig();
       setConfigStatus(resolvedConfig?.config_status ?? {});
       setFieldConfig(resolvedConfig);
-      // Seed the ONE working overlay from the authoritative SAM row. The reader serves the
-      // overlay in the AUTHORING WIRE shape already (`fields` / `fixed_overrides` /
-      // `functional_groups`, the one-key contract) so read + write are symmetric — no client-side
-      // key translation.
-      const overlayValue = (resolvedConfig?.field_overlay as MembersConfigValue) ?? {};
+      // Seed the ONE working overlay from the RESOLVED Flat_View. Task 5.3 (steering 39) stopped
+      // the backend surfacing the raw `field_overlay`, so we reconstruct the authoring-wire overlay
+      // (`fields` / `fixed_overrides` / `functional_groups`) from the resolved `fields` the response
+      // DOES carry. Baseline == the same seed, so the editor is NOT dirty on load and the diff-based
+      // save (`deriveFieldConfigChangeOps`) emits an op ONLY for an identity the user actually edits
+      // — a move/relabel now finds its field in the buffer instead of no-op'ing on an empty overlay.
+      const overlayValue = flatViewToOverlay(resolvedConfig);
       setOverlay(overlayValue);
       setBaseline(JSON.stringify(overlayValue));
     } catch (e) {
@@ -294,6 +297,7 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
               <MembersFieldActions
                 fieldKey={fieldModalKey}
                 currentGroupKey={openGroupKey}
+                functionalGroups={fieldConfig?.functional_groups ?? []}
                 provenance={provByKey[fieldModalKey]}
                 overlay={overlay}
                 onChange={setOverlay}
