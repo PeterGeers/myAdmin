@@ -154,10 +154,34 @@
         "origin": "variable",
         "provenance": "tenant_added",
         "options": [
-          "s",
-          "m",
-          "l",
-          "xl"
+          {
+            "value": "s",
+            "label": {
+              "nl": "S",
+              "en": "S"
+            }
+          },
+          {
+            "value": "m",
+            "label": {
+              "nl": "M",
+              "en": "M"
+            }
+          },
+          {
+            "value": "l",
+            "label": {
+              "nl": "L",
+              "en": "L"
+            }
+          },
+          {
+            "value": "xl",
+            "label": {
+              "nl": "XL",
+              "en": "XL"
+            }
+          }
         ],
         "application_visible": true,
         "application_required": true,
@@ -284,15 +308,15 @@
           {
             "value": "m",
             "label": {
-              "nl": "m",
-              "en": "m"
+              "nl": "M",
+              "en": "M"
             }
           },
           {
             "value": "l",
             "label": {
-              "nl": "l",
-              "en": "l"
+              "nl": "L",
+              "en": "L"
             }
           }
         ],

@@ -250,8 +250,12 @@ class TestSendReadySchemaCarriesContract:
 
     def test_gated_schema_carries_the_enum_subset(self):
         fields = {f["key"]: f for f in self._ready_facade().get_public_field_config(TENANT)["fields"]}
-        # the application SUBSET survives the gate (R4a.2): shirt_size exposes only m/l.
-        assert fields["shirt_size"]["options"] == ["m", "l"]
+        # the application SUBSET survives the gate (R4a.2): shirt_size exposes only m/l, now in
+        # the ONE canonical rich `{value, label}` shape the read-assembly seam emits (C4/C5).
+        assert fields["shirt_size"]["options"] == [
+            {"value": "m", "label": {"nl": "M", "en": "M"}},
+            {"value": "l", "label": {"nl": "L", "en": "L"}},
+        ]
         membership_values = [o["value"] for o in fields["membership_type"]["options"]]
         assert membership_values == ["gewoon"]
 

@@ -21,15 +21,9 @@ from sam.members.domain._membership_errors import (
 from sam.members.domain.applicant_locale import (
     SUPPORTED_LOCALES,
 )
-from sam.members.domain.application_choices import (
-    application_subset_choices,
-)
 from sam.members.domain.field_resolver import (
     FunctionalGroup,
     ResolvedField,
-)
-from sam.members.domain.fixed_fields import (
-    FieldType,
 )
 
 
@@ -79,12 +73,29 @@ class FieldConfigSurfaceMixin:
         list, the same fields bucketed ``by_group`` (``personal`` / ``membership`` / overlay),
         and the standalone ``membership_type_options`` catalog feed.
         """
-        config = self._field_resolver.resolve(
-            tenant_id, scope_vocab=self._scope_vocab(tenant_id)
-        )
+        scope_vocab = self._scope_vocab(tenant_id)
+        config = self._field_resolver.resolve(tenant_id, scope_vocab=scope_vocab)
         options = self._active_membership_type_options(tenant_id)
 
-        fields = [self._serialize_field(f, options=options) for f in config.fields]
+        # ── The ONE selectable-vocabulary assembly seam (design C4 / F8) ──────────────
+        # For EVERY field, resolve its canonical `options` from its INJECTED source here —
+        # NOT per-kind inside each serializer. `_assemble_field_options` is the single
+        # `assembleSelectableOptions` pass the design calls for: the pure `FieldResolver`
+        # stays catalog/DB-free, and this read-assembly layer populates reference options
+        # (from the injected active-catalog map) and scope options (from the injected
+        # `scope_vocab`) uniformly alongside inline enum options. The serializers below
+        # consume the ONE `options` this computed — they do not re-branch by kind.
+        assembled = {
+            f.dotted_key(): self._assemble_field_options(
+                f, options=options, scope_vocab=scope_vocab
+            )
+            for f in config.fields
+        }
+
+        fields = [
+            self._serialize_field(f, field_options=assembled[f.dotted_key()])
+            for f in config.fields
+        ]
         by_group: dict[str, list[dict[str, Any]]] = {}
         for field_payload in fields:
             by_group.setdefault(field_payload["group"], []).append(field_payload)
@@ -226,13 +237,20 @@ class FieldConfigSurfaceMixin:
         and wraps this; the handler-layer HTTP shaping / slug resolution is the public edge
         (tasks 1.x). This method is the unit of work: the authoritative, filtered public schema.
         """
-        config = self._field_resolver.resolve(
-            tenant_id, scope_vocab=self._scope_vocab(tenant_id)
-        )
+        scope_vocab = self._scope_vocab(tenant_id)
+        config = self._field_resolver.resolve(tenant_id, scope_vocab=scope_vocab)
         options = self._active_membership_type_options(tenant_id)
 
         fields = [
-            self._serialize_public_field(f, options=options)
+            self._serialize_public_field(
+                f,
+                # The SAME ONE `options` the read-assembly seam (design C4 / F8) populated for the
+                # staff read — the public serializer consumes it and then applies the R3.2 subset
+                # FILTER, so both reads resolve the same vocabulary from the same assembly point.
+                field_options=self._assemble_field_options(
+                    f, options=options, scope_vocab=scope_vocab
+                ),
+            )
             for f in config.fields
             # R5.1/R5.2: expose ONLY application-selected fields — nothing the tenant did not
             # put on the public form (no staff-only / unselected field, no internal attribute).
@@ -262,7 +280,7 @@ class FieldConfigSurfaceMixin:
         self,
         field: ResolvedField,
         *,
-        options: Sequence[Mapping[str, Any]],
+        field_options: Sequence[Mapping[str, Any]] | None,
     ) -> dict[str, Any]:
         """Project an application-SELECTED :class:`ResolvedField` to the PUBLIC schema (R5.3).
 
@@ -277,12 +295,13 @@ class FieldConfigSurfaceMixin:
           NOT the staff ``required`` (an applicant's required set is the tenant's form config);
         - ``show_when`` (R4.12) when present — so the form renders/validates a conditional field
           only when actually shown (mirrored authoritatively server-side);
-        - ``options`` — the dropdown source with the enum **application SUBSET applied** (R4a.2):
-          for ``membership_type`` the ACTIVE catalog entries, FILTERED to the declared subset; for
-          any other enum the subsetted ``{value, label}`` options (or the bare subsetted value
-          list); ``None`` for a non-choice field. Reuses :func:`application_subset_choices` so the
-          public read and the submit validator (:func:`validate_application_choice`) agree on the
-          exposed set (fail-loud on a subset ⊄ choices, R4a.4);
+        - ``options`` — the ONE canonical vocabulary the read-assembly seam (design C4 / F8)
+          populated (``field_options``) with the enum **application SUBSET FILTER applied**
+          (R4a.2/R3.2): the subset narrows the seam's ``options`` down to the public-safe values
+          for ANY selectable kind uniformly (``membership_type`` reference, scope, or inline
+          enum) — ``None`` for a non-choice field. The subset FILTER is the only projection left;
+          the per-kind branch and the ``field.choices`` fallback are retired (F10). Fail-loud if a
+          subset entry is not in the seam's vocabulary (R4a.4);
         - ``format`` — the declarative validator token ``{checker, params}`` (R7.1) when the field
           carries one, so the form can mirror the checker client-side (server authoritative).
         """
@@ -301,7 +320,9 @@ class FieldConfigSurfaceMixin:
         if field.show_when is not None:
             payload["show_when"] = dict(field.show_when)
 
-        payload["options"] = self._public_field_options(field, options=options)
+        payload["options"] = self._public_field_options(
+            field, field_options=field_options
+        )
 
         if field.format is not None:
             # The declarative field validator token (R7.1): a `{checker, params}` the form mirrors
@@ -317,79 +338,73 @@ class FieldConfigSurfaceMixin:
         self,
         field: ResolvedField,
         *,
-        options: Sequence[Mapping[str, Any]],
+        field_options: Sequence[Mapping[str, Any]] | None,
     ) -> list[Any] | None:
-        """The exposed option list for an enum field, with the application SUBSET applied (R4a.2).
+        """The exposed public option list — the seam's ONE ``options`` with the SUBSET FILTER (R4a.2).
 
-        Returns ``None`` for a non-choice field. For an enum:
+        Consumes ``field_options`` — the single canonical vocabulary the read-assembly seam
+        (design C4 / F8, :meth:`_assemble_field_options`) populated from the field's declared
+        source (active catalog for ``membership_type``, scope-dimension values for a scope-backed
+        field, or the inline enum's rich options). This serializer NO LONGER branches by field
+        kind and NO LONGER reads ``field.choices`` as a fallback vocabulary source (F10): it
+        applies ONLY the R3.2 public-SUBSET FILTER — a legitimately different projection that
+        narrows the seam's vocabulary down to the tenant's declared ``application_choices``.
 
-        - ``membership_type`` (D2 — the first subset consumer): the ACTIVE catalog entries
-          (``{value, label, order}``), FILTERED to the field's application subset so the public
-          form offers ONLY the public-safe membership types (R4a.5). When no subset is declared,
-          every active entry is offered (back-compatible, R4a.2).
-        - any other enum with rich :class:`EnumOption`s: the ``{value, label}`` options filtered to
-          the subset (the value-level ``roles`` gate is a STAFF concern and is deliberately dropped
-          from the public contract).
-        - any other enum with a bare choice list: the subsetted bare value list.
+        Returns ``None`` for a non-selectable field (no seam vocabulary). Otherwise returns the
+        seam options narrowed to the subset, with the staff-only ``roles`` gate dropped from the
+        public contract. When no subset is declared (``application_choices is None``) every option
+        is offered (back-compatible default, R4a.2).
 
-        The exposed set is computed by :func:`application_subset_choices` (the single subset
-        authority shared with the submit validator, R4a.3) — fail-loud if a subset entry is not a
-        valid choice of the field (R4a.4), so a broken subset surfaces here rather than exposing
-        an off-list value.
+        Fail-loud (R4a.4): a declared subset entry that is NOT in the seam's vocabulary is a config
+        bug and raises :class:`OverlayError` (caller-safe — keyed by the field's dotted key, no
+        internal detail leaked), so a broken subset surfaces here rather than exposing an off-list
+        value. This preserves the subset-⊆-vocabulary discipline uniformly for every kind.
         """
-        if field.dotted_key() == MEMBERSHIP_TYPE_FIELD_KEY:
-            # The ACTIVE catalog feed, narrowed to the declared public subset (R4a.5/D2).
-            # membership_type is a REFERENCE field whose resolved "choices" are the live catalog
-            # (not `field.choices`), so the subset is filtered against the catalog option values
-            # here — NOT via `application_subset_choices` (which guards against `field.choices`).
-            # Fail-loud (R4a.4): a declared subset entry that is not an active catalog value is a
-            # config bug and raises `OverlayError`, mirroring the subset-⊆-choices discipline. No
-            # subset → every active entry is offered (back-compatible default, R4a.2). The live
-            # catalog + R11 reference check remain the authoritative submit-time gate.
-            subset = field.application_choices
-            if subset is None:
-                return [dict(o) for o in options]
-            catalog_values = {str(o.get("value")) for o in options}
-            dangling = [v for v in subset if v not in catalog_values]
-            if dangling:
-                from sam.members.domain.field_resolver import OverlayError
+        # No selectable source populated by the seam → no option list (a non-choice field, or a
+        # field whose declared source did not propagate — the latter is the asymmetry task 9/C6
+        # strengthens into a loud error at the seam).
+        if field_options is None:
+            return None
 
-                offenders = ", ".join(repr(v) for v in dangling)
-                raise OverlayError(
-                    {
-                        field.dotted_key(): (
-                            f"application_choices subset entr"
-                            f"{'y' if len(dangling) == 1 else 'ies'} {offenders} "
-                            f"not in the tenant's active membership-type catalog (R4a.4)"
-                        )
-                    }
-                )
-            allowed = set(subset)
-            return [dict(o) for o in options if str(o.get("value")) in allowed]
+        subset = field.application_choices
+        if subset is None:
+            # No subset declared → the full seam vocabulary, roles dropped (back-compatible).
+            return [self._public_option(o) for o in field_options]
 
-        if field.type is not FieldType.ENUM:
-            # A non-enum, non-reference field carries no option list.
-            if field.options is None and field.choices is None:
-                return None
+        # Fail-loud: the subset MUST be ⊆ the seam vocabulary (R4a.4). A dangling entry is a
+        # config bug, surfaced caller-safe (dotted key only), never a silently off-list value.
+        vocabulary = {str(o.get("value")) for o in field_options}
+        dangling = [v for v in subset if v not in vocabulary]
+        if dangling:
+            from sam.members.domain.field_resolver import OverlayError
 
-        # The subset the public form exposes (full set when none declared). This re-runs the
-        # subset ⊆ choices guard, so a broken subset is a fail-loud config error (R4a.4).
-        allowed = set(application_subset_choices(field))
+            offenders = ", ".join(repr(v) for v in dangling)
+            raise OverlayError(
+                {
+                    field.dotted_key(): (
+                        f"application_choices subset entr"
+                        f"{'y' if len(dangling) == 1 else 'ies'} {offenders} "
+                        f"not in the field's resolved options (R4a.4)"
+                    )
+                }
+            )
+        allowed = set(subset)
+        return [
+            self._public_option(o)
+            for o in field_options
+            if str(o.get("value")) in allowed
+        ]
 
-        if field.options is not None:
-            # Rich enum options → public {value,label} (drop the staff-only `roles` gate),
-            # filtered to the exposed subset.
-            return [
-                {"value": o.value, "label": dict(o.label)}
-                for o in field.options
-                if str(o.value) in allowed
-            ]
+    @staticmethod
+    def _public_option(option: Mapping[str, Any]) -> dict[str, Any]:
+        """Project ONE seam option to its PUBLIC shape: drop the staff-only ``roles`` gate (R4a).
 
-        if field.choices is not None:
-            # Bare value list → the subsetted (ordered) exposed values.
-            return list(application_subset_choices(field))
-
-        return None
+        The seam's canonical option carries ``{value, label, order?, roles?}``; the public form
+        contract never exposes the value-level ``roles`` gate (a STAFF concern). Everything else
+        (``value`` / i18n ``label`` / the reference ``order``) rides through unchanged, so the
+        public read is the SAME vocabulary the staff read serializes, minus ``roles``.
+        """
+        return {k: v for k, v in option.items() if k != "roles"}
 
     def _serialize_scope_dimensions(self, tenant_id: str) -> list[dict[str, Any]]:
         """Project the tenant's ENABLED scope dimensions into the frontend `dimensions` shape.
@@ -427,6 +442,66 @@ class FieldConfigSurfaceMixin:
             "label": dict(group.label),
             "order": int(group.order),
         }
+
+    def _assemble_field_options(
+        self,
+        field: ResolvedField,
+        *,
+        options: Sequence[Mapping[str, Any]],
+        scope_vocab: Mapping[str, Sequence[str]],
+    ) -> list[dict[str, Any]] | None:
+        """The ONE selectable-vocabulary assembly pass (design C4 / F8, R2.1/R2.6).
+
+        Resolves a field's canonical ``options`` from its DECLARED SOURCE at this single
+        read-assembly point — the ``assembleSelectableOptions`` the design pins — so every
+        consumer (the staff :meth:`_serialize_field` and the public
+        :meth:`_public_field_options`) reads the ONE ``options`` this computed and NONE branches
+        by field kind. The three sources are the ONLY per-kind decision, and all are INJECTED
+        (the pure :class:`FieldResolver` reads no catalog/DB):
+
+        - **reference** (``membership_type``): the injected ACTIVE-catalog options map
+          (``_active_membership_type_options``) — the F8 reference population, moved from the
+          one-off merge in :meth:`get_field_config` into this uniform pass. Returned as plain
+          ``{value, label, order}`` dicts.
+        - **scope-backed** (an overlay enum whose key is bound to a tenant scope dimension — its
+          key is present in the injected ``scope_vocab``): the dimension's values projected to
+          rich ``{value, label}`` options. ``scope_vocab`` / ``scope_dimensions.values`` is the
+          single source of truth, so a scope dropdown needs no duplicated inline vocabulary.
+        - **inline enum**: the field's own rich :class:`EnumOption`s (``{value, label, roles?}``),
+          sourced purely by the resolver — unchanged.
+
+        Returns ``None`` for a field that declares no selectable source. There is deliberately NO
+        ``field.choices`` fallback here (F9/F10): a bare value list is not a canonical source —
+        after the C7 backfill / C5 reader collapse every live selectable row carries ``options``.
+        A field whose DECLARED source exists but did not propagate into ``options`` is the
+        ASYMMETRY the uniform fail-loud boundary (task 9 / C6) raises on; this pass is the single
+        point that decision hooks into — today it returns the (empty/absent) result, and task 9
+        strengthens exactly this seam to raise on the asymmetry rather than degrade.
+        """
+        # reference — the injected active-catalog map (F8). Population lives at the seam, never
+        # in the pure resolver.
+        if field.dotted_key() == MEMBERSHIP_TYPE_FIELD_KEY:
+            return [dict(o) for o in options]
+
+        # scope-backed — project the injected scope dimension's values to rich options. The key
+        # ∈ scope_vocab is the SAME discriminator the resolver uses for a scope-dimension-backed
+        # enum, so inline-options fields (which are NOT in scope_vocab) still resolve inline.
+        if field.key in scope_vocab:
+            return [
+                {"value": str(v), "label": {}} for v in scope_vocab[field.key]
+            ]
+
+        # inline enum — the field's own rich options, sourced purely by the resolver. Reuses the
+        # catalog mixin's enum serializer (resolved at runtime on the composed service class, same
+        # as the other cross-mixin calls here) so the {value,label,roles?} shape is identical.
+        if field.options is not None:
+            return [self._serialize_enum_option(o) for o in field.options]
+
+        # No selectable source declared (a plain string/number field, or a not-yet-populated
+        # field). No `field.choices` fallback (F9/F10): a bare value list is not a canonical
+        # source. Task 9 (C6) strengthens THIS point to raise when a DECLARED source exists but
+        # failed to propagate (the asymmetry); a legitimately sourceless field stays `None`.
+        return None
 
     def _active_membership_type_options(self, tenant_id: str) -> list[dict[str, Any]]:
         """The tenant's ACTIVE catalog entries as JSON-friendly dropdown options (design C8).
