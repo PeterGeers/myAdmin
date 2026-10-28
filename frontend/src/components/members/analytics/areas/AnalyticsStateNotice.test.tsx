@@ -17,6 +17,15 @@ vi.mock('../../../../hooks/useTypedTranslation', () => ({
   useTypedTranslation: () => ({ t: (key: string) => key }),
 }));
 
+// Stub the tenant context (same pattern as the paired MemberPivotViews.test.tsx)
+// so the real MemberPivotViews sub-panel rendered via PivotViewsArea resolves
+// its useTenant() call without a real TenantProvider. The active tenant name
+// feeds the CSV export filename (`{Tenant}-{Pivot}.csv`); a fixed value is
+// enough for these mount-only assertions.
+vi.mock('../../../../context/TenantContext', () => ({
+  useTenant: () => ({ currentTenant: 'h-dcn' }),
+}));
+
 // Mock the Members API so PivotViewsArea's real MemberPivotViews sub-panel does
 // not hit the network: no saved sets, empty preferred list, no label templates.
 const listAnalyticsSets = vi.fn();
