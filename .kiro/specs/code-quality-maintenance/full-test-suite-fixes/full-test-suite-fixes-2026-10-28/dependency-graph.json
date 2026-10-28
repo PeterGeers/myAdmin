@@ -1,0 +1,79 @@
+{
+  "specId": "d57ba2f1-2751-439b-b220-256684c68060",
+  "spec": "full-test-suite-fixes-2026-10-28",
+  "ciRun": 40649179164,
+  "ciRunNumber": 113,
+  "ciConclusion": "failure",
+  "ciHeadSha": "73ef52e927d5cc1dd419c0837e52cdb3cbe815f9",
+  "ciHeadBranch": "main",
+  "ciEvent": "schedule",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (run #113, 2026-10-28, nightly schedule on main @ 73ef52e92 = the PR #173 test->main promotion merge of PR #171 + PR #172)",
+  "priorities": {
+    "critical": [],
+    "high": [
+      "H1"
+    ],
+    "medium": [],
+    "low": [
+      "L1",
+      "L2"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "H1",
+      "title": "Provide the TenantProvider/useTenant mock in AnalyticsStateNotice.test.tsx so the two PivotViewsArea tests mount",
+      "priority": "high",
+      "effort": "S",
+      "plane": "frontend",
+      "type": "fix",
+      "rootCause": "AnalyticsStateNotice.test.tsx > 'PivotViewsArea — no degradation notice (role machinery removed)' has 2 tests ('mounts the pivot sub-panel with NO analytics-config degradation notice', 'shows the empty-state hint ... when there are no saved sets') both throwing 'useTenant must be used within a TenantProvider' (TenantContext.tsx:128) from MemberPivotViews.tsx:176. PR #172 (pivot-csv-filename) added useTenant() to MemberPivotViews to name the CSV export {Tenant}-{Pivot}.csv; its paired MemberPivotViews.test.tsx was updated to mock useTenant and passes, but this SIBLING test renders the same component via PivotViewsArea without mocking useTenant or wrapping in TenantProvider. Change-with-tests miss. Fix: mirror the paired test's vi.mock of ../../../../context/TenantContext (adjust relative depth for areas/), or wrap the render in TenantProvider; do NOT weaken the two assertions."
+    },
+    {
+      "id": "L1",
+      "title": "Sweep for other tests mounting MemberPivotViews/PivotViewsArea without tenant context (close the class)",
+      "priority": "low",
+      "effort": "S",
+      "plane": "frontend",
+      "type": "hygiene",
+      "rootCause": "The red was a sibling test the paired-test update missed. grep -rln 'MemberPivotViews|PivotViewsArea' src --include=*.test.tsx and confirm each either mocks useTenant or wraps in TenantProvider; fix any latently-broken ones the same way as H1 so the whole class (not just the one red file) is closed. Recurrence guard for requirements Lesson 1."
+    },
+    {
+      "id": "L2",
+      "title": "Re-dispatch the Full Test Suite and verify green after the fix lands",
+      "priority": "low",
+      "effort": "S",
+      "plane": "ci",
+      "type": "verification",
+      "rootCause": "Run #113 is the NIGHTLY run on main; the regression is already on the production branch. Land H1 via branch -> PR into test (CodeQL + GitGuardian green) -> merge; re-dispatch full-test-suite.yml on test, confirm success; promote test->main with a merge commit (steering 43). Optionally dispatch on main to clear the nightly red immediately. Frontend-only change; no SAM/infra."
+    }
+  ],
+  "edges": [
+    {
+      "from": "H1",
+      "to": "L2",
+      "type": "blocks",
+      "reason": "the frontend red must mount/pass before the suite can be verified green"
+    },
+    {
+      "from": "L1",
+      "to": "L2",
+      "type": "blocks",
+      "reason": "any other unguarded MemberPivotViews mounts must also be fixed before the suite is confidently green"
+    }
+  ],
+  "recommendedOrder": [
+    "H1",
+    "L1",
+    "L2"
+  ],
+  "notes": [
+    "CI run #113 (id 40649179164, 2026-10-28 07:18 UTC @ 73ef52e92 on main, schedule, FAILURE). SAM GREEN (100%). Backend GREEN (7422 passed / 14 skipped). Backend Ruff Lint PASS, Ruff Format PASS, Vulture PASS. Frontend: 2 failed / 4217 passed / 12 skipped — 1 failed file (AnalyticsStateNotice.test.tsx).",
+    "BOTH reds are ONE change-with-tests miss from PR #172 (pivot-csv-filename): MemberPivotViews gained useTenant(); the paired MemberPivotViews.test.tsx was updated to mock it, but the sibling AnalyticsStateNotice.test.tsx mounting the same component via PivotViewsArea was not. Not pre-existing debt.",
+    "head SHA 73ef52e92 is the PR #173 test->main promotion merge commit (shipped PR #171 enum-label + PR #172 pivot-csv-filename). The regression is already on main; L2 re-verifies green.",
+    "No lint reds and no backend/SAM reds this run — the narrowest red set of the recent series.",
+    "COMPARISON vs #74 (full-test-suite-fixes-2026-10-17): #74 had 4 reds (1 backend convergence property + 2 frontend view_contexts status tests + CI-blocking ruff-format), all from PRs #121/#122. #113 is down to 2 frontend reds in one file, no backend/lint reds. #74's reds did NOT recur (projection convergence, view_contexts status, ruff-format all green in #113).",
+    "RECURRING (same class as #74): change-with-tests miss — 'update the paired test, miss a second test exercising the same unit.' #74 missed property/status tests on a config refactor; #113 missed a sibling component test when adding a context hook. Exactly the class 30-backend-api-flask-mysql Change-With-Tests Contract names as the top recurring CI failure. See requirements Lessons 1-4.",
+    "GATE GAP (steering 43): per-PR gates are CodeQL + GitGuardian only (Backend/Frontend CI disabled_manually), so a frontend change-with-tests miss is invisible until the NIGHTLY full-suite run — after promotion to main. Mitigation: run the changed component's sibling tests locally and/or dispatch full-test-suite.yml on test as the promotion gate."
+  ]
+}
