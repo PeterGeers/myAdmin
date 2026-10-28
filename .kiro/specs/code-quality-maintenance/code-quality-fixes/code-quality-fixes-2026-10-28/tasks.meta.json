@@ -1,0 +1,231 @@
+{
+    "pbtResults": {},
+    "executionHistory": {
+        "1. **Consolidate the 8 `resolveLabel` copies into ONE shared util.** [M]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180250585
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180262157
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793181806372
+            }
+        ],
+        "2. **Add an ESLint guard banning raw `fetch(`/`axios.` outside `src/services/`.** [S]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180250733
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180271255
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793181808233
+            }
+        ],
+        "3. **Split `sam/members/domain/_membership_writes.py` (1940 — largest file in repo).** [L]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180250861
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180277603
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793181809881
+            }
+        ],
+        "4. **Split `sam/members/handler/_dispatch.py` (1479) by resource.** [L]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180251002
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180283834
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793181811330
+            }
+        ],
+        "5. **Split `frontend/src/components/members/analytics/MemberPivotViews.tsx` (1718).** [L]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180251163
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180290193
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793181812877
+            }
+        ],
+        "6. **Split `projection_config_reader.py` (1185, sam) and `_projection_config_builders.py` (1099, backend).** [L]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180251336
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793181836816
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793185215463
+            }
+        ],
+        "7. **Reduce service-layer `Promise<any>` in the frontend.** [M]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180251543
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793181843896
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793185240141
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793185510009
+            }
+        ],
+        "8. **Confirm/add mobile table wrappers on the 4 data-dense pages.** [M]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180251750
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793181850820
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793185216801
+            }
+        ],
+        "9. **Add direct tests for the high-risk untested backend route/scoping modules.** [M]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180252071
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793181863417
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793185218274
+            }
+        ],
+        "10. **Opportunistically split the 500–1000 line files when touched.** [L]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180252313
+            },
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793181873058
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793185219794
+            }
+        ],
+        "11. **Trim genuine production `any` in public landing blocks and param-schema types.** [M]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180252720
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793185515474
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793186745315
+            }
+        ],
+        "12. **Fill medium-value frontend test gaps.** [M]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180253236
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793185522762
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793186746481
+            }
+        ],
+        "13. **Archive stale point-in-time status docs.** [S]": [
+            {
+                "executionId": "eab4b615-8811-4e3d-a504-e4839318a50e",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793180253649
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793185529812
+            },
+            {
+                "executionId": "2d407393-3bfe-4b05-b825-1e5f6287e97c",
+                "chatSessionId": "sess_2c86c8f2-00ac-484f-b436-81ca4c0548e9",
+                "timestamp": 1793186796106
+            }
+        ]
+    }
+}
