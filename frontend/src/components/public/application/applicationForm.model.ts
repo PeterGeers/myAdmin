@@ -24,6 +24,7 @@
 import type { LocalizedLabel } from '../../../types/members';
 import type { PublicField, PublicFieldOption } from './applicationFieldConfig';
 import { applicationChoiceValues } from './applicationFieldConfig';
+import { resolveLabel as sharedResolveLabel } from '../../members/labelResolver';
 
 /** The applicant locale set the form understands; everything else falls back to `nl` (R6b). */
 export const SUPPORTED_LOCALES = ['nl', 'en'] as const;
@@ -48,15 +49,17 @@ export function resolveLocale(input: string | null | undefined): SupportedLocale
  * fallback chain (R6b): the active locale, then `en`, then `nl`, then the field key — NEVER blank.
  * A blank entry at a higher tier is treated as ABSENT so the next tier fills it (never render "").
  * Matches `components/members/fieldForm.ts::resolveLabel` and the SAM `LABEL_FALLBACK_ORDER`.
+ *
+ * Delegates to the ONE shared {@link sharedResolveLabel} util with the `'en-first'` i18n
+ * contract (the shared default) so behavior is byte-identical while the logic lives in
+ * `components/members/labelResolver.ts` (code-quality-fixes-2026-10-28 task 1).
  */
 export function resolveLabel(
   label: LocalizedLabel | string | undefined,
   locale: string,
   fallback: string,
 ): string {
-  if (!label) return fallback;
-  if (typeof label === 'string') return label || fallback;
-  return label[locale as keyof LocalizedLabel] || label.en || label.nl || fallback;
+  return sharedResolveLabel(label, locale, fallback, 'en-first');
 }
 
 /**

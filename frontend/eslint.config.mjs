@@ -58,33 +58,38 @@ export default tseslint.config(
   // ---------------------------------------------------------------------------
   // Recurring-issue gate #1: frontend data-fetch bypass.
   //
-  // Components / pages / hooks / utils MUST route backend calls through
-  // `services/apiService` (or a sibling service in `services/`). They must NOT
+  // Everything under `src/` except the service layer MUST route backend calls
+  // through `services/apiService` (or a sibling service in `services/`). They
+  // must NOT
   // (a) call `fetch(...)` directly against the API, (b) call `axios.*(...)`
   // directly, nor (c) hand-build a base URL from `import.meta.env.VITE_API_URL`
   // / a bare `API_URL`.
   //
-  // Scope: everything OUTSIDE `src/services/`. The apiService migration dropped
-  // the direct-fetch bypass from 33 -> 2 sites; this guard locks in the win so
-  // new components can't reintroduce a raw fetch/axios call. The `services/`
+  // Scope: everything under `src/**` OUTSIDE `src/services/`. The apiService
+  // migration dropped the direct-fetch bypass from 33 -> 2 sites and is now
+  // fully landed (2026-10-28 scan: the only remaining non-service `fetch` is an
+  // exempt `*.example.tsx` demo). This guard locks in the win so no component,
+  // page, hook, util, context, config, shared helper, or top-level `src/*`
+  // module can reintroduce a raw fetch/axios/base-URL call. The `services/`
   // layer legitimately owns the one real `fetch`/`axios`/base-URL construction,
-  // so it is NOT in `files` below and stays exempt.
+  // so it is excluded via `ignores` below and stays exempt.
   //
-  // Allow-list (NOT in `files` / in `ignores`): `src/services/**`,
-  // `*.example.{ts,tsx}` demo files, and test files
-  // (`**/*.test.{ts,tsx}`, `src/tests/**`, `**/__tests__/**`, mocks).
-  // `pages/public/PublicLandingPage.tsx` is no longer excluded: its one real
-  // `fetch` was migrated into `services/publicLandingService.ts` (task 3), so
-  // it is now clean under this rule.
+  // Allow-list (in `ignores`): `src/services/**`, `*.example.{ts,tsx}` demo
+  // files, and test files (`**/*.test.{ts,tsx}`, `**/*.spec.{ts,tsx}`,
+  // `src/tests/**`, `**/__tests__/**`, `**/__mocks__/**`).
+  // `pages/public/PublicLandingPage.tsx` is NOT excluded: its one real `fetch`
+  // was migrated into `services/publicLandingService.ts`, so it is clean here.
+  //
+  // Widened 2026-10-28 (code-quality-fixes-2026-10-28 task 2) from the original
+  // four-folder scope (components/pages/hooks/utils) to all of `src/**` minus
+  // the service layer, so the "no raw fetch outside src/services/" discipline
+  // cannot be sidestepped by landing a fetch in src/context, src/config,
+  // src/shared, or a top-level src/*.tsx.
   // ---------------------------------------------------------------------------
   {
-    files: [
-      "src/components/**/*.{ts,tsx}",
-      "src/pages/**/*.{ts,tsx}",
-      "src/hooks/**/*.{ts,tsx}",
-      "src/utils/**/*.{ts,tsx}",
-    ],
+    files: ["src/**/*.{ts,tsx}"],
     ignores: [
+      "src/services/**",
       "**/*.test.{ts,tsx}",
       "**/*.spec.{ts,tsx}",
       "**/__tests__/**",

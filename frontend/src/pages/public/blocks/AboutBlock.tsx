@@ -1,11 +1,19 @@
 import React from 'react';
 import { Box, Container, Flex, Heading, Text, Image } from '@chakra-ui/react';
 
+/** A single entry rendered by the `timeline` layout variant. */
+export interface TimelineItem {
+  title: string;
+  description: string;
+}
+
 export interface AboutBlockProps {
   properties: {
     content_md: string;
     image_key?: string;
     title?: string;
+    /** Entries rendered when `layout === 'timeline'`. */
+    timeline_items?: TimelineItem[];
   };
   layout: string;
   cloudFrontUrl: string;
@@ -88,12 +96,12 @@ export const AboutBlock: React.FC<AboutBlockProps> = ({
 
   // Layout: timeline — reads timeline_items from properties
   if (layout === 'timeline') {
-    const timelineItems = (properties as any).timeline_items || [];
+    const timelineItems = properties?.timeline_items || [];
     return (
       <Container maxW="800px" py={{ base: 12, md: 16 }}>
         {title && <Heading as="h2" size="xl" mb={8}>{title}</Heading>}
         <Box borderLeft="3px solid" borderColor="orange.400" pl={8} position="relative">
-          {timelineItems.map((item: any, i: number) => (
+          {timelineItems.map((item: TimelineItem, i: number) => (
             <Box key={i} mb={8} position="relative">
               <Box position="absolute" left="-2.1rem" top="0" w="12px" h="12px" borderRadius="full" bg="orange.400" />
               <Heading as="h3" size="md" mb={1}>{item.title}</Heading>
