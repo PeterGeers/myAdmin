@@ -50,7 +50,7 @@ async function parseJsonResponse<T>(res: Response): Promise<T> {
  * Convert a frontend PivotConfig (camelCase) to the backend request body
  * (snake_case) expected by POST /api/pivot/execute and /api/pivot/export.
  */
-export function toBackendConfig(config: PivotConfig): Record<string, any> {
+export function toBackendConfig(config: PivotConfig): Record<string, unknown> {
   return {
     data_source: config.dataSource,
     group_columns: config.groupColumns,
