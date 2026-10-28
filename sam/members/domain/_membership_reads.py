@@ -1,4 +1,5 @@
 """Membership-service READ surface (M1 split): scope filtering, self-service ownership, calculated-field enrichment, and the member / membership / payment reads. Mixed into ``MembershipService`` -- bodies are verbatim."""
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
@@ -48,9 +49,7 @@ class ReadsMixin:
         return len(list(values)) == 0
 
     @staticmethod
-    def _record_scope_values(
-        member: Member, dimension_key: str
-    ) -> list[str]:
+    def _record_scope_values(member: Member, dimension_key: str) -> list[str]:
         """The member's canonical value for the gating dimension, as a 0-or-1-element list.
 
         Scope is a **plain member field** now — the ``scope_values`` bucket is retired (S5d
@@ -275,23 +274,29 @@ class ReadsMixin:
            which ENFORCES tenant isolation — a tampered/stale cursor naming another tenant (or
            omitting the partition key) raises :class:`CursorError` and never resumes there
            (Property 1). ``None`` / blank = the first page.
-        2. Asks the repository for ONE page (:meth:`MembersRepository.list_members_page`):
-           ``page_size`` set (a fixed Rows_Per_Page option 50/100/250/500, R25.2) is the Query
-           ``Limit``; ``page_size`` ``None`` (the ``Max`` option, R25.3) omits the ``Limit`` so
-           DynamoDB returns one page up to its natural ~1 MB boundary (``Max`` is one Query
-           page, NOT all rows).
-        3. NARROWS the returned page by ``allowed_scopes`` (the same per-dimension AND rule as
+        2. Asks the repository for member records (:meth:`MembersRepository.list_members_page`),
+           looping its resume key until ``page_size`` IN-SCOPE rows are collected: ``page_size``
+           set (a fixed Rows_Per_Page option 50/100/250/500, R25.2) bounds the returned in-scope
+           rows; ``page_size`` ``None`` (the ``Max`` option, R25.3) returns one repository page's
+           in-scope members (``Max`` is one page up to DynamoDB's natural ~1 MB boundary, NOT all
+           rows).
+        3. NARROWS each repository page by ``allowed_scopes`` (the same per-dimension AND rule as
            :meth:`list_members`, Property 4/6) and enriches calculated fields.
-        4. RE-ENCODES the raw DynamoDB ``LastEvaluatedKey`` to the opaque wire cursor the client
-           round-trips back for the NEXT page — ``None`` on the final page (no ``LastEvaluated
-           Key``), so the frontend's Next control is disabled (R25.5/R25.6). Prev/next walk this
-           cursor; there is no SQL-style offset or jump-to-page.
+        4. RE-ENCODES the DynamoDB resume key of the LAST in-scope row returned to the opaque
+           wire cursor the client round-trips back for the NEXT page — ``None`` on the final page
+           (the repository exhausted the partition), so the frontend's Next control is disabled
+           (R25.5/R25.6). Prev/next walk this cursor; there is no SQL-style offset or
+           jump-to-page.
 
-        The ``Limit`` applies to the RAW DynamoDB page BEFORE the domain scope filter, so a
-        scope-narrowed caller may see fewer than ``page_size`` rows on a page while the cursor
-        still advances by the raw page — that is the honest DynamoDB-native page (prev/next
-        walks the raw cursor, never a post-filter count). A guaranteed-deny scope (empty map or
-        a ``[]`` dimension) returns ``([], None)`` without paging the repository at all.
+        ``page_size`` means **returned in-scope rows** (R25/Property 3): the repository bounds a
+        page to ``page_size`` MEMBER records, but the domain scope filter may drop some of those,
+        so this LOOPS the repository (following its resume key) until ``page_size`` IN-SCOPE rows
+        are collected or the partition is exhausted — a scope-narrowed caller gets a full page of
+        ``min(page_size, total_in_scope)`` rows, not a scope-shrunk raw page. An all-access
+        (``["*"]``) caller keeps every member, so one repository page already fills it.
+
+        A guaranteed-deny scope (empty map or a ``[]`` dimension) returns ``([], None)`` without
+        paging the repository at all.
         """
         from sam.members.repository.members_cursor import decode_cursor, encode_cursor
 
@@ -301,15 +306,37 @@ class ReadsMixin:
         ):
             # Deny-by-default: no scope grant → see nothing, no next page. Do not page the repo.
             return [], None
-        members, last_key = self._repo.list_members_page(
-            tenant_id, limit=page_size, start_key=start_key, filters=filters
-        )
-        rows = [
-            self._enrich_calculated(m)
-            for m in members
-            if self._in_scope(m, allowed_scopes)
-        ]
-        return rows, encode_cursor(last_key)
+
+        rows: list[Member] = []
+        next_start_key = start_key
+        while True:
+            # Ask the repository for a member page; when scoping, request up to the number of
+            # rows still needed so the repository can cap its own (possibly multi-Query) walk.
+            remaining = None if page_size is None else page_size - len(rows)
+            members, repo_key = self._repo.list_members_page(
+                tenant_id, limit=remaining, start_key=next_start_key, filters=filters
+            )
+            for member in members:
+                if not self._in_scope(member, allowed_scopes):
+                    continue
+                rows.append(self._enrich_calculated(member))
+                if page_size is not None and len(rows) >= page_size:
+                    # A full page of in-scope rows. The wire cursor resumes right after the LAST
+                    # row we actually return (``repo_key`` sits at the repository's member page
+                    # boundary) — an honest cursor across the possibly multi-page assembly. If the
+                    # repository exhausted the partition (``repo_key is None``) this is the final
+                    # page and ``encode_cursor`` yields ``None`` (Next disabled).
+                    return rows, encode_cursor(repo_key)
+            if repo_key is None:
+                # The repository exhausted the partition — final page, no next cursor, even if we
+                # collected fewer than ``page_size`` in-scope rows (that is the honest total).
+                return rows, None
+            if page_size is None:
+                # ``Max`` is one repository page; surface its resume key (if any) and stop.
+                return rows, encode_cursor(repo_key)
+            # More member records remain but we are short of ``page_size`` in-scope rows —
+            # continue from the repository's resume key to top up the page.
+            next_start_key = repo_key
 
     def export_members(
         self,
@@ -452,4 +479,3 @@ class ReadsMixin:
             self_service=self_service,
         )
         return list(self._repo.list_member_payments(tenant_id, member_id))
-

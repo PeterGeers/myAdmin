@@ -32,7 +32,9 @@ import pytest
 
 # repo root + backend/src on sys.path (mirrors sam/conftest.py + the pretokengen tests) so
 # `sam.members...` and its `services.dynamodb_client` dependency both import.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -139,7 +141,9 @@ class FakeDynamoTable:
                 "value": 0,
             },
         )
-        item["value"] = int(item.get("value", 0)) + int(ExpressionAttributeValues[":one"])
+        item["value"] = int(item.get("value", 0)) + int(
+            ExpressionAttributeValues[":one"]
+        )
         return {"Attributes": {"value": item["value"]}}
 
 
@@ -247,7 +251,11 @@ def repo(table) -> DynamoDbMembersRepository:
 def _member(member_id: str, member_number: str, *, region=None, name="Alex") -> dict:
     rec = {
         "member_id": member_id,
-        "personal": {"first_name": name, "last_name": name, "email": f"{member_id}@example.com"},
+        "personal": {
+            "first_name": name,
+            "last_name": name,
+            "email": f"{member_id}@example.com",
+        },
         "membership": {
             "member_number": member_number,
             "status": "active",
@@ -374,7 +382,9 @@ class TestMemberCrudAndIsolation:
     def test_list_members_returns_only_bare_member_records(self, repo):
         repo.save_member("h-dcn", _member("M-1", "1001"))
         repo.save_member("h-dcn", _member("M-2", "1002"))
-        repo.save_membership("h-dcn", "M-1", {"membership_id": "MS-1", "status": "active"})
+        repo.save_membership(
+            "h-dcn", "M-1", {"membership_id": "MS-1", "status": "active"}
+        )
         repo.save_delegates("h-dcn", "M-1", [{"email": "d@example.com"}])
 
         listed = repo.list_members("h-dcn")
@@ -434,7 +444,9 @@ class TestMemberNumberIsPlainOptionalString:
 
     def test_arbitrary_string_number_is_stored_verbatim(self, repo):
         repo.save_member("h-dcn", _member("M-1", "ABCDEFG"))
-        assert repo.get_member("h-dcn", "M-1")["membership"]["member_number"] == "ABCDEFG"
+        assert (
+            repo.get_member("h-dcn", "M-1")["membership"]["member_number"] == "ABCDEFG"
+        )
 
     def test_idempotent_resave_of_same_member_updates_in_place(self, repo):
         repo.save_member("h-dcn", _member("M-1", "1001", name="Alex"))
@@ -505,7 +517,9 @@ class TestMemberChildren:
 # ---------------------------------------------------------------------------
 
 
-def _mtype(type_code, *, tenant_id="h-dcn", nl=None, active=True, order=0) -> MembershipTypeEntry:
+def _mtype(
+    type_code, *, tenant_id="h-dcn", nl=None, active=True, order=0
+) -> MembershipTypeEntry:
     return MembershipTypeEntry(
         tenant_id=tenant_id,
         type_code=type_code,
@@ -530,7 +544,9 @@ class TestMembershipTypeCatalog:
 
     def test_save_binds_entry_to_the_caller_tenant_when_unset(self, repo):
         # An entry with a blank tenant_id is bound to the caller's tenant on save.
-        entry = MembershipTypeEntry(tenant_id="", type_code="donateur", label={"nl": "Donateur"})
+        entry = MembershipTypeEntry(
+            tenant_id="", type_code="donateur", label={"nl": "Donateur"}
+        )
         saved = repo.save_membership_type("h-dcn", entry)
         assert saved.tenant_id == "h-dcn"
         assert repo.get_membership_type("h-dcn", "donateur") is not None
@@ -603,7 +619,9 @@ class TestMembershipTypeCatalog:
 # ---------------------------------------------------------------------------
 
 
-def _colprefs(sub: str, columns, *, tenant_id="h-dcn", updated_at="2024-01-01T00:00:00+00:00"):
+def _colprefs(
+    sub: str, columns, *, tenant_id="h-dcn", updated_at="2024-01-01T00:00:00+00:00"
+):
     return ColumnPreferences(
         tenant_id=tenant_id, sub=sub, columns=columns, updated_at=updated_at
     )
@@ -652,7 +670,9 @@ class TestColumnPreferences:
     def test_save_refuses_a_cross_tenant_entry(self, repo):
         # An entry naming a DIFFERENT tenant may not be written under this tenant (Property 8).
         with pytest.raises(ValueError):
-            repo.save_column_preferences("h-dcn", _colprefs("sub-1", ["a"], tenant_id="other"))
+            repo.save_column_preferences(
+                "h-dcn", _colprefs("sub-1", ["a"], tenant_id="other")
+            )
 
     def test_save_refuses_a_blank_tenant(self, repo):
         with pytest.raises(ValueError):
@@ -711,9 +731,9 @@ class TestFloatToDecimalCoercion:
             {
                 "membership": {"member_number": "M00001"},
                 "overlay": {"Bedrag": 22.6, "list": [1.5, {"deep": 3.25}]},
-                "count": 7,          # int stays int
-                "flag": True,        # bool stays bool (never numeric-coerced)
-                "name": "Alex",      # str untouched
+                "count": 7,  # int stays int
+                "flag": True,  # bool stays bool (never numeric-coerced)
+                "name": "Alex",  # str untouched
             }
         )
         assert out["overlay"]["Bedrag"] == Decimal("22.6")
@@ -951,3 +971,284 @@ class TestScheduleRecordType:
         repo.save_member("h-dcn", _member("M-1", "1001"))
         repo.save_schedule("h-dcn", _schedule("sch-1"))
         assert [m["member_id"] for m in repo.list_members("h-dcn")] == ["M-1"]
+
+
+# ---------------------------------------------------------------------------
+# Bug 2 — pagination undercount (Limit applied to the RAW partition BEFORE the
+# record-shape / scope filter). EXPLORATION TEST (spec
+# member-scope-stale-projection-and-pagination-undercount, task 2).
+#
+# Property 3 (Bug Condition): page_size means returned in-scope rows.
+#
+# CRITICAL: these tests MUST FAIL on the UNFIXED repository — the failure
+# confirms `list_members_page` passes `page_size` as the DynamoDB Query `Limit`,
+# which bounds the RAW partition rows (members interleaved with non-member child
+# items that share the `member#` prefix). The record-shape filter then drops the
+# child items, so a page of `page_size` RAW rows yields FEWER than
+# `min(page_size, total_members)` bare member records.
+#
+# DO NOT "fix" these tests or the code when they fail. They encode the expected
+# post-fix behavior (task 5 verifies them PASSING).
+# ---------------------------------------------------------------------------
+
+
+class _LimitHonoringFakeTable(FakeDynamoTable):
+    """A ``FakeDynamoTable`` whose ``query`` honours ``Limit`` + ``ExclusiveStartKey``.
+
+    The base fake ignores ``Limit`` (its existing tests never page), which would MASK Bug 2
+    — the whole bug is that the Query ``Limit`` bounds the RAW partition before the
+    record-shape filter. This subclass reproduces real DynamoDB paging faithfully: items are
+    returned in sort-key order within the tenant partition, ``Limit`` caps the RAW item count,
+    and ``LastEvaluatedKey`` is surfaced when more raw items remain so prev/next can walk.
+    """
+
+    def query(self, KeyConditionExpression=None, ExclusiveStartKey=None, Limit=None):
+        self.query_calls += 1
+        tenant_id, sk_prefix = _parse_key_condition(KeyConditionExpression)
+        # DynamoDB returns a partition's items in sort-key order.
+        matched = sorted(
+            (
+                dict(v)
+                for k, v in self.store.items()
+                if k[0] == tenant_id
+                and (sk_prefix is None or k[1].startswith(sk_prefix))
+            ),
+            key=lambda item: item[td.SORT_KEY_ATTR],
+        )
+        start = 0
+        if ExclusiveStartKey:
+            resume_sk = ExclusiveStartKey[td.SORT_KEY_ATTR]
+            for idx, item in enumerate(matched):
+                if item[td.SORT_KEY_ATTR] == resume_sk:
+                    start = idx + 1
+                    break
+        window = matched[start:]
+        last_key = None
+        if Limit is not None and Limit < len(window):
+            window = window[:Limit]
+            last = window[-1]
+            last_key = {
+                td.PARTITION_KEY_ATTR: last[td.PARTITION_KEY_ATTR],
+                td.SORT_KEY_ATTR: last[td.SORT_KEY_ATTR],
+            }
+        response = {"Items": window}
+        if last_key is not None:
+            response["LastEvaluatedKey"] = last_key
+        return response
+
+
+@pytest.fixture()
+def paging_table() -> _LimitHonoringFakeTable:
+    return _LimitHonoringFakeTable()
+
+
+@pytest.fixture()
+def paging_repo(paging_table) -> DynamoDbMembersRepository:
+    return DynamoDbMembersRepository(
+        table=paging_table, client=paging_table.meta.client
+    )
+
+
+class TestBug2PaginationUndercountExploration:
+    """Bug 2 repository-level exploration — ``Limit`` applied before the record-shape filter.
+
+    Scoped PBT approach (per task 2): concrete failing cases — a partition with MORE in-scope
+    member rows than ``page_size``, plus non-member child items (``membership#`` / ``payment#``)
+    that SHARE the ``member#`` prefix so they fall inside the Query but are dropped by the
+    record-shape filter.
+    """
+
+    def _seed_members_with_children(self, repo, *, count: int) -> None:
+        # Member SKs sort BEFORE their children (``member#M-003`` < ``member#M-003#membership#…``),
+        # but across members the children of an EARLIER member interleave with LATER members in
+        # sort-key order (``member#M-001#membership#…`` < ``member#M-002``). So a RAW page of the
+        # first N sort-key items is a mix of member records and child items.
+        for i in range(1, count + 1):
+            mid = f"M-{i:03d}"
+            repo.save_member("h-dcn", _member(mid, f"{1000 + i}"))
+            # Each member carries two children sharing the ``member#`` prefix.
+            repo.save_membership(
+                "h-dcn", mid, {"membership_id": f"MS-{i:03d}", "status": "active"}
+            )
+            repo.table.put_item(
+                Item={
+                    **td.build_key("h-dcn", td.payment_sk(mid, f"P-{i:03d}")),
+                    "member_id": mid,
+                    "amount": i,
+                }
+            )
+
+    def test_page_of_page_size_returns_fewer_member_rows_than_page_size(
+        self, paging_repo
+    ):
+        """A ``page_size``-row RAW page is scope-shrunk below ``min(page_size, total_members)``.
+
+        60 member records live in the partition, each with 2 child items (180 items total). A
+        ``limit=50`` Query returns the first 50 RAW items in sort-key order — a mix of member
+        records and child items — and the record-shape filter drops the children, so the
+        returned bare-member count is BELOW 50 even though ≥50 member records are available.
+
+        **Validates: Requirements 4.1, 4.2**
+
+        EXPECTED (unfixed): FAIL — returned member count < min(50, 60).
+        """
+        self._seed_members_with_children(paging_repo, count=60)
+
+        members, last_key = paging_repo.list_members_page("h-dcn", limit=50)
+
+        # The post-fix contract: a page_size of 50, with ≥50 members available, returns 50.
+        assert len(members) == min(50, 60), (
+            f"BUG 2 counterexample: page_size=50 yielded {len(members)} member rows "
+            f"(expected 50). The Query Limit=50 bounded the RAW partition "
+            f"(members + child items) before the record-shape filter dropped the children."
+        )
+        assert all(len(td.split_sort_key(m[td.SORT_KEY_ATTR])) == 2 for m in members), (
+            "every returned row must be a bare member record"
+        )
+
+    def test_max_page_returns_all_members_not_the_raw_page_subset(self, paging_repo):
+        """The ``Max`` option (no ``Limit``) must still surface every member record.
+
+        With no ``Limit`` the whole partition is one page here, so the record-shape filter keeps
+        every bare member. This guards the companion symptom (Max→old-scope count) at the
+        repository seam: the returned member count equals the real total.
+
+        **Validates: Requirements 4.3**
+        """
+        self._seed_members_with_children(paging_repo, count=60)
+
+        members, _last = paging_repo.list_members_page("h-dcn", limit=None)
+
+        assert len(members) == 60, (
+            f"Max page returned {len(members)} member rows (expected 60 — the full in-scope set)."
+        )
+
+    def test_small_page_with_interleaved_children_undercounts(self, paging_repo):
+        """A tiny page makes the undercount unmistakable: page_size=3 over interleaved items.
+
+        **Validates: Requirements 4.1, 4.2, 4.4**
+
+        EXPECTED (unfixed): FAIL — fewer than 3 member rows on a 3-row raw page.
+        """
+        self._seed_members_with_children(paging_repo, count=10)
+
+        members, _last = paging_repo.list_members_page("h-dcn", limit=3)
+
+        assert len(members) == min(3, 10), (
+            f"BUG 2 counterexample: page_size=3 yielded {len(members)} member rows (expected 3)."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Bug 2 PRESERVATION property tests — REPOSITORY layer (spec
+# member-scope-stale-projection-and-pagination-undercount, task 3 / Property 4).
+#
+# Observation-first: these encode `DynamoDbMembersRepository` paging/listing behaviour OBSERVED
+# on the UNFIXED repository so the task-5 fix cannot regress it. They MUST PASS on unfixed code
+# (the baseline to preserve).
+#
+# Property 4 (Preservation): for any input where isBugCondition_paging does NOT hold, the read
+# behaves identically. The facets owned HERE (the repository seam):
+#   6.5 child items (non-member records sharing the `member#` prefix) are EXCLUDED from the
+#       returned member rows — on BOTH the non-paged `list_members` and the paged
+#       `list_members_page` (every returned row is a bare 2-segment `member#<id>` record);
+#   plus tenant isolation across page assembly (a page can never surface another tenant's rows).
+#
+# Validates: Requirements 6.5, 6.4
+# ---------------------------------------------------------------------------
+
+from hypothesis import given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+
+def _is_bare_member_sk(item) -> bool:
+    """True iff the item's sort key is a bare 2-segment ``member#<id>`` record (not a child)."""
+    return len(td.split_sort_key(item[td.SORT_KEY_ATTR])) == 2
+
+
+def _seed_members_and_children(repo, *, count: int, tenant_id: str = "h-dcn") -> None:
+    """Seed ``count`` members, each with a membership + payment child sharing the member# prefix."""
+    for i in range(1, count + 1):
+        mid = f"M-{i:03d}"
+        repo.save_member(tenant_id, _member(mid, f"{1000 + i}"))
+        repo.save_membership(
+            tenant_id, mid, {"membership_id": f"MS-{i:03d}", "status": "active"}
+        )
+        repo.table.put_item(
+            Item={
+                **td.build_key(tenant_id, td.payment_sk(mid, f"P-{i:03d}")),
+                "member_id": mid,
+                "amount": i,
+            }
+        )
+
+
+def _fresh_paging_repo() -> DynamoDbMembersRepository:
+    """A fresh repo over an empty Limit-honouring fake table.
+
+    Built per hypothesis example (NOT via the function-scoped ``paging_repo`` fixture, which
+    hypothesis would reuse across examples and let seeded rows accumulate — a test-isolation
+    trap, not a product behaviour).
+    """
+    table = _LimitHonoringFakeTable()
+    return DynamoDbMembersRepository(table=table, client=table.meta.client)
+
+
+@settings(max_examples=60)
+@given(count=st.integers(min_value=0, max_value=20))
+def test_property_non_paged_list_members_excludes_children(count):
+    """Preservation (R6.5/R6.4): non-paged ``list_members`` returns ONLY bare member records.
+
+    For any member count (each with a membership + payment child sharing the ``member#`` prefix),
+    ``list_members`` returns exactly ``count`` rows, every one a bare 2-segment member record —
+    the child items are excluded by shape. This is the established non-paged contract, unchanged
+    by the paging fix.
+    """
+    repo = _fresh_paging_repo()
+    _seed_members_and_children(repo, count=count)
+
+    members = repo.list_members("h-dcn")
+
+    assert len(members) == count
+    assert all(_is_bare_member_sk(m) for m in members)
+
+
+@settings(max_examples=60)
+@given(
+    count=st.integers(min_value=1, max_value=20),
+    limit=st.sampled_from([1, 2, 3, 5, 50, None]),
+)
+def test_property_paged_rows_are_always_bare_member_records(count, limit):
+    """Preservation (R6.5): every row ``list_members_page`` returns is a bare member record.
+
+    For any partition of members-with-children and any page limit, the ROWS the repository
+    returns on a page are always bare 2-segment member records — the child items that share the
+    ``member#`` prefix (and fall inside the raw Query) are never surfaced as members. The page
+    may be shorter than ``limit`` on unfixed code (that is Bug 2, asserted elsewhere); the
+    child-EXCLUSION invariant asserted here holds on both unfixed and fixed code.
+    """
+    repo = _fresh_paging_repo()
+    _seed_members_and_children(repo, count=count)
+
+    members, _last = repo.list_members_page("h-dcn", limit=limit)
+
+    assert all(_is_bare_member_sk(m) for m in members)
+
+
+@settings(max_examples=60)
+@given(limit=st.sampled_from([1, 3, 50, None]))
+def test_property_paged_read_is_tenant_isolated(limit):
+    """Preservation (R6.4): a page never surfaces another tenant's rows.
+
+    Two tenants seeded in the same fake table; a page for ``tenant-a`` returns only ``tenant-a``
+    member records (the Query pins the partition key), regardless of the page limit. Tenant
+    isolation is structural and unchanged by the pagination fix.
+    """
+    repo = _fresh_paging_repo()
+    _seed_members_and_children(repo, count=6, tenant_id="tenant-a")
+    _seed_members_and_children(repo, count=6, tenant_id="tenant-b")
+
+    members, _last = repo.list_members_page("tenant-a", limit=limit)
+
+    assert all(m[td.PARTITION_KEY_ATTR] == "tenant-a" for m in members)
+    assert all(_is_bare_member_sk(m) for m in members)

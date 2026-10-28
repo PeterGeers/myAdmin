@@ -130,16 +130,19 @@ class MembersRepository(Protocol):
         start_key: Mapping[str, Any] | None = None,
         filters: Mapping[str, Any] | None = None,
     ) -> tuple[Sequence[Member], Mapping[str, Any] | None]:
-        """Return ONE DynamoDB page of the tenant's members + the resume cursor (Req 25).
+        """Return up to ``limit`` of the tenant's MEMBER records + the resume cursor (Req 25).
 
-        The cursor-paging read path. A SINGLE tenant-pinned ``Query`` (no ``LastEvaluatedKey``
-        loop): ``limit`` set → passed as the Query ``Limit`` (a fixed Rows_Per_Page option);
-        ``limit`` ``None`` → no ``Limit`` (the ``Max`` option = one page up to the natural
-        ~1 MB boundary, not all rows). ``start_key`` resumes a prior page (the decoded
-        ``ExclusiveStartKey``, already tenant-checked). Returns ``(members, last_evaluated_key)``
-        where ``last_evaluated_key`` is ``None`` on the final page. Scope narrowing stays a
-        domain-layer concern applied on top; isolation (``tenant_id`` partition key) is enforced
-        here regardless (Property 1).
+        The cursor-paging read path. ``limit`` means **returned bare member records**, not raw
+        partition items: because the partition interleaves members with their child items (which
+        share the ``member#`` prefix), a tenant-pinned ``Query`` is LOOPED over
+        ``LastEvaluatedKey`` until ``limit`` member records are collected (or the partition is
+        exhausted). ``limit`` ``None`` (the ``Max`` option) returns one ~1 MB Query page's members
+        (not all rows). ``start_key`` resumes a prior page (the decoded ``ExclusiveStartKey``,
+        already tenant-checked). Returns ``(members, last_evaluated_key)`` where
+        ``last_evaluated_key`` is positioned at the LAST member returned (an honest next-page
+        cursor), or ``None`` on the final page. Scope narrowing stays a domain-layer concern
+        applied on top; isolation (``tenant_id`` partition key) is enforced here regardless
+        (Property 1).
         """
         ...
 
@@ -185,9 +188,7 @@ class MembersRepository(Protocol):
 
     # ── Duplicate-flag name+DOB lookup (R3a.5–R3a.8, D25) ───────────────────────────────
 
-    def query_by_name_dob(
-        self, tenant_id: str, name_dob_key: str
-    ) -> Sequence[Member]:
+    def query_by_name_dob(self, tenant_id: str, name_dob_key: str) -> Sequence[Member]:
         """Return members of ``tenant_id`` whose normalized name+DOB equals ``name_dob_key``.
 
         A cheap INDEXED read over the ``name_dob_index`` GSI (D25), NOT a partition scan
@@ -414,9 +415,7 @@ class MembersRepository(Protocol):
         """
         ...
 
-    def get_mail_run(
-        self, tenant_id: str, run_id: str
-    ) -> Mapping[str, Any] | None:
+    def get_mail_run(self, tenant_id: str, run_id: str) -> Mapping[str, Any] | None:
         """Return a run's ``mailrun#<run_id>`` tally for ``tenant_id``, or ``None`` if absent."""
         ...
 
@@ -452,7 +451,9 @@ class _StubMembersRepository:
     def list_members(self, tenant_id: str, *, filters=None):
         raise NotImplementedError(self._PENDING)
 
-    def list_members_page(self, tenant_id: str, *, limit=None, start_key=None, filters=None):
+    def list_members_page(
+        self, tenant_id: str, *, limit=None, start_key=None, filters=None
+    ):
         raise NotImplementedError(self._PENDING)
 
     def save_member(self, tenant_id: str, member):
@@ -461,7 +462,9 @@ class _StubMembersRepository:
     def delete_member(self, tenant_id: str, member_id: str):
         raise NotImplementedError(self._PENDING)
 
-    def claim_application_session(self, tenant_id: str, session_key: str, member_id: str):
+    def claim_application_session(
+        self, tenant_id: str, session_key: str, member_id: str
+    ):
         raise NotImplementedError(self._PENDING)
 
     def get_application_session_member(self, tenant_id: str, session_key: str):
@@ -716,30 +719,28 @@ class DynamoDbMembersRepository:
         start_key: Mapping[str, Any] | None = None,
         filters: Mapping[str, Any] | None = None,
     ) -> tuple[list[Member], dict[str, Any] | None]:
-        """Query ONE DynamoDB page of the tenant's members + the resume cursor (Req 25).
+        """Return up to ``limit`` of the tenant's MEMBER records + the resume cursor (Req 25).
 
         The cursor-paging read path (distinct from :meth:`list_members`, which drains the whole
-        partition). This issues a SINGLE tenant-pinned ``Query`` — it does NOT loop over
-        ``LastEvaluatedKey`` — so the result is exactly one DynamoDB page:
+        partition). ``limit`` means **returned bare member records**, not raw partition items:
 
-        - ``limit`` set (a fixed Rows_Per_Page option 50/100/250/500, R25.2) → passed as the
-          Query ``Limit`` so DynamoDB returns at most that many items;
-        - ``limit`` ``None`` (the ``Max`` option, R25.3) → NO ``Limit`` is passed, so DynamoDB
-          returns one page up to its natural ~1 MB response boundary (``Max`` is one Query page,
-          NOT all rows — never a full-partition drain).
+        - ``limit`` set (a fixed Rows_Per_Page option 50/100/250/500, R25.2) → the page carries
+          up to ``limit`` bare ``member#<id>`` records. The partition interleaves member records
+          with their child items (memberships/delegates/payments share the ``member#`` prefix),
+          so a single DynamoDB Query ``Limit=limit`` would bound RAW items and under-return
+          members once children are mixed in. To make ``limit`` mean member rows, this LOOPS the
+          Query over ``LastEvaluatedKey``, collecting bare member records, until it has ``limit``
+          of them or the partition is exhausted.
+        - ``limit`` ``None`` (the ``Max`` option, R25.3) → no member cap; one ~1 MB Query page's
+          members are returned (the natural DynamoDB page boundary, not a full drain).
 
-        Returns ``(members, last_evaluated_key)``. ``last_evaluated_key`` is the raw DynamoDB
-        resume key for the NEXT page, or ``None`` when this page exhausted the result (the final
-        page → the caller surfaces "no next page", R25.5/R25.6). ``start_key`` resumes a prior
-        page (the decoded ``ExclusiveStartKey``); it is already tenant-checked by the cursor
-        codec before it reaches here, and the Query itself pins ``tenant_id`` as the partition
-        key regardless, so a page can never cross tenants (Property 1).
-
-        The ``Limit`` applies to the RAW Query before the sort-key record-shape filter (member
-        records have a 2-segment ``member#<id>`` SK; their child items share the ``member#``
-        prefix), so the returned list may be shorter than ``limit`` when a page happens to
-        include child items. That is the honest DynamoDB-native page — prev/next walks the raw
-        ``LastEvaluatedKey`` cursor, never a post-filter count (no SQL-style offset).
+        Returns ``(members, last_evaluated_key)``. ``last_evaluated_key`` is an HONEST resume key
+        for the NEXT page — positioned at the LAST member record returned (so the next page
+        continues right after it, skipping that member's trailing children), or ``None`` when the
+        partition was exhausted (the final page → the caller surfaces "no next page",
+        R25.5/R25.6). ``start_key`` resumes a prior page (the decoded ``ExclusiveStartKey``); it
+        is already tenant-checked by the cursor codec before it reaches here, and every Query
+        pins ``tenant_id`` as the partition key, so a page can never cross tenants (Property 1).
         """
         self._require_tenant(tenant_id)
         from boto3.dynamodb.conditions import Key
@@ -749,20 +750,52 @@ class DynamoDbMembersRepository:
             td.SORT_KEY_ATTR
         ).begins_with(prefix)
 
-        kwargs: dict[str, Any] = {"KeyConditionExpression": condition}
-        if limit is not None:
-            kwargs["Limit"] = limit
-        if start_key:
-            kwargs["ExclusiveStartKey"] = dict(start_key)
-
-        response = self.table.query(**kwargs)
         members: list[dict] = []
-        for item in response.get("Items", []) or []:
-            segments = td.split_sort_key(item.get(td.SORT_KEY_ATTR, ""))
-            if len(segments) == 2 and segments[0] == td.RECORD_TYPE_MEMBER:
-                members.append(item)
-        last = response.get("LastEvaluatedKey") or None
-        return members, last
+        last_member_key: dict[str, Any] | None = None
+        exclusive_start: Mapping[str, Any] | None = (
+            dict(start_key) if start_key else None
+        )
+
+        while True:
+            kwargs: dict[str, Any] = {"KeyConditionExpression": condition}
+            if exclusive_start:
+                kwargs["ExclusiveStartKey"] = dict(exclusive_start)
+            # Cap the RAW Query at the number of members still wanted — a lower bound on the raw
+            # items needed. Child items interleaved in the window mean we may still have to make
+            # another Query to top up, which the LastEvaluatedKey loop below handles.
+            if limit is not None:
+                remaining = limit - len(members)
+                kwargs["Limit"] = remaining
+
+            response = self.table.query(**kwargs)
+
+            for item in response.get("Items", []) or []:
+                segments = td.split_sort_key(item.get(td.SORT_KEY_ATTR, ""))
+                if len(segments) == 2 and segments[0] == td.RECORD_TYPE_MEMBER:
+                    members.append(item)
+                    last_member_key = {
+                        td.PARTITION_KEY_ATTR: item[td.PARTITION_KEY_ATTR],
+                        td.SORT_KEY_ATTR: item[td.SORT_KEY_ATTR],
+                    }
+                    if limit is not None and len(members) >= limit:
+                        # We have a full page of members. The honest next-page cursor resumes
+                        # right AFTER this member record (skipping its trailing children), so the
+                        # next page starts at the following member — never re-returning this one
+                        # and never losing one. ``None`` only if this was truly the last item.
+                        raw_last = response.get("LastEvaluatedKey") or None
+                        next_key = last_member_key if raw_last is not None else None
+                        return members, next_key
+
+            raw_last = response.get("LastEvaluatedKey") or None
+            if raw_last is None:
+                # Partition exhausted: fewer than ``limit`` members exist (or ``limit`` is None).
+                return members, None
+            # More raw items remain but we have not yet collected ``limit`` members — continue the
+            # Query from DynamoDB's own resume position to top up the page (the multi-Query walk).
+            exclusive_start = raw_last
+            if limit is None:
+                # ``Max`` is ONE ~1 MB Query page; do not drain the whole partition.
+                return members, raw_last
 
     def save_member(self, tenant_id: str, member: Member) -> Member:
         """Create or update a member, enforcing per-tenant member-number uniqueness.
@@ -871,9 +904,7 @@ class DynamoDbMembersRepository:
 
     # ── Duplicate-flag name+DOB lookup (R3a.5–R3a.8, D25) ───────────────────────────────
 
-    def query_by_name_dob(
-        self, tenant_id: str, name_dob_key: str
-    ) -> Sequence[Member]:
+    def query_by_name_dob(self, tenant_id: str, name_dob_key: str) -> Sequence[Member]:
         """Query the ``name_dob_index`` GSI for members matching a normalized name+DOB key.
 
         A cheap INDEXED read (D25), NOT a partition scan (R3a.8). The GSI hashes on
@@ -1195,9 +1226,7 @@ class DynamoDbMembersRepository:
         for cleaning up the template's S3 body/logo objects through its body-store seam.
         """
         self._require_tenant(tenant_id)
-        self.table.delete_item(
-            Key=td.build_key(tenant_id, td.template_sk(template_id))
-        )
+        self.table.delete_item(Key=td.build_key(tenant_id, td.template_sk(template_id)))
 
     # ── Schedules (recurring run of a set + delivery, R5) ───────────────────────────
 
@@ -1260,9 +1289,7 @@ class DynamoDbMembersRepository:
     def delete_schedule(self, tenant_id: str, schedule_id: str) -> None:
         """Hard-delete a schedule for ``tenant_id`` (no referencing records to orphan)."""
         self._require_tenant(tenant_id)
-        self.table.delete_item(
-            Key=td.build_key(tenant_id, td.schedule_sk(schedule_id))
-        )
+        self.table.delete_item(Key=td.build_key(tenant_id, td.schedule_sk(schedule_id)))
 
     # ── Preferred lists (per-user, R11.2) ──────────────────────────────────────────
 
@@ -1530,9 +1557,7 @@ class DynamoDbMembersRepository:
                 self.increment_mail_run_counts(tenant_id, run_id, failed=1)
         return item
 
-    def get_mail_run(
-        self, tenant_id: str, run_id: str
-    ) -> Mapping[str, Any] | None:
+    def get_mail_run(self, tenant_id: str, run_id: str) -> Mapping[str, Any] | None:
         """Return the ``mailrun#<run_id>`` tally for ``tenant_id``, or ``None`` if absent.
 
         A single ``get_item`` within the tenant partition (isolation is structural — the
@@ -1590,6 +1615,4 @@ class DynamoDbMembersRepository:
             sk = failure.get(td.SORT_KEY_ATTR)
             if sk:
                 self.table.delete_item(Key=td.build_key(tenant_id, sk))
-        self.table.delete_item(
-            Key=td.build_key(tenant_id, td.mail_run_sk(run_id))
-        )
+        self.table.delete_item(Key=td.build_key(tenant_id, td.mail_run_sk(run_id)))
