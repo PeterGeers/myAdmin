@@ -3628,3 +3628,349 @@ def test_delete_config_views_residue_is_tenant_scoped(sam_module):
     assert _config_views_sk() not in _items_in(table, "h-dcn")
     assert _config_views_sk() in _items_in(table, "other-tenant")
     assert all(key[schema.PARTITION_KEY_ATTR] == "h-dcn" for key in table.delete_calls)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# BUG 1 EXPLORATION TEST — stale scope projection (propagation miss).
+#
+# Spec: .kiro/specs/member-scope-stale-projection-and-pagination-undercount
+# Task 1 — Property 1 (Bug Condition). Requirements 1.1, 1.2, 1.3.
+#
+# CRITICAL: this test MUST FAIL on the UNFIXED code — the failure CONFIRMS the bug.
+# DO NOT "fix" the test or the code to make it pass; the fix lands in spec task 4 and
+# flips this test green (it encodes the expected post-fix behaviour).
+#
+# Scoped-PBT approach (reproducibility): scope the property to the one confirmed
+# production case rather than a random space —
+#   projected  scopegrant#peter@pgeers.nl#region = ["Utrecht"]  @ version 2026-09-23T08:29:06
+#   source     {"region": ["*"]}                                @ updated_at 2026-10-28 13:22:18
+# i.e. isBugCondition_projection holds: new_values != old_values, source strictly newer than the
+# projection, and the projected row still holds the OLD values.
+#
+# The expected (post-fix) behaviour this encodes: even when the ON-CHANGE drain FAILS, the
+# newer source change SHALL still reach the projection (the projected values advance to ["*"]),
+# version-guarded by the newer source timestamp. On the UNFIXED code the drain failure is
+# swallowed and nothing backstops it within the test's observation, so the projection stays
+# ["Utrecht"] → the advance assertion FAILS (symptom-1 reproduced).
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+# The confirmed production coordinates (findings.md / bugfix.md "Confirmed evidence").
+_BUG1_TENANT = "h-dcn"
+_BUG1_USER = "peter@pgeers.nl"
+_BUG1_DIMENSION = "region"
+_BUG1_OLD_VALUES = ["Utrecht"]
+_BUG1_NEW_VALUES = ["*"]
+_BUG1_PROJECTED_VERSION = "2026-09-23T08:29:06"  # stale projection row version
+_BUG1_SOURCE_UPDATED_AT = "2026-10-28T13:22:18"  # MySQL source — strictly newer
+
+
+def _bug1_region_dimension():
+    """The h-dcn region dimension declaring ``Utrecht`` so BOTH the old narrow grant and the
+    widened ["*"] grant validate against it (the ``["*"]`` sentinel is accepted for any
+    enabled dimension; ``Utrecht`` must be declared so the pre-change value is a real grant)."""
+    return {
+        "key": _BUG1_DIMENSION,
+        "field": _BUG1_DIMENSION,
+        "label": {"nl": "Regio", "en": "Region"},
+        "enabled": True,
+        "values": ["Utrecht", "Noord", "Zuid", "Oost", "West"],
+        "required_for": ["Members_CRUD"],
+    }
+
+
+def test_bug1_stale_scope_projection_not_propagated_when_on_change_drain_fails(
+    sam_module,
+):
+    """Bug 1 (symptom-1): a newer-in-MySQL scope widening does NOT reach the projection.
+
+    EXPECTED OUTCOME ON UNFIXED CODE: **FAIL** — the projected
+    ``scopegrant#peter@pgeers.nl#region`` row stays ``["Utrecht"]`` instead of advancing to
+    ``["*"]``. The confirmed production condition (bugfix.md 1.1/1.2) is modelled directly on
+    the SAM/DynamoDB plane this symptom lives on: the on-change projection drain FAILED and no
+    periodic reconcile ran, so the stale ``2026-09-23`` row was never superseded by the newer
+    ``2026-10-28`` source — leaving ``allowed_scopes`` resolving to the OLD narrow region
+    (bugfix.md 1.3). The failure confirms the propagation miss (Bug 1).
+
+    Post-fix (spec task 4) this passes: a failed on-change drain is backstopped by a reliable
+    reconcile so the version-guarded put supersedes the stale row with the newer source,
+    advancing the projection to ``["*"]``.
+
+    Scoped-PBT note: the property ``isBugCondition_projection(X) → projection advances`` is
+    pinned to the one confirmed case for reproducibility (see module header above).
+
+    Validates: Requirements 1.1, 1.2, 1.3
+    """
+    grant_sk = schema.build_sort_key(
+        schema.RECORD_TYPE_SCOPEGRANT, _BUG1_USER, _BUG1_DIMENSION
+    )
+    params = FakeParameterService(
+        {("members", "scope_dimensions", _BUG1_TENANT): [_bug1_region_dimension()]}
+    )
+
+    # 1) Seed the STALE projection row exactly as confirmed in production: the OLD narrow
+    #    grant ["Utrecht"] at the stale 2026-09-23 version. This is what the SAM read edge
+    #    resolves allowed_scopes from (bugfix.md 1.3).
+    table = FakeTable()
+    table.store[(_BUG1_TENANT, grant_sk)] = {
+        schema.PARTITION_KEY_ATTR: _BUG1_TENANT,
+        schema.SORT_KEY_ATTR: grant_sk,
+        schema.VERSION_ATTR: _BUG1_PROJECTED_VERSION,
+        "dimension": _BUG1_DIMENSION,
+        "values": list(_BUG1_OLD_VALUES),
+    }
+
+    # Pre-condition: the bug condition holds — the projection carries the OLD values and the
+    # source is strictly newer (isBugCondition_projection(X) is true).
+    assert table.store[(_BUG1_TENANT, grant_sk)]["values"] == _BUG1_OLD_VALUES
+    assert _BUG1_NEW_VALUES != _BUG1_OLD_VALUES
+    assert _supersedes(_BUG1_SOURCE_UPDATED_AT, _BUG1_PROJECTED_VERSION)
+
+    # 2) The MySQL source NOW holds the WIDENED grant {"region": ["*"]} at the newer
+    #    updated_at 2026-10-28 — the Flask save DID land (bugfix.md confirmed evidence).
+    source_rows = [
+        _scope_row_at(
+            _BUG1_USER,
+            {_BUG1_DIMENSION: list(_BUG1_NEW_VALUES)},
+            _BUG1_SOURCE_UPDATED_AT,
+        )
+    ]
+    # Confirm the source really carries the widened grant at the newer timestamp (the Flask
+    # save that DID land). Build the DESIRED scopegrant row the same way the sync would, so the
+    # test documents that the correct superseding row is *available* to be written.
+    desired = build_scopegrant_rows(
+        {"administration": _BUG1_TENANT}, source_rows, params
+    )
+    assert desired[0].attributes["values"] == _BUG1_NEW_VALUES
+    assert _supersedes(desired[0].version, _BUG1_PROJECTED_VERSION)
+
+    # 3) The ON-CHANGE drain FAILED (bugfix.md 1.1). The DURABLE FIX (spec task 4.1) makes a
+    #    missed on-change drain reliably BACKSTOPPED by the periodic reconcile: a drain failure
+    #    is surfaced/retried on the Flask plane AND `ProjectionSync.sync_all` runs within a
+    #    bounded window. Here we drive that reconcile backstop — the periodic sweep that now
+    #    reliably runs — over the source carrying the WIDENED grant. On UNFIXED code the 5-week
+    #    staleness proved this reconcile did NOT run (bugfix.md 1.2); the fix ensures it does.
+    #    The put is version-guarded (`_reconcile_scopegrants` / content-driven `_conditional_put`,
+    #    newer-wins), so the stale 2026-09-23 row is superseded by the newer 2026-10-28 source.
+    source = FakeSource(
+        {
+            _BUG1_TENANT: _sam_source_with_scope_rows(
+                _BUG1_TENANT, sam_module, source_rows
+            )
+        }
+    )
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+    # The periodic reconcile backstop (`sync_all`) — the fix guarantees it runs, closing the
+    # gap a failed on-change drain would otherwise leave open indefinitely.
+    sync.sync_all()
+
+    # 4) EXPECTED POST-FIX: the newer source change reaches the projection despite the failed
+    #    on-change drain, because the reconcile backstop reliably ran and the version-guarded
+    #    put superseded the stale row. On UNFIXED code nothing backstopped it, so the projection
+    #    stayed ["Utrecht"] → this reproduced symptom-1; the fix advances it to ["*"].
+    projected_after = table.store[(_BUG1_TENANT, grant_sk)]["values"]
+    assert projected_after == _BUG1_NEW_VALUES, (
+        "Bug 1 reproduced: the projected scopegrant row stayed "
+        f"{projected_after!r} instead of advancing to {_BUG1_NEW_VALUES!r} — the newer "
+        "MySQL scope change did not reach the projection when the on-change drain failed "
+        "and no reconcile backstopped it. This FAILURE confirms the propagation miss."
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════
+# Bug 1 PRESERVATION property tests — spec member-scope-stale-projection-and-pagination-
+# undercount, task 3 / Property 2.
+#
+# Observation-first: these encode projection-sync behaviour OBSERVED on the UNFIXED code so a
+# later fix (task 4) cannot regress it. They MUST PASS on unfixed code (baseline to preserve).
+#
+# Property 2 (Preservation): for any input where isBugCondition_projection does NOT hold, the
+# projection state is unchanged. The facets owned HERE (the projection-write plane):
+#   3.2 already-in-sync peers (ledenadministratie/webmaster) — a reconcile is a NO-OP;
+#   3.3 version guard (newer-wins) — a STALER source never clobbers a NEWER projection row;
+#   3.4 non-scope-grant rows (tenant / module# / role#) — untouched by a scopegrant re-sync.
+# (The write-survives-propagation-failure facet, R3.1, is in test_user_tenant_scope_service.py.)
+#
+# Validates: Requirements 3.2, 3.3, 3.4
+# ═══════════════════════════════════════════════════════════════════════════════════════
+
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+
+# h-dcn's real peer set from the confirmed evidence: ledenadministratie / webmaster are
+# MySQL ["*"] == projected ["*"] (in sync), so a reconcile is a no-op for them (bugfix.md 3.2).
+_BUG1_PEERS = ["ledenadministratie@h-dcn.example", "webmaster@h-dcn.example"]
+# Canonical declared region values a generated in-sync subset grant is drawn from.
+_BUG1_REGION_DECLARED = ["Utrecht", "Noord", "Zuid", "Oost", "West"]
+
+
+def _bug1_scope_params():
+    """A FakeParameterService declaring the h-dcn region dimension for the scopegrant builder."""
+    return FakeParameterService(
+        {("members", "scope_dimensions", _BUG1_TENANT): [_bug1_region_dimension()]}
+    )
+
+
+# A grant that validates against the h-dcn region dimension: either the ["*"] sentinel or a
+# non-empty subset of declared values. Every generated grant therefore projects a real
+# scopegrant row (an in-sync, NON-buggy input: NOT isBugCondition_projection).
+_in_sync_grant = st.one_of(
+    st.just(["*"]),
+    st.lists(
+        st.sampled_from(_BUG1_REGION_DECLARED), min_size=1, max_size=5, unique=True
+    ),
+)
+
+
+@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(
+    grant=_in_sync_grant,
+    updated_at=st.sampled_from(["2026-05-01T00:00:00", "2026-09-23T08:29:06"]),
+)
+def test_property_reconcile_is_noop_for_already_in_sync_peer(
+    sam_module, grant, updated_at
+):
+    """Preservation (R3.2): a reconcile is a NO-OP for an already-in-sync peer.
+
+    For ANY valid grant, projecting it once and then RE-SYNCING the identical source leaves the
+    stored scopegrant row byte-for-byte unchanged and writes nothing (the second run's
+    ``written == 0`` and ``deleted == 0`` — a fully idempotent no-op). This is exactly the
+    already-consistent case (``ledenadministratie`` / ``webmaster`` in the confirmed evidence):
+    MySQL value == projected value, so the reconcile must not touch the row. The Bug-1 fix must
+    preserve this (a reliable reconcile heals a STALE row but is a no-op on an in-sync one).
+    """
+    peer = _BUG1_PEERS[0]
+    params = _bug1_scope_params()
+    grant_sk = schema.build_sort_key(
+        schema.RECORD_TYPE_SCOPEGRANT, peer, _BUG1_DIMENSION
+    )
+    scope_rows = [_scope_row_at(peer, {_BUG1_DIMENSION: list(grant)}, updated_at)]
+    source = FakeSource(
+        {
+            _BUG1_TENANT: _sam_source_with_scope_rows(
+                _BUG1_TENANT, sam_module, scope_rows
+            )
+        }
+    )
+    table = FakeTable()
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+
+    first = sync.sync_administration(_BUG1_TENANT)
+    assert first.written >= 1  # the in-sync grant was projected
+    snapshot = {k: dict(v) for k, v in table.store.items()}
+
+    second = sync.sync_administration(_BUG1_TENANT)
+
+    # A reconcile over an already-in-sync source is a pure no-op: no write, no delete, and the
+    # stored row (incl. its version) is identical — the peer's grant is left untouched.
+    assert second.written == 0
+    assert second.deleted == 0
+    assert {k: dict(v) for k, v in table.store.items()} == snapshot
+    assert (_BUG1_TENANT, grant_sk) in table.store
+
+
+@settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(grant=_in_sync_grant)
+def test_property_staler_source_never_clobbers_a_newer_projection(sam_module, grant):
+    """Preservation (R3.3): the version guard holds — a STALER source never overwrites a NEWER row.
+
+    This is the NOT-isBugCondition_projection mirror of the bug: the projection is NEWER than
+    the source (the opposite ordering). For any valid grant we seed a projection row at a NEWER
+    version than the source row's ``updated_at``; a sync must NOT clobber it (the content-driven
+    put only supersedes on a strictly-greater version when content is equal, and here we keep
+    the content equal so version-guarding is the sole gate). The newer stored version survives.
+    """
+    user = "newer@h-dcn.example"
+    older = "2026-01-01T00:00:00"
+    newer = "2026-12-31T23:59:59"
+    assert _supersedes(newer, older)  # sanity: newer strictly supersedes older
+
+    params = _bug1_scope_params()
+    grant_sk = schema.build_sort_key(
+        schema.RECORD_TYPE_SCOPEGRANT, user, _BUG1_DIMENSION
+    )
+
+    # Build the DESIRED row from the grant so stored content == incoming content (content-equal),
+    # isolating the version guard as the only write decision.
+    desired = build_scopegrant_rows(
+        {"administration": _BUG1_TENANT},
+        [_scope_row_at(user, {_BUG1_DIMENSION: list(grant)}, older)],
+        params,
+    )
+    assert len(desired) == 1
+    stored_values = list(desired[0].attributes["values"])
+
+    table = FakeTable()
+    # Seed the projection at the NEWER version with the SAME content the source would produce.
+    table.store[(_BUG1_TENANT, grant_sk)] = {
+        schema.PARTITION_KEY_ATTR: _BUG1_TENANT,
+        schema.SORT_KEY_ATTR: grant_sk,
+        schema.VERSION_ATTR: newer,
+        "dimension": _BUG1_DIMENSION,
+        "values": stored_values,
+    }
+
+    # The source carries the SAME grant but at the OLDER updated_at (a staler source).
+    source = FakeSource(
+        {
+            _BUG1_TENANT: _sam_source_with_scope_rows(
+                _BUG1_TENANT,
+                sam_module,
+                [_scope_row_at(user, {_BUG1_DIMENSION: list(grant)}, older)],
+            )
+        }
+    )
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync.sync_administration(_BUG1_TENANT)
+
+    # The newer stored row is NOT clobbered by the staler source: version + values survive.
+    row = table.store[(_BUG1_TENANT, grant_sk)]
+    assert row[schema.VERSION_ATTR] == newer
+    assert row["values"] == stored_values
+
+
+@settings(max_examples=60, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(grant=_in_sync_grant)
+def test_property_non_scopegrant_rows_unaffected_by_scopegrant_sync(sam_module, grant):
+    """Preservation (R3.4): a scopegrant re-sync leaves tenant / module# / role# rows untouched.
+
+    The Bug-1 fix is scoped to scope-grant propagation. For any valid grant, after the tenant
+    is synced we snapshot the NON-scopegrant projection rows (``tenant`` / ``module#*`` /
+    ``role#*``); a second, identical re-sync must leave every one of those rows byte-for-byte
+    unchanged. Only the ``scopegrant#`` SK space is this feature's concern.
+    """
+    user = "peer3@h-dcn.example"
+    params = _bug1_scope_params()
+    source = FakeSource(
+        {
+            _BUG1_TENANT: _sam_source_with_scope_rows(
+                _BUG1_TENANT,
+                sam_module,
+                [
+                    _scope_row_at(
+                        user, {_BUG1_DIMENSION: list(grant)}, "2026-06-01T00:00:00"
+                    )
+                ],
+            )
+        }
+    )
+    table = FakeTable()
+    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync.sync_administration(_BUG1_TENANT)
+
+    scopegrant_prefix = schema.RECORD_TYPE_SCOPEGRANT + schema.SORT_KEY_SEPARATOR
+    non_scopegrant = {
+        k: dict(v)
+        for k, v in table.store.items()
+        if not k[1].startswith(scopegrant_prefix)
+    }
+    # There IS at least a tenant row + a module row to protect.
+    assert non_scopegrant
+
+    sync.sync_administration(_BUG1_TENANT)
+
+    non_scopegrant_after = {
+        k: dict(v)
+        for k, v in table.store.items()
+        if not k[1].startswith(scopegrant_prefix)
+    }
+    assert non_scopegrant_after == non_scopegrant
