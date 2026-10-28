@@ -1,0 +1,199 @@
+{
+  "pbtResults": {
+    "2. Write bug-condition exploration test for Bug 2 (pagination undercount)": {
+      "status": "passed",
+      "failingExample": "Bug 2 (pagination undercount) CONFIRMED on unfixed code — Limit applied to the RAW partition before the record-shape / scope filter. Counterexamples:\n\nRepository plane (sam/tests/test_members_repository.py::TestBug2PaginationUndercountExploration):\n- page_size=50 over a 60-member partition where each member has 2 child items (membership#, payment#) sharing the member# prefix → returned 17 member rows (expected min(50,60)=50). The Query Limit=50 bounded 50 RAW interleaved items; the record-shape filter dropped the child items.\n- page_size=3 over a 10-member partition with interleaved children → returned 1 member row (expected 3).\n\nDomain plane (sam/tests/test_members_read_dispatch.py::TestBug2PaginationUndercountDomainExploration):\n- North-scoped caller (allowed_scopes={\"region\":[\"North\"]}) asking page_size=50 over 60 North + 60 South members interleaved → returned 25 in-scope rows (expected min(50,60)=50). The raw Query Limit=50 returned 50 interleaved rows (~25 North); the domain scope post-filter dropped the South rows.\n\nNon-buggy anchors PASS (encode the post-fix contract): Max (no Limit) → all 60 members; all-access page_size=50 → 50 rows; scope-narrowed where total_in_scope=15 < page_size=50 → 15 rows.",
+      "lastRunTimestamp": 1793196298632
+    },
+    "5.2 Verify Bug 2 exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1793197252655
+    }
+  },
+  "executionHistory": {
+    "1. Write bug-condition exploration test for Bug 1 (stale scope projection)": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196089216
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196097794
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196595992
+      }
+    ],
+    "2. Write bug-condition exploration test for Bug 2 (pagination undercount)": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196089335
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196104012
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196597369
+      }
+    ],
+    "3. Write preservation property tests (BEFORE implementing either fix)": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196089448
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196110490
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196598483
+      }
+    ],
+    "4.1 Make the on-change drain failure observable/retried and ensure a periodic reconcile runs": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196089545
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196632814
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197136209
+      }
+    ],
+    "4.2 Verify Bug 1 exploration test now passes": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196089629
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197175718
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197292801
+      }
+    ],
+    "4.3 Verify Bug 1 preservation tests still pass": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196089712
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197182341
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197294251
+      }
+    ],
+    "5.1 Make `list_members_page` return up to `page_size` in-scope rows": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196089808
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196644624
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197137432
+      }
+    ],
+    "5.2 Verify Bug 2 exploration test now passes": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196089898
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197188761
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197295668
+      }
+    ],
+    "5.3 Verify Bug 2 preservation tests still pass": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196090019
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197195662
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197296387
+      }
+    ],
+    "6. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793196090104
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197301608
+      },
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197375998
+      }
+    ],
+    "4. Fix for Bug 1 — observable/retried propagation + reliable reconcile": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197294388
+      }
+    ],
+    "5. Fix for Bug 2 — resolve scope into the paged read so page_size means in-scope rows": [
+      {
+        "executionId": "bbffe30c-88e7-4194-80fd-04f11b8345dd",
+        "chatSessionId": "sess_93053f79-13a0-4e75-93cc-e62e5c0f2dc5",
+        "timestamp": 1793197296486
+      }
+    ]
+  }
+}
