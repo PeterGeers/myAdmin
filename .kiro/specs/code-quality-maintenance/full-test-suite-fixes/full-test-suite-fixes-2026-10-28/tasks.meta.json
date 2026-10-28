@@ -1,0 +1,51 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. **H1. Provide the TenantProvider/`useTenant` mock in `AnalyticsStateNotice.test.tsx` so the two PivotViewsArea tests mount again.** [S]": [
+      {
+        "executionId": "e6c50c91-bebe-4087-b7f7-8d8c813e6384",
+        "chatSessionId": "sess_2879642f-b684-4399-9016-e32bcd9d0639",
+        "timestamp": 1793178427453
+      },
+      {
+        "executionId": "e6c50c91-bebe-4087-b7f7-8d8c813e6384",
+        "chatSessionId": "sess_2879642f-b684-4399-9016-e32bcd9d0639",
+        "timestamp": 1793178435276
+      },
+      {
+        "executionId": "e6c50c91-bebe-4087-b7f7-8d8c813e6384",
+        "chatSessionId": "sess_2879642f-b684-4399-9016-e32bcd9d0639",
+        "timestamp": 1793178613205
+      }
+    ],
+    "2. **L1. Grep for OTHER tests that mount `MemberPivotViews` (or PivotViewsArea) without the tenant context, to close the whole class — not just the one red file.** [S] — recurrence guard for Lesson 1.": [
+      {
+        "executionId": "e6c50c91-bebe-4087-b7f7-8d8c813e6384",
+        "chatSessionId": "sess_2879642f-b684-4399-9016-e32bcd9d0639",
+        "timestamp": 1793178427563
+      },
+      {
+        "executionId": "e6c50c91-bebe-4087-b7f7-8d8c813e6384",
+        "chatSessionId": "sess_2879642f-b684-4399-9016-e32bcd9d0639",
+        "timestamp": 1793178624097
+      },
+      {
+        "executionId": "e6c50c91-bebe-4087-b7f7-8d8c813e6384",
+        "chatSessionId": "sess_2879642f-b684-4399-9016-e32bcd9d0639",
+        "timestamp": 1793178868711
+      }
+    ],
+    "3. **L2. Re-dispatch the Full Test Suite on `main` (and verify `test`) after the fix lands.** [S] — confirm the nightly is green again.": [
+      {
+        "executionId": "e6c50c91-bebe-4087-b7f7-8d8c813e6384",
+        "chatSessionId": "sess_2879642f-b684-4399-9016-e32bcd9d0639",
+        "timestamp": 1793178427665
+      },
+      {
+        "executionId": "e6c50c91-bebe-4087-b7f7-8d8c813e6384",
+        "chatSessionId": "sess_2879642f-b684-4399-9016-e32bcd9d0639",
+        "timestamp": 1793178954530
+      }
+    ]
+  }
+}
