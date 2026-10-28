@@ -27,11 +27,15 @@ Error Handling · Properties 1/2/5):
 - **AXIS INDEPENDENCE (R1.3, Property 5)** — this service NEVER reads or writes
   ``user_tenant_roles``. Capability (roles), governance (Tenant_Admin) and scope
   (this table) are orthogonal; a scope write touches only ``user_tenant_scope``.
-- **PROJECTION TRIGGER (R2.4, Property 2)** — after a committed write/delete it
-  fires ``enqueue_sync(tenant)`` so the ``scopegrant#…`` projection reflects the
-  change. Best-effort/logged (same contract as role writes in
+- **PROJECTION TRIGGER (R2.2/R2.4, Property 2)** — after a committed write/delete
+  it fires ``enqueue_sync(tenant)`` so the ``scopegrant#…`` projection reflects the
+  change. DECOUPLED from the write (same contract as role writes in
   ``tenant_admin_roles.py`` / ``projection_sync_trigger.enqueue_sync``): a failure
-  is swallowed and NEVER breaks the write.
+  NEVER breaks the write. A drain failure is BOUNDED-RETRIED in-process and, if it
+  still fails, SURFACED to the :attr:`on_enqueue_failure` observability sink (a
+  metric/alert hook) and logged at ``error`` — so a propagation miss is observable,
+  not silently swallowed (Bug 1 fix). The periodic reconcile
+  (``ProjectionSync.sync_all``) remains the durable backstop.
 
 Steering 31 (database patterns): all DB access goes through ``DatabaseManager``
 with parameterized ``%s`` placeholders; every query is tenant-isolated on
@@ -110,6 +114,15 @@ class UserTenantScopeService:
             ``services.projection_sync_trigger.enqueue_sync``; injectable for tests.
     """
 
+    #: Bounded retry budget for the best-effort on-change drain (Bug 1 fix, R2.2).
+    #: The FIRST attempt plus this many RETRIES — so a transient drain failure is
+    #: retried in-process before being left to the periodic reconcile backstop. Kept
+    #: small (the serial in-process drain means a retry is cheap and a persistent
+    #: failure must not spin): a single retry turns one lost signal into two
+    #: attempts, which is enough to ride out a transient blip without masking a hard
+    #: failure (the hard failure is still surfaced via ``on_enqueue_failure``).
+    _ENQUEUE_RETRIES = 1
+
     def __init__(
         self,
         db: Any,
@@ -123,6 +136,14 @@ class UserTenantScopeService:
 
             enqueue_sync = _default
         self._enqueue_sync = enqueue_sync
+        #: Observability sink for a FAILED on-change drain (Bug 1 fix, R2.2). A
+        #: callable the caller / a metrics layer can set to be NOTIFIED when the
+        #: on-change projection drain fails after its bounded retries — so a
+        #: propagation miss is SURFACED instead of silently swallowed. Called with
+        #: keyword info ``administration=..., attempts=..., error=...``. ``None``
+        #: (the default) means "no sink wired"; the failure is still logged and the
+        #: periodic reconcile still backstops it, but nothing is notified.
+        self.on_enqueue_failure: Any = None
 
     # -- read ----------------------------------------------------------------
 
@@ -202,7 +223,9 @@ class UserTenantScopeService:
             self._upsert_row(email, administration, module, normalized, created_by)
 
         # R2.4 — on-change projection sync trigger, AFTER the committed write/delete.
-        # Best-effort: never breaks the scope write (reconciliation backstops).
+        # Decoupled: never breaks the scope write. A drain failure is now bounded-retried
+        # and, if still failing, SURFACED via on_enqueue_failure (R2.2) rather than silently
+        # swallowed — and the periodic reconcile (ProjectionSync.sync_all) backstops the miss.
         self._fire_enqueue_sync(administration)
         return normalized
 
@@ -362,15 +385,74 @@ class UserTenantScopeService:
         return meta
 
     def _fire_enqueue_sync(self, administration: str) -> None:
-        """Fire the best-effort projection sync; never break the write (R2.4)."""
+        """Fire the on-change projection drain — observable + bounded-retry (R2.2/R2.4).
+
+        Keeps the DECOUPLING contract (R2.4): the scope write has ALREADY committed
+        when this runs, so a drain failure NEVER propagates back into the write path.
+        But a failure is no longer SILENTLY swallowed (the Bug 1 cause — a lost
+        on-change propagation was invisible for weeks):
+
+        1. **Bounded retry.** The drain is attempted up to ``1 + _ENQUEUE_RETRIES``
+           times, so a transient blip is ridden out in-process before falling back to
+           the periodic reconcile. The retry stops early on the first success.
+        2. **Surfaced on persistent failure.** When every attempt fails, the failure
+           is reported to the :attr:`on_enqueue_failure` observability sink (a
+           metric/alert hook) — so the propagation miss is OBSERVABLE — and logged.
+           The write stays committed regardless; the periodic reconcile
+           (``ProjectionSync.sync_all``) is the durable backstop.
+        """
+        attempts = 1 + max(0, self._ENQUEUE_RETRIES)
+        last_exc: Exception | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                self._enqueue_sync(administration)
+                return
+            except Exception as exc:
+                # Decoupled: a drain failure must never break the (committed) write.
+                last_exc = exc
+                logger.warning(
+                    "user_tenant_scope: enqueue_sync failed for administration %r "
+                    "(attempt %d/%d): %s",
+                    administration,
+                    attempt,
+                    attempts,
+                    exc,
+                )
+
+        # Every attempt failed: SURFACE it (observable) so the propagation miss is not
+        # invisible; the scope write remains committed and reconciliation will backstop.
+        self._surface_enqueue_failure(administration, attempts, last_exc)
+
+    def _surface_enqueue_failure(
+        self, administration: str, attempts: int, exc: Exception | None
+    ) -> None:
+        """Report a persistent on-change drain failure to the observability sink (R2.2).
+
+        Best-effort and decoupled: notifying the sink must NOT itself break the (already
+        committed) write, so a sink that raises is caught and logged. Absent a sink, the
+        failure is still logged at ``error`` (above the old ``warning``) so a lost
+        propagation is visible in logs even without a wired metric/alert hook.
+        """
+        logger.error(
+            "user_tenant_scope: on-change projection drain FAILED for administration "
+            "%r after %d attempt(s): %s — scope write is committed and unaffected; the "
+            "periodic reconcile (ProjectionSync.sync_all) will backstop this miss",
+            administration,
+            attempts,
+            exc,
+        )
+        sink = self.on_enqueue_failure
+        if not callable(sink):
+            return
         try:
-            self._enqueue_sync(administration)
-        except Exception as exc:
+            sink(administration=administration, attempts=attempts, error=exc)
+        except Exception as sink_exc:
+            # Observability must not break the (already committed) write.
             logger.warning(
-                "user_tenant_scope: enqueue_sync failed for administration %r: %s "
-                "— scope write is unaffected; reconciliation will backstop",
+                "user_tenant_scope: on_enqueue_failure sink raised for administration "
+                "%r: %s — ignored (the scope write is unaffected)",
                 administration,
-                exc,
+                sink_exc,
             )
 
     @staticmethod
