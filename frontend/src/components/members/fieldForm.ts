@@ -93,16 +93,12 @@ export interface FieldSection {
  * `LABEL_FALLBACK_ORDER = ("en", "nl")` (`sam/members/domain/attribute_catalog.py`), so the
  * serializer and the frontend resolve a missing locale the SAME way. A blank/empty value at a
  * higher-precedence tier is treated as ABSENT so the next tier fills it (never render "").
+ *
+ * Re-exported from the ONE shared {@link resolveLabel} util (the `'en-first'` i18n contract,
+ * the shared default) so this historical import path stays stable while the logic lives in
+ * `components/members/labelResolver.ts` (code-quality-fixes-2026-10-28 task 1).
  */
-export function resolveLabel(
-  label: string | LocalizedLabel | undefined,
-  lang: string,
-  fallback: string,
-): string {
-  if (!label) return fallback;
-  if (typeof label === 'string') return label || fallback;
-  return label[lang] || label.en || label.nl || fallback;
-}
+export { resolveLabel } from './labelResolver';
 
 /**
  * A field is EDITABLE when it is not read-only. Calculated fields (origin `calculated`) are
