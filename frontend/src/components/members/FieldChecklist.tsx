@@ -36,21 +36,25 @@ import type {
   FunctionalGroup,
   LocalizedLabel,
 } from '../../types/members';
+import { resolveLabel as sharedResolveLabel } from './labelResolver';
 
 /**
  * Resolve a localized (`{nl,en}`) or plain-string label to the active language
  * (prefer the active language, then `nl`, then `en`, then the fallback). Lifted
  * from `MemberFieldPicker` so both the pivot picker and the column chooser
  * resolve labels through the ONE checklist (R4.1).
+ *
+ * Delegates to the ONE shared {@link sharedResolveLabel} util with the checklist
+ * `'nl-first'` order (active → nl → en → key, plain strings passed through) so this
+ * surface's historical `resolveLabel` export stays stable while the logic lives in
+ * `components/members/labelResolver.ts` (code-quality-fixes-2026-10-28 task 1).
  */
 export function resolveLabel(
   label: string | LocalizedLabel | undefined,
   lang: string,
   fallback: string,
 ): string {
-  if (!label) return fallback;
-  if (typeof label === 'string') return label;
-  return label[lang] || label.nl || label.en || fallback;
+  return sharedResolveLabel(label, lang, fallback, 'nl-first');
 }
 
 /** The fallback section key for fields with no (or a dangling) functional group. */

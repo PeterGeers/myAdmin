@@ -59,28 +59,27 @@ import { useTypedTranslation } from '../../../hooks/useTypedTranslation';
 import type {
   FieldConfig,
   FieldConfigField,
-  LocalizedLabel,
   MemberRow,
 } from '../../../types/members';
 import type { MemberAnalyticsAreaProps } from './areas/types';
 import { mean, countExcluded } from './memberAggregations';
 import { valueFor, groupForKey } from '../fieldValue';
+import { resolveLabel as sharedResolveLabel } from '../labelResolver';
 
 /**
  * Resolve a localized (`{nl,en}`) or plain-string label to the active language,
- * mirroring the Members table's own label resolution (`fieldForm.resolveLabel`):
- * prefer the active language, then `nl`, then `en`, then the given fallback. Kept
- * local so the Overview has no cross-module import of a form helper (R2.4).
+ * mirroring the Members table's own label resolution: prefer the active language,
+ * then `nl`, then `en`, then the given fallback (R2.4).
+ *
+ * Delegates to the ONE shared {@link sharedResolveLabel} util with the checklist/analytics
+ * `'nl-first'` order so this component's behavior is byte-identical while the logic lives
+ * in `components/members/labelResolver.ts` (code-quality-fixes-2026-10-28 task 1).
  */
-function resolveLabel(
-  label: string | LocalizedLabel | undefined,
+const resolveLabel = (
+  label: Parameters<typeof sharedResolveLabel>[0],
   lang: string,
   fallback: string,
-): string {
-  if (!label) return fallback;
-  if (typeof label === 'string') return label;
-  return label[lang] || label.nl || label.en || fallback;
-}
+): string => sharedResolveLabel(label, lang, fallback, 'nl-first');
 
 /**
  * Find the resolved **calculated** field descriptor for `key`, or `undefined`
