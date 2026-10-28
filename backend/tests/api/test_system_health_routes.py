@@ -7,6 +7,7 @@ and authentication enforcement on protected endpoints.
 Requirements: 6.1, 6.2, 8.3
 Reference: .kiro/specs/missing-py-tests/design.md
 """
+
 import pytest
 import json
 from unittest.mock import patch, MagicMock
@@ -22,27 +23,31 @@ class TestPublicEndpoints:
 
     def test_status_responds_without_auth(self, client):
         """GET /api/status is public and returns status info."""
-        with patch.dict('os.environ', {
-            'TEST_MODE': 'false',
-            'DB_NAME': 'finance',
-            'FACTUREN_FOLDER_NAME': 'Facturen'
-        }, clear=False):
-            response = client.get('/api/status')
+        with patch.dict(
+            "os.environ",
+            {
+                "TEST_MODE": "false",
+                "DB_NAME": "finance",
+                "FACTUREN_FOLDER_NAME": "Facturen",
+            },
+            clear=False,
+        ):
+            response = client.get("/api/status")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['status'] == 'ok'
-        assert 'mode' in data
-        assert 'database' in data
+        assert data["status"] == "ok"
+        assert "mode" in data
+        assert "database" in data
 
     def test_health_responds_without_auth(self, client):
         """GET /api/health is public and returns health info."""
-        response = client.get('/api/health')
+        response = client.get("/api/health")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['status'] == 'healthy'
-        assert 'scalability' in data
+        assert data["status"] == "healthy"
+        assert "scalability" in data
 
     def test_db_config_unauthenticated_returns_401_or_403(self, client):
         """GET /api/db-config is SysAdmin-only (S2 T6, R1.1).
@@ -50,24 +55,28 @@ class TestPublicEndpoints:
         This endpoint leaks DB host/user/database + env-var presence, so it is
         no longer public — an unauthenticated request must be rejected.
         """
-        response = client.get('/api/db-config')
+        response = client.get("/api/db-config")
         assert response.status_code in (401, 403)
 
     def test_db_config_sysadmin_returns_200(self, client, mock_auth_sysadmin):
         """SysAdmin can still read /api/db-config for diagnostics."""
-        with patch.dict('os.environ', {
-            'DB_HOST': 'localhost',
-            'DB_PORT': '3306',
-            'DB_USER': 'testuser',
-            'DB_NAME': 'testdb',
-            'TEST_MODE': 'false'
-        }, clear=False):
-            response = client.get('/api/db-config', headers=mock_auth_sysadmin)
+        with patch.dict(
+            "os.environ",
+            {
+                "DB_HOST": "localhost",
+                "DB_PORT": "3306",
+                "DB_USER": "testuser",
+                "DB_NAME": "testdb",
+                "TEST_MODE": "false",
+            },
+            clear=False,
+        ):
+            response = client.get("/api/db-config", headers=mock_auth_sysadmin)
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert 'DB_HOST' in data
-        assert 'computed_host' in data
+        assert "DB_HOST" in data
+        assert "computed_host" in data
 
 
 # ============================================================================
@@ -80,31 +89,39 @@ class TestStatusEndpoint:
 
     def test_status_production_mode(self, client):
         """Status returns Production mode when TEST_MODE is false."""
-        with patch.dict('os.environ', {
-            'TEST_MODE': 'false',
-            'DB_NAME': 'finance',
-            'FACTUREN_FOLDER_NAME': 'Facturen'
-        }, clear=False):
-            response = client.get('/api/status')
+        with patch.dict(
+            "os.environ",
+            {
+                "TEST_MODE": "false",
+                "DB_NAME": "finance",
+                "FACTUREN_FOLDER_NAME": "Facturen",
+            },
+            clear=False,
+        ):
+            response = client.get("/api/status")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['mode'] == 'Production'
-        assert data['database'] == 'finance'
+        assert data["mode"] == "Production"
+        assert data["database"] == "finance"
 
     def test_status_test_mode(self, client):
         """Status returns Test mode when TEST_MODE is true."""
-        with patch.dict('os.environ', {
-            'TEST_MODE': 'true',
-            'TEST_DB_NAME': 'testfinance',
-            'TEST_FACTUREN_FOLDER_NAME': 'testFacturen'
-        }, clear=False):
-            response = client.get('/api/status')
+        with patch.dict(
+            "os.environ",
+            {
+                "TEST_MODE": "true",
+                "TEST_DB_NAME": "testfinance",
+                "TEST_FACTUREN_FOLDER_NAME": "testFacturen",
+            },
+            clear=False,
+        ):
+            response = client.get("/api/status")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['mode'] == 'Test'
-        assert data['database'] == 'testfinance'
+        assert data["mode"] == "Test"
+        assert data["database"] == "testfinance"
 
 
 # ============================================================================
@@ -117,33 +134,33 @@ class TestHealthEndpoint:
 
     def test_health_without_scalability_manager(self, client):
         """Health returns baseline info when scalability manager is None."""
-        with patch('routes.system_health_routes.scalability_manager', None):
-            response = client.get('/api/health')
+        with patch("routes.system_health_routes.scalability_manager", None):
+            response = client.get("/api/health")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['status'] == 'healthy'
-        assert data['scalability']['manager_active'] is False
-        assert data['scalability']['concurrent_user_capacity'] == '1x baseline'
+        assert data["status"] == "healthy"
+        assert data["scalability"]["manager_active"] is False
+        assert data["scalability"]["concurrent_user_capacity"] == "1x baseline"
 
     def test_health_with_scalability_manager(self, client):
         """Health returns enhanced info when scalability manager is active."""
         mock_manager = MagicMock()
         mock_manager.get_health_status.return_value = {
-            'health_score': 95,
-            'status': 'healthy',
-            'scalability_ready': True
+            "health_score": 95,
+            "status": "healthy",
+            "scalability_ready": True,
         }
 
-        with patch('routes.system_health_routes.scalability_manager', mock_manager):
-            response = client.get('/api/health')
+        with patch("routes.system_health_routes.scalability_manager", mock_manager):
+            response = client.get("/api/health")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['status'] == 'healthy'
-        assert data['scalability']['manager_active'] is True
-        assert data['scalability']['concurrent_user_capacity'] == '10x baseline'
-        assert data['scalability']['health_score'] == 95
+        assert data["status"] == "healthy"
+        assert data["scalability"]["manager_active"] is True
+        assert data["scalability"]["concurrent_user_capacity"] == "10x baseline"
+        assert data["scalability"]["health_score"] == 95
 
 
 # ============================================================================
@@ -157,58 +174,58 @@ class TestProtectedEndpointsAuth:
     def test_api_test_unauthenticated_returns_401_or_403(self, client):
         """Unauthenticated request to /api/test should be rejected."""
         auth_error = {
-            'statusCode': 401,
-            'body': '{"error": "Unauthorized", "message": "Missing or invalid token"}'
+            "statusCode": 401,
+            "body": '{"error": "Unauthorized", "message": "Missing or invalid token"}',
         }
-        with patch('auth.cognito_utils.extract_user_credentials',
-                   return_value=(None, None, auth_error)):
-            response = client.get('/api/test')
+        with patch(
+            "auth.cognito_utils.extract_user_credentials",
+            return_value=(None, None, auth_error),
+        ):
+            response = client.get("/api/test")
         assert response.status_code in (401, 403)
 
     def test_str_test_unauthenticated_returns_401_or_403(self, client):
         """Unauthenticated request to /api/str/test should be rejected."""
         auth_error = {
-            'statusCode': 401,
-            'body': '{"error": "Unauthorized", "message": "Missing or invalid token"}'
+            "statusCode": 401,
+            "body": '{"error": "Unauthorized", "message": "Missing or invalid token"}',
         }
-        with patch('auth.cognito_utils.extract_user_credentials',
-                   return_value=(None, None, auth_error)):
-            response = client.get('/api/str/test')
+        with patch(
+            "auth.cognito_utils.extract_user_credentials",
+            return_value=(None, None, auth_error),
+        ):
+            response = client.get("/api/str/test")
         assert response.status_code in (401, 403)
 
     def test_google_drive_token_health_unauthenticated_returns_401_or_403(self, client):
         """Unauthenticated request to token-health should be rejected."""
         auth_error = {
-            'statusCode': 401,
-            'body': '{"error": "Unauthorized", "message": "Missing or invalid token"}'
+            "statusCode": 401,
+            "body": '{"error": "Unauthorized", "message": "Missing or invalid token"}',
         }
-        with patch('auth.cognito_utils.extract_user_credentials',
-                   return_value=(None, None, auth_error)):
-            response = client.get('/api/google-drive/token-health')
+        with patch(
+            "auth.cognito_utils.extract_user_credentials",
+            return_value=(None, None, auth_error),
+        ):
+            response = client.get("/api/google-drive/token-health")
         assert response.status_code in (401, 403)
 
     def test_api_test_authenticated_returns_200(self, client, mock_auth):
         """Authenticated request to /api/test returns 200."""
-        response = client.get(
-            '/api/test',
-            headers=mock_auth
-        )
+        response = client.get("/api/test", headers=mock_auth)
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['status'] == 'Server is working'
+        assert data["status"] == "Server is working"
 
     def test_str_test_authenticated_returns_200(self, client, mock_auth):
         """Authenticated request to /api/str/test returns 200."""
-        response = client.get(
-            '/api/str/test',
-            headers=mock_auth
-        )
+        response = client.get("/api/str/test", headers=mock_auth)
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['status'] == 'STR endpoints working'
+        assert data["status"] == "STR endpoints working"
 
-    @patch('database.DatabaseManager')
-    @patch('services.credential_service.CredentialService')
+    @patch("database.DatabaseManager")
+    @patch("services.credential_service.CredentialService")
     def test_google_drive_token_health_sysadmin_returns_200(
         self, mock_cred_service_class, mock_db_class, client, mock_auth_sysadmin
     ):
@@ -218,18 +235,17 @@ class TestProtectedEndpointsAuth:
         mock_cred_service = MagicMock()
         mock_cred_service_class.return_value = mock_cred_service
         mock_cred_service.get_credential.return_value = {
-            'expiry': '2025-12-31T00:00:00Z'
+            "expiry": "2025-12-31T00:00:00Z"
         }
 
         response = client.get(
-            '/api/google-drive/token-health',
-            headers=mock_auth_sysadmin
+            "/api/google-drive/token-health", headers=mock_auth_sysadmin
         )
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert 'overall_status' in data
-        assert 'tenants' in data
+        assert "overall_status" in data
+        assert "tenants" in data
 
 
 # ============================================================================
@@ -240,8 +256,8 @@ class TestProtectedEndpointsAuth:
 class TestTokenHealthDynamicTenants:
     """Verify the token-health endpoint uses dynamic tenant query from DB."""
 
-    @patch('services.credential_service.CredentialService')
-    @patch('routes.system_health_routes.DatabaseManager')
+    @patch("services.credential_service.CredentialService")
+    @patch("routes.system_health_routes.DatabaseManager")
     def test_token_health_queries_db_for_tenants(
         self, mock_db_class, mock_cred_service_class, client, mock_auth_sysadmin
     ):
@@ -255,26 +271,25 @@ class TestTokenHealthDynamicTenants:
         mock_cred_service = MagicMock()
         mock_cred_service_class.return_value = mock_cred_service
         mock_cred_service.get_credential.return_value = {
-            'expiry': '2026-12-31T00:00:00Z'
+            "expiry": "2026-12-31T00:00:00Z"
         }
 
         response = client.get(
-            '/api/google-drive/token-health',
-            headers=mock_auth_sysadmin
+            "/api/google-drive/token-health", headers=mock_auth_sysadmin
         )
 
         assert response.status_code == 200
         data = json.loads(response.data)
         # Verify results returned for each tenant from DB
-        assert 'GoodwinSolutions' in data['tenants']
-        assert 'PeterPrive' in data['tenants']
+        assert "GoodwinSolutions" in data["tenants"]
+        assert "PeterPrive" in data["tenants"]
         # Verify the DB was queried for tenants
         mock_db.execute_query.assert_called_once_with(
             "SELECT DISTINCT administration FROM rekeningschema WHERE administration IS NOT NULL"
         )
 
-    @patch('services.credential_service.CredentialService')
-    @patch('routes.system_health_routes.DatabaseManager')
+    @patch("services.credential_service.CredentialService")
+    @patch("routes.system_health_routes.DatabaseManager")
     def test_token_health_handles_empty_tenant_list(
         self, mock_db_class, mock_cred_service_class, client, mock_auth_sysadmin
     ):
@@ -286,17 +301,16 @@ class TestTokenHealthDynamicTenants:
         mock_cred_service_class.return_value = mock_cred_service
 
         response = client.get(
-            '/api/google-drive/token-health',
-            headers=mock_auth_sysadmin
+            "/api/google-drive/token-health", headers=mock_auth_sysadmin
         )
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['tenants'] == {}
-        assert data['overall_status'] == 'healthy'
+        assert data["tenants"] == {}
+        assert data["overall_status"] == "healthy"
 
-    @patch('services.credential_service.CredentialService')
-    @patch('routes.system_health_routes.DatabaseManager')
+    @patch("services.credential_service.CredentialService")
+    @patch("routes.system_health_routes.DatabaseManager")
     def test_token_health_returns_results_for_all_tenants(
         self, mock_db_class, mock_cred_service_class, client, mock_auth_sysadmin
     ):
@@ -311,20 +325,119 @@ class TestTokenHealthDynamicTenants:
         mock_cred_service = MagicMock()
         mock_cred_service_class.return_value = mock_cred_service
         mock_cred_service.get_credential.return_value = {
-            'expiry': '2026-06-15T00:00:00Z'
+            "expiry": "2026-06-15T00:00:00Z"
         }
 
         response = client.get(
-            '/api/google-drive/token-health',
-            headers=mock_auth_sysadmin
+            "/api/google-drive/token-health", headers=mock_auth_sysadmin
         )
 
         assert response.status_code == 200
         data = json.loads(response.data)
         # All three tenants should have results
-        assert len(data['tenants']) == 3
-        assert 'TenantA' in data['tenants']
-        assert 'TenantB' in data['tenants']
-        assert 'TenantC' in data['tenants']
+        assert len(data["tenants"]) == 3
+        assert "TenantA" in data["tenants"]
+        assert "TenantB" in data["tenants"]
+        assert "TenantC" in data["tenants"]
         # Credential service called once per tenant
         assert mock_cred_service.get_credential.call_count == 3
+
+
+# ============================================================================
+# DB Diagnostics Tests (db-test happy path + error-envelope)
+#
+# Task 9 (code-quality-fixes-2026-10-28): the SysAdmin-only diagnostics endpoints
+# route their caught-exception paths through routes.error_responses
+# (error_response / error_payload). These tests pin the happy path and the
+# caller-safe envelope — a generic message + correlation error_id, with the raw
+# exception text NOT leaked (CodeQL py/stack-trace-exposure, steering rule 30).
+# ============================================================================
+
+
+class TestDbTestEndpoint:
+    """Tests for GET /api/db-test (SysAdmin-only diagnostics)."""
+
+    def test_db_test_unauthenticated_returns_401_or_403(self, client):
+        """db-test leaks connection details, so it is SysAdmin-only (S2 T6)."""
+        auth_error = {
+            "statusCode": 401,
+            "body": '{"error": "Unauthorized", "message": "Missing or invalid token"}',
+        }
+        with patch(
+            "auth.cognito_utils.extract_user_credentials",
+            return_value=(None, None, auth_error),
+        ):
+            response = client.get("/api/db-test")
+        assert response.status_code in (401, 403)
+
+    def test_db_test_non_sysadmin_returns_403(self, client, mock_auth):
+        """A non-SysAdmin caller (TenantAdmin) is rejected with 403."""
+        response = client.get("/api/db-test", headers=mock_auth)
+        assert response.status_code == 403
+
+    @patch("routes.system_health_routes.DatabaseManager")
+    def test_db_test_success_returns_connection_info(
+        self, mock_db_class, client, mock_auth_sysadmin
+    ):
+        """A SysAdmin gets a successful connectivity probe with config details."""
+        mock_db = MagicMock()
+        mock_db_class.return_value = mock_db
+        mock_db.execute_query.return_value = [{"test": 1}]
+        mock_db.config = {
+            "host": "localhost",
+            "port": 3306,
+            "user": "testuser",
+            "database": "finance",
+        }
+
+        response = client.get("/api/db-test", headers=mock_auth_sysadmin)
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["status"] == "success"
+        assert data["config"]["database"] == "finance"
+        assert data["test_query_result"] == [{"test": 1}]
+
+    @patch("routes.system_health_routes.DatabaseManager")
+    def test_db_test_failure_uses_error_envelope(
+        self, mock_db_class, client, mock_auth_sysadmin
+    ):
+        """A connection failure returns the generic error_payload envelope.
+
+        The body carries a generic message + correlation ``error_id`` and the raw
+        exception text (which could expose host/credentials) does NOT leak.
+        """
+        mock_db = MagicMock()
+        mock_db_class.return_value = mock_db
+        mock_db.execute_query.side_effect = Exception("secret-host:3306 access denied")
+
+        response = client.get("/api/db-test", headers=mock_auth_sysadmin)
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data["status"] == "error"
+        assert "secret-host" not in json.dumps(data)
+        assert "error_id" in data
+
+
+class TestTokenHealthErrorEnvelope:
+    """The token-health top-level failure returns the error_payload envelope."""
+
+    @patch("routes.system_health_routes.DatabaseManager")
+    def test_token_health_db_failure_uses_error_envelope(
+        self, mock_db_class, client, mock_auth_sysadmin
+    ):
+        """A failure resolving tenants degrades to an error envelope (no leak)."""
+        mock_db = MagicMock()
+        mock_db_class.return_value = mock_db
+        mock_db.execute_query.side_effect = Exception("secret-schema-detail")
+
+        response = client.get(
+            "/api/google-drive/token-health", headers=mock_auth_sysadmin
+        )
+
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert data["overall_status"] == "error"
+        assert "secret-schema-detail" not in json.dumps(data)
+        assert "error_id" in data

@@ -37,7 +37,9 @@ import ast
 import os
 
 # Repo root = two levels up from this file (sam/tests/ -> sam/ -> repo root).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 _SAM_ROOT = os.path.join(_REPO_ROOT, "sam")
 
 # Method names that, when called as an attribute (``x.query(...)``), are direct
@@ -104,7 +106,9 @@ def _scan_module_for_violations(relpath, source):
 
         # 2) from boto3 import ...  /  from boto3.dynamodb import ...
         elif isinstance(node, ast.ImportFrom):
-            if node.module and (node.module == "boto3" or node.module.startswith("boto3.")):
+            if node.module and (
+                node.module == "boto3" or node.module.startswith("boto3.")
+            ):
                 violations.append(
                     f"line {node.lineno}: imports boto3 (`from {node.module} import ...`)"
                 )
@@ -187,8 +191,7 @@ def test_no_handler_or_router_touches_dynamodb_directly():
         "the sole DynamoDB touch-point (guards risk S3 / attack path AP-S2). Move the "
         "offending access down into the repository. Offenders:\n"
         + "\n".join(
-            f"  - {relpath}:\n"
-            + "\n".join(f"      * {v}" for v in violations)
+            f"  - {relpath}:\n" + "\n".join(f"      * {v}" for v in violations)
             for relpath, violations in sorted(all_violations.items())
         )
     )
@@ -245,13 +248,17 @@ _WHOLE_RECORD_REPLACE_PRIMITIVE = "put_config"
 # door can never replace a fields row). Keyed by repo-relative path so a move is caught.
 #
 # `config_write_service.py` DEFINES a domain method named `put_config` and delegates to the
-# repository's `put_config`; `_dispatch.py` calls that domain service. Both are the generic
-# scope/mail door — allowed. Any OTHER handler/domain caller (notably the config#fields Change-Op
-# service) is a violation. Adding to this set is a REVIEWED change, never a silent widening.
+# repository's `put_config`; `_dispatch_config.py` calls that domain service on the generic
+# `write_config` branch. Both are the generic scope/mail door — allowed. (The per-route dispatch
+# body was split BY RESOURCE out of `_dispatch.py` into `_dispatch_{members,analytics,config}.py`
+# — code-quality-fixes-2026-10-28 task 4; the `write_config` branch that calls the door lives in
+# `_dispatch_config.py` now, so the allow-list points there instead of the former `_dispatch.py`.)
+# Any OTHER handler/domain caller (notably the config#fields Change-Op service) is a violation.
+# Adding to this set is a REVIEWED change, never a silent widening.
 _ALLOWED_WHOLE_RECORD_REPLACE_CALLERS = frozenset(
     {
         os.path.join("sam", "members", "domain", "config_write_service.py"),
-        os.path.join("sam", "members", "handler", "_dispatch.py"),
+        os.path.join("sam", "members", "handler", "_dispatch_config.py"),
     }
 )
 
@@ -288,7 +295,11 @@ def _iter_handler_domain_sources():
         for name in filenames:
             if not name.endswith(".py"):
                 continue
-            if name.startswith(("handler", "router")) or in_handler_pkg or in_domain_pkg:
+            if (
+                name.startswith(("handler", "router"))
+                or in_handler_pkg
+                or in_domain_pkg
+            ):
                 abspath = os.path.join(dirpath, name)
                 relpath = os.path.relpath(abspath, _REPO_ROOT)
                 yield relpath, abspath
@@ -325,7 +336,9 @@ def test_config_fields_crud_service_is_discovered():
     Change-Op service / the allowed generic door being renamed/moved past the scan).
     """
     found = {relpath for relpath, _ in _iter_handler_domain_sources()}
-    assert found, "handler/domain discovery found nothing — the R11.4 guard would pass vacuously."
+    assert found, (
+        "handler/domain discovery found nothing — the R11.4 guard would pass vacuously."
+    )
     assert _CONFIG_FIELDS_CRUD_SERVICE_RELPATH in found, (
         f"{_CONFIG_FIELDS_CRUD_SERVICE_RELPATH} not discovered; the config#fields Change-Op "
         f"service must be in scope for the whole-record-replace guard. Found: {sorted(found)}"
@@ -365,7 +378,8 @@ def test_no_handler_or_domain_calls_the_whole_record_replace_primitive_except_th
         "Route the write through the Change-Op service (`apply_ops`), do NOT widen the allow-list "
         "without a reviewed change. Offenders:\n"
         + "\n".join(
-            f"  - {relpath}: line(s) {lines}" for relpath, lines in sorted(offenders.items())
+            f"  - {relpath}: line(s) {lines}"
+            for relpath, lines in sorted(offenders.items())
         )
     )
 
@@ -385,7 +399,9 @@ def test_config_fields_crud_service_uses_change_op_path_not_whole_record_replace
     with open(abspath, "r", encoding="utf-8") as fh:
         source = fh.read()
 
-    assert _calls_method(source, _CONFIG_FIELDS_CRUD_SERVICE_RELPATH, _CHANGE_OP_WRITE_PRIMITIVE), (
+    assert _calls_method(
+        source, _CONFIG_FIELDS_CRUD_SERVICE_RELPATH, _CHANGE_OP_WRITE_PRIMITIVE
+    ), (
         f"{_CONFIG_FIELDS_CRUD_SERVICE_RELPATH} must delegate `config#fields` writes to the "
         f"repository's `{_CHANGE_OP_WRITE_PRIMITIVE}` PATH-write contract (task 2.4) — none found."
     )
@@ -402,7 +418,9 @@ def test_config_fields_crud_service_uses_change_op_path_not_whole_record_replace
 # ── (3) A handler response over the REAL fixture carries no raw storage-shape key ──
 
 _FIXTURE_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "fixtures", "hdcn_config_fields_overlay.json"
+    os.path.dirname(os.path.abspath(__file__)),
+    "fixtures",
+    "hdcn_config_fields_overlay.json",
 )
 
 
@@ -416,7 +434,9 @@ class _BoundaryFakeTable:
     def put(self, item):
         from services import projection_schema as schema
 
-        self.store[(item[schema.PARTITION_KEY_ATTR], item[schema.SORT_KEY_ATTR])] = dict(item)
+        self.store[(item[schema.PARTITION_KEY_ATTR], item[schema.SORT_KEY_ATTR])] = (
+            dict(item)
+        )
 
     def query(self, KeyConditionExpression=None):
         expr = KeyConditionExpression.get_expression()
@@ -481,7 +501,9 @@ def _build_field_config_response_over_real_fixture():
     table.put(
         {
             schema.PARTITION_KEY_ATTR: tenant_id,
-            schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
             "fields": overlay["fields"],
             "overrides": overlay["overrides"],
             "functional_groups": overlay["functional_groups"],
