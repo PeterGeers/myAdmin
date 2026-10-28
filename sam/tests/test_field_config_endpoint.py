@@ -38,11 +38,13 @@ if _REPO_ROOT not in sys.path:
 
 from sam.members.domain.field_resolver import (
     FieldOrigin,
+    FieldResolver,
+    FieldScope,
     OverlayField,
     StaticOverlayProvider,
     TenantOverlay,
 )
-from sam.members.domain.fixed_fields import FieldFormat, FieldType
+from sam.members.domain.fixed_fields import EnumOption, FieldFormat, FieldType
 from sam.members.domain.membership_service import (
     MEMBERSHIP_TYPE_FIELD_KEY,
     MembershipService,
@@ -685,3 +687,134 @@ class TestGetFieldConfigDoesNotSurfaceRawOverlay:
             ),
         )
         json.dumps(service.get_field_config("h-dcn"))  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# 03a task 4 (C4 / F8 / F9) — the read-assembly seam populates ONE canonical `options`
+# uniformly; the staff `_serialize_field` serializer consumes that single `options` with NO
+# per-kind branch and NO `field.choices` fallback, and the pure resolver stays catalog-free.
+#
+# Validates: Requirements 2.1, 2.6 · Components: C4, F8, F9
+# ---------------------------------------------------------------------------
+
+
+def _scope_service(repo, *, dim_values=("noord", "zuid")):
+    """A service whose `region` overlay enum is backed by a tenant scope dimension (no inline
+    options) — so its `options` can ONLY come from the injected scope_vocab at the seam."""
+    from sam.members.domain.scope_dimensions import (
+        ScopeDimension,
+        StaticScopeConfigProvider,
+    )
+
+    overlay = TenantOverlay(
+        fields={
+            "region": OverlayField(
+                key="region",
+                type=FieldType.ENUM,
+                label={"nl": "Regio", "en": "Region"},
+                order=70,
+            )
+        }
+    )
+    scope = StaticScopeConfigProvider(
+        {
+            "h-dcn": [
+                ScopeDimension(
+                    key="region",
+                    field="region",
+                    enabled=True,
+                    values=dim_values,
+                )
+            ]
+        }
+    )
+    return MembershipService(
+        repo,
+        overlay_provider=StaticOverlayProvider({"h-dcn": overlay}),
+        scope_config_provider=scope,
+    )
+
+
+class TestReadAssemblySeamPopulatesOptionsUniformly:
+    def test_reference_options_come_from_the_active_catalog_at_the_seam(self, repo):
+        # reference (membership_type): the ONE `options` is the injected active catalog — the
+        # F8 reference population, now done in the uniform seam pass (not a one-off merge).
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+        mt = next(f for f in config["fields"] if f["key"] == "membership_type")
+        assert [o["value"] for o in mt["options"]] == ["erelid", "donateur", "sponsor"]
+
+    def test_inline_enum_options_are_the_rich_resolved_options(self, repo):
+        # inline enum (status): the ONE `options` is the field's own rich {value,label} options.
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+        status = next(f for f in config["fields"] if f["key"] == "status")
+        active = next(o for o in status["options"] if o["value"] == "active")
+        assert active["label"] == {"nl": "Actief", "en": "Active"}
+
+    def test_scope_backed_options_come_from_the_injected_scope_vocab(self, repo):
+        # scope-backed (region): the field declares NO inline options — its `options` can only be
+        # the scope dimension's values, projected to rich options AT THE SEAM (not from the pure
+        # resolver, not from `field.choices`). This is the uniform scope population.
+        service = _scope_service(repo, dim_values=("noord", "zuid", "oost"))
+        config = service.get_field_config("h-dcn")
+        region = next(f for f in config["fields"] if f["key"] == "region")
+        assert [o["value"] for o in region["options"]] == ["noord", "zuid", "oost"]
+        # Rich option shape (value + label), uniform with every other kind.
+        assert all("value" in o and "label" in o for o in region["options"])
+
+    def test_bare_choices_enum_no_longer_falls_back_to_choices(self, repo):
+        # F9: the staff serializer drops the `elif field.choices is not None` fallback. A bare-
+        # `choices` overlay enum (built directly through the resolver, bypassing the C5/C7
+        # canonicalisation) has NO inline `options` and is NOT scope-backed, so the seam resolves
+        # NO canonical source and the served `options` is None — the deliberate new behavior. Such
+        # a declared-but-unpropagated source is the ASYMMETRY task 9 (C6) strengthens into a loud
+        # error at this same seam; until then it degrades to None rather than list(field.choices).
+        overlay = TenantOverlay(
+            fields={
+                "magazine_pref": OverlayField(
+                    key="magazine_pref",
+                    type=FieldType.ENUM,
+                    label={"nl": "Clubblad", "en": "Magazine"},
+                    choices=("Geen", "Papier", "Digitaal"),
+                    order=20,
+                )
+            }
+        )
+        service = MembershipService(
+            repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
+        )
+        config = service.get_field_config("h-dcn")
+        mag = next(f for f in config["fields"] if f["key"] == "magazine_pref")
+        assert mag["options"] is None
+
+    def test_non_selectable_field_has_no_options(self, repo):
+        # A plain string field declares no selectable source → options is None (unchanged).
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+        first_name = next(f for f in config["fields"] if f["key"] == "first_name")
+        assert first_name["options"] is None
+
+
+class TestResolverStaysCatalogFree:
+    """C4: the uniform population lives at the read-assembly seam — the pure FieldResolver is
+    NOT given catalog/DB access and does not read the catalog. Asserted, not modified."""
+
+    def test_resolver_is_constructed_with_only_the_overlay_provider(self):
+        resolver = FieldResolver(StaticOverlayProvider({}))
+        # No catalog / repository / scope-config attribute is attached to the resolver — its sole
+        # dependency is the overlay provider (scope arrives as an injected `scope_vocab` arg).
+        assert resolver._provider is not None
+        assert not hasattr(resolver, "_repo")
+        assert not hasattr(resolver, "_catalog")
+        assert not hasattr(resolver, "_active_membership_type_options")
+
+    def test_resolver_resolve_takes_no_catalog_and_leaves_membership_type_options_empty(self):
+        # Resolving WITHOUT any catalog yields a membership_type field whose inline resolved
+        # options are empty — the active catalog is attached LATER, at the seam, not here. This
+        # pins that reference options are a seam concern, never a resolver catalog read.
+        resolver = FieldResolver(StaticOverlayProvider({}))
+        config = resolver.resolve("h-dcn")
+        mt = config.field(MEMBERSHIP_TYPE_FIELD_KEY)
+        assert mt is not None
+        assert not mt.options  # resolver attaches no catalog vocabulary

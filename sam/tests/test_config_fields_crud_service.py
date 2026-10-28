@@ -1484,21 +1484,21 @@ def test_choiceless_scope_enum_without_vocab_is_still_a_config_bug():
 #
 # What this block PROVES (the two R5.1/R5.5 clauses, each an INVARIANT case):
 #
-#   1. A tenant-authored ENUM value never DROPS on read (R5.1): the `_build_override`
-#      `options or choices` fallback is strong enough that an override authoring its value list
-#      under EITHER the rich `options` ([{value,label,roles?}]) OR a bare `choices` (rich
-#      [{value,label}] OR plain ["man","vrouw"]) reaches the resolved field's `choices`. Proven at
-#      the RESOLVER level (the single source of the base ⊕ overlay enum-value rule) so a value a
-#      tenant added (e.g. the reported `died` / a bare `anders`) survives resolution rather than
-#      falling back to the fixed field's BASE choices (the config#fields enum-choices data-loss).
+#   1. A tenant-authored ENUM value never DROPS on read (R5.1): with the single-vocabulary model
+#      (C5) an override authoring its value list under the ONE canonical `options`
+#      ([{value,label,roles?}]) reaches the resolved field's `choices` (derived from `options`).
+#      Proven at the RESOLVER level (the single source of the base ⊕ overlay enum-value rule) so a
+#      value a tenant added (e.g. the reported `died`) survives resolution rather than falling back
+#      to the fixed field's BASE choices (the config#fields enum-choices data-loss). The retired
+#      `options or choices` coalesce (F1) is gone; C7 migrates legacy bare-`choices` rows.
 #
-#   2. A `set_field` CHOICES change rewrites ONLY the choice data (R5.5 / R1): editing a field's
-#      enum choices through the Change-Op path leaves the field's OTHER attributes (label, order,
-#      functional_group, type) byte-identical. Proven END-TO-END through the real `apply_ops` over
-#      a seeded row (service → real repo → condition-evaluating `_CatalogFakeTable`) AND reinforced
-#      by the always-running invariant harness (`assert_change_op_isolated`) over the resolved
-#      record, so a choices-only edit is isolated: under the per-aspect SET model a choices change
-#      addresses only `overrides.<dotted>.choices`, never a sibling attr. This is the ENUM facet of
+#   2. A `set_field` OPTIONS change rewrites ONLY the vocabulary data (R5.5 / R1): editing a
+#      field's enum options through the Change-Op path leaves the field's OTHER attributes (label,
+#      order, functional_group, type) byte-identical. Proven END-TO-END through the real `apply_ops`
+#      over a seeded row (service → real repo → condition-evaluating `_CatalogFakeTable`) AND
+#      reinforced by the always-running invariant harness (`assert_change_op_isolated`) over the
+#      resolved record, so an options-only edit is isolated: under the per-aspect SET model an
+#      options change addresses only `overrides.<dotted>.options`, never a sibling attr. This is the ENUM facet of
 #      the root-cause guarantee — the `overrides` whole-entry REPLACE that stripped the stored label
 #      when choices were edited (root-cause-analysis) is structurally gone.
 #
@@ -1545,11 +1545,12 @@ def test_override_enum_value_from_rich_options_reaches_resolved_choices():
     )
 
 
-def test_override_enum_value_from_bare_string_choices_reaches_resolved_choices():
-    """R5.1 (the strengthened fallback): a fixed-enum override authoring BARE-STRING `choices`
-    (`["man","vrouw","anders"]`, no rich options) still reaches the resolved field's choices — the
-    `options or choices` fallback now coerces bare strings, so a tenant value is not silently
-    dropped and the resolver does NOT fall back to the base choices."""
+def test_override_enum_value_from_options_reaches_resolved_choices_value_only():
+    """R5.1 (single-vocabulary, C5): a fixed-enum override authoring value-only `options`
+    (`[{value:"man"},...]`, the canonical shape a migrated bare-`choices` list becomes) resolves
+    those values into the field's `choices`, so a tenant value is not dropped and the resolver does
+    NOT fall back to the base choices. The retired `options or choices` coalesce is gone — there is
+    ONE vocabulary (`options`); C7 migrates legacy bare-`choices` rows into it."""
     overlay = TenantOverlay(
         overrides={"personal.gender": FixedFieldOverride(options=(
             EnumOption(value="man"),
@@ -1585,11 +1586,13 @@ def test_resolved_choices_stay_coherent_with_options():
 # ---------------------------------------------------------------------------
 
 
-def _seed_enum_override_row(table, *, choices):
-    """Seed a row whose `membership.status` override is an enum carrying label/order/group + choices.
+def _seed_enum_override_row(table, *, options):
+    """Seed a row whose `membership.status` override is an enum carrying label/order/group + options.
 
-    The sibling attributes (label/order/functional_group/type) are what a choices-only edit must
-    leave untouched — the ENUM facet of the root-cause 'whole-entry replace stripped the label'.
+    Single-vocabulary (C5): the enum vocabulary is stored under the ONE canonical `options`
+    attribute ([{value, label?}]). The sibling attributes (label/order/functional_group/type) are
+    what a vocabulary-only edit must leave untouched — the ENUM facet of the root-cause
+    'whole-entry replace stripped the label'.
     """
     _seed_catalog_row(
         table,
@@ -1601,73 +1604,76 @@ def _seed_enum_override_row(table, *, choices):
                 "label": {"en": "Status", "nl": "Status"},
                 "order": 35,
                 "functional_group": "membership",
-                "choices": list(choices),
+                "options": list(options),
             }
         },
     )
 
 
-def test_set_field_choices_change_rewrites_only_choice_data_end_to_end():
-    """END-TO-END (R5.5 / R1): editing ONLY the enum choices of a field through the Change-Op path
-    rewrites the stored `choices` and leaves every OTHER stored aspect (label/order/
-    functional_group/type) byte-identical — the ENUM facet of the no-strip guarantee."""
+def test_set_field_options_change_rewrites_only_vocab_data_end_to_end():
+    """END-TO-END (R5.5 / R1): editing ONLY the enum `options` of a field through the Change-Op
+    path rewrites the stored `options` and leaves every OTHER stored aspect (label/order/
+    functional_group/type) byte-identical — the ENUM facet of the no-strip guarantee. Single
+    vocabulary (C5): the edit targets the ONE canonical `options` attribute."""
     table = _CatalogFakeTable()
-    _seed_enum_override_row(table, choices=["active", "lapsed"])
+    _seed_enum_override_row(table, options=[{"value": "active"}, {"value": "lapsed"}])
     before_entry = copy.deepcopy(
         table.store[(_TENANT, _FIELDS_SK)]["overrides"]["membership.status"]
     )
 
     svc = _e2e_service(table, version_fn=lambda: "v2")
-    # A realistic choices-only edit: the admin added `died` to the status enum.
-    new_choices = [
+    # A realistic vocabulary-only edit: the admin added `died` to the status enum.
+    new_options = [
         {"value": "active", "label": {"en": "Active"}},
         {"value": "lapsed", "label": {"en": "Lapsed"}},
         {"value": "died", "label": {"nl": "Overleden", "en": "Passed Away"}},
     ]
-    svc.set_field(_TENANT, "membership.status", {"choices": new_choices})
+    svc.set_field(_TENANT, "membership.status", {"options": new_options})
 
     entry = table.store[(_TENANT, _FIELDS_SK)]["overrides"]["membership.status"]
-    # The choice data was rewritten...
-    assert entry["choices"] == new_choices
+    # The vocabulary data was rewritten...
+    assert entry["options"] == new_options
     # ...and EVERY other stored aspect is byte-identical (the whole-entry-replace strip is gone).
     for aspect in ("type", "label", "order", "functional_group"):
         assert entry[aspect] == before_entry[aspect], (
-            f"a choices-only edit must preserve the field's {aspect!r} (R5.5 / R1) — got "
+            f"an options-only edit must preserve the field's {aspect!r} (R5.5 / R1) — got "
             f"{entry.get(aspect)!r}, expected {before_entry[aspect]!r}"
         )
 
 
-def test_set_field_choices_change_emits_only_the_choices_path(repo):
-    """The Change-Op for a choices-only edit addresses ONLY `overrides.<dotted>.choices` — never a
-    sibling attr (per-aspect SET). This is WHY the end-to-end strip cannot happen (R5.5)."""
+def test_set_field_options_change_emits_only_the_options_path(repo):
+    """The Change-Op for a vocabulary-only edit addresses ONLY `overrides.<dotted>.options` — never
+    a sibling attr (per-aspect SET). This is WHY the end-to-end strip cannot happen (R5.5). Single
+    vocabulary (C5): the one canonical attribute is `options`."""
     svc = _existing_service(repo, ("fixed_overrides", "membership.status"))
-    svc.set_field(_TENANT, "status", {"choices": [{"value": "died"}]})
+    svc.set_field(_TENANT, "status", {"options": [{"value": "died"}]})
     ops = repo.last["ops"]
     assert ops == [
         {
             "action": SET,
-            "path": ["overrides", "membership.status", "choices"],
+            "path": ["overrides", "membership.status", "options"],
             "value": [{"value": "died"}],
         }
-    ], "a choices-only edit must emit exactly one SET on the choices aspect, nothing else"
+    ], "an options-only edit must emit exactly one SET on the options aspect, nothing else"
 
 
-def test_set_field_choices_change_is_isolated_on_the_resolved_record():
-    """INVARIANT (R5.5 / R9): read-resolve → apply a choices-only `set_field` → read-resolve, and
-    assert via the generic engine that ONLY `fields.status.choices` changed on the RESOLVED record
+def test_set_field_options_change_is_isolated_on_the_resolved_record():
+    """INVARIANT (R5.5 / R9): read-resolve → apply an options-only `set_field` → read-resolve, and
+    assert via the generic engine that ONLY `fields.status.options` changed on the RESOLVED record
     (the enum value survives AND nothing else — label/order/group — moved).
 
     Drives the real resolver (reader over the stored row) + the real `apply_ops`, so this is the
     end-to-end isolation proof the Change-Op path delivers — the GREEN counterpart to the xfail RED
-    whole-row case in `sam/tests/e2e/test_config_fields_roundtrip_red.py`."""
+    whole-row case in `sam/tests/e2e/test_config_fields_roundtrip_red.py`. Single vocabulary (C5):
+    the edit targets the ONE canonical `options` attribute; the derived `choices` stays coherent."""
     table = _CatalogFakeTable()
-    _seed_enum_override_row(table, choices=["active", "lapsed"])
+    _seed_enum_override_row(table, options=[{"value": "active"}, {"value": "lapsed"}])
 
     def read_resolved() -> dict:
         """Resolve the stored row through the real reader mapping + resolver into the keyed shape
         the invariant engine diffs (mirrors the e2e `_serialize_resolved`)."""
         # Resolve base ⊕ overlay via a StaticOverlayProvider built from the stored override shape,
-        # routed through the REAL reader `_build_override` (the options⊕choices fallback under proof).
+        # routed through the REAL reader `_build_override` (single-vocabulary `options`, C5).
         reader_overlay = _overlay_from_stored(table)
         resolver = FieldResolver(StaticOverlayProvider({_TENANT: reader_overlay}))
         config = resolver.resolve(_TENANT)
@@ -1678,7 +1684,9 @@ def test_set_field_choices_change_is_isolated_on_the_resolved_record():
                     "label": dict(f.label or {}),
                     "order": f.order,
                     "functional_group": f.functional_group,
-                    "choices": list(f.choices) if f.choices is not None else None,
+                    "options": (
+                        [o.value for o in f.options] if f.options is not None else None
+                    ),
                 }
                 for f in config.fields
             }
@@ -1689,14 +1697,14 @@ def test_set_field_choices_change_is_isolated_on_the_resolved_record():
     svc.set_field(
         _TENANT,
         "membership.status",
-        {"choices": [{"value": "active"}, {"value": "lapsed"}, {"value": "died"}]},
+        {"options": [{"value": "active"}, {"value": "lapsed"}, {"value": "died"}]},
     )
     after = read_resolved()
 
-    # The enum value SURVIVED the write (it is now present in the resolved choices)...
-    assert "died" in (after["fields"]["status"]["choices"] or [])
-    # ...and the choices-only edit is ISOLATED: only fields.status.choices changed.
-    op = ChangeOp.set_field_attr("status", "choices")
+    # The enum value SURVIVED the write (it is now present in the resolved options)...
+    assert "died" in (after["fields"]["status"]["options"] or [])
+    # ...and the options-only edit is ISOLATED: only fields.status.options changed.
+    op = ChangeOp.set_field_attr("status", "options")
     assert_change_op_isolated(before, op, after)
 
 
@@ -1704,8 +1712,8 @@ def _overlay_from_stored(table) -> TenantOverlay:
     """Build a TenantOverlay from the stored config#fields row via the real reader mapping.
 
     Routes the stored `overrides` map through `MembersProjectionReader._build_override` (the unit
-    under proof for the options⊕choices fallback) so the resolved record reflects the REAL read
-    path — not a hand-built overlay."""
+    under proof for the single-vocabulary `options` read, C5) so the resolved record reflects the
+    REAL read path — not a hand-built overlay."""
     from sam.members.repository.projection_config_reader import MembersProjectionReader
 
     stored = table.store[(_TENANT, _FIELDS_SK)]

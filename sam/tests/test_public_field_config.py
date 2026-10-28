@@ -50,7 +50,7 @@ from sam.members.domain.field_resolver import (
     StaticOverlayProvider,
     TenantOverlay,
 )
-from sam.members.domain.fixed_fields import FieldFormat, FieldType
+from sam.members.domain.fixed_fields import EnumOption, FieldFormat, FieldType
 from sam.members.domain.membership_service import (
     MEMBERSHIP_TYPE_FIELD_KEY,
     MembershipService,
@@ -70,7 +70,9 @@ def _overlay_public_form() -> TenantOverlay:
     - ``personal.email`` → fixed override, on the form, with a ``FieldFormat`` EMAIL validator.
     - ``membership.membership_type`` → on the form with an application SUBSET (only ``gewoon``).
     - an overlay enum ``shirt_size`` → on the form with an application SUBSET (``m``, ``l``) of
-      its full choices (``s``, ``m``, ``l``, ``xl``), conditionally shown (``show_when``).
+      its full canonical ``options`` (``s``, ``m``, ``l``, ``xl``), conditionally shown
+      (``show_when``). Authored as rich ``options`` — the ONE canonical vocabulary every
+      selectable field carries post-03a (bare ``choices`` is retired, F9/F10).
     - an overlay string ``nickname`` → on the form, optional.
     - ``personal.last_name`` → NOT application-selected (must be ABSENT from the public schema).
     """
@@ -96,7 +98,10 @@ def _overlay_public_form() -> TenantOverlay:
                 key="shirt_size",
                 type=FieldType.ENUM,
                 label={"nl": "Maat", "en": "Size"},
-                choices=("s", "m", "l", "xl"),
+                options=tuple(
+                    EnumOption(value=v, label={"nl": v.upper(), "en": v.upper()})
+                    for v in ("s", "m", "l", "xl")
+                ),
                 application_visible=True,
                 application_choices=("m", "l"),
                 show_when={"membership.membership_type": "gewoon"},
@@ -198,8 +203,14 @@ class TestFieldContract:
 class TestApplicationSubset:
     def test_overlay_enum_exposes_only_the_subset(self, service):
         fields = _by_key(service.get_public_field_config(TENANT)["fields"])
-        # shirt_size full choices are s/m/l/xl; the subset is m/l only (R4a.2).
-        assert fields["shirt_size"]["options"] == ["m", "l"]
+        # shirt_size full vocabulary is s/m/l/xl; the subset FILTER narrows the seam's ONE
+        # canonical `options` to m/l only (R4a.2/R3.2). Post-03a (F10) the public output is the
+        # uniform rich {value,label} shape for EVERY kind — not a bare value list. The subset
+        # FILTER is preserved; only the bare-`choices` fallback is retired.
+        assert fields["shirt_size"]["options"] == [
+            {"value": "m", "label": {"nl": "M", "en": "M"}},
+            {"value": "l", "label": {"nl": "L", "en": "L"}},
+        ]
 
     def test_membership_type_exposes_only_the_subset_of_active_catalog(self, service):
         fields = _by_key(service.get_public_field_config(TENANT)["fields"])
@@ -208,7 +219,9 @@ class TestApplicationSubset:
         assert values == ["gewoon"]
 
     def test_field_with_no_subset_exposes_full_choices(self, service):
-        # Re-configure nickname-less overlay: an enum WITHOUT a subset exposes its full set.
+        # An enum WITHOUT a subset exposes its full canonical vocabulary (back-compatible, R4a.2).
+        # Authored as rich `options` (the post-03a canonical source); the public read serves the
+        # uniform {value,label} shape for the whole set.
         repo = _ApplicationRepo()
         repo.add_type(TENANT, _entry(TENANT, "gewoon", order=10))
         overlay = TenantOverlay(
@@ -217,7 +230,10 @@ class TestApplicationSubset:
                     key="colour",
                     type=FieldType.ENUM,
                     label={"nl": "Kleur", "en": "Colour"},
-                    choices=("red", "green", "blue"),
+                    options=tuple(
+                        EnumOption(value=v, label={"nl": v, "en": v})
+                        for v in ("red", "green", "blue")
+                    ),
                     application_visible=True,
                     # no application_choices → full set (back-compatible, R4a.2)
                 ),
@@ -227,10 +243,11 @@ class TestApplicationSubset:
             repo, overlay_provider=StaticOverlayProvider({TENANT: overlay})
         )
         fields = _by_key(svc.get_public_field_config(TENANT)["fields"])
-        assert fields["colour"]["options"] == ["red", "green", "blue"]
+        assert [o["value"] for o in fields["colour"]["options"]] == ["red", "green", "blue"]
 
     def test_subset_with_an_entry_not_in_choices_fails_loud(self):
-        # A subset entry not in the field's choices is a config bug (R4a.4) — fail-fast.
+        # A subset entry not in the field's canonical options is a config bug (R4a.4) — fail-fast.
+        # The subset ⊆ vocabulary guard is PRESERVED; it now runs against the seam's ONE `options`.
         repo = _ApplicationRepo()
         overlay = TenantOverlay(
             fields={
@@ -238,9 +255,12 @@ class TestApplicationSubset:
                     key="colour",
                     type=FieldType.ENUM,
                     label={"nl": "Kleur", "en": "Colour"},
-                    choices=("red", "green"),
+                    options=(
+                        EnumOption(value="red", label={"nl": "red", "en": "red"}),
+                        EnumOption(value="green", label={"nl": "green", "en": "green"}),
+                    ),
                     application_visible=True,
-                    application_choices=("red", "purple"),  # purple ∉ choices
+                    application_choices=("red", "purple"),  # purple ∉ options
                 ),
             }
         )
@@ -333,11 +353,15 @@ class TestMembershipTypeReferenceSubsetAgainstLiveCatalog:
         )
         with pytest.raises(OverlayError) as exc:
             svc.get_public_field_config(TENANT)
-        # The failure names the dangling entry + the field (keyed by the dotted storage key), and
-        # attributes it to the catalog (REFERENCE), not to a static `field.choices` set.
+        # The failure names the dangling entry + the field (keyed by the dotted storage key).
+        # Post-03a (F10) the fail-loud boundary is UNIFORM across kinds: it validates the subset
+        # against the seam's ONE canonical `options` (for membership_type, the live active
+        # catalog), so the message speaks of the field's resolved options rather than a
+        # kind-specific `catalog` wording — the dangling reference still fails loud, never a
+        # silent drop (the invariant this test guards).
         reason = exc.value.reasons[MEMBERSHIP_TYPE_FIELD_KEY]
         assert "ghost" in reason
-        assert "catalog" in reason.lower()
+        assert "options" in reason.lower()
 
     def test_dangling_reference_against_an_empty_catalog_also_fails_loud(self):
         # A referenced type against an EMPTY catalog is still a dangling reference — fail loud,

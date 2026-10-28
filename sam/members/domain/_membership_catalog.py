@@ -6,7 +6,6 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sam.members.domain._membership_errors import (
-    MEMBERSHIP_TYPE_FIELD_KEY,
     MembershipTypeConflict,
     MembershipTypeNotFound,
 )
@@ -235,7 +234,7 @@ class CatalogMixin:
     def _serialize_field(
         field: ResolvedField,
         *,
-        options: Sequence[Mapping[str, Any]],
+        field_options: Sequence[Mapping[str, Any]] | None,
     ) -> dict[str, Any]:
         """Project a :class:`ResolvedField` into the JSON-friendly shape the frontend renders.
 
@@ -255,10 +254,17 @@ class CatalogMixin:
           sub-key is emitted; scope RESOLUTION (``allowed_scopes``) is unchanged (R3.8);
         - ``member_number_format`` (R4.8) — the tenant format pattern for the ``member_number``
           manual-entry string field (immediate frontend feedback; server authoritative);
-        - ``options`` — the dropdown source per R4.11: for ``membership_type`` the ACTIVE catalog
-          entries; for any other field with rich :class:`EnumOption`s (e.g. ``status``, an overlay
-          enum) the ``{value, label, roles?}`` options carrying the value-level role gate (R4.12);
-          else the bare ``choices`` list; else ``None``.
+        - ``options`` — the ONE canonical dropdown source the read-assembly seam (design C4 / F8,
+          ``_membership_writes_fieldconfig._assemble_field_options``) populated for this field:
+          the ACTIVE catalog for ``membership_type`` (reference), the scope dimension's values for
+          a scope-backed field, or the field's rich ``{value, label, roles?}`` options for an
+          inline enum — ``None`` for a non-selectable field. This serializer NO LONGER re-branches
+          by field kind and NO LONGER falls back to ``field.choices`` (F9): it serializes exactly
+          the ``field_options`` the seam computed, so the staff editor read and the public read
+          see the SAME vocabulary from the SAME assembly point.
+
+        ``field_options`` is the seam's pre-computed canonical option list (JSON-friendly dicts),
+        or ``None`` for a field with no selectable source.
         """
         payload: dict[str, Any] = {
             "key": field.key,
@@ -296,18 +302,13 @@ class CatalogMixin:
             payload["member_number_format"] = (
                 CatalogMixin._serialize_member_number_format(field.member_number_format)
             )
-        if field.dotted_key() == MEMBERSHIP_TYPE_FIELD_KEY:
-            payload["options"] = [dict(o) for o in options]
-        elif field.options is not None:
-            # Rich enum options ({value,label,roles?}) — carry the value-level role gate (R4.12)
-            # so the frontend can filter the dropdown to the caller's permitted values.
-            payload["options"] = [
-                CatalogMixin._serialize_enum_option(o) for o in field.options
-            ]
-        elif field.choices is not None:
-            payload["options"] = list(field.choices)
-        else:
-            payload["options"] = None
+        # The ONE canonical `options` the read-assembly seam (design C4 / F8) populated for this
+        # field — reference (active catalog) / scope (dimension values) / inline enum, or `None`.
+        # No per-kind branch and no `field.choices` fallback here (F9): this serializer consumes
+        # the seam's single `options` so the staff and public reads agree by construction.
+        payload["options"] = (
+            [dict(o) for o in field_options] if field_options is not None else None
+        )
 
         # Public member-application attributes (spec 11; D20 / R4.2 / R4a / R4b / R7.1). The
         # Application Form Builder AUTHORS these onto `config#fields` and reads them BACK through
