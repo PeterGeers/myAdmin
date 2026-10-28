@@ -78,11 +78,11 @@ export interface UpdateTenantRequest {
 async function getAuthHeaders(): Promise<HeadersInit> {
   const session = await fetchAuthSession();
   const token = session.tokens?.idToken?.toString();
-  
+
   if (!token) {
     throw new Error('No authentication token available');
   }
-  
+
   return {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json'
@@ -117,14 +117,14 @@ export async function getTenants(params?: {
 }> {
   const headers = await getAuthHeaders();
   const queryParams = new URLSearchParams();
-  
+
   if (params?.page) queryParams.append('page', params.page.toString());
   if (params?.per_page) queryParams.append('per_page', params.per_page.toString());
   if (params?.status) queryParams.append('status', params.status);
   if (params?.search) queryParams.append('search', params.search);
   if (params?.sort_by) queryParams.append('sort_by', params.sort_by);
   if (params?.sort_order) queryParams.append('sort_order', params.sort_order);
-  
+
   const url = buildApiUrl(`/api/sysadmin/tenants?${queryParams.toString()}`);
   const response = await fetch(url, { headers });
   return handleResponse(response);
@@ -338,7 +338,7 @@ export interface HealthStatus {
   responseTime: number;
   message?: string;
   lastChecked: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
 }
 
 export interface SystemHealth {
