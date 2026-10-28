@@ -37,11 +37,13 @@ import pytest
 from sam.members.domain.field_resolver import (
     FieldFormat,
     FieldOrigin,
+    FieldScope,
     FixedFieldOverride,
     OverlayField,
     ResolvedField,
 )
 from sam.members.domain.fixed_fields import (
+    EnumOption,
     FieldFormat as FieldFormatFromFixed,
     FieldGroup,
     FieldType,
@@ -239,3 +241,45 @@ class TestAllShapesExposeTheAttributes:
         names = {f.name for f in dataclasses.fields(klass)}
         missing = set(_APPLICATION_ATTRS) - names
         assert not missing, f"{klass.__name__} is missing application attrs: {sorted(missing)}"
+
+
+class TestFieldScopeValuesAreDerivedFromOptions:
+    """C5/F7: ``FieldScope.values`` is a DERIVED projection of the ONE canonical ``options``,
+    never an independently stored second copy — so the observed ``FieldScope(values=())``
+    divergence (bug manifestation #2) is impossible BY CONSTRUCTION.
+
+    The scope axis has ONE vocabulary. ``FieldScope`` stores only ``options`` (rich
+    :class:`EnumOption` entries); ``values`` is ``tuple(o.value for o in options)`` computed on
+    read. There is a single stored list, so ``options`` and ``values`` can never disagree.
+    Validates: Requirements 2.1, 2.6.
+    """
+
+    def test_values_projects_bare_strings_from_options(self):
+        scope = FieldScope(
+            enabled=True,
+            options=(EnumOption(value="Noord"), EnumOption(value="Zuid")),
+        )
+        assert scope.values == ("Noord", "Zuid")
+        assert tuple(scope.values) == tuple(o.value for o in scope.options)
+
+    def test_empty_options_derives_empty_values(self):
+        scope = FieldScope(enabled=True)
+        assert scope.options == ()
+        assert scope.values == ()
+
+    def test_values_is_not_an_independent_settable_field(self):
+        # The divergence was only possible because `values` was a stored sibling of `options`.
+        # It is now a read-only derived property: not a dataclass field, and not assignable.
+        names = {f.name for f in dataclasses.fields(FieldScope)}
+        assert "options" in names
+        assert "values" not in names  # derived, never stored
+        scope = FieldScope(options=(EnumOption(value="x"),))
+        with pytest.raises(AttributeError):
+            scope.values = ("y",)  # type: ignore[misc]
+
+    def test_values_always_tracks_options_cannot_diverge(self):
+        # Whatever `options` is, `values` is exactly its value projection — there is no code path
+        # that can populate `options` while leaving `values` empty (the FieldScope(values=()) bug).
+        opts = (EnumOption(value="a"), EnumOption(value="b"), EnumOption(value="c"))
+        scope = FieldScope(enabled=True, options=opts, required_for=("Members_CRUD",))
+        assert list(scope.values) == [o.value for o in scope.options]
