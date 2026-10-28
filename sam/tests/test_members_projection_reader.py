@@ -24,6 +24,8 @@ No live AWS, no MySQL.
 import os
 import sys
 
+import pytest
+
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.members` imports.
 _REPO_ROOT = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -43,6 +45,7 @@ from services import projection_schema as schema
 from sam.members.domain.field_resolver import TenantOverlay
 from sam.members.domain.fixed_fields import FieldType
 from sam.members.domain.scope_dimensions import ScopeConfig
+from sam.members.repository._fields_overlay_reader import MalformedOptionsError
 from sam.members.repository.projection_config_reader import MembersProjectionReader
 
 # ---------------------------------------------------------------------------
@@ -224,7 +227,9 @@ class TestGetOverlay:
                 "type": "enum",
                 "required": True,
                 "label": {"nl": "Motor", "en": "Motorcycle"},
-                "choices": ["Sport", "Touring"],
+                # Single-vocabulary (C5/F2): the field's vocabulary is the ONE canonical
+                # `options` (rich `{value, label?}`); there is no separate `choices` attribute.
+                "options": [{"value": "Sport"}, {"value": "Touring"}],
                 "visible": True,
                 "order": 5,
             },
@@ -233,7 +238,6 @@ class TestGetOverlay:
                 "type": "string",
                 "required": False,
                 "label": {},
-                "choices": None,
                 "visible": True,
                 "order": 6,
             },
@@ -248,9 +252,13 @@ class TestGetOverlay:
         assert motor.type is FieldType.ENUM  # string "enum" -> FieldType.ENUM
         assert motor.required is True
         assert motor.label == {"nl": "Motor", "en": "Motorcycle"}
-        assert tuple(motor.choices) == ("Sport", "Touring")
+        # ONE canonical vocabulary surfaces via `options`; the reader no longer carries a
+        # separate `choices` attribute (C5/F2) — it stays None on the resolved overlay field.
+        assert tuple(o.value for o in motor.options) == ("Sport", "Touring")
+        assert motor.choices is None
         assert motor.order == 5
-        # choices=None stays None (not an empty tuple).
+        # A non-enum field with no vocabulary → options None, choices None.
+        assert overlay.fields["note"].options is None
         assert overlay.fields["note"].choices is None
         assert overlay.fields["note"].type is FieldType.STRING
 
@@ -311,20 +319,19 @@ class TestGetOverlay:
 
         assert overlay.overrides["personal.street"].functional_group == "address"
 
-    def test_get_overlay_override_sources_enum_options_from_choices(self):
-        """A fixed-enum override's values authored under ``choices`` reach ``options`` (regression).
+    def test_get_overlay_override_sources_enum_options_from_single_options(self):
+        """Single-vocabulary (C5/F1/F2): a fixed-enum override surfaces ONE canonical ``options``.
 
-        The authoring UI (field_overlay) and the legacy Flask builder write a fixed enum field's
-        value list (e.g. ``membership.status``) under ``choices`` ([{value,label}]), not
-        ``options``. The reader must source the override's ``options`` from ``choices`` when
-        ``options`` is absent — else a tenant-authored value (here ``died``) is silently dropped and
-        ``FieldResolver`` falls back to the fixed field's base choices (the config#fields enum-choices
-        data-loss on read; findings.md).
+        The ``options or choices`` coalesce (F1) and the separate ``choices`` source (F2) are
+        RETIRED: an override's value list (e.g. ``membership.status``) is authored under the ONE
+        canonical ``options`` ([{value, label?, roles?}]) and read from there. Legacy rows that
+        stored the list under ``choices`` are migrated to ``options`` by C7 — the reader no longer
+        coalesces.
         """
         table = FakeTable()
         overrides = {
             "membership.status": {
-                "choices": [
+                "options": [
                     {"value": "active", "label": {"nl": "Actief", "en": "Active"}},
                     {"value": "died", "label": {"nl": "Overleden", "en": "Died"}},
                 ]
@@ -339,8 +346,33 @@ class TestGetOverlay:
         assert opts is not None
         assert tuple(o.value for o in opts) == ("active", "died")
 
-    def test_get_overlay_override_options_takes_precedence_over_choices(self):
-        """When BOTH ``options`` and ``choices`` are present on an override, ``options`` wins."""
+    def test_get_overlay_override_ignores_legacy_choices_key_no_coalesce(self):
+        """No coalesce (C5/F1): a value list authored ONLY under the legacy ``choices`` key is NOT
+        sourced — the override's ``options`` is ``None``.
+
+        This is the deliberate post-fix behavior: there is ONE vocabulary attribute (``options``).
+        A row still carrying the retired ``choices`` key (pre-C7-migration) does not round-trip its
+        vocabulary through this reader — it is migrated to ``options`` by C7 (or fixed-forward),
+        and the seam's fail-loud (C6/task 9) catches a declared-but-unpropagated source. The reader
+        itself simply does not read ``choices``. (A rich ``[{value}]`` list under ``choices`` is a
+        well-formed list, so it is ignored, not an error.)
+        """
+        table = FakeTable()
+        overrides = {
+            "membership.status": {
+                "choices": [{"value": "active"}, {"value": "died"}],
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        opts = reader.get_overlay("h-dcn").overrides["membership.status"].options
+        assert opts is None
+
+    def test_get_overlay_override_reads_options_only_ignoring_any_choices(self):
+        """Single source (C5/F1): when both ``options`` and a legacy ``choices`` are present, the
+        reader reads ``options`` and never looks at ``choices`` (no precedence coalesce — there is
+        only one source)."""
         table = FakeTable()
         overrides = {
             "membership.status": {
@@ -354,34 +386,55 @@ class TestGetOverlay:
         opts = reader.get_overlay("h-dcn").overrides["membership.status"].options
         assert tuple(o.value for o in opts) == ("from_options",)
 
-    def test_get_overlay_override_sources_enum_options_from_bare_string_choices(self):
-        """Task 3.1 (R5.1): a fixed-enum override authored with BARE-STRING ``choices`` round-trips.
+    def test_get_overlay_override_bare_string_options_raises_malformed(self):
+        """Fail-loud, no coercion (C5/F3): a bare-string ``options`` entry is an UNEXPECTED shape
+        and raises — it is NO LONGER silently coerced to a value-only option.
 
-        The ``options or choices`` fallback (``_build_override``) must also carry a plain value
-        list (``["man", "vrouw", "anders"]``), not only the rich ``[{value,label}]`` shape — else
-        a tenant that authored bare-string choices had its values silently dropped and the resolver
-        fell back to the fixed field's BASE choices (the config#fields enum-choices data-loss on
-        read). Coerced to value-only :class:`EnumOption`s (no label/roles)."""
+        The single-vocabulary model surfaces canonical ``{value, ...}`` entries only. A legacy
+        bare-string value list (``["man", "vrouw"]``) is the retired shape migrated to ``options``
+        by C7; encountering one here is a loud, diagnosable read-build error (C6 feeds this), not a
+        silent coercion that hid the asymmetry.
+        """
         table = FakeTable()
-        overrides = {"personal.gender": {"choices": ["man", "vrouw", "anders"]}}
+        overrides = {"personal.gender": {"options": ["man", "vrouw", "anders"]}}
         table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
 
         reader = MembersProjectionReader(table=table)
-        opts = reader.get_overlay("h-dcn").overrides["personal.gender"].options
+        with pytest.raises(MalformedOptionsError):
+            reader.get_overlay("h-dcn")
 
-        assert opts is not None
-        assert tuple(o.value for o in opts) == ("man", "vrouw", "anders")
-
-    def test_get_overlay_override_bare_choices_skips_empty_and_blank_entries(self):
-        """Degrade-on-garbage (R5.1): empty/whitespace bare-string entries are skipped, real values
-        survive — a stray blank in an authored list never crashes the read nor fabricates a value."""
+    def test_get_overlay_override_options_entry_without_value_raises_malformed(self):
+        """Fail-loud, no degrade-to-None (C5/F3): an ``options`` entry missing ``value`` raises
+        instead of being silently skipped / degraded to ``None``."""
         table = FakeTable()
-        overrides = {"personal.gender": {"choices": ["man", "", "  ", "vrouw"]}}
+        overrides = {"personal.gender": {"options": [{"label": {"nl": "Man"}}]}}
         table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
 
         reader = MembersProjectionReader(table=table)
-        opts = reader.get_overlay("h-dcn").overrides["personal.gender"].options
-        assert tuple(o.value for o in opts) == ("man", "vrouw")
+        with pytest.raises(MalformedOptionsError):
+            reader.get_overlay("h-dcn")
+
+    def test_get_overlay_override_scalar_options_raises_malformed(self):
+        """Fail-loud (C5/F3): a non-list ``options`` (a scalar / dict) is an unexpected shape and
+        raises — the retired degrade-to-``None`` path is gone."""
+        table = FakeTable()
+        overrides = {"personal.gender": {"options": "man"}}
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        with pytest.raises(MalformedOptionsError):
+            reader.get_overlay("h-dcn")
+
+    def test_get_overlay_override_empty_options_list_is_none_not_error(self):
+        """An ABSENT / EMPTY ``options`` is a legitimately empty vocabulary → ``None`` (NOT an
+        error). Fail-loud fires on the ASYMMETRY (declared source present but unpropagated) at the
+        seam (C6/task 9), never on an empty list here."""
+        table = FakeTable()
+        overrides = {"membership.status": {"options": []}}
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_overlay("h-dcn").overrides["membership.status"].options is None
 
     def test_get_overlay_variable_field_carries_scope_attribute(self):
         """Phase 3 step 9 (R2.1): a projected field `scope` attribute → FieldScope (SAM read repr).
@@ -415,6 +468,9 @@ class TestGetOverlay:
         assert tuple(scope.values) == ("Noord", "Zuid")
         assert scope.label == {"nl": "Regio", "en": "Region"}
         assert tuple(scope.required_for) == ("Members_CRUD",)
+        # Single-vocabulary collapse (C5/F7): `values` is the DERIVED projection of the ONE
+        # stored `options`, never an independent copy — so they can never diverge.
+        assert tuple(scope.values) == tuple(o.value for o in scope.options)
 
     def test_get_overlay_fixed_override_carries_scope_attribute(self):
         """A fixed field re-presented as a scope axis carries its scope onto the override."""
