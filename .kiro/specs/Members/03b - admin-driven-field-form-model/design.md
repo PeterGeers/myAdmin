@@ -137,145 +137,141 @@ separate TenantAdmin → Members → Membership Types screen is removed (Req 7.2
 
 ## Components and Interfaces
 
-The per-requirement changes below are grouped by component. Each names the exact file/function seam
-(verified this phase) and the paired tests to update in the same change (steering 30/34/39).
+Build units an executing agent implements, in dependency order. Each names the exact seam
+(file/function, verified this phase), the concrete before→after, and the paired test(s) to write in
+the SAME change (steering 30/34/39). Requirements are referenced by number, not restated. The
+rollout order across units follows the EXPAND→DEPLOY→VERIFY→CONTRACT sequence in "Migration".
 
-## Requirement 1 — remove the hardcoded bindings
+### BU-1 — Unified option model + option-integrity write-seam (Req 3, the spine)
 
-Two enforcement sites, both confirmed in `sam/members/` (NOT the retired Flask copy):
+The central change; everything else depends on the option shape.
 
-1. **No-relax (author-time):** `config_write_service._validate_application_attributes` →
-   `_collect_application_attr_reasons` invariant 3: `if platform_required and
-   spec["application_required"] is False: <reject>`, with `platform_required` from
-   `fixed_fields.field_by_key`. **Remove** invariant 3 and the `platform_required` plumbing; KEEP
-   invariant 1 (`application_choices` ⊆ field choices) and invariant 2 (known `format.checker`) —
-   those are well-formedness, not an overrule.
-2. **Overlay invariant (resolve-time):** `field_resolver._reject_invalid_overlay`:
-   `if override.required is False and fixed.required: "cannot make a platform-required fixed field
-   optional"`. **Remove** this clause (the only required field that remains intrinsically required
-   is `member_id`; every other requiredness is the admin's config, Req 1.3). Keep the other
-   overlay checks (unknown-key, key-collision, dangling functional_group, choiceless-non-scope-enum).
+- **Shape change** — `sam/members/domain/fixed_fields.py` `EnumOption`: add `allowed: bool = true`
+  and `order: int | None = None` to the existing `{value, label{nl,en}, roles?}`. Backward
+  compatible: an option without `allowed` reads as `true`. Serializers that emit options carry the
+  two new keys.
+- **Write-seam integrity (SAM authoritative)** — `sam/members/domain/config_write_service.py`, at
+  the same seam as the kept invariants 1/2 (`_collect_application_attr_reasons` lives here), add two
+  well-formedness checks on a `set_field`/`set_field_application` op:
+  - a required enum, or one with `application_visible=false` (off the form → default supplied), must
+    carry ≥1 option with `allowed:true`; a write that would zero that set → `ConfigWriteValidationError`
+    (Req 3.4a).
+  - an option `value` present in the CURRENT stored options may be set `allowed:false` or relabelled,
+    but MUST NOT disappear/rename if a member references it. The write service cannot read member
+    data (storage-agnostic), so this is enforced via the injected `usage_probe` already used by the
+    delete-field guard (`config_fields_crud_service`): an in-use `value` missing from the new option
+    set → reject with a caller-safe message naming the option (Req 3.2a, author path). A record that
+    still ends up pointing at a removed option is caught on member save (BU-2).
+- Paired tests: `sam/tests/test_config_write_service.py` — add zero-allowed-rejected, in-use-option-
+  cannot-vanish, `allowed:false` permitted; property/round-trip over the real `config#fields` fixture
+  (BU-7) asserting the `membership_type` options incl. `erelid`=`allowed:false` survive read→write→read.
 
-**Forced-required/visible special-cases (frontend):** `ApplicationFieldAttributes.tsx`
-`requiredForced = isPlatformRequired(field) || isMembershipType` and the membership_type default
-stamp (`_membership_writes_application._default_membership_type`) — remove the forcing so the admin
-decides; keep the "supply the default when the field is OFF the form" behaviour (Req 3.1-equivalent:
-a field left off the form still submits a valid default).
+### BU-2 — Reference check reads field options, not the catalog (Req 3)
 
-Tests to update in the same change: `test_config_write_service.py` (relax cases ~753/829),
-`test_field_resolver.py:209`, `test_status_retirement_preservation_props.py:397`,
-`test_field_models_application_attrs.py` (keep the "two axes don't alias" assertion).
+- `sam/members/domain/_membership_writes_validation.py` `_validate_membership_type_reference`:
+  replace `self._repo.get_membership_type(tenant_id, type_code)` + `entry.active` with a lookup
+  against the RESOLVED `membership_type` field options:
+  - unknown value (not in `options[].value`) → `MemberValidationError(MEMBERSHIP_TYPE_UNKNOWN_REFERENCE)`;
+  - value present but `allowed:false` → `MEMBERSHIP_TYPE_RETIRED`;
+  - the value-changed-only guard stays (`_membership_type_of` compare), so existing members with a
+    retired/removed value stay valid on reads and on updates that don't touch the value (Req 3.2/3.2a).
+- The DEFAULT when the field is off the form (`_membership_writes_application._default_membership_type`)
+  returns the first `allowed:true` option by `order`, NOT a catalog read (Req 3.4a).
+- **Transitional fallback (makes deploy order safe, Req 6):** while the catalog rows still exist
+  (pre-CONTRACT), if a field carries NO inline options the reader MAY fall back to the catalog; the
+  fallback is removed in CONTRACT. Alternatively a LOCK gates the re-pointed path until EXPAND is
+  confirmed. Pick one in BU-6; both make EXPAND-before-DEPLOY non-fatal.
+- Paired tests: `sam/tests/test_membership_writes*` — unknown/retired/grandfathered-existing cases
+  against field options; default-from-options when off-form.
 
-## Requirement 2 — config toggles persist both ways
+### BU-3 — Option assembly reads the field (Req 3)
 
-Root cause is FRONTEND only (backend `set_field_application` already SETs an explicit `false`).
-In `fieldConfigChangeOps.ts`, `applicationAttrs` omits any `undefined` attr and the emit gate drops
-an all-`undefined` op, so turning a toggle OFF (written as `undefined`) emits NO op and the stored
-`true` persists. Fix mirrors the 03a `required` fix in `MembersFieldModal.tsx` (send explicit
-`false`, not `undefined`):
+- `sam/members/domain/_membership_writes_fieldconfig.py` `get_field_config` / `_assemble_field_options`:
+  stop injecting `list_membership_types(active_only=True)` as the `membership_type` field's options.
+  Options come from the field's own resolved `options` — the ONE assembly pass, no per-kind branch.
+  `membership_type_options` standalone feed is dropped (frontend reads the field like any enum).
+- Paired tests: `sam/tests/test_projection_sync.py` / resolved-field surface tests — assert the
+  field carries its options and no catalog injection occurs.
 
-- `ApplicationFieldAttributes.tsx` `onToggleRequired`: `application_required: next` (not
-  `next ? true : undefined`).
-- `ApplicationFieldModal.tsx` `toggleOnForm`: `application_visible: on` (not `on ? true : undefined`).
+### BU-4 — Remove the hardcoded bindings (Req 1)
 
-**Root-cause fix (Req 2.4), not per-toggle patching:** the diff in `fieldConfigChangeOps.ts` treats
-`undefined` as BOTH "unchanged" and "off", so an OFF is dropped. Fix the diff to distinguish them —
-diff against the LOADED state so a true→false transition always emits an explicit `false` — so NO
-boolean attribute can silently drop an OFF. Add a test that round-trips EVERY boolean attribute
-(ON→OFF→ON) in every modal (Req 2.5), preventing a fourth recurrence. Toggle call sites
-(`ApplicationFieldAttributes.tsx` `onToggleRequired`, `ApplicationFieldModal.tsx` `toggleOnForm`)
-send the explicit boolean. Paired tests: `fieldConfigChangeOps.test.ts`,
-`ApplicationFieldAttributes.test.tsx`, `ApplicationFieldModal.test.tsx`.
+- `config_write_service._collect_application_attr_reasons`: delete invariant 3 (the
+  `platform_required and application_required is False` reject) and the `platform_required` plumbing
+  fed from `fixed_fields.field_by_key`. KEEP invariant 1 (`application_choices` ⊆ options) and
+  invariant 2 (known `format.checker`).
+- `field_resolver._reject_invalid_overlay`: delete the `override.required is False and fixed.required`
+  clause. Keep unknown-key, key-collision, dangling-functional_group, choiceless-non-scope-enum.
+- Frontend `ApplicationFieldAttributes.tsx`: drop `requiredForced = isPlatformRequired(field) ||
+  isMembershipType` so no field is force-on/disabled; keep "off the form → default supplied".
+- Paired tests: delete/invert the relax assertions in `test_config_write_service.py` (~753/829),
+  `test_field_resolver.py:209`, `test_status_retirement_preservation_props.py:397`; keep the
+  "two axes don't alias" assertion in `test_field_models_application_attrs.py`.
 
-## Requirement 4 — scope dimension DERIVED from the field; axis-change gates to SysAdmin
+### BU-5 — Toggle persistence at the ROOT (Req 2)
 
-### Two-item save
-Saving a scope-flagged field (`scope:{enabled:true}`) derives the `config#scope` dimension from the
-field's own options and updates BOTH: (1) SAM `config#scope` (authoritative, the frontend-mirror
-model, spec 02 — SAM first), (2) the Flask `members.scope_dimensions` mirror the grant validators
-read. The Flask→SAM projection of `user_tenant_roles`/`user_tenant_scope` (`scopegrant#` rows) is
-UNCHANGED and keeps working. A failed mirror surfaces a retry; SAM stays source of truth (Req 4.3/4.4).
+- Root cause: `frontend/.../fieldConfigChangeOps.ts` treats `undefined` as both "unchanged" and
+  "off", so an OFF emits no op. Fix the diff to compare against the LOADED state so a true→false
+  transition emits an explicit `false`; `applicationAttrs`/`definitionAttrs` no longer omit a
+  deliberately-false attr. Backend `set_field_application` already SETs `false` correctly.
+- Call sites `ApplicationFieldAttributes.onToggleRequired` / `ApplicationFieldModal.toggleOnForm`
+  send the explicit boolean (not `? true : undefined`).
+- Paired tests: a round-trip-every-boolean (ON→OFF→ON, every attr, every modal) test in
+  `fieldConfigChangeOps.test.ts`; `ApplicationFieldAttributes.test.tsx`, `ApplicationFieldModal.test.tsx`.
 
-### Value change vs axis change (the gate)
-- **Value add/remove within the SAME scope field** (e.g. a region) → AUTO-APPLY on both planes: one
-  more/fewer selectable value; a `user_tenant` grant extends or shrinks. The platform does NOT block
-  and does NOT auto-reconcile the data of a removed value — that is the tenant admin's responsibility
-  (there is no "proven" safe reconciliation to offer).
-- **Scope-AXIS change** — a different field, or a combination of fields, becomes the scope → do NOT
-  auto-apply; surface a "create a project with your System Administrator" message. This is a
-  structural access-model change (the tenant-onboarding decision point).
+### BU-6 — Scope derive-on-save; axis-vs-value gate; two-call orchestration (Req 4)
 
-Note: the existing `UserTenantScopeService.reconcile_scope_change` (value-level orphan classifier)
-is NOT the 03b gate and is not wired in by this spec; the gate is the axis-vs-value distinction
-above. `reconcile_scope_change` stays as-is (built, unwired) for a possible later use.
+- Frontend scope-field save: the FRONTEND makes two separate calls — SAM `PUT /members/config/scope`
+  (derive the dimension from the field's options, authoritative) THEN the Flask mirror call. No
+  runtime cross-plane call.
+- Gate: a VALUE add/remove auto-applies on both (one more/fewer selectable value). A SCOPE-AXIS change
+  — the set of fields with `scope.enabled=true` changes (incl. turning scope off) — does NOT
+  auto-apply; it surfaces the "create a project with your System Administrator" message, and the
+  `scope.enabled` change is NOT persisted (atomic refusal).
+- Robustness: on a detected failure of the second (Flask) call, show a proper caller-safe error AND
+  a resync button on the scope screen (owner decision); SAM stays authoritative.
+- `UserTenantScopeService.reconcile_scope_change` is NOT wired in (it is deleted in BU-8). The
+  axis-vs-value distinction is the gate.
+- Paired tests: axis-change-blocks-atomic; value-add/remove-auto-applies; two-call order + mirror-
+  failure surfaces error+resync.
 
-**No cross-plane call — the FRONTEND is the only coordinator (Req 4).** SAM and Flask never call
-each other at runtime (steering 35/39). On a scope-field save the frontend makes TWO separate calls:
-1. **SAM call** `PUT /members/config/scope` — derive the dimension from the field's options and
-   write `config#scope` (authoritative) first.
-2. **Flask call** — update the `members.scope_dimensions` mirror the grant validators read (the
-   grant data `user_tenant_scope` lives on the Flask plane, reached without any cross-plane hop).
+### BU-7 — Data migration (Req 6)
 
-Flask's own projection of `user_tenant_roles` / `user_tenant_scope` back into SAM as `scopegrant#`
-rows is a SEPARATE, unchanged pipeline. No SAM→Flask or Flask→SAM runtime call is added. The
-axis-vs-value gate (above) decides auto-apply vs the SysAdmin-project message.
+See "Migration" section for the EXPAND→DEPLOY→VERIFY→CONTRACT sequence, the all-tenant scan, the
+TEST/PROD parity gate, and the forbidden-`choices` removal. Deliverables: `sam/members/migration/`
+script (idempotent, backs up, lists loaded values) + the committed `backend/tests/fixtures/` real-row
+fixture + the integrity-scan test (the proof).
 
-## Requirement 5 — uniform enum labels in filters
+### BU-8 — Remove dead/not-asked-for code (Req 7)
 
-The record stores the KEY (`options.value`, e.g. `died`); table + modal already resolve the label
-for the active language (nl `Overleden`, gb `Passed Away`). The FILTER/search paths in
-`useMembersColumns.ts` (`searchedRows`, `enrichedRows` via `columnValue.coerceByType`) key off the
-raw KEY, so a user must type `died`. Fix: for enum columns, match the filter/search against the
-RESOLVED label text for the active language (an NL user types "Overleden"/part, a GB user "Passed
-Away"/part). Build a per-column value→label map ONCE (not per row per keystroke). Where two options
-share a label, the match includes both keys. Paired test: `applicationFilterParity.test.ts` + a
-`useMembersColumns` test.
-
-## Requirement 6 — the data migration (membership_type only)
-
-A SAM-plane (DynamoDB) migration under `sam/members/migration/`, run EXPAND → DEPLOY → VERIFY →
-CONTRACT so the data is converted before the re-pointed code runs (Req 6.4):
-
-1. **EXPAND (`config#fields`)** — fold the tenant's CURRENT membership types into the
-   `membership_type` field's `options` (`value`=type_code, `label`, `order`, `allowed`=`active`;
-   `erelid`→`allowed:false`) and REMOVE the forbidden legacy `choices` key (incl. region) so
-   `options` is the only representation. Additive/harmless to the old reader. LIST the resulting
-   values for owner verification (Req 6.2).
-2. **DEPLOY** the re-pointed reader. If deploy order cannot guarantee EXPAND-first in an
-   environment, a LOCK prevents the re-pointed path until the fold is confirmed (Req 6.4).
-3. **VERIFY** — the post-fold integrity scan (the proof) passes for ALL tenants (not just h-dcn):
-   zero un-folded catalog rows, zero orphaned member references.
-4. **CONTRACT** — retire the `membershiptype#<code>` rows in `sam-members`; the member-form/
-   validation read path is already on the field options. (Removing the routes/UI/CRUD is a later
-   change so rollback survives — Req 7.2.)
-
-region / `config#scope` values are NOT migrated (already consistent; only the forbidden `choices`
-residue is dropped); kept consistent by the Req 4 trigger. Properties: idempotent + re-runnable;
-back up every affected row first (committed fixture under `backend/tests/fixtures/`); run TEST then
-PROD identically, scan-gated (account `nonprofit-deploy` 506221081911, steering 23/41). Scope
-value/axis changes are a save-time concern (Req 4), never a migration step.
-
-## Requirement 7 — remove dead/not-asked-for code
-
-- `config#views`: NOT touched (deferred feature, Req 7.1 / backlog `members-preferred-overview-columns.md`).
-- Remove the no-relax + overlay-invariant plumbing and their tests (Req 1), not merely disable.
-- Remove the membership-type management apparatus: `MembershipTypesManager.tsx` /
+- membership-type management apparatus (after CONTRACT): `MembershipTypesManager.tsx` /
   `MembershipTypeModal.tsx`, the `list/create/update/deactivate MembershipType` client wrappers, the
-  `GET/POST/PUT/DELETE /membership-types` routes, the catalog domain CRUD (`_membership_catalog.py`)
-  + repository methods, and their tests — the member-form/validation READ path is RE-POINTED at the
-  field options, not deleted (Req 3).
-- DELETE the dead `reconcile_scope_change` / `ScopeChangeReconciliation` / `ScopeReconciliationBlocked`
-  / `assert_appliable` + their tests (confirmed: no production caller; never the 03b gate).
-- Remove the forbidden `choices` key from code paths that still read/write it (`options` is canonical).
-- Design-phase trace enumerates any reader/builder left unreachable after the above for same-spec removal.
-- RECORD the net lines-of-code + file-count delta in the definition of done (measurable simplification).
+  `GET/POST/PUT/DELETE /membership-types` routes, `_membership_catalog.py` + the repository catalog
+  methods, and their tests.
+- the removed-binding plumbing from BU-4 (not merely disabled).
+- DELETE `reconcile_scope_change` / `ScopeChangeReconciliation` / `ScopeReconciliationBlocked` /
+  `assert_appliable` in `backend/src/services/user_tenant_scope_service.py` + their tests in
+  `test_user_tenant_scope_service.py` (confirmed: no production caller).
+- remove forbidden `choices` read/write code paths (`options` canonical).
+- do NOT touch `config#views` (deferred, Req 7.1).
+- RECORD the net lines-of-code + file-count delta (DoD, Req 7.7/8.3).
 
-## Requirement 8 — governance definition-of-done
+### BU-9 — Filter/display by resolved label (Req 5)
+
+- `frontend/.../useMembersColumns.ts` `searchedRows` + `enrichedRows` (`columnValue.coerceByType`):
+  for enum columns match the filter/search against the active-language label (via
+  `resolveEnumValueLabel`/`labelResolver`), not the stored key. The record keeps the key; table+modal
+  already resolve the label. Build a per-column value→label map ONCE (not per row per keystroke);
+  where two options share a label, the match includes both keys.
+- Paired tests: `applicationFilterParity.test.ts` + a `useMembersColumns` test (nl `Overleden` and
+  gb `Passed Away` both match the stored `died`).
+
+### BU-10 — Governance: steering + docs (Req 8)
 
 - Update steering `38-sam-module-field-config.md` where it documents the removed no-relax/forced rules.
 - Update `sam/members/docs/data-model.md` + `config-guide.md`: the unified enum model (reference as a
-  field feature with `allowed`), that `config#fields`/`config#scope` are SAM-authored (not
-  MySQL-projected), and document the `application_*` field attributes (close the doc gap, Req 3.5).
+  field feature with `allowed`); `config#fields`/`config#scope` are SAM-authored (not MySQL-projected);
+  document the `application_*` field attributes (close the doc gap, Req 3.5); the forbidden-`choices`
+  removal; the membership-type catalog retirement.
 
 ## Correctness Properties
 
