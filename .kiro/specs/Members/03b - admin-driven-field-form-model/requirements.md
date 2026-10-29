@@ -85,20 +85,23 @@ them as its own acceptance criteria.
 
 **User Story:** As the platform owner, I want every selectable field to be one kind of thing — an enum whose features (requiredness, retired-value, scope, application-form behaviour) hang off the field's own options — so that the module has one model to reason about instead of several divergent ones.
 
-> **Data-model framing (owner-confirmed): the model is GENERIC — a field is a JSON record with no
-> fixed attribute schema, so features-as-attributes already fit it.** `status` (inline `choices`)
-> and the `application_*` attributes already live ON the field under this generic model; `status`
-> needs no relocation, and `application_*` is a DOCUMENTATION GAP (written by the code, not yet in
-> `data-model.md`/`config-guide.md`), NOT a structural divergence — closed by AC 4.
+> **Owner decision (2026-10-29): reference becomes a FEATURE ON A FIELD.** An enum field in
+> `config#fields` carries its OWN list of allowed values (each `{value, label{nl,en}, allowed}`),
+> and member records reference THAT list — so there is no separate per-kind storage model. The
+> code already has the building blocks (`FieldType` with `ENUM`/`REFERENCE`, the shared `EnumOption`
+> `{value,label,roles?}`); 03b adds the per-option `allowed`/retired flag and points the reference
+> check at the field's own options instead of a separate catalog.
 >
-> The side-effecting shapes were `region` and `membership_type`. **Verified against LIVE h-dcn data
-> (2026-10-29): `region` is ALREADY unified** — `config#fields.region` carries full inline
-> `choices`+`options` (10 values) with `scope:{enabled:true}`, and `config#scope` already mirrors
-> them; so region needs NO relocation, only the derive-on-save trigger (Req 4) to stay consistent.
-> **`membership_type` is the one shape still to relocate** — its vocabulary lives entirely in the
-> separate `membershiptype#<code>` catalog (7 entries; `erelid` is `active:false`/retired),
-> referenced by stored member records (a careless collapse could ORPHAN a member's
-> `membership.membership_type`). Hence the migration-safety proof (AC 5) centers on membership_type.
+> **What this touches (verified against LIVE h-dcn data, 2026-10-29):**
+> - `region` — ALREADY carries full inline `choices`+`options` (10 values) with `scope:{enabled:true}`
+>   and `config#scope` mirrors them; NO relocation, only the derive-on-save trigger (Req 4) keeps it
+>   consistent.
+> - `membership_type` — the one real relocation: its values live entirely in the separate
+>   `membershiptype#<code>` catalog (7 entries; `erelid` is `active:false`/retired) and are referenced
+>   by stored member records (a careless collapse could ORPHAN a member's `membership.membership_type`),
+>   so the migration-safety proof (AC 6) centers on it.
+> - `status` — already an inline enum on the field; no relocation. `application_*` — already written
+>   onto the field by the code, just undocumented (a doc gap closed by AC 5), not a structural change.
 
 #### Acceptance Criteria
 
