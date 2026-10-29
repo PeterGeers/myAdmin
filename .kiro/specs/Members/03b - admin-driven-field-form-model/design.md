@@ -73,8 +73,8 @@ must orphan NO stored member reference. Proven against the FULL live h-dcn membe
 
 **Result:** every stored value maps to an existing catalog entry → zero orphans. The only retired
 value, `erelid` (4 members), is the grandfather case the `allowed:false` flag preserves (kept,
-displayed, valid on read; not offered for new records). Catalog entries with zero members
-(`gezins_donateur` had 17, `sponsor` 0) are harmless — an offered option nobody has picked.
+displayed, valid on read; not offered for new records). A catalog entry with zero members
+(`sponsor`, 0) is harmless — an offered option nobody has picked yet.
 `region` needs no proof row (already unified); the proof confirms `config#scope` and
 `config#fields.region` carry the same 10 values today.
 
