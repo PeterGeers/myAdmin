@@ -5,9 +5,10 @@
 > requirements/design/tasks are written. This doc commits NO design and NO code. It exists so the
 > 03b spec is built on explicit owner decisions, not assumptions (the discipline lesson from 03a).
 >
-> Seed: `.kiro/specs/myBacklog/admin-driven-field-form-model-simplification.md` (the principle +
-> the five hardcoded rules). That file also carries the **🚧 promotion gate** blocking `test→main`
-> until this simplification lands.
+> Seed: `principle-and-simplification-seed.md` (in THIS folder — moved from
+> `myBacklog/admin-driven-field-form-model-simplification.md`; the principle + the five hardcoded
+> rules). That seed also carries the **🚧 promotion gate** blocking `test→main` until this
+> simplification lands.
 
 ## 1. The principle this spec encodes (owner, 2026-10-29)
 > The tenant administrator decides what the application form collects and what is required. The
@@ -34,8 +35,8 @@ predict EXACTLY what the form + members-CRUD do; the change REDUCES code. No hid
 Read all 9 backlog items. Classification:
 
 ### 3a. ABSORB into 03b (reduces/closes the backlog item)
-- **`admin-driven-field-form-model-simplification.md`** — IS the 03b seed. Becomes this spec;
-  the backlog file is retired/relinked once 03b exists.
+- **`principle-and-simplification-seed.md`** (moved into THIS folder from `myBacklog/`) — IS the
+  03b seed. No longer a backlog item; it is the originating principle doc of this spec.
 - **`scope-dimension-authoring-trigger.md`** — LARGELY folds in: 03b's "field is the single
   authoring surface, admin decides" directly resolves the authoring-trigger question (the field
   editor save must derive + mirror the scope dimension to both planes). CARVE-OUT that STAYS a
@@ -183,5 +184,20 @@ D1–D5 resolved (above). Next, IN ORDER, no code until design is approved:
 3. **tasks.md** — phased, with the steering-43 CI/CD tasks AND the promotion/migration-parity
    gate (D5): prod `choices`→`options` migration + any 03b migration, each scan-gated, run against
    TEST and PROD identically before `main`.
-Backlog bookkeeping once 03b lands: retire/relink `admin-driven-field-form-model-simplification.md`
-and `scope-dimension-authoring-trigger.md` (absorbed), and `findings.md #2` (absorbed via D4).
+   - **Each task MUST cite the steering file(s) it honors (owner request).** The relevant set for
+     03b (confirm/extend when writing tasks.md): **11-tech-stack.md** (exact FE/BE/SAM stack +
+     tooling versions a task must use — React 19 / Chakra UI 2.8 / Vitest+MSW+fast-check / pytest /
+     DynamoDB Local; file-size 500/1000 guideline — 03b REMOVES code, use it), 10-product /
+     20-platform-architecture (context), 32-frontend-ui (editor/table/modal + i18n), 33/34 testing,
+     36-config-and-parameters (store/project + validate-at-seam), 38-sam-module-field-config (the
+     field-model shape + rule 5 one-authoring-surface/Change-Op + rule 6 per-language labels),
+     39-backend-data-access-sam-dynamodb (Change-Op absent-vs-null/no-whole-record-replace +
+     resolved-view read), 30-backend-api-flask-mysql (caller-safe errors; Flask-plane scope mirror),
+     40-spec-workflow + 43-cicd-deploys (spec structure + the mandatory CI/CD + promotion tasks),
+     23-aws-accounts + 41-shell-environment + 42-local-dynamodb-testing (prod-migration account
+     targeting, WSL/AWS command discipline, local DDB for E2E). Governance DoD (steering 40): any
+     steering 03b CHANGES (candidate: 38, if the no-relax/forced-required language is removed) is
+     updated in the SAME spec.
+Backlog bookkeeping: the simplification seed is ALREADY moved into this folder
+(`principle-and-simplification-seed.md`). Once 03b lands, also retire/relink
+`scope-dimension-authoring-trigger.md` (absorbed via D2) and `findings.md #2` (absorbed via D4).
