@@ -24,7 +24,7 @@
  * The membership-type field (`membership.membership_type`) is SPECIAL. When IT is the selected
  * field and on the form, this panel layers the R4 coherence on top of the generic controls:
  *  - the subset picker sources its options from the tenant's LIVE membership-type catalog
- *    (`membershipTypeCatalog`, `GET /membership-types`) — NOT the field's static served choices —
+ *    (the field's OWN resolved `options` — spec 03b; the live catalog is retired) —
  *    so the public-safe subset is authored over the real catalog (R4.1/R4.3);
  *  - the application-required toggle is NO LONGER forced/disabled (03b Req 1) — the admin sets it;
  *  - an EMPTY authored subset on the exposed-required field is flagged as incoherent, and any subset
@@ -69,15 +69,10 @@ import type {
   EnumOptionConfig,
   FieldConfig,
   FieldConfigField,
-  MembershipType,
 } from '../../../types/members';
 import { resolveFieldConfigLabel } from '../../../services/membersConfigService';
 import { findField, upsertField, type FieldOrigin } from './overlayModel';
-import {
-  catalogChoices,
-  isMembershipTypeField,
-  validateMembershipSubset,
-} from './applicationMembershipType';
+import { isMembershipTypeField } from './applicationMembershipType';
 
 export interface ApplicationFieldAttributesProps {
   /** The resolved `FieldConfig` (the DISPLAY/seed source + the known format tokens). */
@@ -88,14 +83,6 @@ export interface ApplicationFieldAttributesProps {
   overlay: MembersConfigValue | undefined;
   /** Apply a mutated overlay — the panel never saves; the builder commits once (Property 8). */
   onChange: (next: MembersConfigValue) => void;
-  /**
-   * The tenant's LIVE membership-type catalog (`GET /membership-types`, task 3.3 / R4). When the
-   * SELECTED field is the membership-type field (`membership.membership_type`) the subset picker
-   * sources its options from THIS catalog rather than the field's static served choices (R4.1), and
-   * a subset is validated against it (R4.3). Optional/absent for every other field (and when the
-   * catalog has not loaded) — the generic R3 controls then apply unchanged.
-   */
-  membershipTypeCatalog?: MembershipType[] | null;
   lang: 'nl' | 'en';
 }
 
@@ -115,11 +102,15 @@ function resolveChoices(
   options: Array<string | EnumOptionConfig> | null | undefined,
 ): ResolvedChoice[] {
   if (!Array.isArray(options)) return [];
-  return options.map((opt) => {
-    if (typeof opt === 'string') return { value: opt, label: { nl: opt, en: opt } };
-    const value = typeof opt.value === 'string' ? opt.value : String(opt.value ?? '');
-    return { value, label: { nl: opt.label?.nl ?? value, en: opt.label?.en ?? value } };
-  });
+  return options
+    // Spec 03b: a RETIRED option (`allowed:false`) is grandfathered-only, never OFFERED on the
+    // application form. A bare string or an absent `allowed` is offered.
+    .filter((opt) => typeof opt === 'string' || (opt as EnumOptionConfig).allowed !== false)
+    .map((opt) => {
+      if (typeof opt === 'string') return { value: opt, label: { nl: opt, en: opt } };
+      const value = typeof opt.value === 'string' ? opt.value : String(opt.value ?? '');
+      return { value, label: { nl: opt.label?.nl ?? value, en: opt.label?.en ?? value } };
+    });
 }
 
 /**
@@ -168,7 +159,6 @@ export const ApplicationFieldAttributes: React.FC<ApplicationFieldAttributesProp
   selectedKey,
   overlay,
   onChange,
-  membershipTypeCatalog,
   lang,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
@@ -191,16 +181,13 @@ export const ApplicationFieldAttributes: React.FC<ApplicationFieldAttributesProp
   // application-required (R4.2) — exactly like a platform-required field. Otherwise this is false
   // and every control behaves generically (R3).
   const isMembershipType = useMemo(() => isMembershipTypeField(field), [field]);
-  const catalogSubsetChoices = useMemo(
-    () => (isMembershipType ? catalogChoices(membershipTypeCatalog, lang) : []),
-    [isMembershipType, membershipTypeCatalog, lang],
-  );
 
-  // The subset vocabulary: the LIVE catalog for the membership-type field (R4.1), else the field's
-  // own static served choices (R3.2).
+  // Spec 03b: membership_type is a normal enum field that owns its vocabulary — the subset picker
+  // (for EVERY field, incl. membership_type) sources from the field's OWN resolved `options`, NOT a
+  // live catalog. The live `membershiptype#` catalog is retired (Task 10).
   const choices = useMemo(
-    () => (isMembershipType ? catalogSubsetChoices : field ? resolveChoices(field.options) : []),
-    [isMembershipType, catalogSubsetChoices, field],
+    () => (field ? resolveChoices(field.options) : []),
+    [field],
   );
 
   if (!field) {
@@ -255,13 +242,10 @@ export const ApplicationFieldAttributes: React.FC<ApplicationFieldAttributesProp
   // Seed: an authored subset (a proper subset), else the full set (all selected = full set = null).
   const selectedValues = new Set(authoredSubset ?? choices.map((c) => c.value));
 
-  // Membership-type subset coherence (R4.2/R4.3): validate the AUTHORED subset against the LIVE
-  // catalog for the exposed membership-type field. An empty authored subset is incoherent (R4.2);
-  // a subset value not in the live catalog is rejected (R4.3). `null`/absent (full set) is coherent.
-  const membershipSubsetValidation =
-    isMembershipType && onForm
-      ? validateMembershipSubset(authoredSubset, membershipTypeCatalog)
-      : null;
+  // Spec 03b: the subset picker offers ONLY the field's own options, so an out-of-vocabulary
+  // subset value is structurally impossible — the former live-catalog subset validation is no
+  // longer needed (the server re-validates against the field's options authoritatively).
+  const membershipSubsetValidation = null;
 
   const onToggleChoice = (value: string, included: boolean) => {
     const nextSet = new Set(selectedValues);

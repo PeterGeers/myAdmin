@@ -195,8 +195,8 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     The re-pointed reader (Tasks 2/3) must have its transitional fallback/lock in place so DEPLOY order
     is non-fatal. Ask the user if questions arise.
 
-- [ ] 9. DEPLOY — ship BU-1..BU-6 + BU-9 to TEST via CI/CD (mandatory, steering 43)
-  - [ ] 9.1 Deploy the SAM + frontend changes
+- [x] 9. DEPLOY — ship BU-1..BU-6 + BU-9 to TEST via CI/CD (mandatory, steering 43)
+  - [x] 9.1 Deploy the SAM + frontend changes
     - Ship through `deploy-sam-members.yml` (OIDC `NonprofitDeployRole`, acct `506221081911`,
       `eu-west-1`, no stored secrets; branch decides env — `test`→test stack). Frontend TEST is the
       local dev server. Confirm CodeQL + GitGuardian green before merge to `test`; verify the stack
@@ -204,16 +204,16 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 43-cicd-deploys, 23-aws-accounts, 35-sam-module-architecture_
     - _Requirements: 8.4_
 
-- [ ] 9b. BU-8a — FRONTEND: membership_type is a regular enum field everywhere (close the all-planes gap)
-  - [ ] 9b.1 Field-config modal edits membership_type inline like any enum
+- [x] 9b. BU-8a — FRONTEND: membership_type is a regular enum field everywhere (close the all-planes gap)
+  - [x] 9b.1 Field-config modal edits membership_type inline like any enum
     - `frontend/src/components/TenantAdmin/MembersConfig/MembersFieldModal.tsx`: for a `reference` field (membership_type), render the inline options editor (the same `EnumOptionsEditor`) with the per-option `allowed` (retire/grandfather) control = the "reference status", editing the field's own `options` — NOT `form.choices`. REMOVE the "values are managed in the catalog, not here" note + the `onManageCatalog` catalog pointer. Move the enum path off `form.choices` onto the single `options` vocabulary (03a canonical). Key stays immutable; label/order/required/visible/scope-axis stay editable.
     - _Steering: 32-frontend-ui, 38-sam-module-field-config, 33-frontend-testing, 11-tech-stack_
     - _Requirements: 3.1, 3.2, 3.3_
-  - [ ] 9b.2 Application-form editors source membership_type from the field's own options
+  - [x] 9b.2 Application-form editors source membership_type from the field's own options
     - `ApplicationFieldAttributes.tsx`, `ApplicationFieldModal.tsx`, `applicationChoiceSource.ts`, `applicationMembershipType.ts`, `ApplicationFormPreview.tsx`: the membership_type subset picker + preview source their vocabulary from the field's RESOLVED `options` (allowed-filtered), NOT the live `GET /membership-types` catalog. No runtime catalog read remains on the authoring path.
     - _Steering: 32-frontend-ui, 38-sam-module-field-config, 33-frontend-testing, 11-tech-stack_
     - _Requirements: 3.1, 3.2, 3.4a_
-  - [ ] 9b.3 Frontend parity tests (change-with-tests)
+  - [x] 9b.3 Frontend parity tests (change-with-tests)
     - Paired vitest: the field-config modal shows the inline options editor (NOT the catalog note) for membership_type and writes `options`; the application-form picker/preview resolve from the field's options; no component calls `GET /membership-types` on the authoring path.
     - _Steering: 33-frontend-testing, 11-tech-stack_
     - _Requirements: 3.1, 3.2, 3.3, 3.4a_

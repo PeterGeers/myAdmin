@@ -4,7 +4,7 @@
  *
  * The pure field-kind rules the modal composes: WHICH kind a resolved field is, whether it is
  * choice-bearing (→ render the picker), and WHERE the subset options come from:
- *  - reference (membership-type) → the LIVE catalog;
+ *  - reference (membership-type) → the field's OWN options (03b; live catalog retired);
  *  - scope axis → the scope DIMENSION values (= the field's own options, single-vocabulary);
  *  - enum → the field's own options;
  *  - plain string → NOT choice-bearing (no picker).
@@ -30,9 +30,12 @@ const referenceField: FieldConfigField = {
   key: 'membership_type',
   group: 'membership',
   type: 'reference',
-  // Even if the reference field also (incidentally) carries static options, the source is the
-  // live catalog — reference wins the precedence.
-  options: ['stale_a', 'stale_b'],
+  // Spec 03b: membership_type is a normal enum field that owns its vocabulary — the source is the
+  // field's OWN options (the live catalog is retired).
+  options: [
+    { value: 'regular', label: { en: 'Regular', nl: 'Regulier' } },
+    { value: 'student', label: { en: 'Student', nl: 'Student' } },
+  ],
 };
 
 const scopeField: FieldConfigField = {
@@ -101,17 +104,18 @@ describe('field-kind predicates', () => {
     expect(isChoiceBearingField(null)).toBe(false);
   });
 
-  it('a membership-type reference field is choice-bearing even with an EMPTY live catalog', () => {
-    // The field is choice-bearing by kind; resolveChoiceSource yields an empty choice list the
-    // modal surfaces as "no types yet" rather than hiding the picker.
-    expect(isChoiceBearingField(referenceField)).toBe(true);
-    expect(resolveChoiceSource(referenceField, [], 'en')).toEqual({ kind: 'reference', choices: [] });
+  it('a membership-type reference field is choice-bearing even with NO options yet (03b 9b.2)', () => {
+    // Choice-bearing by kind; with an empty own-options list resolveChoiceSource yields an empty
+    // choice list the modal surfaces as "no options yet" rather than hiding the picker.
+    const emptyRef: FieldConfigField = { key: 'membership_type', group: 'membership', type: 'reference', options: [] };
+    expect(isChoiceBearingField(emptyRef)).toBe(true);
+    expect(resolveChoiceSource(emptyRef, null, 'en')).toEqual({ kind: 'reference', choices: [] });
   });
 });
 
 describe('resolveChoiceSource — SOURCE adapts to the field kind (R1.2 / design §C1)', () => {
-  it('reference field → the LIVE catalog (NOT its static options)', () => {
-    const src = resolveChoiceSource(referenceField, CATALOG, 'en');
+  it('reference field → its OWN options (03b 9b.2; the live catalog is retired)', () => {
+    const src = resolveChoiceSource(referenceField, null, 'en');
     expect(src?.kind).toBe('reference');
     expect(src?.choices.map((c) => c.value)).toEqual(['regular', 'student']);
   });

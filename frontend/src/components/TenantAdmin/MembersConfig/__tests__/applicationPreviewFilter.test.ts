@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { buildPreviewConfig } from '../applicationPreviewFilter';
-import type { FieldConfig, FieldConfigField, MembershipType } from '../../../../types/members';
+import type { FieldConfig, FieldConfigField } from '../../../../types/members';
 import type { MembersConfigValue } from '../../../../types/membersConfig';
 
 function field(key: string, group: string, extra: Partial<FieldConfigField> = {}): FieldConfigField {
@@ -156,37 +156,60 @@ describe('buildPreviewConfig — projection (R5.3 shape)', () => {
 });
 
 describe('buildPreviewConfig — membership_type reference field', () => {
-  const catalog: MembershipType[] = [
-    { type_code: 'student', label: { nl: 'Student', en: 'Student' } } as MembershipType,
-    { type_code: 'regular', label: { nl: 'Gewoon', en: 'Regular' } } as MembershipType,
-    { type_code: 'honorary', label: { nl: 'Erelid', en: 'Honorary' } } as MembershipType,
+  // Spec 03b: membership_type is a normal enum field that owns its `options` (the live
+  // `membershiptype#` catalog is retired). The preview sources + subsets from the FIELD'S OWN
+  // options, exactly like any other enum — no catalog is passed in.
+  const fieldOptions = [
+    { value: 'student', label: { nl: 'Student', en: 'Student' } },
+    { value: 'regular', label: { nl: 'Gewoon', en: 'Regular' } },
+    { value: 'honorary', label: { nl: 'Erelid', en: 'Honorary' } },
   ];
 
-  it('sources options from the LIVE catalog, filtered to the declared subset', () => {
+  it('sources options from the FIELD\u2019s own options, filtered to the declared subset', () => {
     const config = cfg([
       field('membership_type', 'membership', {
         type: 'reference',
         application_visible: true,
         application_choices: ['student', 'regular'],
-      }),
+        options: fieldOptions,
+      } as Partial<FieldConfigField>),
     ]);
-    const [f] = buildPreviewConfig(config, {}, catalog).fields;
+    const [f] = buildPreviewConfig(config, {}).fields;
     expect((f.options ?? []).map((o) => (typeof o === 'string' ? o : o.value))).toEqual([
       'student',
       'regular',
     ]);
   });
 
-  it('offers the whole catalog when no subset is declared', () => {
+  it('offers the whole field vocabulary when no subset is declared', () => {
     const config = cfg([
-      field('membership_type', 'membership', { type: 'reference', application_visible: true }),
+      field('membership_type', 'membership', {
+        type: 'reference',
+        application_visible: true,
+        options: fieldOptions,
+      } as Partial<FieldConfigField>),
     ]);
-    const [f] = buildPreviewConfig(config, {}, catalog).fields;
+    const [f] = buildPreviewConfig(config, {}).fields;
     expect((f.options ?? []).map((o) => (typeof o === 'string' ? o : o.value))).toEqual([
       'student',
       'regular',
       'honorary',
     ]);
+  });
+
+  it('omits a RETIRED (allowed:false) option from the applicant preview (03b grandfather)', () => {
+    const config = cfg([
+      field('membership_type', 'membership', {
+        type: 'reference',
+        application_visible: true,
+        options: [
+          { value: 'regular', label: { nl: 'Gewoon', en: 'Regular' } },
+          { value: 'erelid', label: { nl: 'Erelid', en: 'Honorary' }, allowed: false },
+        ],
+      } as Partial<FieldConfigField>),
+    ]);
+    const [f] = buildPreviewConfig(config, {}).fields;
+    expect((f.options ?? []).map((o) => (typeof o === 'string' ? o : o.value))).toEqual(['regular']);
   });
 });
 

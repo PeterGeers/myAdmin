@@ -31,7 +31,7 @@
 import React, { useMemo } from 'react';
 import { Box, Text, VStack } from '@chakra-ui/react';
 import { ApplicationFormRenderer } from '../../public/application/ApplicationFormRenderer';
-import type { FieldConfig, MembershipType } from '../../../types/members';
+import type { FieldConfig } from '../../../types/members';
 import type { MembersConfigValue } from '../../../types/membersConfig';
 import { buildPreviewConfig } from './applicationPreviewFilter';
 
@@ -46,11 +46,6 @@ export interface ApplicationFormPreviewProps {
    * application-attribute edits; a change to it re-derives the preview in memory (no network).
    */
   overlay: MembersConfigValue;
-  /**
-   * The tenant's LIVE membership-type catalog — the subset SOURCE for the `membership_type`
-   * reference field (R4.1), so the preview offers the real catalog values, not static choices.
-   */
-  membershipTypeCatalog?: MembershipType[] | null;
   /** The applicant locale the preview renders labels in (nl/en). */
   lang: 'nl' | 'en';
 }
@@ -58,7 +53,6 @@ export interface ApplicationFormPreviewProps {
 export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
   fieldConfig,
   overlay,
-  membershipTypeCatalog,
   lang,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
@@ -66,8 +60,8 @@ export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
   // Re-derive the applicant-facing schema IN-BROWSER whenever the working draft changes. Pure +
   // synchronous — the preview reflects an unsaved edit on the very next render, no round-trip (R3.1).
   const schema = useMemo(
-    () => buildPreviewConfig(fieldConfig, overlay, membershipTypeCatalog),
-    [fieldConfig, overlay, membershipTypeCatalog],
+    () => buildPreviewConfig(fieldConfig, overlay),
+    [fieldConfig, overlay],
   );
 
   const fieldCount = schema.fields.length;
