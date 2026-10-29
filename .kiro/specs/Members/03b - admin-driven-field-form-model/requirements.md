@@ -127,6 +127,13 @@ them as its own acceptance criteria.
 > writes the `config#scope` definition, and (2) keeps the Flask side (`members.scope_dimensions`
 > mirror the grant validators read) consistent so `user_tenant_scope` keeps working.
 >
+> **The FRONTEND is the only coordinator — NO runtime cross-plane call.** SAM and Flask NEVER call
+> each other at runtime (steering 35/39). The frontend makes TWO separate calls on save: a SAM call
+> (`PUT /members/config/scope`) and a Flask call (the scope-dimension mirror update). The grant
+> reconciliation (below) runs INSIDE the Flask call, because the grant data (`user_tenant_scope`)
+> lives on the Flask plane — it is never reached by a SAM→Flask hop. Flask's own projection of
+> roles/grants back into SAM (`scopegrant#`) is a separate, unchanged pipeline.
+>
 > **A breaking change is a combined Tenant_Admin + SysAdmin effort (prior decision, recorded in
 > `scope-dimension-authoring-trigger.md`).** The reconciliation that classifies routine vs.
 > grant-orphaning changes EXISTS (`UserTenantScopeService.reconcile_scope_change`) and is unit-
@@ -136,11 +143,11 @@ them as its own acceptance criteria.
 #### Acceptance Criteria
 
 1. THE field editor SHALL be the single authoring surface for a scope field's vocabulary; there SHALL be no separate standalone scope-dimension editor
-2. WHEN the admin saves a scope field THEN the save SHALL update BOTH items: derive and write the SAM `config#scope` definition (authoritative), then keep the Flask `members.scope_dimensions` mirror consistent (the frontend-mirror the grant validators read); the Flask→SAM projection of `user_tenant_roles` / `user_tenant_scope` grants (`scopegrant#` rows) SHALL be left UNCHANGED and keep working
+2. WHEN the admin saves a scope field THEN the FRONTEND SHALL make two separate calls (no cross-plane call between planes): first the SAM call deriving+writing `config#scope` (authoritative), then the Flask call keeping the `members.scope_dimensions` mirror consistent (the grant validators read it); the Flask→SAM projection of `user_tenant_roles` / `user_tenant_scope` grants (`scopegrant#` rows) SHALL be left UNCHANGED and keep working
 3. WHEN the authoritative `config#scope` write fails THEN nothing SHALL be mirrored to Flask AND the admin SHALL see a caller-safe error
 4. WHEN only the Flask mirror write fails THEN SAM SHALL remain authoritative AND the admin SHALL be offered a retry of just the mirror
 5. WHEN a save is ROUTINE (adds a dimension or value, stranding no existing grant) THEN it SHALL apply and remind the admin to review user scope grants
-6. WHEN a save would rename or remove a value/dimension that strands an existing `user_tenant_scope` grant THEN it SHALL be BLOCKED with a "contact your System Administrator to realign grants" message (a breaking change is a combined Tenant_Admin + SysAdmin effort); the save SHALL NOT silently strand a grant. This SHALL be implemented by WIRING IN the existing `reconcile_scope_change` / `assert_appliable` reconciliation (currently built but unwired), not by reimplementing it
+6. WHEN a save would rename or remove a value/dimension that strands an existing `user_tenant_scope` grant THEN it SHALL be BLOCKED with a "contact your System Administrator to realign grants" message (a breaking change is a combined Tenant_Admin + SysAdmin effort); the save SHALL NOT silently strand a grant. This SHALL be implemented by WIRING IN the existing `reconcile_scope_change` / `assert_appliable` reconciliation (currently built but unwired) INSIDE the Flask scope-dimension call (where the grant data lives — no cross-plane call), not by reimplementing it
 7. Access-control RESOLUTION (which members a scoped caller may see) SHALL be UNCHANGED by this spec; only the authoring/derivation trigger and the wiring-in of reconciliation are added, with regression coverage
 
 ### Requirement 5: Uniform per-language enum labels in display and filters
