@@ -175,7 +175,7 @@ them as its own acceptance criteria.
 
 #### Acceptance Criteria
 
-1. THE confirmed dead residue SHALL be removed: the retired `config#views` sort-key and its leftover-deletion routine (no builder emits it, no code reads it, per `data-model.md`)
+1. 03b SHALL NOT touch `config#views` (neither the leftover rows nor the cleanup routine). The user-preferred-columns feature it belonged to is a VALID requirement that was removed during an earlier spec over an unresolved error; it is DEFERRED (Out of Scope), not dead-to-delete — removing the residue now could make reviving the feature harder
 2. THE removed-binding plumbing from Requirement 1 (the no-relax / forced-required / forced-visible machinery and its tests) SHALL be deleted, not merely disabled
 3. THE design-phase trace SHALL enumerate further dead/stale paths in the Members frontend and backend (unused builders, readers, options no longer reachable after Requirements 1 and 3) for removal in THIS spec
 4. THE change SHALL result in a net DECREASE in lines of code across the touched Members modules
@@ -195,6 +195,7 @@ them as its own acceptance criteria.
 - Access-control scope RESOLUTION (who-sees-what) beyond the authoring/derivation trigger (Req 4.6).
 - The generic json-editor framework extraction (analysis D3: Members-specific, no alignment now).
 - OAuth, session-hardening, and tooling backlog items.
+- User-preferred overview columns (the retired `config#views` / `view_contexts` feature): a VALID, DEFERRED requirement — not revived and not deleted by 03b; `config#views` residue is left untouched.
 - A codebase-wide error-handling sweep: 03b uses caller-safe errors on its OWN surfaces; it does
   not take on `error-exposure.md`'s scope.
 
