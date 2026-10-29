@@ -91,21 +91,22 @@ them as its own acceptance criteria.
 > needs no relocation, and `application_*` is a DOCUMENTATION GAP (written by the code, not yet in
 > `data-model.md`/`config-guide.md`), NOT a structural divergence — closed by AC 4.
 >
-> The only real data-model CHANGE is the two shapes that store values ELSEWHERE and have
-> SIDE-EFFECTING consumers, hence the migration-safety proof (AC 5):
-> - **`region`** — values live on `config#scope`, the field is deliberately empty; feeds
->   `user_tenant_scope` access grants (a careless move could STRAND a grant).
-> - **`membership_type`** — separate `membershiptype#<code>` catalog rows with an `active`
->   soft-delete flag, referenced by stored member records (a careless move could ORPHAN a
->   member's `membership.membership_type`); no authoring UI exists today.
+> The side-effecting shapes were `region` and `membership_type`. **Verified against LIVE h-dcn data
+> (2026-10-29): `region` is ALREADY unified** — `config#fields.region` carries full inline
+> `choices`+`options` (10 values) with `scope:{enabled:true}`, and `config#scope` already mirrors
+> them; so region needs NO relocation, only the derive-on-save trigger (Req 4) to stay consistent.
+> **`membership_type` is the one shape still to relocate** — its vocabulary lives entirely in the
+> separate `membershiptype#<code>` catalog (7 entries; `erelid` is `active:false`/retired),
+> referenced by stored member records (a careless collapse could ORPHAN a member's
+> `membership.membership_type`). Hence the migration-safety proof (AC 5) centers on membership_type.
 
 #### Acceptance Criteria
 
 1. THE target model SHALL be: a selectable field is a single ENUM; its options each carry value + per-language label + a retired/grandfather flag; and the field carries its feature attributes (requiredness, application-form flags, scope-binding) directly on the field — no separate per-kind storage model and no `active_only` catalog apparatus
 2. FOR a retired value THE behaviour SHALL be Grandfather semantics: hidden from the picker for new/changed records, WHILE existing stored values equal to it are retained, displayed, and accepted on read and validation; and the retired/active state SHALL be freely toggleable both ways
-3. THE unification SHALL relocate the two side-effecting shapes (`region` from `config#scope`, `membership_type` from the catalog) onto the field model; `status` and the `application_*` attributes already fit the generic model and SHALL NOT require relocation
+3. THE unification SHALL relocate `membership_type` (catalog → field enum options) onto the field model; `region` is ALREADY inline on the field (live data) and SHALL NOT be relocated — only kept consistent via Req 4; `status` and the `application_*` attributes already fit the generic model and SHALL NOT require relocation
 4. THE `application_*` attributes (`application_visible` / `application_required` / `application_choices`) SHALL be documented in `data-model.md` as part of the field model (closing the documentation gap)
-5. THE design phase SHALL produce a MIGRATION-SAFETY PROOF — gating implementation and requiring owner sign-off BEFORE any code — that, against the REAL stored h-dcn data, maps every currently-stored `region` and `membership_type` value onto the unified model and shows that NO `user_tenant_scope` grant is stranded and NO stored member's `membership.membership_type` reference is orphaned
+5. THE design phase SHALL produce a MIGRATION-SAFETY PROOF — gating implementation and requiring owner sign-off BEFORE any code — that, against the REAL stored h-dcn data, maps every currently-stored `membership_type` value (incl. the retired `erelid`) onto the unified model and shows that NO stored member's `membership.membership_type` reference is orphaned; and confirms region remains consistent between `config#fields` and `config#scope` with no grant stranded
 6. IF the proof shows relocating a shape is unsafe THEN unifying only the BEHAVIOUR (Grandfather + uniform features) for that shape, without moving its storage, SHALL be the accepted fallback — decided in design and reflected back into this requirement
 
 ### Requirement 4: Scope dimension is DERIVED from the field (the one binding kept)
@@ -152,18 +153,24 @@ them as its own acceptance criteria.
 
 **User Story:** As the platform owner, I want the stored data reshaped to the unified model by a controlled, verifiable migration that names exactly which rows in which tables it touches, so that no tenant's live data is left half-converted or diverging between environments.
 
-> **Scope note (corrected against spec 02):** `config#fields` and `config#scope` are NOW authored
-> directly by the SAM write path in `governance_projection` (they are no longer projected from
-> MySQL — `data-model.md`'s "projected from MySQL" line is stale for these two rows and is updated
-> by Requirement 8). So this is a SAM-plane (DynamoDB) migration across TWO tables, each with its
-> `test_` sibling; the MySQL `members.*` params are SAM-owned mirrors, not the migration source.
+> **Scope note (corrected against spec 02 + verified against LIVE h-dcn data 2026-10-29):**
+> `config#fields` / `config#scope` are now authored directly by the SAM write path in
+> `governance_projection` (no longer MySQL-projected — `data-model.md` is stale here, fixed by
+> Requirement 8). **region is ALREADY the unified model:** the live `config#fields.region` carries
+> its full inline `choices`+`options` (10 values) with `scope:{enabled:true}`, and `config#scope`
+> already mirrors the same 10 values — so region needs NO data migration, only the derive-on-save
+> trigger (Requirement 4) keeps the two consistent going forward. **membership_type is the one real
+> relocation:** its override carries NO inline options — the vocabulary lives entirely in the
+> `membershiptype#<code>` catalog (7 entries; `erelid` is `active:false`/retired). So the migration
+> is essentially a SINGLE collapse (catalog → field options) on `config#fields` + retiring the
+> catalog rows in `sam-members`, each table with its `test_` sibling.
 
 #### Acceptance Criteria
 
 1. THE migration SHALL state, per change, the exact table + row it rewrites:
-   a. `config#fields` (in `governance_projection` / `test_governance_projection`) — relocate `region`'s values onto the field, fold `membership_type` into the field's enum `options` with the `allowed`/retired flag, and carry any 03a `choices`→`options` backfill not yet applied to that environment;
-   b. `config#scope` (same table) — reconcile the derived dimension values with the relocated `region` field (Requirement 4); a value RENAME/REMOVE that would strand a `scopegrant#` / `user_tenant_scope` grant is BLOCKED pending SysAdmin realignment (Req 4.6), never silently applied by the migration;
-   c. `sam-members` / `test_sam-members` — retire the `membershiptype#<code>` catalog rows once folded into the field, leaving existing member records' `membership.membership_type` references valid (grandfathered, not orphaned)
+   a. `config#fields` (in `governance_projection` / `test_governance_projection`) — fold the `membership_type` catalog into the field's enum `options` with the `allowed`/retired flag (`erelid` → `allowed:false`), and carry any residual 03a `choices`→`options` cleanup not yet applied to that environment. region is NOT rewritten (already inline+synced per live data);
+   b. `sam-members` / `test_sam-members` — retire the `membershiptype#<code>` catalog rows once folded into the field, leaving existing member records' `membership.membership_type` references valid (grandfathered, not orphaned);
+   c. `config#scope` is NOT migrated for region (already consistent); it is kept consistent by the derive-on-save trigger (Requirement 4). A future value RENAME/REMOVE that would strand a `scopegrant#` / `user_tenant_scope` grant is BLOCKED pending SysAdmin realignment (Req 4.6) — a save-time rule, not a migration step
 2. THE migration SHALL be idempotent and re-runnable, and SHALL back up every affected row (per table) before writing
 3. THE migration SHALL be preceded and followed by an integrity scan asserting zero un-migrated rows, zero stranded grants, and zero orphaned member references, consistent with the Requirement 3.5 proof
 4. THE migration SHALL be run against TEST (`test_*` tables) and PRODUCTION (unprefixed tables) IDENTICALLY, each integrity-scan-gated, before `test → main` is considered safe (promotion/migration-parity gate, analysis D5); account targeting per steering 23/41 (`nonprofit-deploy`, 506221081911)
