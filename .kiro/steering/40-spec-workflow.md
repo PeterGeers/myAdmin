@@ -90,3 +90,12 @@ Optional/supporting docs when useful: a `README.md` navigation guide, `analysis.
     stack, a new deploy path, a new usage plan) as its own task;
   - the **promote `test`→`main`** step as the production-release gate.
   A spec that ships code but names no CI/CD task is incomplete.
+
+### All-planes delivery (no half-shipped features)
+
+A feature is NOT delivered until EVERY plane a user or operator touches reflects the change — not just the backend or the data. That means all of: the SAM module plane (`sam/**`), the Flask/MySQL plane (`backend/src/**`), the React frontend (`frontend/src/**`), the stored DATA / migrations, AND the admin-facing UI. "Backend done" is not "feature done".
+
+- **Enumerate the planes, then write a task per plane.** When a behavior change is planned, list which planes it touches and create a corresponding task for each affected one. A backend/data change that alters what a field *is* — its vocabulary source, its type semantics, a retired-status flag — REQUIRES the matching frontend editor/display change in the SAME spec. Never "backend now, UI later".
+- **The trap this prevents:** shipping a model or data change while an admin screen still tells the user to manage the thing the old way — e.g. a field-config modal pointing the admin at a catalog that the very same change is deleting. That mismatch is a defect in the current spec, not a follow-up item for a future one.
+- **Definition-of-done for a spec includes:** every affected plane updated, paired tests per plane (change-with-tests), and an explicit check that no UI anywhere still reflects the pre-change model.
+- **Cross-reference:** `32-frontend-ui.md`, `30-backend-api-flask-mysql.md`, `35-sam-module-architecture-sam.md`, `39-backend-data-access-sam-dynamodb.md`, `38-sam-module-field-config.md`.
