@@ -202,9 +202,14 @@ def migrate_tenant(
     caller / test can assert what was migrated). Idempotent: a tenant whose rows already carry
     ``options`` and no ``choices`` plans and applies nothing.
 
-    Each apply is ``set_field(tenant_id, field_key, {"options": [...], "choices": None})`` — the
-    service emits ``SET ...options`` + ``REMOVE ...choices`` as ONE version-conditional
-    ``update_item`` (no whole-row replace, R3.3 / steering 39).
+    Each entry is rewritten with TWO scoped Change-Ops (03a C2↔C7 coupling): first
+    ``set_field(tenant_id, field_key, {"options": [...]})`` writes the canonical ``options`` (an
+    allowed definition attr), then ``remove_legacy_choices(tenant_id, field_key)`` drops the
+    retired ``choices`` attribute. A SINGLE ``{"options": ..., "choices": None}`` call is no longer
+    possible: C2 removed ``choices`` from the write surface, so ``set_field`` now rejects any
+    payload mentioning ``choices`` (even ``choices: None``) BEFORE it could become a REMOVE — the
+    dedicated legacy-removal op is used instead. Both ops are version-conditional ``update_item``
+    writes on named paths (no whole-row replace, R3.3 / steering 39).
     """
     out = out if out is not None else sys.stdout
     # The reader serves the storage ``overrides`` map under the wire key ``fixed_overrides``; map
@@ -230,11 +235,16 @@ def migrate_tenant(
         )
         if dry_run:
             continue
+        # Two scoped Change-Ops: write the canonical options (allowed — `options` is on the write
+        # surface), then drop the retired `choices` via the dedicated legacy-removal op. `choices`
+        # is OFF the normal write surface (C2), so a single {"options":..., "choices": None} call
+        # would be rejected by set_field's attr-surface guard before it could REMOVE.
         service.set_field(
             tenant_id,
             plan.field_key,
-            {"options": plan.options, "choices": None},
+            {"options": plan.options},
         )
+        service.remove_legacy_choices(tenant_id, plan.field_key)
     return plans
 
 

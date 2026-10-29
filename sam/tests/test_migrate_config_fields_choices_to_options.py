@@ -13,10 +13,14 @@ Two layers, both without AWS / boto3 (steering 34/39):
 
 2. **Live driver** (:func:`migrate_tenant`) — driven over an in-memory ``FakeTable`` wired to the
    REAL reader + REAL Change-Op write repository + REAL ``ConfigFieldsCrudService`` (no mocking of
-   the write mechanics). Proves the rewrite goes through the Change-Op ``update_item`` path (a
-   named-path ``SET options`` + ``REMOVE choices`` — NOT a whole-row ``put_item`` replace,
-   R3.3 / steering 39), that the real h-dcn ``referral_source``-shaped vocabulary survives as
-   value-only ``options``, and that a re-run is a no-op (idempotence).
+   the write mechanics). Proves the rewrite goes through the Change-Op ``update_item`` path as TWO
+   scoped ops (03a C2↔C7 coupling): a ``SET <map>.<key>.options`` via ``set_field`` then a
+   ``REMOVE <map>.<key>.choices`` via the dedicated ``remove_legacy_choices`` op — NOT a whole-row
+   ``put_item`` replace (R3.3 / steering 39). (C2 retired ``choices`` from the write surface, so a
+   single ``{"options":..., "choices": None}`` call is no longer possible — it would be rejected by
+   ``set_field``'s attr-surface guard; the migration uses the legacy-removal op instead.) It also
+   proves the real h-dcn ``referral_source``-shaped vocabulary survives as value-only ``options``,
+   and that a re-run is a no-op (idempotence).
 
 **Validates: Requirements 2.1** · **Components: C7**
 """
@@ -379,7 +383,11 @@ def test_migrate_tenant_uses_change_op_update_item_never_whole_row_put():
 
     mig.migrate_tenant(_TENANT, service=service, reader=reader)
 
-    assert table.update_item_calls >= 1, "the rewrite must go through update_item (Change-Op path)"
+    # Two scoped Change-Ops per entry: a SET options (set_field) + a REMOVE choices
+    # (remove_legacy_choices) — each its own version-conditional update_item.
+    assert table.update_item_calls >= 2, (
+        "the rewrite must go through update_item as TWO scoped ops (SET options + REMOVE choices)"
+    )
     assert table.put_item_calls == puts_before, (
         "the migration must NOT issue a whole-row put_item replace (R3.3 / steering 39)"
     )
