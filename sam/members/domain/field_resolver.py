@@ -372,11 +372,12 @@ class FieldResolver:
     ) -> None:
         """Fail fast if the overlay tries to weaken a platform invariant (a config bug).
 
-        Rejects (Property 7 fail-fast semantics): an override of an unknown field key; loosening
-        a platform-required fixed field; a variable field colliding with a fixed/calculated key;
-        an enum field with no options/choices; and any ``functional_group`` reference (on a fixed
-        override, a calculated override, or a variable field) that is not present in the tenant's
-        ``functional_groups`` catalog (when a non-empty catalog is authored).
+        Rejects (Property 7 fail-fast semantics): an override of an unknown field key; a variable
+        field colliding with a fixed/calculated key; an enum field with no options/choices; and any
+        ``functional_group`` reference (on a fixed override, a calculated override, or a variable
+        field) that is not present in the tenant's ``functional_groups`` catalog (when a non-empty
+        catalog is authored). The former no-relax binding (loosening a platform-required fixed
+        field) was REMOVED (03b Req 1) — requiredness is the admin's to set on any field.
 
         S5j (design D1a): an ``enum`` field with no inline choices is NOT a config bug when it is
         bound to a scope dimension — i.e. its key is present in ``scope_vocab`` (the
@@ -428,10 +429,9 @@ class FieldResolver:
                     "overrides an unknown field (only fixed/calculated fields may be overridden)"
                 )
                 continue
-            if fixed is not None:
-                # An overlay may tighten (optional → required) but never loosen a required field.
-                if override.required is False and fixed.required:
-                    reasons[dotted] = "cannot make a platform-required fixed field optional"
+            # The former no-relax clause (an overlay could not make a platform-required fixed
+            # field optional) was a Hardcoded_Binding that OVERRULED the admin and is REMOVED
+            # (03b Req 1.1/1.4): requiredness is the admin's to set on any field but member_id.
             _check_group(dotted, override.functional_group)
 
         for name, of in overlay.fields.items():

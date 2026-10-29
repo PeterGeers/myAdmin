@@ -53,6 +53,27 @@ const APPLICATION_ATTRS = [
 ] as const;
 
 /**
+ * The BOOLEAN attributes whose OFF state must be emitted as an EXPLICIT `false`, never dropped as
+ * `undefined` (spec 03b BU-5, Req 2 — the toggle-persistence root cause). These are the field
+ * attributes an admin turns ON/OFF with a switch; a true→false transition has to reach the backend
+ * as a deliberate `false` so a reload shows OFF. Every OTHER attr keeps absent-means-unchanged.
+ *
+ * Split by surface so each emitter only ever considers its OWN booleans:
+ *  - `required`/`visible` live on the DEFINITION surface (`set_field`);
+ *  - `application_visible`/`application_required` live on the APPLICATION surface
+ *    (`set_field_application`).
+ *
+ * Why this is the ROOT fix (Req 2.4): the diff previously treated `undefined` as BOTH "unchanged"
+ * and "turned off", so an OFF emitted no value and the write silently reverted on reload. By
+ * diffing each boolean against the LOADED (baseline) state here — if it was truthy in the baseline
+ * and is no longer truthy in the working entry, emit an explicit `false` — NO boolean attribute can
+ * drop an OFF, now or for a future boolean (so 03a's `required` fix + 03b's
+ * `application_visible`/`application_required` fix cannot recur a fourth time).
+ */
+const DEFINITION_BOOLEAN_ATTRS = ['required', 'visible'] as const;
+const APPLICATION_BOOLEAN_ATTRS = ['application_visible', 'application_required'] as const;
+
+/**
  * The field DEFINITION attributes the `set_field` op accepts (server-owned placement).
  *
  * Single-vocabulary (spec 03a / C1): the enum vocabulary is authored and emitted under the ONE
@@ -119,24 +140,79 @@ function foldLabel(entry: Dict): MembersConfigValue | undefined {
   return Object.keys(folded).length > 0 ? (folded as MembersConfigValue) : undefined;
 }
 
-/** Pick the DEFINITION attrs off a field entry, folding `label_*` → `label`. */
-function definitionAttrs(entry: Dict): Dict {
+/**
+ * True when a field entry is SCOPE-BACKED: it carries a `scope` attr whose `enabled` is truthy.
+ * A scope-backed field's vocabulary lives in the SEPARATE `config#scope` dimension (authored via
+ * `PUT /members/config/config#scope`), NOT on the `config#fields` row — so its `config#fields`
+ * `set_field` payload must carry NO inline `options` (the backend W2 guard rejects it). The editor
+ * seeds `options` on read from the scope dimension (the C4 read seam) purely for display; re-sending
+ * it on save is what trips W2. A field with no `scope`, or `scope.enabled` falsy, is NOT scope-backed
+ * and keeps emitting `options` as a normal enum.
+ */
+function isScopeBacked(entry: Dict): boolean {
+  const scope = entry.scope;
+  return isRecord(scope) && !!(scope as Dict).enabled;
+}
+
+/**
+ * Emit the explicit OFF (`false`) for any BOOLEAN attribute that was TRUTHY in the baseline and is
+ * no longer truthy in the working entry (spec 03b BU-5 / Req 2 — the toggle root cause). Diffing
+ * against the LOADED (`before`) state is what distinguishes "unchanged" (absent in both → nothing
+ * written) from "turned OFF" (truthy before → `false` now), so an OFF is never dropped as a silent
+ * `undefined`. A still-truthy / still-absent boolean is left to the ordinary attr copy below.
+ *
+ * `before` is the field's baseline entry (the state last loaded from the server), or `undefined`
+ * for a genuinely NEW field (nothing was ON to turn OFF, so no explicit `false` is forced).
+ */
+function emitExplicitBooleanOff(
+  attrs: Dict,
+  entry: Dict,
+  before: Dict | undefined,
+  booleanAttrs: readonly string[],
+): void {
+  if (!before) return;
+  for (const attr of booleanAttrs) {
+    const wasOn = before[attr] === true;
+    const nowOn = entry[attr] === true;
+    if (wasOn && !nowOn) attrs[attr] = false;
+  }
+}
+
+/**
+ * Pick the DEFINITION attrs off a field entry, folding `label_*` → `label`. `before` is the
+ * baseline entry so a boolean DEFINITION attr (`required`/`visible`) turned OFF emits an explicit
+ * `false` instead of silently vanishing (Req 2.4).
+ */
+function definitionAttrs(entry: Dict, before?: Dict): Dict {
   const attrs: Dict = {};
   const label = foldLabel(entry);
   if (label !== undefined) attrs.label = label;
+  // A scope-backed field does NOT own its vocabulary — the `config#scope` dimension does. Omit the
+  // display-seeded `options` so the save can't trip the backend W2 guard (scope + options). The
+  // `scope` attr itself is still emitted; only `options` is suppressed for a scope-backed field.
+  const scopeBacked = isScopeBacked(entry);
   for (const attr of DEFINITION_ATTRS) {
     if (attr === 'label') continue;
+    if (attr === 'options' && scopeBacked) continue;
     if (entry[attr] !== undefined) attrs[attr] = entry[attr] as MembersConfigValue;
   }
+  // A true→false transition on a boolean definition attr must reach the server as an explicit false.
+  emitExplicitBooleanOff(attrs, entry, before, DEFINITION_BOOLEAN_ATTRS);
   return attrs;
 }
 
-/** Pick the four APPLICATION attrs off a field entry. */
-function applicationAttrs(entry: Dict): Dict {
+/**
+ * Pick the four APPLICATION attrs off a field entry. `before` is the baseline entry so a boolean
+ * APPLICATION attr (`application_visible`/`application_required`) turned OFF emits an explicit
+ * `false` rather than a dropped `undefined` (Req 2.1/2.4 — the toggle-persistence root cause).
+ */
+function applicationAttrs(entry: Dict, before?: Dict): Dict {
   const attrs: Dict = {};
   for (const attr of APPLICATION_ATTRS) {
     if (entry[attr] !== undefined) attrs[attr] = entry[attr] as MembersConfigValue;
   }
+  // A true→false transition on a boolean application attr must reach the server as an explicit false.
+  emitExplicitBooleanOff(attrs, entry, before, APPLICATION_BOOLEAN_ATTRS);
   return attrs;
 }
 
@@ -220,15 +296,18 @@ export function deriveFieldConfigChangeOps(
       const key = bareFieldKey(storageKey);
       if (!key) continue;
 
-      // DEFINITION op — emitted when the definition surface changed (or the field is new).
-      const defAttrs = definitionAttrs(entry);
+      // DEFINITION op — emitted when the definition surface changed (or the field is new). The
+      // working `defAttrs` is diffed AGAINST the baseline so a boolean turned OFF emits an explicit
+      // `false`; the baseline's own attrs (`beforeDef`) are picked WITHOUT a before (pure snapshot).
+      const defAttrs = definitionAttrs(entry, before);
       const beforeDef = before ? definitionAttrs(before) : undefined;
       if (!before || changed(defAttrs as MembersConfigValue, beforeDef as MembersConfigValue)) {
         if (nonEmpty(defAttrs)) ops.push({ op: 'set_field', key, attrs: defAttrs });
       }
 
-      // APPLICATION op — the disjoint four-attr surface, emitted when it changed (or is new).
-      const appAttrs = applicationAttrs(entry);
+      // APPLICATION op — the disjoint four-attr surface, emitted when it changed (or is new). Same
+      // baseline-diff so an application boolean turned OFF emits `false` (never a dropped undefined).
+      const appAttrs = applicationAttrs(entry, before);
       const beforeApp = before ? applicationAttrs(before) : undefined;
       if (changed(appAttrs as MembersConfigValue, beforeApp as MembersConfigValue) && nonEmpty(appAttrs)) {
         ops.push({ op: 'set_field_application', key, attrs: appAttrs });

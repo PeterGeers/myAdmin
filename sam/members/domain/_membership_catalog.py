@@ -202,14 +202,26 @@ class CatalogMixin:
 
     @staticmethod
     def _serialize_enum_option(opt: EnumOption) -> dict[str, Any]:
-        """Project a rich :class:`EnumOption` (``{value, label{nl,en}, roles?}``) to pure JSON.
+        """Project a rich :class:`EnumOption` to pure JSON — ``{value, label{nl,en}, allowed,
+        order?, roles?}`` (03b unified enum model, Req 3.1).
 
         Surfaces the value-level ``roles`` gate (R4.12) so the frontend can filter a dropdown to
         the caller's permitted options as a CONVENIENCE — the domain remains the authoritative
         gate (:meth:`_reject_disallowed_enum_values`). ``roles`` is omitted when the option is
         open (no restriction) so the payload stays minimal.
+
+        ``allowed`` (the retired/grandfather flag, Req 3.2) is ALWAYS carried — the frontend
+        needs it to hide a retired option from the picker while still displaying an existing
+        stored value — so it is NOT omitted even when ``True``. ``order`` (render / default rank)
+        is carried only when the option is ranked (``None`` → omitted, payload stays minimal).
         """
-        payload: dict[str, Any] = {"value": opt.value, "label": dict(opt.label)}
+        payload: dict[str, Any] = {
+            "value": opt.value,
+            "label": dict(opt.label),
+            "allowed": bool(opt.allowed),
+        }
+        if opt.order is not None:
+            payload["order"] = int(opt.order)
         if opt.roles:
             payload["roles"] = list(opt.roles)
         return payload

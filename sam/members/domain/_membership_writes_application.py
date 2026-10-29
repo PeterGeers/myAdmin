@@ -149,13 +149,38 @@ class ApplicationWritesMixin:
     def _default_membership_type(self, tenant_id: str) -> str | None:
         """The tenant-default ``membership_type`` to stamp when the form does not expose it (R11.3).
 
-        The tenant-default is the FIRST active catalog entry in presentation order — the same
-        "first option" the exposed form pre-selects (D21), and a live, assignable type by
-        construction (``active_only=True``), so the stamped value passes
-        :meth:`_validate_membership_type_reference`. Returns ``None`` for a tenant whose catalog is
-        empty; the caller then lets the reference check surface the normal unknown-reference 422
-        rather than persisting a dangling type (R11.4).
+        Under the 03b unified enum model (Req 3.4a) the default is the FIRST ``allowed:true``
+        option BY ``order`` of the ``membership_type`` FIELD's own resolved options — the same
+        "first option" the exposed form pre-selects (D21) and an assignable value by construction
+        (``allowed:true``), so the stamped value passes :meth:`_validate_membership_type_reference`.
+        Options with an absent ``order`` sort after ranked ones, falling back to list position (a
+        stable tie-break). Returns ``None`` when the field has no assignable option; the caller
+        then lets the reference check surface the normal unknown-reference 422 rather than
+        persisting a dangling type (R11.4).
+
+        **Transitional fallback (03b migration safety, Req 6.4).** While the field carries NO
+        inline options yet (pre-fold, Task 7) it falls back to the FIRST active catalog entry in
+        presentation order — the pre-03b behaviour — so a deploy landing before the fold still
+        stamps a valid default. Removed in CONTRACT (Task 10.2) with the catalog.
         """
+        options = self._resolved_membership_type_options(tenant_id)
+        if options:
+            allowed = [o for o in options if o.allowed]
+            if not allowed:
+                return None
+            # First allowed option BY order; an absent order sorts last (float('inf')), the
+            # list position is the stable tie-break — mirroring the design's "first allowed:true
+            # by order (tie / absent order → input position)".
+            ranked = sorted(
+                enumerate(allowed),
+                key=lambda io: (
+                    io[1].order if io[1].order is not None else float("inf"),
+                    io[0],
+                ),
+            )
+            return str(ranked[0][1].value)
+
+        # Transitional fallback (Req 6.4): no inline options yet → first active catalog entry.
         entries = self._repo.list_membership_types(tenant_id, active_only=True)
         for entry in entries:
             return str(entry.type_code)

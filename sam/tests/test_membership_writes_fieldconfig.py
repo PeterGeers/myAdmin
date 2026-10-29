@@ -144,10 +144,13 @@ class TestOptionsAuthoredRendersIdenticallyInBothReads:
         # {value,label} options, in authored order, with both locales.
         editor = service.get_field_config(_TENANT)
         opts = _field(editor, "referral_source")["options"]
+        # 03b (BU-1, Req 3.1): an inline enum option now also carries the `allowed` retired/
+        # grandfather flag (always present; defaults True so an unauthored option stays offered).
+        # `order` is omitted here because these options are unranked (EnumOption.order is None).
         assert opts == [
-            {"value": "internet", "label": {"nl": "Internet", "en": "Internet"}},
-            {"value": "facebook", "label": {"nl": "Facebook", "en": "Facebook"}},
-            {"value": "staff_only", "label": {"nl": "Staf", "en": "Staff"}},
+            {"value": "internet", "label": {"nl": "Internet", "en": "Internet"}, "allowed": True},
+            {"value": "facebook", "label": {"nl": "Facebook", "en": "Facebook"}, "allowed": True},
+            {"value": "staff_only", "label": {"nl": "Staf", "en": "Staff"}, "allowed": True},
         ]
 
     def test_both_reads_agree_on_the_exposed_option_values(self, service):
@@ -174,6 +177,76 @@ class TestOptionsAuthoredRendersIdenticallyInBothReads:
         public_by_val = {o["value"]: o["label"] for o in _field(public, "referral_source")["options"]}
         for val in public_by_val:
             assert public_by_val[val] == editor_by_val[val]
+
+
+# ── 03b (BU-1) — the `allowed` retired flag + `order` ride through the serializers ────
+
+
+class TestEnumOptionAllowedAndOrderSerialized:
+    """03b (BU-1, Req 3.1/3.2): an inline enum option's `allowed` (retired/grandfather flag) and
+    `order` (render/default rank) reach the resolved-view (staff) AND public API DTOs. `allowed`
+    is ALWAYS carried (the frontend needs it to hide a retired option while still showing a stored
+    value); `order` is carried only when ranked; a defaulted-True `allowed` is still emitted."""
+
+    def _service_with(self, catalog_repo, options):
+        overlay = TenantOverlay(
+            fields={
+                "referral_source": OverlayField(
+                    key="referral_source",
+                    type=FieldType.ENUM,
+                    label={"nl": "Bron", "en": "Source"},
+                    options=options,
+                    functional_group="membership",
+                    order=50,
+                    application_visible=True,
+                )
+            }
+        )
+        return MembershipService(
+            catalog_repo, overlay_provider=StaticOverlayProvider({_TENANT: overlay})
+        )
+
+    def test_staff_read_carries_allowed_true_and_order_when_ranked(self, catalog_repo):
+        svc = self._service_with(
+            catalog_repo,
+            (
+                EnumOption(value="internet", label={"en": "Internet"}, order=10),
+                EnumOption(value="facebook", label={"en": "Facebook"}, order=20),
+            ),
+        )
+        opts = _field(svc.get_field_config(_TENANT), "referral_source")["options"]
+        assert opts == [
+            {"value": "internet", "label": {"en": "Internet"}, "allowed": True, "order": 10},
+            {"value": "facebook", "label": {"en": "Facebook"}, "allowed": True, "order": 20},
+        ]
+
+    def test_staff_read_carries_allowed_false_for_a_retired_option(self, catalog_repo):
+        svc = self._service_with(
+            catalog_repo,
+            (
+                EnumOption(value="internet", label={"en": "Internet"}),
+                EnumOption(value="fax", label={"en": "Fax"}, allowed=False),
+            ),
+        )
+        opts = _field(svc.get_field_config(_TENANT), "referral_source")["options"]
+        by_val = {o["value"]: o for o in opts}
+        assert by_val["internet"]["allowed"] is True
+        assert by_val["fax"]["allowed"] is False
+        # order omitted when unranked (EnumOption.order is None)
+        assert "order" not in by_val["internet"]
+
+    def test_public_read_carries_allowed_but_drops_roles(self, catalog_repo):
+        svc = self._service_with(
+            catalog_repo,
+            (
+                EnumOption(value="internet", label={"en": "Internet"}, allowed=True),
+                EnumOption(value="fax", label={"en": "Fax"}, allowed=False, roles=("Staff",)),
+            ),
+        )
+        opts = _field(svc.get_public_field_config(_TENANT), "referral_source")["options"]
+        for o in opts:
+            assert "allowed" in o
+            assert "roles" not in o
 
 
 # ── R3.2 — application_choices (public-form SUBSET) is a separate, unchanged concept ──
@@ -363,7 +436,10 @@ class TestPublicReadConsumesSeamOptionsWithSubsetFilter:
         public = service.get_public_field_config(_TENANT)
         for opt in _field(public, "referral_source")["options"]:
             assert "roles" not in opt
-            assert set(opt) == {"value", "label"}
+            # 03b (BU-1): `allowed` rides through to the public contract (the form needs it to
+            # hide a retired option while still showing a stored value); `order` is omitted when
+            # unranked. The staff-only `roles` gate is still dropped.
+            assert set(opt) == {"value", "label", "allowed"}
 
     def test_public_bare_choices_enum_is_dropped_not_page_blackout(self, catalog_repo, caplog):
         # F10 + C6 (task 9, REVISED per-consumer split): a bare-`choices`, application-visible enum

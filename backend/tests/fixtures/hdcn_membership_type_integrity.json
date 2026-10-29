@@ -1,0 +1,58 @@
+{
+  "_comment": [
+    "REAL h-dcn membership_type integrity fixture (spec 03b BU-7, Task 7.1) — the committed",
+    "proof the all-tenant integrity scan (scripts/scan_membership_type_integrity.py) reads.",
+    "It is NOT a hand-built abstraction. Its three slices are the live h-dcn data:",
+    "",
+    "1. field_options — the POST-FOLD `config#fields.membership.membership_type` option list,",
+    "   REUSED verbatim from backend/tests/fixtures/hdcn_membership_type_options.json (the slice",
+    "   committed in Task 1.3). The 7 values + {nl,en} labels + roles gates are the h-dcn",
+    "   Lidmaatschap Beheer catalog documented in scripts/onboarding/members/h-dcn/ONBOARDING.md",
+    "   and seeded by sam/members/migration/hdcn_catalog_seed.py (HDCN_MEMBERSHIP_TYPES). `erelid`",
+    "   is the retired entry folded to allowed:false (design 'Migration-safety proof').",
+    "",
+    "2. catalog_rows — the membershiptype#<code> catalog as it stands at fold time, in the",
+    "   MembershipTypeEntry shape {tenant_id, type_code, label{nl,en}, active, order}. These are",
+    "   the rows the EXPAND migration (Task 7.2) folds onto the field and CONTRACT (Task 10.1)",
+    "   retires. `erelid` carries active:false — the one retired entry the design proof identifies.",
+    "",
+    "3. member_tally — the authoritative count of stored member records by",
+    "   membership.membership_type, from the design 'Migration-safety proof' run against the FULL",
+    "   live h-dcn member population (1215 member# rows, complete query, no pagination, 2026-10-29).",
+    "   gewoon_lid 936 + gezins_lid 200 + overig 57 + gezins_donateur 17 + erelid 4 + donateur 1",
+    "   = 1215. `sponsor` has 0 members (an offered option nobody has picked — harmless).",
+    "",
+    "The scan asserts, against these real slices: (a) every ACTIVE catalog type_code appears as a",
+    "field option value (zero un-folded catalog rows), and (b) every member-held value resolves to",
+    "a field option INCLUDING the grandfathered erelid=allowed:false (zero orphaned references)."
+  ],
+  "tenant_id": "h-dcn",
+  "field_key": "membership_type",
+  "dotted_key": "membership.membership_type",
+  "field_options": [
+    { "value": "gewoon_lid", "label": { "nl": "Gewoon lid", "en": "Regular member" }, "order": 10, "allowed": true },
+    { "value": "gezins_lid", "label": { "nl": "Gezinslid", "en": "Family member" }, "order": 20, "allowed": true },
+    { "value": "donateur", "label": { "nl": "Donateur", "en": "Donor" }, "order": 30, "allowed": true },
+    { "value": "gezins_donateur", "label": { "nl": "Gezinsdonateur", "en": "Family donor" }, "order": 40, "allowed": true },
+    { "value": "erelid", "label": { "nl": "Erelid", "en": "Honorary member" }, "roles": ["Members_CRUD", "System_User_Management"], "order": 50, "allowed": false },
+    { "value": "sponsor", "label": { "nl": "Sponsor", "en": "Sponsor" }, "order": 60, "allowed": true },
+    { "value": "overig", "label": { "nl": "Overig", "en": "Other" }, "roles": ["Members_CRUD", "System_User_Management"], "order": 70, "allowed": true }
+  ],
+  "catalog_rows": [
+    { "tenant_id": "h-dcn", "type_code": "gewoon_lid", "label": { "nl": "Gewoon lid", "en": "Regular member" }, "active": true, "order": 10 },
+    { "tenant_id": "h-dcn", "type_code": "gezins_lid", "label": { "nl": "Gezinslid", "en": "Family member" }, "active": true, "order": 15 },
+    { "tenant_id": "h-dcn", "type_code": "erelid", "label": { "nl": "Erelid", "en": "Honorary member" }, "active": false, "order": 20 },
+    { "tenant_id": "h-dcn", "type_code": "donateur", "label": { "nl": "Donateur", "en": "Donor" }, "active": true, "order": 30 },
+    { "tenant_id": "h-dcn", "type_code": "gezins_donateur", "label": { "nl": "Gezinsdonateur", "en": "Family donor" }, "active": true, "order": 35 },
+    { "tenant_id": "h-dcn", "type_code": "sponsor", "label": { "nl": "Sponsor", "en": "Sponsor" }, "active": true, "order": 40 },
+    { "tenant_id": "h-dcn", "type_code": "overig", "label": { "nl": "Overig", "en": "Other" }, "active": true, "order": 50 }
+  ],
+  "member_tally": {
+    "gewoon_lid": 936,
+    "gezins_lid": 200,
+    "overig": 57,
+    "gezins_donateur": 17,
+    "erelid": 4,
+    "donateur": 1
+  }
+}

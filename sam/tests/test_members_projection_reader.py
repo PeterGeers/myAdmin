@@ -436,6 +436,58 @@ class TestGetOverlay:
         reader = MembersProjectionReader(table=table)
         assert reader.get_overlay("h-dcn").overrides["membership.status"].options is None
 
+    def test_get_overlay_option_absent_allowed_reads_true_back_compat(self):
+        """03b (BU-1, Req 3.1/3.2): an option authored WITHOUT an ``allowed`` key reads as
+        ``allowed=True`` — every option predates the retired flag and must keep being offered
+        (back-compat). An absent ``order`` reads as ``None`` (unranked)."""
+        table = FakeTable()
+        overrides = {
+            "membership.status": {"options": [{"value": "active", "label": {"en": "Active"}}]}
+        }
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        opt = reader.get_overlay("h-dcn").overrides["membership.status"].options[0]
+        assert opt.allowed is True
+        assert opt.order is None
+
+    def test_get_overlay_option_reads_allowed_false_and_order(self):
+        """03b (BU-1, Req 3.1/3.2): an explicit ``allowed:false`` (retired/grandfather) and an
+        integer ``order`` round-trip onto the :class:`EnumOption`."""
+        table = FakeTable()
+        overrides = {
+            "membership.status": {
+                "options": [
+                    {"value": "active", "label": {"en": "Active"}, "allowed": True, "order": 10},
+                    {"value": "died", "label": {"en": "Passed Away"}, "allowed": False, "order": 20},
+                ]
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        opts = reader.get_overlay("h-dcn").overrides["membership.status"].options
+        assert [(o.value, o.allowed, o.order) for o in opts] == [
+            ("active", True, 10),
+            ("died", False, 20),
+        ]
+
+    def test_get_overlay_option_non_integer_order_reads_none(self):
+        """03b: a stray non-integer ``order`` degrades to ``None`` (config data, not user input —
+        tolerant coercion), rather than raising."""
+        table = FakeTable()
+        overrides = {
+            "membership.status": {
+                "options": [{"value": "active", "order": "not-a-number"}]
+            }
+        }
+        table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
+
+        reader = MembersProjectionReader(table=table)
+        opt = reader.get_overlay("h-dcn").overrides["membership.status"].options[0]
+        assert opt.order is None
+        assert opt.allowed is True
+
     def test_get_overlay_variable_field_carries_scope_attribute(self):
         """Phase 3 step 9 (R2.1): a projected field `scope` attribute → FieldScope (SAM read repr).
 

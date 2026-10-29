@@ -111,19 +111,18 @@ class FieldConfigSurfaceMixin:
 
         1. :meth:`FieldResolver.resolve` — the fixed base ⊕ per-tenant overlay field config
            (design C3), keyed by the verified ``tenant_id`` (never a client-supplied tenant).
-        2. :meth:`MembersRepository.list_membership_types` with ``active_only=True`` — the
-           tenant's ACTIVE Lidmaatschap Beheer catalog entries (design C8), ordered by
-           ``(order, type_code)``. Soft-deleted (``active=false``) types are excluded, so
-           they never appear as a selectable option.
 
-        The active catalog entries are injected as the ``membership_type`` field's ``options``
-        (that fixed field is a :class:`~sam.members.domain.fixed_fields.FieldType.REFERENCE`),
-        so the frontend renders a dropdown of ONLY that tenant's active types — no free text,
-        no hardcoded vocabulary (R2.4).
+        Under the 03b unified enum model (Req 3.3) the ``membership_type`` field carries its OWN
+        resolved ``options`` like any other enum — assembled by the ONE
+        :meth:`_assemble_field_options` pass, NOT injected from a separate catalog feed. While the
+        migration (Task 7) has not yet folded the catalog into the field's options, that seam
+        FALLS BACK to the tenant's ACTIVE ``list_membership_types`` catalog (transitional, Req 6.4)
+        so a pre-fold deploy still serves a usable vocabulary; the fallback is removed in CONTRACT
+        (Task 10.2). There is no standalone ``membership_type_options`` feed — consumers read the
+        field's ``options`` from the ``fields`` list, so there is no second source to drift from.
 
         Returns a JSON-friendly dict (the edge ``json.dumps`` it): the flat ordered ``fields``
-        list, the same fields bucketed ``by_group`` (``personal`` / ``membership`` / overlay),
-        and the standalone ``membership_type_options`` catalog feed.
+        list and the same fields bucketed ``by_group`` (``personal`` / ``membership`` / overlay).
         """
         scope_vocab = self._scope_vocab(tenant_id)
         config = self._field_resolver.resolve(tenant_id, scope_vocab=scope_vocab)
@@ -170,7 +169,11 @@ class FieldConfigSurfaceMixin:
             # dropdown and the write-validator's allowed set stay in lockstep. Empty when the
             # tenant has no enabled dimension (or no provider is wired).
             "dimensions": self._serialize_scope_dimensions(tenant_id),
-            "membership_type_options": options,
+            # NOTE (03b BU-3, Req 3.3): the standalone ``membership_type_options`` feed is DROPPED.
+            # Under the unified enum model the ``membership_type`` field carries its OWN options
+            # (served via ``_assemble_field_options`` into the field's ``options`` like any other
+            # enum — no per-kind catalog injection, no separate feed). Consumers read the field's
+            # ``options`` from the ``fields`` list; there is no second source to drift from it.
             # The tenant-level default rows-per-page (Phase 2 step (a) — the former
             # `view_contexts.page_size` re-home, R2.1/R1.2). Sourced from the injected
             # DefaultPageSizeProvider (the projection reader's `config#fields`
@@ -558,10 +561,15 @@ class FieldConfigSurfaceMixin:
         by field kind. The three sources are the ONLY per-kind decision, and all are INJECTED
         (the pure :class:`FieldResolver` reads no catalog/DB):
 
-        - **reference** (``membership_type``): the injected ACTIVE-catalog options map
-          (``_active_membership_type_options``) — the F8 reference population, moved from the
-          one-off merge in :meth:`get_field_config` into this uniform pass. Returned as plain
-          ``{value, label, order}`` dicts.
+        - **membership_type** (03b BU-3, Req 3.3): the FIELD's OWN resolved rich
+          :class:`EnumOption`s (``{value, label, allowed, order?}``) — "reference" is now a feature
+          ON the field, so its vocabulary is served from the field itself via the same enum
+          serializer the inline-enum branch uses, NOT injected from a separate catalog. While the
+          migration (Task 7) has not yet folded the catalog into the field's options, this branch
+          FALLS BACK to the injected ACTIVE-catalog ``options`` (``_active_membership_type_options``)
+          so a pre-fold deploy still serves a usable vocabulary (transitional, Req 6.4 — the
+          EXPAND-before-reader gate, consistent with the re-pointed reference check / default). The
+          fallback is removed in CONTRACT (Task 10.2) with the catalog.
         - **scope-backed** (an overlay enum whose key is bound to a tenant scope dimension — its
           key is present in the injected ``scope_vocab``): the dimension's values projected to
           rich ``{value, label}`` options. ``scope_vocab`` / ``scope_dimensions.values`` is the
@@ -584,11 +592,25 @@ class FieldConfigSurfaceMixin:
         declared source at all → ``None``), or a reference whose catalog correctly populates (or
         is simply empty — zero active types yet) — all valid in-progress states.
         """
-        # reference — the injected active-catalog map (F8). Population lives at the seam, never in
-        # the pure resolver. An EMPTY catalog is a legitimately-empty source (zero active types
-        # yet, G5) — NOT the asymmetry — and a non-empty catalog is attached directly here, so a
-        # "non-empty catalog failed to attach" cannot occur structurally; reference never raises.
+        # membership_type — serve the FIELD's OWN inline options, NOT a catalog injection (03b
+        # BU-3, Req 3.3). Under the unified enum model "reference" is a feature ON the field: its
+        # vocabulary lives in the field's own resolved `options` (each `{value, label, allowed,
+        # order?}`), so this seam reads them straight off the field via the SAME enum serializer
+        # the inline-enum branch uses below — one assembly pass, no per-kind catalog injection. The
+        # `allowed`/`order` keys the migration folds in ride through unchanged (the grandfather
+        # flag the picker needs to hide a retired value while existing records keep it).
+        #
+        # Transitional catalog fallback (03b migration safety, Req 6.4 — the EXPAND-before-reader
+        # gate, consistent with the re-pointed reference check in `_membership_writes_validation`
+        # / `_membership_writes_application`): while the field carries NO inline options yet
+        # (pre-fold, Task 7) this re-pointed reader FALLS BACK to the injected active-catalog
+        # `options` so a deploy landing before the fold still serves a usable membership_type
+        # vocabulary. The fallback is REMOVED in CONTRACT (Task 10.2) once the fold is verified
+        # and the catalog rows are retired — thereafter the field's own options are the only source.
         if field.dotted_key() == MEMBERSHIP_TYPE_FIELD_KEY:
+            if field.options:
+                return [self._serialize_enum_option(o) for o in field.options]
+            # Pre-fold: no inline options yet → the legacy active-catalog feed (transitional).
             return [dict(o) for o in options]
 
         # scope-backed — project the injected scope dimension's values to rich options. The key
