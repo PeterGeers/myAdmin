@@ -234,8 +234,8 @@ function formFromResolvedField(
 
 /**
  * Fallback seed from the raw OVERLAY field — used only when the resolved descriptor is unavailable
- * (R1.4 degrade-never-block). Mirrors the pre-remediation seed (reads the overlay's `choices` /
- * flat `label_*`), with the one deliberate change that an absent `type` is left EMPTY rather than
+ * (R1.4 degrade-never-block). Reads the overlay's ONE canonical `options` vocabulary (spec 03a /
+ * C1 — never a `choices` key) and the flat `label_*`, with an absent `type` left EMPTY rather than
  * silently defaulted to `'string'` (R2.2).
  */
 function formFromOverlayField(key: string, field: OverlayField | undefined): FieldForm {
@@ -253,7 +253,9 @@ function formFromOverlayField(key: string, field: OverlayField | undefined): Fie
     required: field.required === true,
     visible: field.visible !== false,
     read_only: field.read_only === true,
-    choices: (field.choices as MembersConfigValue) ?? [],
+    // Seed the editor's `choices` form state from the overlay's ONE canonical `options` (never a
+    // legacy `choices` key) — the single vocabulary (spec 03a / C1, F6).
+    choices: (field.options as MembersConfigValue) ?? [],
     scopeEnabled: scope.enabled === true,
     // Single-vocabulary (R3.2): no scope values here — only `required_for`. A legacy stored
     // `scope.values` is honoured server-side as a migration fallback; the modal never edits it.
@@ -393,7 +395,11 @@ export const MembersFieldModal: React.FC<MembersFieldModalProps> = ({
     if (!form.visible) field.visible = false;
     if (form.read_only) field.read_only = true;
     if (form.type === 'enum' && Array.isArray(form.choices) && form.choices.length > 0) {
-      field.choices = form.choices;
+      // Single-vocabulary (spec 03a / C1): the enum vocabulary is authored under the ONE canonical
+      // `options` key on the working overlay — NEVER `choices` — so the Change-Op write emits only
+      // `options` (the `choices` key was dropped from DEFINITION_ATTRS). The in-memory form field is
+      // still called `choices` (it drives the shared EnumOptionsEditor), but it is stored as `options`.
+      field.options = form.choices;
     }
     // Scope-binding attribute (remediation task 3.3, R3.2/R3.3) — only when enabled. SINGLE
     // vocabulary: the stored `scope` is `{ enabled, required_for? }` ONLY; it carries NO `values`
@@ -435,7 +441,9 @@ export const MembersFieldModal: React.FC<MembersFieldModalProps> = ({
         required: form.required ? true : undefined,
         visible: form.visible ? undefined : false,
         read_only: form.read_only ? true : undefined,
-        choices: field.choices ?? undefined,
+        // Single-vocabulary (spec 03a / C1): clear/author the enum vocabulary under the ONE
+        // canonical `options` key — never `choices`.
+        options: field.options ?? undefined,
         scope: field.scope ?? undefined,
       };
       // `functional_group` single source of truth (task 5.1, R6.1/R6.2): the modal does NOT

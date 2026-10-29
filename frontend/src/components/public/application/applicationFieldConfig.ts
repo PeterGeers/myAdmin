@@ -73,7 +73,7 @@ export type PublicChoiceEntry = string | PublicFieldOption;
  *   ResolvedPublicField = {
  *     key(dotted), type, label{nl,en}, functional_group, order,
  *     required(application-required), show_when?,
- *     options?/choices?(application-subset-applied), format?({checker,params})
+ *     options?(application-subset-applied — the ONE canonical key, spec 03a / F5), format?({checker,params})
  *   }
  */
 export interface PublicField {
@@ -104,14 +104,12 @@ export interface PublicField {
    */
   show_when?: Record<string, unknown> | null;
   /**
-   * The enum choice set ALREADY restricted to the application SUBSET (R4a.2) — `options` is the
-   * modern key, `choices` the legacy alias. Either may be a bare `string[]` of values or rich
-   * `{ value, label }` entries; the schema generator restricts the field to these via `.oneOf(...)`
-   * (mirrors server R4a.3) and the renderer draws a Select from them.
+   * The enum choice set ALREADY restricted to the application SUBSET (R4a.2) — the ONE canonical
+   * key is `options` (the legacy `choices` alias is retired, spec 03a / F5). It may be a bare
+   * `string[]` of values or rich `{ value, label }` entries; the schema generator restricts the
+   * field to these via `.oneOf(...)` (mirrors server R4a.3) and the renderer draws a Select from them.
    */
   options?: ReadonlyArray<PublicChoiceEntry> | null;
-  /** Legacy alias for {@link options} (same application-subset semantics). */
-  choices?: ReadonlyArray<PublicChoiceEntry> | null;
   /** Optional declarative format checker (EMAIL / IBAN, R7). Absent = no extra checker. */
   format?: PublicFieldFormat | null;
 }
@@ -151,15 +149,16 @@ export interface PublicFieldConfig {
 export type ApplicationFieldConfig = PublicFieldConfig;
 
 /**
- * Resolve the application CHOICE SUBSET of an enum field to a bare `string[]` of VALUES, from
- * either the modern `options` or legacy `choices` key, tolerating both bare-string and rich
- * `{ value }` entries. Returns an empty array when the field declares no choices.
+ * Resolve the application CHOICE SUBSET of an enum field to a bare `string[]` of VALUES, from the
+ * ONE canonical `options` key, tolerating both bare-string and rich `{ value }` entries. Returns an
+ * empty array when the field declares no options.
  *
- * These are already the public-safe subset (the server filtered them, R4a.2) — the generator uses
- * them directly as the `.oneOf(...)` allow-list (R4a.3).
+ * The read is `options` ONLY — the legacy `?? field.choices` fallback is removed (spec 03a / F5):
+ * these are already the public-safe subset served under the single canonical `options` (the server
+ * filtered them, R4a.2) — the generator uses them directly as the `.oneOf(...)` allow-list (R4a.3).
  */
 export function applicationChoiceValues(field: PublicField): string[] {
-  const raw = field.options ?? field.choices ?? [];
+  const raw = field.options ?? [];
   const values: string[] = [];
   for (const entry of raw) {
     if (typeof entry === 'string') {

@@ -20,13 +20,14 @@ function overlay(): MembersConfigValue {
     functional_groups: [{ key: 'personal', order: 1 }],
     fields: {
       region: {
-        // Single-vocabulary: the overlay field carries `scope = { enabled, required_for }` ONLY
-        // (no `values` list) — the scope values ARE the enum vocabulary (served under `options`).
+        // Single-vocabulary (spec 03a / C1): the overlay field carries its enum vocabulary under
+        // the ONE canonical `options` key (never `choices`), plus `scope = { enabled, required_for }`
+        // ONLY (no `values` list) — the scope values ARE that enum vocabulary.
         type: 'enum',
         label_en: 'Region',
         functional_group: 'personal',
         order: 2,
-        choices: [
+        options: [
           { value: 'Noord', label: { nl: 'Noord', en: 'Noord' } },
           { value: 'Zuid', label: { nl: 'Zuid', en: 'Zuid' } },
         ],
@@ -140,6 +141,25 @@ describe('MembersFieldModal — create', () => {
     fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
     expect(screen.getByText('This field key already exists')).toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('authors an enum vocabulary under the ONE canonical `options` key — NEVER `choices` (spec 03a / C1)', () => {
+    const onChange = vi.fn();
+    renderModal({ mode: 'create', onChange });
+    const modal = screen.getByTestId('members-field-modal');
+    fireEvent.change(within(modal).getByLabelText('Field key'), { target: { value: 'salutation' } });
+    fireEvent.change(within(modal).getByLabelText('Type'), { target: { value: 'enum' } });
+    // Author one enum value via the single shared EnumOptionsEditor.
+    fireEvent.click(within(modal).getByLabelText('Add option'));
+    fireEvent.change(within(modal).getByLabelText('Option 1 value'), { target: { value: 'mr' } });
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as Record<string, any>;
+    const field = next.fields.salutation;
+    // The committed overlay carries the vocabulary under `options`, and NEVER under `choices`.
+    expect((field.options as Array<{ value: string }>).map((o) => o.value)).toEqual(['mr']);
+    expect(field.choices).toBeUndefined();
   });
 
   it('shows the enum choices editor only for the enum type', () => {
@@ -431,8 +451,9 @@ describe('MembersFieldModal — edit', () => {
   /**
    * Property P2 — Scope round-trip (R3.7), single-vocabulary. The scope values ARE the field's
    * enum values: there is ONE editor. Enabling scope, ADDING a value and REMOVING a value via the
-   * enum (Choices) editor, then saving, yields a committed overlay whose enum vocabulary (`choices`)
-   * reflects the edit AND whose `scope` is `{ enabled, required_for }` — the scope dimension's values
+   * enum (Choices) editor, then saving, yields a committed overlay whose enum vocabulary (the ONE
+   * canonical `options` key, spec 03a / C1 — never `choices`) reflects the edit AND whose `scope`
+   * is `{ enabled, required_for }` — the scope dimension's values
    * are DERIVED from that single vocabulary (server builder, task 3.2), never a divergent list.
    */
   it('round-trips a scope vocabulary edit through the ONE enum editor (P2, R3.7)', () => {
@@ -481,10 +502,12 @@ describe('MembersFieldModal — edit', () => {
     const next = onChange.mock.calls[0][0] as Record<string, any>;
     const region = next.fields.region;
 
-    // The committed overlay reflects the vocabulary edit in the ENUM OPTIONS (`choices`): Noord
-    // removed, Oost added → { Zuid, Oost }.
-    const values = (region.choices as Array<{ value: string }>).map((o) => o.value);
+    // The committed overlay reflects the vocabulary edit under the ONE canonical `options` key
+    // (spec 03a / C1 — never `choices`): Noord removed, Oost added → { Zuid, Oost }.
+    const values = (region.options as Array<{ value: string }>).map((o) => o.value);
     expect(values).toEqual(['Zuid', 'Oost']);
+    // The retired `choices` key is NEVER authored on the committed overlay.
+    expect(region.choices).toBeUndefined();
 
     // Scope remains `{ enabled, required_for }` ONLY — single-vocabulary, no separate `values` list.
     // The config#scope dimension values are DERIVED from the enum vocabulary above by the builder
@@ -518,7 +541,8 @@ describe('MembersFieldModal — edit', () => {
           label_en: 'Region',
           functional_group: 'contact',
           order: 2,
-          choices: [{ value: 'Noord', label: { nl: 'Noord', en: 'Noord' } }],
+          // Single-vocabulary (spec 03a / C1): the overlay authors the enum vocabulary under `options`.
+          options: [{ value: 'Noord', label: { nl: 'Noord', en: 'Noord' } }],
         },
       },
       fixed_overrides: {},

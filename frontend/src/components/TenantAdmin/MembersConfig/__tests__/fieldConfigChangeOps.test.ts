@@ -169,6 +169,54 @@ describe('deriveFieldConfigChangeOps — fields (identity-keyed, disjoint def/ap
     expect(ops).toContainEqual({ op: 'reset_field', key: 'first_name' });
   });
 
+  it('emits the enum vocabulary under the ONE canonical `options` key and NEVER `choices` (spec 03a / C1)', () => {
+    const before = emptyOverlay();
+    const after: Overlay = {
+      ...emptyOverlay(),
+      fields: {
+        salutation: {
+          type: 'enum',
+          functional_group: 'personal',
+          options: [
+            { value: 'mr', label: { en: 'Mr', nl: 'Dhr' } },
+            { value: 'mrs', label: { en: 'Mrs', nl: 'Mevr' } },
+          ],
+        },
+      },
+    };
+    const ops = deriveFieldConfigChangeOps(before, after);
+    const def = ops.find((o) => o.op === 'set_field' && o.key === 'salutation');
+    expect(def).toBeTruthy();
+    const attrs = ('attrs' in def! ? def!.attrs : {}) as Record<string, unknown>;
+    // The definition op carries the vocabulary under `options` …
+    expect(attrs.options).toEqual([
+      { value: 'mr', label: { en: 'Mr', nl: 'Dhr' } },
+      { value: 'mrs', label: { en: 'Mrs', nl: 'Mevr' } },
+    ]);
+    // … and NEVER a `choices` key — it was dropped from DEFINITION_ATTRS (the write emits one vocabulary).
+    expect(attrs.choices).toBeUndefined();
+    expect(JSON.stringify(ops)).not.toContain('"choices"');
+  });
+
+  it('does NOT emit a retired `choices` attr even if the overlay entry still carries one (write surface rejects it)', () => {
+    const before = emptyOverlay();
+    // A stale overlay entry authored under the retired `choices` key.
+    const after: Overlay = {
+      ...emptyOverlay(),
+      fields: {
+        legacy: {
+          type: 'enum',
+          functional_group: 'personal',
+          choices: [{ value: 'a', label: { en: 'A', nl: 'A' } }],
+        } as unknown as MembersConfigValue,
+      },
+    };
+    const ops = deriveFieldConfigChangeOps(before, after);
+    // `choices` is NOT in DEFINITION_ATTRS, so it never reaches the wire — the write emits only the
+    // canonical attrs (here just `type`/`functional_group`); the retired vocabulary key is dropped.
+    expect(JSON.stringify(ops)).not.toContain('"choices"');
+  });
+
   it('leaves an UNCHANGED field unaddressed while writing only the edited one (no sibling clobber)', () => {
     const before: Overlay = {
       ...emptyOverlay(),

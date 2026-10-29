@@ -52,14 +52,20 @@ const APPLICATION_ATTRS = [
   'format',
 ] as const;
 
-/** The field DEFINITION attributes the `set_field` op accepts (server-owned placement). */
+/**
+ * The field DEFINITION attributes the `set_field` op accepts (server-owned placement).
+ *
+ * Single-vocabulary (spec 03a / C1): the enum vocabulary is authored and emitted under the ONE
+ * canonical `options` key — `'choices'` is dropped from this surface so the write NEVER emits
+ * `choices`. The editor authors `options` on the working overlay (MembersFieldModal) and the
+ * read-assembly seam serves the single `options` back.
+ */
 const DEFINITION_ATTRS = [
   'type',
   'label',
   'order',
   'required',
   'visible',
-  'choices',
   'options',
   'scope',
   'functional_group',

@@ -67,11 +67,17 @@ export interface OverlayField {
   read_only?: boolean;
   functional_group?: string;
   order?: number;
-  choices?: MembersConfigValue;
+  /**
+   * The enum vocabulary — the ONE canonical key (spec 03a / C1). The field modal authors the
+   * vocabulary here as `options` and the Change-Op write emits ONLY `options` (the legacy `choices`
+   * key is retired on both the write surface and the authoring buffer). Rich
+   * `{ value, label{nl,en}, roles? }` entries or a bare `string[]`.
+   */
+  options?: MembersConfigValue;
   /**
    * The scope-axis attribute, when authored. Single-vocabulary (R3.2/R3.3): `{ enabled,
    * required_for? }` ONLY — NO `values` list. The scope VALUES ARE the field's enum values
-   * (`choices`); the Flask builder derives the `config#scope` dimension values from those on save
+   * (`options`); the Flask builder derives the `config#scope` dimension values from those on save
    * (R3.4). A legacy stored `scope.values` is honoured server-side as a migration fallback only.
    */
   scope?: MembersConfigValue;

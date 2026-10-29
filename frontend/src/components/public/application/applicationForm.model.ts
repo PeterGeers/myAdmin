@@ -164,12 +164,16 @@ export function isSelectField(field: PublicField): boolean {
 }
 
 /**
- * Normalise a field's choice set (modern `options` or legacy `choices`, bare-string OR rich
+ * Normalise a field's choice set (the ONE canonical `options`, bare-string OR rich
  * `{ value, label }`) into rich {@link PublicFieldOption} entries the renderer draws. A bare string
  * becomes `{ value }` with no label, so the label resolver falls back to the value itself (R4a).
+ *
+ * The read is `options` ONLY — the legacy `?? field.choices` fallback is removed (spec 03a / F5):
+ * the read-assembly seam serves the single canonical `options`, and a declared-but-unpropagated
+ * source is a loud upstream error (C6), never a silently-coerced `choices` here.
  */
 export function optionEntries(field: PublicField): PublicFieldOption[] {
-  const raw = field.options ?? field.choices ?? [];
+  const raw = field.options ?? [];
   return raw.map((entry) =>
     typeof entry === 'string' ? { value: entry } : { value: entry.value, label: entry.label },
   );
