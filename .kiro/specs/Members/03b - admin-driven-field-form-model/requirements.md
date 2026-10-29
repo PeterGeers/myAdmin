@@ -105,9 +105,10 @@ them as its own acceptance criteria.
 1. THE target model SHALL be: a selectable field is a single ENUM; its options each carry value + per-language label + a retired/grandfather flag; and the field carries its feature attributes (requiredness, application-form flags, scope-binding) directly on the field — no separate per-kind storage model and no `active_only` catalog apparatus
 2. FOR a retired value THE behaviour SHALL be Grandfather semantics: hidden from the picker for new/changed records, WHILE existing stored values equal to it are retained, displayed, and accepted on read and validation; and the retired/active state SHALL be freely toggleable both ways
 3. THE unification SHALL relocate `membership_type` (catalog → field enum options) onto the field model; `region` is ALREADY inline on the field (live data) and SHALL NOT be relocated — only kept consistent via Req 4; `status` and the `application_*` attributes already fit the generic model and SHALL NOT require relocation
-4. THE `application_*` attributes (`application_visible` / `application_required` / `application_choices`) SHALL be documented in `data-model.md` as part of the field model (closing the documentation gap)
-5. THE design phase SHALL produce a MIGRATION-SAFETY PROOF — gating implementation and requiring owner sign-off BEFORE any code — that, against the REAL stored h-dcn data, maps every currently-stored `membership_type` value (incl. the retired `erelid`) onto the unified model and shows that NO stored member's `membership.membership_type` reference is orphaned; and confirms region remains consistent between `config#fields` and `config#scope` with no grant stranded
-6. IF the proof shows relocating a shape is unsafe THEN unifying only the BEHAVIOUR (Grandfather + uniform features) for that shape, without moving its storage, SHALL be the accepted fallback — decided in design and reflected back into this requirement
+4. AFTER the collapse, membership_type options SHALL be authored through the ORDINARY field-options editor like any other enum, preserving the catalog's capabilities as option attributes: per-option bilingual `label`, `order`, and the `allowed`/retired flag, with `value` (the former `type_code`) immutable as the stored reference key; there SHALL be no separate membership-type management screen
+5. THE `application_*` attributes (`application_visible` / `application_required` / `application_choices`) SHALL be documented in `data-model.md` as part of the field model (closing the documentation gap)
+6. THE design phase SHALL produce a MIGRATION-SAFETY PROOF — gating implementation and requiring owner sign-off BEFORE any code — that, against the REAL stored h-dcn data, maps every currently-stored `membership_type` value (incl. the retired `erelid`) onto the unified model and shows that NO stored member's `membership.membership_type` reference is orphaned; and confirms region remains consistent between `config#fields` and `config#scope` with no grant stranded
+7. IF the proof shows relocating a shape is unsafe THEN unifying only the BEHAVIOUR (Grandfather + uniform features) for that shape, without moving its storage, SHALL be the accepted fallback — decided in design and reflected back into this requirement
 
 ### Requirement 4: Scope dimension is DERIVED from the field (the one binding kept)
 
@@ -183,9 +184,10 @@ them as its own acceptance criteria.
 #### Acceptance Criteria
 
 1. 03b SHALL NOT touch `config#views` (neither the leftover rows nor the cleanup routine). The user-preferred-columns feature it belonged to is a VALID requirement that was removed during an earlier spec over an unresolved error; it is DEFERRED (Out of Scope), not dead-to-delete — removing the residue now could make reviving the feature harder
-2. THE removed-binding plumbing from Requirement 1 (the no-relax / forced-required / forced-visible machinery and its tests) SHALL be deleted, not merely disabled
-3. THE design-phase trace SHALL enumerate further dead/stale paths in the Members frontend and backend (unused builders, readers, options no longer reachable after Requirements 1 and 3) for removal in THIS spec
-4. THE change SHALL result in a net DECREASE in lines of code across the touched Members modules
+2. THE separate membership-type management apparatus SHALL be REMOVED once the collapse (Req 3.4) lands — the TenantAdmin → Members → Membership Types screen (`MembershipTypesManager.tsx` / `MembershipTypeModal.tsx`), the `list/create/update/deactivate MembershipType` client wrappers, the `GET/POST/PUT/DELETE /membership-types` routes, the catalog domain/repository CRUD, and their tests — with its capability absorbed by the ordinary field-options editor (Req 3.4); the READ path the member form/validation needs is re-pointed at the field options, not deleted
+3. THE removed-binding plumbing from Requirement 1 (the no-relax / forced-required / forced-visible machinery and its tests) SHALL be deleted, not merely disabled
+4. THE design-phase trace SHALL enumerate further dead/stale paths in the Members frontend and backend (unused builders, readers, options no longer reachable after Requirements 1 and 3) for removal in THIS spec
+5. THE change SHALL result in a net DECREASE in lines of code across the touched Members modules
 
 ### Requirement 8: Governance definition-of-done
 
