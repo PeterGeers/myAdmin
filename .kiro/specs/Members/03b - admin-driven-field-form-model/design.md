@@ -331,3 +331,35 @@ Per steering 43: CodeQL + GitGuardian per PR; SAM changes deploy on push per `de
 frontend TEST surface is the local dev server (frontend deploys only from `main`). Promotion
 `test → main` is BLOCKED until 03b lands AND the membership_type migration (+ any residual 03a
 backfill) runs against PRODUCTION, integrity-scan-gated, identically to TEST (analysis D5).
+
+## Requirements Traceability
+
+Every requirement and its acceptance criteria map to the build unit(s) that deliver it (BU-1..BU-10
+in "Components and Interfaces") and the correctness property that guards it.
+
+| Requirement (acceptance criteria) | Delivered by | Guarded by |
+| --- | --- | --- |
+| Req 1 (1.1–1.5) — remove hardcoded field bindings | BU-4 | Property 3 |
+| Req 2 (2.1–2.5) — toggles persist both ways, root-cause fix | BU-5 | Property 4 |
+| Req 3.1 — one unified enum-field model (options carry value+label+allowed) | BU-1 | Property 1, 2 |
+| Req 3.2 — retired (`allowed:false`) grandfather semantics | BU-1, BU-2 | Property 2 |
+| Req 3.2a — removed option: record read-stable, save-blocked until fixed | BU-1 (write-seam), BU-2 (member save) | Property 1, 2 |
+| Req 3.3 — relocate membership_type (catalog → field options) | BU-1, BU-3, BU-7 | Property 1 |
+| Req 3.4 — authored via the ordinary field-options editor; no separate screen | BU-1, BU-8 | — |
+| Req 3.4a — ≥1 `allowed:true` option; default = first allowed by order | BU-1 (write-seam), BU-2 (default) | Property 1 |
+| Req 3.5 — document `application_*` in data-model.md | BU-10 | — |
+| Req 3.6 — migration-safety proof gate | Migration-safety proof §; BU-7 | Property 1 |
+| Req 4 (4.1–4.7) — scope derived from field; axis-vs-value gate; two-call orchestration | BU-6 | Property 5 |
+| Req 5 (5.1–5.4) — display + filter by resolved per-language label | BU-9 | Property 6 |
+| Req 6 (6.1–6.6) — expand/contract migration, all-tenant, TEST/PROD parity | BU-7 | Property 1 |
+| Req 7.1 — do NOT touch config#views (deferred) | BU-8 (explicit non-action) | — |
+| Req 7.2 — remove membership-type management apparatus | BU-8 | — |
+| Req 7.3 — delete removed-binding plumbing | BU-8 | Property 3 |
+| Req 7.4 — remove forbidden `choices` key (data + code) | BU-7 (data), BU-8 (code) | — |
+| Req 7.5 — delete dead `reconcile_scope_change` | BU-8 | — |
+| Req 7.6 — trace further dead/stale paths | BU-8 | — |
+| Req 7.7 — net code decrease, recorded | BU-8 (recorded delta) | — |
+| Req 8.1 — update steering 38 | BU-10 | — |
+| Req 8.2 — update data-model.md / config-guide.md | BU-10 | — |
+| Req 8.3 — record LOC/file delta in DoD | BU-8, BU-10 | — |
+| Req 8.4 — CI/CD + promotion/migration-parity gate | CI/CD and promotion §; BU-7 | — |
