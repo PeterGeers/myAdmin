@@ -8,12 +8,18 @@ flag-day, NOT a PITR prod-copy rehearsal. **Fix-forward is an acceptable alterna
 normal ``set_field`` write re-stores the row as ``options``). This script exists so an operator
 can run the backfill deterministically and prove the round-trip against the REAL row.
 
-What it does
-------------
+What it does (KIND-AWARE — the C7↔C2/W2 correction)
+---------------------------------------------------
 For a ``config#fields`` row it enumerates every field/override ENTRY that still carries a bare
-``choices`` attribute (vocabulary under the legacy key, ``options`` absent). For each such entry
-it rewrites the vocabulary to the ONE canonical ``options`` shape — value-only
-``[{"value": v} for v in choices]`` — and DROPS ``choices`` in the SAME change.
+``choices`` attribute (vocabulary under the legacy key). What it does with that entry depends on
+the field's KIND (classified exactly as the write-edge W1/W2 guards classify it):
+
+- an **INLINE ENUM** field — CONVERT: rewrite the vocabulary to the ONE canonical inline
+  ``options`` shape (value-only ``[{"value": v} for v in choices]``) and DROP ``choices``.
+- a **SCOPE-BACKED** (W2) or **REFERENCE** (W1) field — DROP, never convert: its vocabulary comes
+  from the ``config#scope`` dimension / the live catalog (injected at the C4 read seam), never
+  inline, so the legacy ``choices`` AND any stale inline ``options`` are DROPPED (writing inline
+  ``options`` here would be rejected by the W1/W2 write-edge guard — the crash this corrects).
 
 The one vocabulary model (design 03a): every selectable field resolves to ONE canonical
 ``options`` list; ``choices`` is retired. This backfill moves the few live legacy rows onto that
@@ -73,6 +79,7 @@ __all__ = [
     "EntryPlan",
     "options_from_choices",
     "plan_choices_to_options",
+    "classify_entry_kind",
     "migrate_tenant",
     "main",
 ]
@@ -127,6 +134,11 @@ class EntryPlan:
       override, the bare key for a variable field — both accepted by the service's registry lookup).
     - ``options`` — the value-only canonical ``options`` the entry's ``choices`` reduced to.
     - ``dropped`` — how many malformed ``choices`` entries were dropped (surfaced in the report).
+    - ``spec`` — the entry's CURRENTLY STORED spec (the overlay mapping for this entry), carried so
+      the live driver can classify the field's KIND (scope-backed / reference / inline enum) the
+      SAME way the write-edge guards (W1/W2) do, and so decide CONVERT-vs-DROP without re-reading.
+    - ``has_inline_options`` — whether the stored spec already carries a (stale) inline ``options``
+      attribute that must be dropped for a scope-backed / reference field.
     """
 
     map_name: str
@@ -134,6 +146,8 @@ class EntryPlan:
     field_key: str
     options: list[dict] = field(default_factory=list)
     dropped: int = 0
+    spec: Mapping[str, Any] = field(default_factory=dict)
+    has_inline_options: bool = False
 
 
 def plan_choices_to_options(overlay: Mapping[str, Any]) -> list[EntryPlan]:
@@ -177,9 +191,46 @@ def plan_choices_to_options(overlay: Mapping[str, Any]) -> list[EntryPlan]:
                     field_key=entry_key,
                     options=options,
                     dropped=max(0, raw_count - len(options)),
+                    spec=dict(spec),
+                    has_inline_options="options" in spec,
                 )
             )
     return plans
+
+
+# ── Kind classification (REUSES the service's own W1/W2 classifiers so they never drift) ────
+
+# Kind tokens — the per-entry rewrite strategy.
+_KIND_REFERENCE = "reference"  # W1 — catalog-sourced; inline vocabulary DROPPED, never converted
+_KIND_SCOPE_BACKED = "scope-backed"  # W2 — dimension-sourced; inline vocabulary DROPPED
+_KIND_INLINE_ENUM = "inline-enum"  # the only kind that CONVERTS choices -> inline options
+
+
+def classify_entry_kind(field_key: str, spec: Mapping[str, Any]) -> str:
+    """Classify a planned entry's KIND the SAME way the write-edge guards (W1/W2) do.
+
+    This is the C7↔C2/W2 correction the design review missed: the backfill cannot blindly CONVERT
+    every legacy ``choices`` into inline ``options`` — for a REFERENCE field (W1) or a SCOPE-BACKED
+    field (W2), inline ``options`` is exactly the payload ``set_field`` REJECTS (its vocabulary
+    comes from the live catalog / the ``config#scope`` dimension, injected at the C4 read seam, not
+    inline). Converting would make the migration CRASH on the W2/W1 guard (the real h-dcn ``region``
+    case). For those kinds the correct behaviour is DROP-not-convert.
+
+    Classification is delegated to :class:`ConfigFieldsCrudService`'s OWN classifiers
+    (:meth:`_is_reference_field` / :meth:`_is_scope_backed_field`) — fed the field's STORED spec as
+    both the "payload" and the "stored" view (the migration authors no new payload). Reusing the
+    service's predicates guarantees the migration's CONVERT-vs-DROP decision can never disagree with
+    what the W1/W2 guards would actually do at write time — the two cannot drift.
+    """
+    from sam.members.domain.config_fields_crud_service import ConfigFieldsCrudService
+
+    # The migration has no authored payload; the stored spec IS the observable kind. Pass it as the
+    # empty-payload + stored pair the guards classify from (payload ∪ snapshot — here payload is {}).
+    if ConfigFieldsCrudService._is_reference_field(field_key, {}, spec):
+        return _KIND_REFERENCE
+    if ConfigFieldsCrudService._is_scope_backed_field({}, spec):
+        return _KIND_SCOPE_BACKED
+    return _KIND_INLINE_ENUM
 
 
 # ── The live driver (wires the reader/writer/service and applies the plan) ──────────────────
@@ -202,14 +253,27 @@ def migrate_tenant(
     caller / test can assert what was migrated). Idempotent: a tenant whose rows already carry
     ``options`` and no ``choices`` plans and applies nothing.
 
-    Each entry is rewritten with TWO scoped Change-Ops (03a C2↔C7 coupling): first
-    ``set_field(tenant_id, field_key, {"options": [...]})`` writes the canonical ``options`` (an
-    allowed definition attr), then ``remove_legacy_choices(tenant_id, field_key)`` drops the
-    retired ``choices`` attribute. A SINGLE ``{"options": ..., "choices": None}`` call is no longer
-    possible: C2 removed ``choices`` from the write surface, so ``set_field`` now rejects any
-    payload mentioning ``choices`` (even ``choices: None``) BEFORE it could become a REMOVE — the
-    dedicated legacy-removal op is used instead. Both ops are version-conditional ``update_item``
-    writes on named paths (no whole-row replace, R3.3 / steering 39).
+    KIND-AWARE rewrite (the C7↔C2/W2 correction)
+    --------------------------------------------
+    A legacy ``choices`` entry is NOT uniformly converted to inline ``options`` — the correct
+    rewrite depends on the field's KIND (classified by :func:`classify_entry_kind`, which reuses the
+    service's OWN W1/W2 classifiers so it can never disagree with the write-edge guards):
+
+    - **INLINE ENUM** (the common case): CONVERT — ``set_field(tenant, key, {"options": [...]})``
+      writes the canonical inline ``options`` (an allowed definition attr), then
+      ``remove_legacy_choices(tenant, key)`` drops the retired ``choices``. Two scoped Change-Ops.
+    - **SCOPE-BACKED** (W2) and **REFERENCE** (W1): DROP, never convert. These fields source their
+      vocabulary from the ``config#scope`` dimension / the live catalog (injected at the C4 read
+      seam), NOT inline. An inline ``options`` payload is exactly what ``set_field`` REJECTS for
+      them (W2/W1) — so a CONVERT would CRASH the migration (the real h-dcn ``region`` case this
+      corrects). Instead we DROP the legacy inline vocabulary: ``remove_legacy_choices(tenant, key)``
+      drops ``choices`` AND ``remove_inline_options(tenant, key)`` drops any stale inline ``options``
+      — both dedicated legacy-removal ops that bypass the W1/W2 guards — so the dimension/catalog
+      becomes the SOLE source.
+
+    In every case a SINGLE ``{"options": ..., "choices": None}`` call is impossible (C2 removed
+    ``choices`` from the write surface), and NO whole-row replace is issued — each op is a
+    version-conditional ``update_item`` on a named path (R3.3 / steering 39).
     """
     out = out if out is not None else sys.stdout
     # The reader serves the storage ``overrides`` map under the wire key ``fixed_overrides``; map
@@ -226,11 +290,33 @@ def migrate_tenant(
         return plans
 
     for plan in plans:
+        kind = classify_entry_kind(plan.field_key, plan.spec)
+        dry_tag = " [DRY-RUN]" if dry_run else ""
+
+        if kind in (_KIND_SCOPE_BACKED, _KIND_REFERENCE):
+            # DROP-not-convert: the vocabulary is sourced from the config#scope dimension (W2) or
+            # the live catalog (W1), never inline. Drop both the legacy `choices` and any stale
+            # inline `options` so the dimension/catalog is the sole source. An inline `options`
+            # payload here would be REJECTED by set_field's W1/W2 guard (the crash this corrects).
+            stale_note = " + stale inline options" if plan.has_inline_options else ""
+            source = "config#scope" if kind == _KIND_SCOPE_BACKED else "live catalog"
+            print(
+                f"[{tenant_id}] {plan.map_name}.{plan.entry_key}: {kind} -> dropped inline "
+                f"vocabulary (choices{stale_note}); sources from {source}{dry_tag}",
+                file=out,
+            )
+            if dry_run:
+                continue
+            service.remove_legacy_choices(tenant_id, plan.field_key)
+            if plan.has_inline_options:
+                service.remove_inline_options(tenant_id, plan.field_key)
+            continue
+
+        # INLINE ENUM: the existing CONVERT flow — write canonical inline `options`, drop `choices`.
         drop_note = f" ({plan.dropped} malformed dropped)" if plan.dropped else ""
         print(
             f"[{tenant_id}] {plan.map_name}.{plan.entry_key}: choices -> "
-            f"{len(plan.options)} value-only options{drop_note}"
-            + (" [DRY-RUN]" if dry_run else ""),
+            f"{len(plan.options)} value-only options{drop_note}{dry_tag}",
             file=out,
         )
         if dry_run:

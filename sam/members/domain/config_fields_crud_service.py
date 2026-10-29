@@ -398,6 +398,50 @@ class ConfigFieldsCrudService:
             tenant_id, [op], snapshot=snapshot, client_op_id=client_op_id
         )
 
+    def remove_inline_options(
+        self, tenant_id: str, field_key: str, *, client_op_id: str | None = None
+    ) -> dict:
+        """Remove a field's stale inline ``options`` attribute via a scoped Change-Op REMOVE (03a C7).
+
+        The C7 COMPANION to :meth:`remove_legacy_choices` for SCOPE-BACKED (W2) and REFERENCE (W1)
+        fields. Those fields do NOT source their vocabulary from inline ``options``: a scope-backed
+        field is sourced from the ``config#scope`` dimension (``scope_vocab``) and a reference field
+        from the live catalog, both injected at the C4 read seam. A stale inline ``options`` payload
+        left on such a field is exactly the two-copies disease the write-edge guard (W1/W2) refuses
+        going forward — so the C7 backfill must DROP it (never CONVERT a legacy ``choices`` into
+        inline ``options`` for these kinds), letting the dimension/catalog be the SOLE source.
+
+        Like :meth:`remove_legacy_choices`, this is DELIBERATELY NOT part of the normal client write
+        surface: :meth:`set_field` cannot write inline ``options`` onto a scope-backed/reference
+        field (the W1/W2 source-integrity guards reject it), so there is no way to clear a legacy
+        inline ``options`` through ``set_field``. This method is that way — it is modelled on
+        :meth:`remove_legacy_choices` / :meth:`reset_field`: derive a placement, then emit a scoped
+        REMOVE op DIRECTLY (never routed through the attr-surface or source-integrity guards).
+
+        It emits a SINGLE version-conditional ``update_item`` REMOVE on the ``options`` path
+        (``REMOVE <map>.<key>.options``) — NO whole-row ``put_item`` replace (R3.3 / steering 39);
+        DynamoDB leaves every sibling attribute physically untouched.
+
+        Idempotent / safe no-op: if the field's stored spec carries NO ``options`` attribute (a
+        field that never had inline vocabulary, or an already-cleaned row), NOTHING is written — the
+        method returns the SAME no-op result shape :meth:`remove_legacy_choices` returns rather than
+        emitting an empty op set (``apply_ops`` requires a non-empty op set). Re-running the backfill
+        therefore writes nothing once the inline ``options`` is gone.
+        """
+        snapshot = self._read_snapshot(tenant_id)
+        placement = self._resolve_placement(
+            tenant_id, field_key, snapshot=snapshot
+        )
+        stored = self._stored_field_spec(snapshot, placement)
+        if "options" not in stored:
+            # No inline options to drop (never had one, or already cleaned) → safe no-op. Do NOT
+            # call apply_ops with an empty op set (it requires a non-empty sequence).
+            return {"version": None, "idempotent_replay": False, "no_op": True}
+        op = {"action": REMOVE, "path": [placement["map"], placement["key"], "options"]}
+        return self._apply(
+            tenant_id, [op], snapshot=snapshot, client_op_id=client_op_id
+        )
+
     # ── Group ops (attrs ⊆ {label, order}) ──────────────────────────────────────────────
 
     def set_group(
