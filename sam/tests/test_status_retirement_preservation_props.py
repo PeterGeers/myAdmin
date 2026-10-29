@@ -360,13 +360,16 @@ def test_field_config_surface_unaffected(codes):
     assert ("membership", "membership_type") in keys
     assert ("personal", "gender") in keys  # the open-enum precedent is still surfaced
 
-    # membership_type options == the active catalog, presentation-ordered (design C8, unchanged)
-    option_values = [o["value"] for o in config["membership_type_options"]]
+    # membership_type options ride ON the field (03b BU-3 — no standalone feed). Pre-fold the
+    # assembly seam falls back to the active catalog, presentation-ordered (design C8).
+    mt = next(f for f in config["fields"] if f["key"] == "membership_type")
+    option_values = [o["value"] for o in mt["options"]]
     assert set(option_values) == set(codes)
 
     # structural tenant isolation at the config surface: another tenant sees none of these types
     other = service.get_field_config("other-tenant")
-    assert other["membership_type_options"] == []
+    other_mt = next(f for f in other["fields"] if f["key"] == "membership_type")
+    assert other_mt["options"] == []
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -394,17 +397,19 @@ def test_invariant_variable_field_cannot_collide_with_a_fixed_key():
         _resolve(overlay)
 
 
-def test_invariant_cannot_loosen_a_platform_required_fixed_field():
-    """3.5: an override that makes a platform-required fixed field optional still fails fast.
+def test_overlay_may_loosen_a_platform_required_fixed_field():
+    """03b Req 1.1/1.4: an override that makes a platform-required fixed field optional is NO
+    LONGER rejected — the no-relax Hardcoded_Binding overruled the admin and is removed.
 
-    ``personal.last_name`` is platform-required; an override setting ``required=False`` must be
-    rejected. EXPECTED (unfixed AND fixed): PASS (raises :class:`OverlayError`).
+    ``personal.last_name`` is platform-required; an override setting ``required=False`` now
+    resolves WITHOUT :class:`OverlayError`, and the resolved field is optional.
     """
     overlay = TenantOverlay(
         overrides={"personal.last_name": FixedFieldOverride(required=False)}
     )
-    with pytest.raises(OverlayError):
-        _resolve(overlay)
+    resolved = _resolve(overlay).field("personal.last_name")
+    assert resolved is not None
+    assert resolved.required is False
 
 
 @settings(max_examples=25)

@@ -861,11 +861,15 @@ class MembersParityHarness:
             "DELETE", "/membership-types/temp_retired"
         )  # soft-delete (active=false)
         resp = self.call("GET", "/members/field-config")
-        options = (
-            self.data(resp).get("membership_type_options", [])
-            if resp["statusCode"] == 200
-            else []
-        )
+        # 03b BU-3: the membership_type vocabulary rides on the field's own `options` (no
+        # standalone `membership_type_options` feed). Pre-fold the assembly seam falls back to
+        # the active catalog, so the dropdown still lists only ACTIVE types.
+        options = []
+        if resp["statusCode"] == 200:
+            fields = self.data(resp).get("fields", [])
+            mt = next((f for f in fields if f.get("key") == "membership_type"), None)
+            if mt is not None:
+                options = mt.get("options") or []
         option_codes = {o.get("value") for o in options}
         report.record(
             d,

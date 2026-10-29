@@ -252,9 +252,11 @@ class TestSendReadySchemaCarriesContract:
         fields = {f["key"]: f for f in self._ready_facade().get_public_field_config(TENANT)["fields"]}
         # the application SUBSET survives the gate (R4a.2): shirt_size exposes only m/l, now in
         # the ONE canonical rich `{value, label}` shape the read-assembly seam emits (C4/C5).
+        # 03b (BU-1, Req 3.1): an inline enum option now carries the `allowed` retired/grandfather
+        # flag (always present, defaults True); `order` is omitted when unranked.
         assert fields["shirt_size"]["options"] == [
-            {"value": "m", "label": {"nl": "M", "en": "M"}},
-            {"value": "l", "label": {"nl": "L", "en": "L"}},
+            {"value": "m", "label": {"nl": "M", "en": "M"}, "allowed": True},
+            {"value": "l", "label": {"nl": "L", "en": "L"}, "allowed": True},
         ]
         membership_values = [o["value"] for o in fields["membership_type"]["options"]]
         assert membership_values == ["gewoon"]

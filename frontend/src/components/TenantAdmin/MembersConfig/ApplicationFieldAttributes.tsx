@@ -6,10 +6,10 @@
  * (`application_visible`), this surface authors the three remaining per-field application
  * attributes directly onto that field's entry in the ONE working `field_overlay` object:
  *
- *  - **application-required** toggle → `application_required` (R3.1). It can TIGHTEN an optional
- *    field to required, but is DISABLED and FORCED ON for a platform-required field — the UI never
- *    offers a relax (and the SAM write rejects a relax regardless, R8.1c). The disabling is
- *    convenience; the server stays authoritative (design Property 2).
+ *  - **application-required** toggle → `application_required` (R3.1). The admin freely sets
+ *    requiredness on the form for ANY field; the toggle merely SEEDS from the platform-required
+ *    default when the field has no authored value. The former force-on/disable binding for
+ *    platform-required / membership-type fields OVERRULED the admin and is REMOVED (03b Req 1).
  *  - **enum subset picker** → `application_choices` (R3.2 / R4.1). Offered ONLY on a field that has
  *    choices (an enum / reference field). It is a strict SUBSET over the field's OWN resolved
  *    choices — the picker can only toggle values that ARE choices of the field, so an out-of-set
@@ -26,8 +26,7 @@
  *  - the subset picker sources its options from the tenant's LIVE membership-type catalog
  *    (`membershipTypeCatalog`, `GET /membership-types`) — NOT the field's static served choices —
  *    so the public-safe subset is authored over the real catalog (R4.1/R4.3);
- *  - the application-required toggle is FORCED ON + disabled (an exposed membership-type field is
- *    always application-required, spec 10 D21 / R4.2) exactly like a platform-required field;
+ *  - the application-required toggle is NO LONGER forced/disabled (03b Req 1) — the admin sets it;
  *  - an EMPTY authored subset on the exposed-required field is flagged as incoherent, and any subset
  *    value NOT in the live catalog is flagged (R4.2/R4.3) — convenience guards; the SAM write
  *    re-validates `subset ⊆ choices` / the catalog reference (task 1.1, R8).
@@ -142,7 +141,11 @@ function writeTarget(field: FieldConfigField): { origin: FieldOrigin; overlayKey
   return { origin: 'fields', overlayKey: field.key };
 }
 
-/** Is this resolved field platform-required (R3.1 — the toggle is forced on + disabled)? */
+/**
+ * Is this resolved field platform-required? Used only to SEED the application-required toggle's
+ * default and to surface the informational `platform-required` badge — NOT to force or disable the
+ * toggle (that force-on/disable binding overruled the admin and is removed, 03b Req 1.2/1.3).
+ */
 function isPlatformRequired(field: FieldConfigField): boolean {
   return field.required === true;
 }
@@ -226,19 +229,22 @@ export const ApplicationFieldAttributes: React.FC<ApplicationFieldAttributesProp
   const patch = (p: Record<string, MembersConfigValue | undefined>) =>
     onChange(upsertField(overlay, target.overlayKey, p, target.origin));
 
-  // ---- application_required (R3.1 / R4.2) -------------------------------------------------------
-  // An exposed membership-type field is ALWAYS application-required (spec 10 D21 / R4.2) — treated
-  // like a platform-required field: forced on + disabled, the UI never offers a relax.
-  const requiredForced = isPlatformRequired(field) || isMembershipType;
-  const requiredChecked = requiredForced
-    ? true // forced on — a platform-required / membership-type field is always required on the form
-    : typeof authored?.application_required === 'boolean'
+  // ---- application_required (R3.1) --------------------------------------------------------------
+  // 03b Req 1.2/1.3: no field is force-on or disabled. Application-requiredness is the admin's to
+  // set for ANY field — the former `requiredForced = isPlatformRequired || isMembershipType`
+  // force-on/disable binding OVERRULED the admin and is removed. The toggle seeds from the field's
+  // authored value, falling back to the platform-required default (a sensible initial state, not a
+  // lock), and the admin may freely turn it off.
+  const requiredChecked =
+    typeof authored?.application_required === 'boolean'
       ? (authored.application_required as boolean)
-      : false;
+      : isPlatformRequired(field);
 
   const onToggleRequired = (next: boolean) => {
-    if (requiredForced) return; // disabled/forced — never relax (R3.1 / R4.2 / R8.1c)
-    patch({ application_required: next ? true : undefined });
+    // Send the EXPLICIT boolean (spec 03b BU-5 / Req 2.1): turning OFF must persist as `false`, not
+    // a dropped `undefined` the change-op diff treats as "unchanged" (the toggle root cause). The
+    // backend `set_field_application` SETs `false` correctly; the diff emits the explicit OFF.
+    patch({ application_required: next });
   };
 
   // ---- application_choices subset (R3.2 / R4.1) -------------------------------------------------
@@ -324,34 +330,12 @@ export const ApplicationFieldAttributes: React.FC<ApplicationFieldAttributesProp
             </Box>
             <Switch
               isChecked={requiredChecked}
-              isDisabled={requiredForced}
               onChange={(e) => onToggleRequired(e.target.checked)}
               colorScheme="orange"
               data-testid="application-field-required-toggle"
               aria-label={t(`${label} verplicht op formulier`, `${label} required on form`)}
             />
           </FormControl>
-          {isPlatformRequired(field) && (
-            <Text fontSize="xs" color="gray.500" mt={-2}>
-              {t(
-                'Een platform-verplicht veld blijft altijd verplicht op het formulier.',
-                'A platform-required field is always required on the form.',
-              )}
-            </Text>
-          )}
-          {isMembershipType && !isPlatformRequired(field) && (
-            <Text
-              fontSize="xs"
-              color="gray.500"
-              mt={-2}
-              data-testid="application-field-membership-type-required-note"
-            >
-              {t(
-                'Een lidmaatschapstype op het formulier is altijd verplicht met een niet-lege keuzeset.',
-                'A membership-type on the form is always required with a non-empty choice set.',
-              )}
-            </Text>
-          )}
 
           {/* enum subset picker (R3.2 / R4.1) — on a field with choices, or the membership-type
               field (whose vocabulary is the LIVE catalog, R4.1). */}

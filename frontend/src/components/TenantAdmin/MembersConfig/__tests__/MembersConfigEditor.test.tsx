@@ -30,6 +30,16 @@ const mockGetParams = vi.fn();
 const mockGetFieldConfig = vi.fn();
 const mockCreate = vi.fn();
 const mockUpdate = vi.fn();
+
+// Toast spy — Chakra renders toasts in a portal via a manager, so spying on useToast is the
+// reliable way to assert the task-6.2 SysAdmin-refusal / scope-mirror messages (mirrors the
+// MembersMailConfigEditor suite). Everything else in @chakra-ui/react stays REAL so the drill-down
+// renders normally.
+const mockToast = vi.fn();
+vi.mock('@chakra-ui/react', async () => {
+  const actual = await vi.importActual<typeof import('@chakra-ui/react')>('@chakra-ui/react');
+  return { ...actual, useToast: () => mockToast };
+});
 // config#fields is SAM-owned and now written by IDENTITY (spec 03, Phase 5): the save derives a
 // Change-Op list and calls `applyFieldConfigChangeOps` (`PUT /members/config/fields` with `{ops}`).
 // The whole-overlay `writeFieldConfig` writer was RETIRED (spec 03 task 5.2) and no longer exists.
@@ -50,11 +60,16 @@ vi.mock('../../../../services/membersConfigService', async () => {
   };
 });
 
+// The scope VALUE save writes SAM `config#scope` first via `writeScopeConfig` (authoritative), THEN
+// the Flask mirror; capture it to drive success / mirror-failure in the task 6.2 resync tests.
+const mockWriteScopeConfig = vi.fn();
+
 // The config#fields save delegates to the Members API Change-Op write path
 // (`applyFieldConfigChangeOps` → `PUT /members/config/fields` with `{ops}`); mock it to COUNT
 // requests + inspect the derived ops. getFieldConfig stays real-ish (the editor fetch is mocked above).
 vi.mock('../../../../services/membersApiService', () => ({
   applyFieldConfigChangeOps: (...a: unknown[]) => mockApplyChangeOps(...a),
+  writeScopeConfig: (...a: unknown[]) => mockWriteScopeConfig(...a),
   getFieldConfig: vi.fn(),
 }));
 
@@ -127,6 +142,9 @@ function seed(rows: Record<string, Parameter> = { field_overlay: overlayRow }, c
   mockUpdate.mockResolvedValue({ success: true });
   // The SAM Change-Op write is authoritative: it returns the authored row version.
   mockApplyChangeOps.mockResolvedValue({ success: true, configId: 'fields', version: '2026-10-12T10:00:00+00:00' });
+  // SAM config#scope write succeeds by default (the scope VALUE path); a test overrides it to
+  // drive a mirror failure for the resync coverage.
+  mockWriteScopeConfig.mockResolvedValue({ success: true, version: '2026-10-12T10:00:00+00:00' });
 }
 
 async function renderEditor(
@@ -384,5 +402,176 @@ describe('MembersConfigEditor — Change-Op integration (spec 03 task 5.4; desig
     const wire = JSON.stringify(ops);
     expect(wire).not.toContain('field_overlay');
     expect(wire).not.toContain('personal.');
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Task 6.2 — axis-vs-value gate (ATOMIC) + mirror-failure RESYNC,    */
+/*  proven END-TO-END through the editor (Req 4.3/4.4/4.6). The pure   */
+/*  classification is unit-tested in classifyScopeChange.test.ts; this */
+/*  pins the EDITOR WIRING: an axis change refuses the WHOLE save with */
+/*  nothing persisted, and a mirror-only failure arms the resync.      */
+/* ------------------------------------------------------------------ */
+describe('MembersConfigEditor — scope axis-vs-value gate + resync (spec 03b task 6.2)', () => {
+  // A resolved config where `region` IS a scope axis (so the editor's seeded overlay baseline
+  // treats it as one). Turning its scope OFF is a SCOPE-AXIS change (axis set shrinks).
+  const SCOPE_FIELD_CONFIG: FieldConfig = {
+    fields: [
+      {
+        key: 'region',
+        functional_group: 'personal',
+        provenance: 'tenant_added',
+        origin: 'variable',
+        type: 'enum',
+        label: { en: 'Region', nl: 'Regio' },
+        scope: { enabled: true },
+        options: [
+          { value: 'A', label: { en: 'A', nl: 'A' } },
+          { value: 'B', label: { en: 'B', nl: 'B' } },
+        ],
+      },
+    ],
+    functional_groups: [{ key: 'personal', label: { en: 'Personal', nl: 'Persoonlijk' }, order: 1 }],
+    config_status: { fields: '2026-10-12T09:00:00', scope: 3, mail: null },
+  } as unknown as FieldConfig;
+
+  async function renderScopeEditor(cfg: FieldConfig = SCOPE_FIELD_CONFIG) {
+    mockGetParams.mockResolvedValue({});
+    mockGetFieldConfig.mockResolvedValue(cfg);
+    mockCreate.mockResolvedValue({ success: true });
+    mockUpdate.mockResolvedValue({ success: true });
+    mockApplyChangeOps.mockResolvedValue({ success: true, configId: 'fields', version: 'v2' });
+    mockWriteScopeConfig.mockResolvedValue({ success: true, version: 'v2' });
+    i18n.changeLanguage('en');
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MembersConfigEditor tenant="t-1" availableRoles={['Members_CRUD']} />
+      </I18nextProvider>,
+    );
+    await screen.findByTestId('members-config-editor');
+    await screen.findByTestId('members-groups-table');
+  }
+
+  /** Open the `region` field modal (groups → personal → fields → region). */
+  async function openRegionField() {
+    fireEvent.click(screen.getByTestId('members-groups-row-personal'));
+    fireEvent.click(screen.getByTestId('members-group-modal-fields-btn'));
+    fireEvent.click(await screen.findByTestId('members-fields-row-region'));
+    await screen.findByTestId('members-field-modal');
+  }
+
+  it('turning a scope AXIS off refuses the WHOLE save atomically — nothing persisted, SysAdmin message', async () => {
+    await renderScopeEditor();
+    await openRegionField();
+
+    // Toggle the scope axis OFF (a structural access-model change) via the modal's scope switch.
+    const scopeSection = screen.getByTestId('members-field-modal-scope');
+    const scopeSwitch = within(scopeSection).getByRole('checkbox', { name: 'Scope axis' });
+    expect(scopeSwitch).toBeChecked(); // region IS a scope axis in the fixture
+    fireEvent.click(scopeSwitch);
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    const save = screen.getByTestId('members-config-save');
+    await waitFor(() => expect(save).not.toBeDisabled());
+    fireEvent.click(save);
+
+    // ATOMIC REFUSAL: the config#fields write is NEVER issued (no scope.enabled change lands), and
+    // the scope planes are never touched — the admin is told to create a project with SysAdmin.
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: expect.stringMatching(/System Administrator/i),
+        }),
+      ),
+    );
+    expect(mockApplyChangeOps).not.toHaveBeenCalled();
+    expect(mockWriteScopeConfig).not.toHaveBeenCalled();
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+    // The edit is NOT discarded — the editor stays dirty so the admin can revert or escalate.
+    expect(save).not.toBeDisabled();
+  });
+
+  it('a scope VALUE change auto-applies on both planes (config#fields + SAM scope + Flask mirror)', async () => {
+    await renderScopeEditor();
+    await openRegionField();
+
+    // Add an option VALUE to the scope field (same axis set) via the enum editor, then save.
+    fireEvent.click(screen.getByLabelText('Add option'));
+    const valueInputs = screen.getAllByLabelText(/^Option \d+ value$/);
+    fireEvent.change(valueInputs[valueInputs.length - 1], { target: { value: 'C' } });
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    const save = screen.getByTestId('members-config-save');
+    await waitFor(() => expect(save).not.toBeDisabled());
+    fireEvent.click(save);
+
+    // VALUE change auto-applies: config#fields written, THEN SAM config#scope (authoritative),
+    // THEN the Flask mirror — no SysAdmin refusal.
+    await waitFor(() => expect(mockApplyChangeOps).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockWriteScopeConfig).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/System Administrator/i)).not.toBeInTheDocument();
+  });
+
+  it('a mirror-only failure arms the RESYNC affordance; resync re-drives just the mirror', async () => {
+    await renderScopeEditor();
+    // SAM config#scope succeeds (version present) but the Flask mirror create/update FAILS — the
+    // two planes diverge, so the editor must surface the error AND offer a resync (Req 4.4).
+    mockWriteScopeConfig.mockResolvedValue({ success: true, version: 'v2' });
+    mockCreate.mockRejectedValueOnce(new Error('mirror down'));
+
+    await openRegionField();
+    fireEvent.click(screen.getByLabelText('Add option'));
+    const valueInputs = screen.getAllByLabelText(/^Option \d+ value$/);
+    fireEvent.change(valueInputs[valueInputs.length - 1], { target: { value: 'C' } });
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    const save = screen.getByTestId('members-config-save');
+    await waitFor(() => expect(save).not.toBeDisabled());
+    fireEvent.click(save);
+
+    // The resync affordance appears (SAM authoritative, mirror stale).
+    await screen.findByTestId('members-scope-resync');
+    expect(screen.getByTestId('members-scope-resync-btn')).toBeInTheDocument();
+
+    // Resync: the mirror write now succeeds → the affordance clears (planes reconciled).
+    mockCreate.mockResolvedValueOnce({ success: true });
+    fireEvent.click(screen.getByTestId('members-scope-resync-btn'));
+    await waitFor(() =>
+      expect(screen.queryByTestId('members-scope-resync')).not.toBeInTheDocument(),
+    );
+  });
+
+  it('an AUTHORITATIVE SAM scope-write failure mirrors NOTHING and arms NO resync (Req 4.3)', async () => {
+    await renderScopeEditor();
+    // The authoritative SAM `config#scope` write FAILS (no `version` → never landed). Per Req 4.3
+    // nothing must be mirrored to Flask (the planes never diverge) and — because SAM is NOT
+    // authoritative — NO resync affordance is offered (resync only reconciles an already-written
+    // SAM truth). The admin sees a caller-safe hard error instead.
+    mockWriteScopeConfig.mockResolvedValue({ success: false });
+
+    await openRegionField();
+    fireEvent.click(screen.getByLabelText('Add option'));
+    const valueInputs = screen.getAllByLabelText(/^Option \d+ value$/);
+    fireEvent.change(valueInputs[valueInputs.length - 1], { target: { value: 'C' } });
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    const save = screen.getByTestId('members-config-save');
+    await waitFor(() => expect(save).not.toBeDisabled());
+    fireEvent.click(save);
+
+    // The SAM scope write was attempted (it is the FIRST of the two calls)...
+    await waitFor(() => expect(mockWriteScopeConfig).toHaveBeenCalledTimes(1));
+    // ...a hard error surfaces (not the softer "mirror" warning)...
+    await waitFor(() =>
+      expect(mockToast).toHaveBeenCalledWith(
+        expect.objectContaining({ status: 'error' }),
+      ),
+    );
+    // ...NOTHING was mirrored to Flask (SAM never became authoritative)...
+    expect(mockCreate).not.toHaveBeenCalled();
+    expect(mockUpdate).not.toHaveBeenCalled();
+    // ...and NO resync is armed (there is no authoritative SAM truth to reconcile to).
+    expect(screen.queryByTestId('members-scope-resync')).not.toBeInTheDocument();
   });
 });
