@@ -281,13 +281,20 @@ class TestGetFieldConfigServesApplicationAttributes:
     """
 
     def test_overlay_application_attributes_round_trip_on_the_staff_read(self, repo):
+        # The enum carries canonical `options` (the post-C5/C7 shape every live selectable row has)
+        # — not bare `choices`, which would now be the asymmetry the C6 seam fails loud on. This
+        # test's concern is the four application attributes, orthogonal to the vocabulary shape.
         overlay = TenantOverlay(
             fields={
                 "magazine_pref": OverlayField(
                     key="magazine_pref",
                     type=FieldType.ENUM,
                     label={"nl": "Clubblad", "en": "Magazine"},
-                    choices=("Geen", "Papier", "Digitaal"),
+                    options=(
+                        EnumOption(value="Geen", label={"nl": "Geen", "en": "None"}),
+                        EnumOption(value="Papier", label={"nl": "Papier", "en": "Paper"}),
+                        EnumOption(value="Digitaal", label={"nl": "Digitaal", "en": "Digital"}),
+                    ),
                     order=20,
                     application_visible=True,
                     application_required=True,
@@ -763,13 +770,19 @@ class TestReadAssemblySeamPopulatesOptionsUniformly:
         # Rich option shape (value + label), uniform with every other kind.
         assert all("value" in o and "label" in o for o in region["options"])
 
-    def test_bare_choices_enum_no_longer_falls_back_to_choices(self, repo):
-        # F9: the staff serializer drops the `elif field.choices is not None` fallback. A bare-
+    def test_bare_choices_enum_fails_loud_on_the_asymmetry(self, repo):
+        # F9 + C6 (task 9): the staff serializer dropped the `field.choices` fallback (C4), and the
+        # read-assembly seam now FAILS LOUD on the asymmetry instead of degrading to None. A bare-
         # `choices` overlay enum (built directly through the resolver, bypassing the C5/C7
-        # canonicalisation) has NO inline `options` and is NOT scope-backed, so the seam resolves
-        # NO canonical source and the served `options` is None — the deliberate new behavior. Such
-        # a declared-but-unpropagated source is the ASYMMETRY task 9 (C6) strengthens into a loud
-        # error at this same seam; until then it degrades to None rather than list(field.choices).
+        # canonicalisation) has NO inline `options` and is NOT scope-backed: it DECLARES an inline
+        # vocabulary (`choices`) that did NOT propagate into `options` — the un-migrated / bare-
+        # `choices` legacy row. That is the asymmetry (declared source present, options empty), so
+        # the seam raises a loud, caller-safe `UnpropagatedVocabularyError` rather than serving
+        # `options=None` or falling back to `list(field.choices)`.
+        from sam.members.domain._membership_writes_fieldconfig import (
+            UnpropagatedVocabularyError,
+        )
+
         overlay = TenantOverlay(
             fields={
                 "magazine_pref": OverlayField(
@@ -784,9 +797,14 @@ class TestReadAssemblySeamPopulatesOptionsUniformly:
         service = MembershipService(
             repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
         )
-        config = service.get_field_config("h-dcn")
-        mag = next(f for f in config["fields"] if f["key"] == "magazine_pref")
-        assert mag["options"] is None
+        with pytest.raises(UnpropagatedVocabularyError) as exc:
+            service.get_field_config("h-dcn")
+        # Caller-safe: a GENERIC message (no offending data echoed); the diagnosable specifics
+        # (tenant + field dotted key) live on `detail` for the server-side log line only.
+        assert "did not resolve to any" in str(exc.value)
+        assert "magazine_pref" not in str(exc.value)
+        assert "overlay.magazine_pref" in exc.value.detail
+        assert exc.value.dotted_key == "overlay.magazine_pref"
 
     def test_non_selectable_field_has_no_options(self, repo):
         # A plain string field declares no selectable source → options is None (unchanged).
