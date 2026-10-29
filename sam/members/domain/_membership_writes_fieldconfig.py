@@ -11,6 +11,8 @@ composed service class.
 
 from __future__ import annotations
 
+import logging
+import uuid
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -25,6 +27,56 @@ from sam.members.domain.field_resolver import (
     FunctionalGroup,
     ResolvedField,
 )
+
+logger = logging.getLogger(__name__)
+
+
+class UnpropagatedVocabularyError(ValueError):
+    """A selectable field DECLARED a source that exists but its vocabulary did NOT propagate
+    into ``options`` — the ASYMMETRY (spec 03a, design C6 / Property 3, R2.3/R2.6).
+
+    This is the UNIFORM fail-loud boundary of the one read-assembly seam
+    (:meth:`FieldConfigSurfaceMixin._assemble_field_options`): fired when a field declares a
+    selectable vocabulary that SHOULD have populated ``options`` but did not — an un-migrated /
+    bare-``choices`` legacy row, or an enum with a declared inline vocabulary that resolved to no
+    canonical ``options`` after the C5/C7 collapse. It fires on the ASYMMETRY ONLY and is UNIFORM
+    across kinds — there is NO per-kind exemption and NO silent fallback, empty-list substitution,
+    or shape coercion (the retired F1/F3/F9/F10 fallbacks).
+
+    It does NOT fire on a source that is legitimately empty/absent-by-design (G5): a scope
+    dimension with zero values yet, a newly-created not-yet-populated field (no declared source at
+    all), or a reference whose catalog correctly populates ``options`` (or is simply empty — zero
+    active types yet). Those stay valid in-progress states that return ``None`` from the seam.
+
+    Subclasses :class:`ValueError` so the edge's generic handler maps it to a caller-safe 500 with
+    a stable code + correlation id (steering 30): the message is GENERIC and echoes NO internal
+    detail; the diagnosable specifics (tenant + field dotted key) are recorded on :attr:`detail`
+    for the SERVER-side log line, never returned to the client.
+
+    Each instance carries its OWN :attr:`correlation_id` (a uuid4 minted at raise time). On the
+    PUBLIC application path (design C6 "Blast-radius policy") the serializer CATCHES this per-field,
+    drops the one offending field, and emits an error log + metric + alert keyed by THIS id — so
+    the client-visible "field absent" and the server-side diagnostic :attr:`detail` are joined by a
+    single correlation id a platform operator can quote (steering 30). On the STAFF path the error
+    PROPAGATES unchanged (the editor is where a config bug must surface loudly).
+    """
+
+    def __init__(self, tenant_id: str, dotted_key: str, kind: str):
+        #: A SHORT, caller-free diagnostic (tenant + field key + which source) for the server-side
+        #: log line under the correlation id. NOT surfaced to the client.
+        self.detail = (
+            f"tenant={tenant_id!r} field={dotted_key!r} declared_source={kind} "
+            f"resolved to empty options (asymmetry)"
+        )
+        self.dotted_key = dotted_key
+        #: A stable per-raise correlation id. The public-path drop log/metric/alert and the
+        #: server-side :attr:`detail` are keyed by this SAME id (design C6), so one alert line
+        #: ties to the exact dropped field without echoing internals to the client.
+        self.correlation_id = uuid.uuid4().hex
+        super().__init__(
+            "a selectable field declares a vocabulary source that did not resolve to any "
+            "options (config bug — the field's declared source failed to propagate)"
+        )
 
 
 class FieldConfigSurfaceMixin:
@@ -87,7 +139,7 @@ class FieldConfigSurfaceMixin:
         # consume the ONE `options` this computed — they do not re-branch by kind.
         assembled = {
             f.dotted_key(): self._assemble_field_options(
-                f, options=options, scope_vocab=scope_vocab
+                f, tenant_id=tenant_id, options=options, scope_vocab=scope_vocab
             )
             for f in config.fields
         }
@@ -241,21 +293,38 @@ class FieldConfigSurfaceMixin:
         config = self._field_resolver.resolve(tenant_id, scope_vocab=scope_vocab)
         options = self._active_membership_type_options(tenant_id)
 
-        fields = [
-            self._serialize_public_field(
-                f,
+        # ── Per-consumer blast-radius split (design C6 "Blast-radius policy", task 9) ─────
+        # The PUBLIC application path must NEVER let one misconfigured field black out a whole
+        # tenant's form. So, unlike the STAFF read (`get_field_config`, where the seam's
+        # `UnpropagatedVocabularyError` propagates and the editor surfaces the bug loudly), the
+        # public assembly is PER-FIELD: a field whose declared source did not propagate (the
+        # asymmetry) is DROPPED from the served schema and an error LOG + METRIC + ALERT is
+        # emitted (keyed by the error's correlation id), while every sibling field is still
+        # assembled and the page is still served. The catch is PER-FIELD on purpose — field A
+        # raising must not skip fields B/C.
+        fields: list[dict[str, Any]] = []
+        for f in config.fields:
+            # R5.1/R5.2: expose ONLY application-selected fields — nothing the tenant did not
+            # put on the public form (no staff-only / unselected field, no internal attribute).
+            if not f.application_visible:
+                continue
+            try:
                 # The SAME ONE `options` the read-assembly seam (design C4 / F8) populated for the
                 # staff read — the public serializer consumes it and then applies the R3.2 subset
                 # FILTER, so both reads resolve the same vocabulary from the same assembly point.
-                field_options=self._assemble_field_options(
-                    f, options=options, scope_vocab=scope_vocab
-                ),
-            )
-            for f in config.fields
-            # R5.1/R5.2: expose ONLY application-selected fields — nothing the tenant did not
-            # put on the public form (no staff-only / unselected field, no internal attribute).
-            if f.application_visible
-        ]
+                field_options = self._assemble_field_options(
+                    f, tenant_id=tenant_id, options=options, scope_vocab=scope_vocab
+                )
+                fields.append(
+                    self._serialize_public_field(f, field_options=field_options)
+                )
+            except UnpropagatedVocabularyError as exc:
+                # Bounded blast radius (C6): DROP this one field, keep serving the page. Record the
+                # drop as an operator ALERT keyed by the error's correlation id so the full
+                # server-side `detail` (tenant + dotted key) is recoverable for triage WITHOUT
+                # leaking anything to the applicant (steering 30) — the field is simply absent.
+                self._alert_public_field_dropped(tenant_id, exc)
+                continue
 
         return {
             "tenant_id": config.tenant_id,
@@ -406,6 +475,35 @@ class FieldConfigSurfaceMixin:
         """
         return {k: v for k, v in option.items() if k != "roles"}
 
+    @staticmethod
+    def _alert_public_field_dropped(
+        tenant_id: str, error: UnpropagatedVocabularyError
+    ) -> None:
+        """Record the PUBLIC-path drop of one asymmetric field as an operator ALERT (C6, task 9).
+
+        The public application serializer caught :class:`UnpropagatedVocabularyError` for ONE field
+        (its declared vocabulary source did not propagate) and dropped that field so the page is
+        still served (bounded blast radius, design C6 "Blast-radius policy"). This emits the
+        accompanying error LOG + METRIC + ALERT.
+
+        Mechanism (matches the SAM plane's existing operator-alert channel —
+        ``MailSendWorker._operator_alert_no_recipients``): a single ``logger.error`` carrying a
+        STABLE, greppable marker (``OPERATOR_ALERT CONFIG_FIELD_UNPROPAGATED``) that a CloudWatch
+        metric filter / alarm subscribes to — no SNS client is wired on this unauthenticated public
+        plane. The line carries the error's ``correlation_id`` and its server-side ``detail``
+        (tenant + dotted field key) so the drop is triage-able under that one id. Nothing here is
+        returned to the applicant; the client only sees the field absent (steering 30)."""
+        logger.error(
+            "OPERATOR_ALERT CONFIG_FIELD_UNPROPAGATED: tenant %r public field %r dropped from the "
+            "application form — its declared vocabulary source did not propagate into options "
+            "(config bug). correlation_id=%s detail=%s. The page is still served without this "
+            "field (bounded blast radius, C6/R2.3).",
+            tenant_id,
+            error.dotted_key,
+            error.correlation_id,
+            error.detail,
+        )
+
     def _serialize_scope_dimensions(self, tenant_id: str) -> list[dict[str, Any]]:
         """Project the tenant's ENABLED scope dimensions into the frontend `dimensions` shape.
 
@@ -447,6 +545,7 @@ class FieldConfigSurfaceMixin:
         self,
         field: ResolvedField,
         *,
+        tenant_id: str,
         options: Sequence[Mapping[str, Any]],
         scope_vocab: Mapping[str, Sequence[str]],
     ) -> list[dict[str, Any]] | None:
@@ -473,19 +572,30 @@ class FieldConfigSurfaceMixin:
         Returns ``None`` for a field that declares no selectable source. There is deliberately NO
         ``field.choices`` fallback here (F9/F10): a bare value list is not a canonical source —
         after the C7 backfill / C5 reader collapse every live selectable row carries ``options``.
-        A field whose DECLARED source exists but did not propagate into ``options`` is the
-        ASYMMETRY the uniform fail-loud boundary (task 9 / C6) raises on; this pass is the single
-        point that decision hooks into — today it returns the (empty/absent) result, and task 9
-        strengthens exactly this seam to raise on the asymmetry rather than degrade.
+
+        **Fail-loud on the ASYMMETRY ONLY (task 9 / C6, Property 3, R2.3/R2.6).** When a field's
+        DECLARED source EXISTS but its vocabulary did NOT propagate into ``options``, this seam
+        raises :class:`UnpropagatedVocabularyError` — the UNIFORM boundary, no per-kind exemption,
+        no silent fallback/empty-list/coercion. The only structural asymmetry reachable here is an
+        **inline enum carrying a declared bare ``choices`` vocabulary that resolved to no
+        ``options``** (an un-migrated / bare-``choices`` legacy row, or an enum with no inline
+        options after the C5/C7 collapse). It is NOT raised for a legitimately empty/absent source
+        (G5): a scope dimension with zero values yet, a newly-created not-yet-populated field (no
+        declared source at all → ``None``), or a reference whose catalog correctly populates (or
+        is simply empty — zero active types yet) — all valid in-progress states.
         """
-        # reference — the injected active-catalog map (F8). Population lives at the seam, never
-        # in the pure resolver.
+        # reference — the injected active-catalog map (F8). Population lives at the seam, never in
+        # the pure resolver. An EMPTY catalog is a legitimately-empty source (zero active types
+        # yet, G5) — NOT the asymmetry — and a non-empty catalog is attached directly here, so a
+        # "non-empty catalog failed to attach" cannot occur structurally; reference never raises.
         if field.dotted_key() == MEMBERSHIP_TYPE_FIELD_KEY:
             return [dict(o) for o in options]
 
         # scope-backed — project the injected scope dimension's values to rich options. The key
         # ∈ scope_vocab is the SAME discriminator the resolver uses for a scope-dimension-backed
-        # enum, so inline-options fields (which are NOT in scope_vocab) still resolve inline.
+        # enum, so inline-options fields (which are NOT in scope_vocab) still resolve inline. An
+        # EMPTY dimension (zero values yet) is a legitimately-empty source (G5), NOT the asymmetry
+        # — project the (possibly empty) list; do not raise.
         if field.key in scope_vocab:
             return [
                 {"value": str(v), "label": {}} for v in scope_vocab[field.key]
@@ -494,13 +604,23 @@ class FieldConfigSurfaceMixin:
         # inline enum — the field's own rich options, sourced purely by the resolver. Reuses the
         # catalog mixin's enum serializer (resolved at runtime on the composed service class, same
         # as the other cross-mixin calls here) so the {value,label,roles?} shape is identical.
-        if field.options is not None:
+        if field.options:
             return [self._serialize_enum_option(o) for o in field.options]
 
+        # ── The ASYMMETRY (task 9 / C6, uniform fail-loud) ───────────────────────────────
+        # A field whose DECLARED inline vocabulary (`choices`) is PRESENT but did NOT propagate
+        # into `options` — the un-migrated / bare-`choices` legacy row (and the enum-with-no-
+        # inline-options-after-migration case). This is NOT a scope/reference source (handled
+        # above) and NOT a legitimately sourceless field (no `choices` either). It is the
+        # asymmetry: raise LOUD + caller-safe, never degrade to an empty list / a `choices`
+        # fallback. G5: a field with NO declared vocabulary at all falls through to `None` below.
+        if field.choices:
+            raise UnpropagatedVocabularyError(
+                tenant_id, field.dotted_key(), kind="inline-enum"
+            )
+
         # No selectable source declared (a plain string/number field, or a not-yet-populated
-        # field). No `field.choices` fallback (F9/F10): a bare value list is not a canonical
-        # source. Task 9 (C6) strengthens THIS point to raise when a DECLARED source exists but
-        # failed to propagate (the asymmetry); a legitimately sourceless field stays `None`.
+        # field with no `options` and no `choices`) → legitimately sourceless (G5), `None`.
         return None
 
     def _active_membership_type_options(self, tenant_id: str) -> list[dict[str, Any]]:

@@ -365,11 +365,14 @@ class TestPublicReadConsumesSeamOptionsWithSubsetFilter:
             assert "roles" not in opt
             assert set(opt) == {"value", "label"}
 
-    def test_public_bare_choices_enum_has_no_options_no_fallback(self, catalog_repo):
-        # F10: a bare-`choices`, application-visible enum (no inline options, not scope-backed)
-        # resolves NO canonical seam source, so the public read serves options=None rather than
-        # falling back to the bare `field.choices` list. (Declared-but-unpropagated → the
-        # asymmetry task 9/C6 raises on at the seam.)
+    def test_public_bare_choices_enum_is_dropped_not_page_blackout(self, catalog_repo, caplog):
+        # F10 + C6 (task 9, REVISED per-consumer split): a bare-`choices`, application-visible enum
+        # (no inline options, not scope-backed) DECLARES an inline vocabulary (`choices`) that did
+        # NOT propagate into `options` — the asymmetry. The read-assembly seam still RAISES
+        # `UnpropagatedVocabularyError`, but on the PUBLIC path the serializer CATCHES it per-field,
+        # DROPS that one field, and STILL serves the page (bounded blast radius). It does NOT black
+        # out the whole public form the way a uniform raise would. (The STAFF read still raises —
+        # see TestFailLoudOnAsymmetry.)
         overlay = TenantOverlay(
             fields={
                 "magazine_pref": OverlayField(
@@ -385,9 +388,15 @@ class TestPublicReadConsumesSeamOptionsWithSubsetFilter:
         svc = MembershipService(
             catalog_repo, overlay_provider=StaticOverlayProvider({_TENANT: overlay})
         )
-        public = svc.get_public_field_config(_TENANT)
-        mag = _field(public, "magazine_pref")
-        assert mag["options"] is None
+        import logging
+
+        with caplog.at_level(logging.ERROR):
+            public = svc.get_public_field_config(_TENANT)  # must NOT raise — page served
+        # The offending field is dropped; the page is still served (no magazine_pref field).
+        assert all(f["key"] != "magazine_pref" for f in public["fields"])
+        # An operator ALERT was emitted (metric/alert channel) for the drop.
+        assert "OPERATOR_ALERT CONFIG_FIELD_UNPROPAGATED" in caplog.text
+        assert "overlay.magazine_pref" in caplog.text  # server-side detail, not client
 
 
 class TestScopeBackedFieldPopulatedFromScopeVocabAtSeam:
@@ -428,3 +437,412 @@ class TestScopeBackedFieldPopulatedFromScopeVocabAtSeam:
         region = _field(editor, "region")
         assert [o["value"] for o in region["options"]] == ["noord", "zuid"]
         assert all("value" in o and "label" in o for o in region["options"])
+
+
+# ── 03a task 9 (C6 / F4 / F9 / F10) — UNIFORM fail-loud on the ASYMMETRY only ─────────────────
+#
+# Property 3 (design "Fail-Loud", G5 predicate): the read-assembly seam
+# (`_assemble_field_options`) raises a LOUD, caller-safe, diagnosable error when a field's
+# DECLARED source EXISTS but its vocabulary did NOT propagate into `options` (the asymmetry) —
+# UNIFORMLY, no per-kind exemption, never degrading to an empty list / a `field.choices` fallback.
+# It does NOT fire for a source that is legitimately empty/absent-by-design (G5): a scope
+# dimension with zero values yet, a newly-created not-yet-populated field, or a reference whose
+# catalog correctly populates (or is simply empty — zero active types yet).
+#
+# Validates: Requirements 2.3, 2.6 · Components: C6, F4, F9, F10
+
+
+class TestFailLoudOnAsymmetry:
+    """(a) Fail-loud cases: a DECLARED source present but unpropagated → raises, every read."""
+
+    def _bare_choices_service(self, catalog_repo, *, application_visible=False):
+        # An inline enum carrying a DECLARED bare `choices` vocabulary that did NOT propagate into
+        # `options` (the un-migrated / bare-`choices` legacy row). Built straight through the
+        # resolver, bypassing the C5/C7 canonicalisation that would have produced `options`.
+        overlay = TenantOverlay(
+            fields={
+                "referral_source": OverlayField(
+                    key="referral_source",
+                    type=FieldType.ENUM,
+                    label={"nl": "Bron", "en": "Source"},
+                    choices=("internet", "facebook", "flyer"),
+                    order=50,
+                    application_visible=application_visible,
+                )
+            }
+        )
+        return MembershipService(
+            catalog_repo, overlay_provider=StaticOverlayProvider({_TENANT: overlay})
+        )
+
+    def test_staff_read_raises_on_bare_choices_asymmetry(self, catalog_repo):
+        from sam.members.domain._membership_writes_fieldconfig import (
+            UnpropagatedVocabularyError,
+        )
+
+        svc = self._bare_choices_service(catalog_repo)
+        with pytest.raises(UnpropagatedVocabularyError):
+            svc.get_field_config(_TENANT)
+
+    def test_reference_fetch_error_raises_on_staff_read(self, catalog_repo):
+        # Reference FETCH ERROR (source unreachable) is in the P3-set and raises on the STAFF read —
+        # distinct from an empty RESULT (zero active types), which does NOT raise (G5, below). The
+        # catalog repo's active-type listing is made to fail (source unreachable), so the seam's
+        # reference population cannot attach — the asymmetry surfaces loudly on the staff path.
+        class _FetchErrorCatalog:
+            def list_membership_types(self, tenant_id, active_only=False):
+                raise RuntimeError("catalog source unreachable")
+
+        overlay = TenantOverlay(
+            fields={
+                "referral_source": OverlayField(
+                    key="referral_source",
+                    type=FieldType.ENUM,
+                    label={"nl": "Bron", "en": "Source"},
+                    options=(
+                        EnumOption(value="a", label={"nl": "A", "en": "A"}),
+                    ),
+                    order=50,
+                )
+            }
+        )
+        svc = MembershipService(
+            _FetchErrorCatalog(), overlay_provider=StaticOverlayProvider({_TENANT: overlay})
+        )
+        # A reference-catalog fetch error propagates loudly on the staff read (fail-loud boundary).
+        with pytest.raises(Exception):
+            svc.get_field_config(_TENANT)
+
+    def test_error_is_caller_safe_generic_message_no_data_leak(self, catalog_repo):
+        # steering 30: the client-visible message is GENERIC — it echoes NO offending data (not the
+        # field key, not the choices). The diagnosable specifics (tenant + dotted key) live on
+        # `detail` for the SERVER-side log line keyed by the edge correlation id, never returned.
+        from sam.members.domain._membership_writes_fieldconfig import (
+            UnpropagatedVocabularyError,
+        )
+
+        svc = self._bare_choices_service(catalog_repo)
+        with pytest.raises(UnpropagatedVocabularyError) as exc:
+            svc.get_field_config(_TENANT)
+        msg = str(exc.value)
+        assert "did not resolve to any options" in msg
+        # No internals in the client-facing message.
+        assert "referral_source" not in msg
+        assert "internet" not in msg
+        assert _TENANT not in msg
+        # The diagnostic detail (server-side only) names the tenant + field for triage.
+        assert _TENANT in exc.value.detail
+        assert "overlay.referral_source" in exc.value.detail
+        assert exc.value.dotted_key == "overlay.referral_source"
+
+    def test_error_subclasses_valueerror_for_caller_safe_edge_mapping(self):
+        # Subclasses ValueError so the edge's generic handler maps it to a caller-safe 500 with a
+        # stable code + correlation id (never str(e)) — consistent with C5's MalformedOptionsError.
+        from sam.members.domain._membership_writes_fieldconfig import (
+            UnpropagatedVocabularyError,
+        )
+
+        assert issubclass(UnpropagatedVocabularyError, ValueError)
+
+
+class TestFailLoudDoesNotFireOnLegitimatelyEmptySources:
+    """(b) G5 must-NOT-raise cases: a legitimately empty/absent source is a valid in-progress
+    state across EVERY kind — the asymmetry predicate must not trip on any of them."""
+
+    def test_scope_source_with_zero_values_does_not_raise_at_the_seam(self, catalog_repo):
+        # G5 (scope): a scope-backed field whose injected `scope_vocab` entry is EMPTY is a
+        # legitimately-empty source (a dimension with zero values yet) — NOT the asymmetry. The
+        # seam must project the (empty) list, NEVER raise. Exercised at the seam unit directly
+        # because the scope-CONFIG layer independently forbids an *enabled* dimension with zero
+        # values (ScopeConfigError), so the empty source can only be presented to the seam as an
+        # empty `scope_vocab` entry — which is exactly what the predicate must tolerate.
+        svc = MembershipService(
+            catalog_repo, overlay_provider=StaticOverlayProvider({})
+        )
+        region = OverlayField(
+            key="region", type=FieldType.ENUM, label={"nl": "Regio", "en": "Region"}
+        )
+        from sam.members.domain.field_resolver import (
+            FieldOrigin,
+            ResolvedField,
+        )
+
+        resolved = ResolvedField(
+            key="region",
+            group="overlay",
+            type=FieldType.ENUM,
+            required=False,
+            origin=FieldOrigin.VARIABLE,
+            label=region.label,
+        )
+        # scope_vocab declares `region` as a scope source, but with ZERO values yet.
+        out = svc._assemble_field_options(
+            resolved, tenant_id=_TENANT, options=[], scope_vocab={"region": ()}
+        )
+        assert out == []  # projected empty list, no raise (G5)
+
+    def test_reference_with_empty_active_catalog_does_not_raise(self):
+        # G5: a reference (membership_type) whose active catalog has ZERO entries yet (a brand-new
+        # tenant). The declared source (the catalog) is simply empty — a valid in-progress state,
+        # NOT a "non-empty catalog failed to attach". The seam returns the empty list, no raise.
+        empty_catalog = FakeCatalogRepository()  # no add_type → zero active types
+        svc = MembershipService(
+            empty_catalog, overlay_provider=StaticOverlayProvider({})
+        )
+        editor = svc.get_field_config(_TENANT)  # must NOT raise
+        assert _field(editor, "membership_type")["options"] == []
+
+    def test_newly_created_field_with_no_declared_source_does_not_raise(self, catalog_repo):
+        # G5: a newly-created not-yet-populated field with NO declared vocabulary at all (a plain
+        # string field — no options, no choices, not scope/reference). No declared source → not
+        # the asymmetry; the seam returns None, no raise.
+        overlay = TenantOverlay(
+            fields={
+                "club_note": OverlayField(
+                    key="club_note",
+                    type=FieldType.STRING,
+                    label={"nl": "Notitie", "en": "Note"},
+                    order=80,
+                )
+            }
+        )
+        svc = MembershipService(
+            catalog_repo, overlay_provider=StaticOverlayProvider({_TENANT: overlay})
+        )
+        editor = svc.get_field_config(_TENANT)  # must NOT raise
+        assert _field(editor, "club_note")["options"] is None
+
+    def test_reference_that_correctly_populates_does_not_raise(self, catalog_repo):
+        # G5: a reference whose catalog CORRECTLY populates `options` (the catalog_repo fixture has
+        # two active types) is the non-bug reference path — populated, not the asymmetry, no raise.
+        svc = MembershipService(
+            catalog_repo, overlay_provider=StaticOverlayProvider({})
+        )
+        editor = svc.get_field_config(_TENANT)  # must NOT raise
+        assert [o["value"] for o in _field(editor, "membership_type")["options"]] == [
+            "gewoon",
+            "erelid",
+        ]
+
+    def test_already_resolving_inline_enum_does_not_raise(self, service):
+        # G5: an options-authored inline enum already resolves to populated `options` — the
+        # non-bug path; it must NOT raise (the whole fixture service resolves cleanly).
+        editor = service.get_field_config(_TENANT)  # must NOT raise
+        assert [o["value"] for o in _field(editor, "referral_source")["options"]] == [
+            "internet",
+            "facebook",
+            "staff_only",
+        ]
+
+
+# ── 03a task 9 (C6 — REVISED) — per-consumer blast-radius SPLIT ───────────────────────────────
+#
+# The REVISED C6 design ("Blast-radius policy — DELIBERATE and asymmetric by CONSUMER") splits the
+# fail-loud boundary by consumer:
+#   * STAFF config-editor read (`get_field_config`): the seam's raise PROPAGATES — the editor is
+#     where a config bug must surface (covered by TestFailLoudOnAsymmetry above).
+#   * PUBLIC application path (`get_public_field_config`): the serializer CATCHES the seam's
+#     per-field raise, DROPS that one field, STILL serves the page, and emits an error LOG + METRIC
+#     + ALERT (operator-alert channel, correlation id) — one bad field never blacks out the form.
+#
+# The catch is PER-FIELD: a raising field A must not skip sibling fields B/C. These assert the drop,
+# the sibling survival, the still-served page, and the alert (with correlation id); the staff path
+# over the SAME asymmetry still raises.
+#
+# Validates: Requirements 2.3, 2.6 · Components: C6, F4, F9, F10
+
+
+class TestPublicPathDropsAsymmetricFieldAndAlerts:
+    def _overlay_one_bad_two_good(self) -> TenantOverlay:
+        """An overlay with THREE application-visible enums: a bare-`choices` asymmetric field
+        between two already-resolving options-authored fields, so a per-field catch can be proven
+        to drop ONLY the bad one and keep both siblings."""
+        return TenantOverlay(
+            functional_groups={
+                "membership": FunctionalGroup(
+                    key="membership", label={"nl": "Lid", "en": "Membership"}, order=4
+                ),
+            },
+            fields={
+                "good_a": OverlayField(
+                    key="good_a",
+                    type=FieldType.ENUM,
+                    label={"nl": "A", "en": "A"},
+                    options=(EnumOption(value="a1", label={"nl": "A1", "en": "A1"}),),
+                    functional_group="membership",
+                    order=10,
+                    application_visible=True,
+                ),
+                "bad_mid": OverlayField(
+                    key="bad_mid",
+                    type=FieldType.ENUM,
+                    label={"nl": "Slecht", "en": "Bad"},
+                    choices=("Geen", "Papier"),  # bare choices, un-propagated → asymmetry
+                    functional_group="membership",
+                    order=20,
+                    application_visible=True,
+                ),
+                "good_c": OverlayField(
+                    key="good_c",
+                    type=FieldType.ENUM,
+                    label={"nl": "C", "en": "C"},
+                    options=(EnumOption(value="c1", label={"nl": "C1", "en": "C1"}),),
+                    functional_group="membership",
+                    order=30,
+                    application_visible=True,
+                ),
+            },
+        )
+
+    def test_public_read_drops_the_one_bad_field_and_keeps_siblings(self, catalog_repo):
+        # The asymmetric field (`bad_mid`) is DROPPED from the public schema; both sibling fields
+        # (`good_a`, `good_c`) survive and the page is still served. Proves the catch is PER-FIELD
+        # — a field raising in the MIDDLE of the loop does not skip the field after it.
+        svc = MembershipService(
+            catalog_repo,
+            overlay_provider=StaticOverlayProvider({_TENANT: self._overlay_one_bad_two_good()}),
+        )
+        public = svc.get_public_field_config(_TENANT)  # must NOT raise
+        keys = {f["key"] for f in public["fields"]}
+        assert "bad_mid" not in keys  # the one asymmetric field dropped
+        assert "good_a" in keys and "good_c" in keys  # siblings survive
+
+    def test_public_read_emits_error_log_metric_alert_with_correlation_id(
+        self, catalog_repo, caplog
+    ):
+        # The drop emits an ERROR-level operator ALERT on the SAM operator-alert channel (a stable
+        # greppable marker a CloudWatch metric filter / alarm subscribes to), carrying a
+        # correlation id + the server-side detail (tenant + dotted key) for triage — nothing
+        # leaked to the client beyond the field being absent (steering 30).
+        import logging
+        import re
+
+        svc = MembershipService(
+            catalog_repo,
+            overlay_provider=StaticOverlayProvider({_TENANT: self._overlay_one_bad_two_good()}),
+        )
+        with caplog.at_level(logging.ERROR):
+            svc.get_public_field_config(_TENANT)
+
+        # An error-level record on the operator-alert channel with the stable marker.
+        alert_records = [
+            r
+            for r in caplog.records
+            if r.levelno >= logging.ERROR
+            and "OPERATOR_ALERT CONFIG_FIELD_UNPROPAGATED" in r.getMessage()
+        ]
+        assert alert_records, "expected an operator ALERT for the dropped field"
+        text = alert_records[0].getMessage()
+        # Server-side detail: tenant + dotted field key present for triage.
+        assert _TENANT in text
+        assert "overlay.bad_mid" in text
+        # A correlation id ties the alert to the server-side detail (32-hex uuid4).
+        assert re.search(r"correlation_id=[0-9a-f]{32}", text), text
+
+    def test_public_drop_does_not_leak_internal_detail_to_served_schema(self, catalog_repo):
+        # Steering 30 / resolved-view contract: the served public schema carries only the surviving
+        # fields — no error payload, no dropped-field key, no raw-storage key. The applicant sees
+        # the field simply absent, nothing about WHY.
+        svc = MembershipService(
+            catalog_repo,
+            overlay_provider=StaticOverlayProvider({_TENANT: self._overlay_one_bad_two_good()}),
+        )
+        public = svc.get_public_field_config(_TENANT)
+        blob = json.dumps(public)
+        assert "bad_mid" not in blob
+        assert "error" not in blob and "correlation" not in blob
+        for raw_key in ("field_overlay", "overrides", "fixed_overrides"):
+            assert f'"{raw_key}"' not in blob
+
+    def test_staff_read_over_the_same_asymmetry_still_raises(self, catalog_repo):
+        # The CONTRAST that defines the split: the SAME overlay that the public path tolerates (by
+        # dropping) still raises LOUDLY on the STAFF editor read — the editor is where the config
+        # bug must surface. Public drops; staff raises.
+        from sam.members.domain._membership_writes_fieldconfig import (
+            UnpropagatedVocabularyError,
+        )
+
+        svc = MembershipService(
+            catalog_repo,
+            overlay_provider=StaticOverlayProvider({_TENANT: self._overlay_one_bad_two_good()}),
+        )
+        with pytest.raises(UnpropagatedVocabularyError):
+            svc.get_field_config(_TENANT)
+
+    def test_each_raised_error_carries_its_own_correlation_id(self):
+        # The correlation id is minted per raise (uuid4), so two independent asymmetries get
+        # distinct ids — an operator can disambiguate concurrent drops.
+        from sam.members.domain._membership_writes_fieldconfig import (
+            UnpropagatedVocabularyError,
+        )
+
+        e1 = UnpropagatedVocabularyError(_TENANT, "overlay.x", kind="inline-enum")
+        e2 = UnpropagatedVocabularyError(_TENANT, "overlay.y", kind="inline-enum")
+        assert e1.correlation_id != e2.correlation_id
+        assert len(e1.correlation_id) == 32  # uuid4 hex
+
+
+class TestG5LegitimatelyEmptyDoesNotRaiseOnPublicPathEither:
+    """G5 must-NOT-raise cases hold on BOTH consumer paths. The public path must not DROP a field
+    whose source is legitimately empty/absent-by-design — a drop would be as wrong as a raise."""
+
+    def test_public_read_reference_empty_catalog_serves_membership_type(self):
+        # G5 (reference, public): an empty active catalog (new tenant, zero active types) is a
+        # legitimately-empty RESULT, not the asymmetry. membership_type is application-visible by
+        # default in the fixed set — the public read serves it with an empty option list, NOT
+        # dropped, NOT raised.
+        empty_catalog = FakeCatalogRepository()
+        svc = MembershipService(empty_catalog, overlay_provider=StaticOverlayProvider({}))
+        public = svc.get_public_field_config(_TENANT)  # must NOT raise
+        mt = [f for f in public["fields"] if f["key"] == "membership_type"]
+        # membership_type is present (not dropped) with an empty, valid option list.
+        if mt:  # it is application-visible in the fixed base
+            assert mt[0]["options"] == []
+
+    def test_public_read_scope_empty_vocab_is_served_not_dropped(self, catalog_repo):
+        # G5 (scope, public): an empty scope source (dimension present in scope_vocab with ZERO
+        # values yet) projects to an EMPTY option list at the seam — a legitimately-empty source,
+        # NOT the asymmetry. The public serializer must SERVE it (empty options), not DROP it. The
+        # config layer forbids an *enabled* dimension with zero values (ScopeConfigError), so the
+        # empty source is presented to the public serializer directly via `_serialize_public_field`
+        # over the empty `field_options` the seam would return — proving the drop path is NOT taken.
+        from sam.members.domain.field_resolver import FieldOrigin, ResolvedField
+
+        svc = MembershipService(
+            catalog_repo, overlay_provider=StaticOverlayProvider({})
+        )
+        resolved = ResolvedField(
+            key="region",
+            group="overlay",
+            type=FieldType.ENUM,
+            required=False,
+            origin=FieldOrigin.VARIABLE,
+            label={"nl": "Regio", "en": "Region"},
+            application_visible=True,
+        )
+        # The empty scope source: the seam returns [] (empty list), NOT a raise (G5). The public
+        # serializer serves that field with an empty option list — not dropped.
+        served = svc._serialize_public_field(resolved, field_options=[])
+        assert served["key"] == "region"
+        assert served["options"] == []  # served with empty options, not dropped
+
+    def test_public_read_newly_created_sourceless_field_is_served(self, catalog_repo):
+        # G5 (sourceless, public): a newly-created application-visible field with NO declared
+        # vocabulary at all (plain string) is served with options=None — not dropped, not raised.
+        overlay = TenantOverlay(
+            fields={
+                "club_note": OverlayField(
+                    key="club_note",
+                    type=FieldType.STRING,
+                    label={"nl": "Notitie", "en": "Note"},
+                    order=80,
+                    application_visible=True,
+                )
+            }
+        )
+        svc = MembershipService(
+            catalog_repo, overlay_provider=StaticOverlayProvider({_TENANT: overlay})
+        )
+        public = svc.get_public_field_config(_TENANT)  # must NOT raise
+        note = [f for f in public["fields"] if f["key"] == "club_note"]
+        assert note and note[0]["options"] is None
