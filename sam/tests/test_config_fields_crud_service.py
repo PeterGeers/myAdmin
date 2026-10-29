@@ -462,6 +462,78 @@ def test_remove_legacy_choices_is_noop_when_field_entry_absent(repo):
     assert repo.calls == []
 
 
+# ---------------------------------------------------------------------------
+# remove_inline_options — the C7 companion for SCOPE-BACKED (W2) / REFERENCE (W1) fields
+# ---------------------------------------------------------------------------
+#
+# A scope-backed / reference field sources its vocabulary from the config#scope dimension / the
+# live catalog, NEVER inline. `set_field` REJECTS an inline `options` payload on such a field
+# (W1/W2), so — exactly like `remove_legacy_choices` for the retired `choices` — the migration
+# needs a dedicated narrow op to DROP a stale inline `options`. It emits a SINGLE scoped
+# `REMOVE <map>.<key>.options` (never a whole-row put_item) and is a safe no-op when the field
+# carries no inline `options`.
+
+
+def test_remove_inline_options_emits_scoped_remove_on_options_path(repo):
+    """remove_inline_options emits a SINGLE scoped REMOVE on the field's `options` path — modelled
+    on remove_legacy_choices, bypassing the W1/W2 source-integrity guard."""
+    reader = _reader_row_with(
+        "fields",
+        "region",
+        {"scope": {"enabled": True}, "options": [{"value": "stale"}]},
+    )
+    svc = ConfigFieldsCrudService(repo, reader=reader)
+
+    svc.remove_inline_options(_TENANT, "region")
+
+    ops = repo.last["ops"]
+    assert ops == [{"action": REMOVE, "path": ["fields", "region", "options"]}]
+    # It targets config#fields via the Change-Op path (not a whole-row replace).
+    assert repo.last["config_id"] == "fields"
+
+
+def test_remove_inline_options_on_override_targets_overrides_map(repo):
+    """For a base/calculated override the scoped REMOVE addresses overrides.<dotted>.options."""
+    reader = _reader_row_with(
+        "fixed_overrides",
+        "personal.gender",
+        {"scope": {"enabled": True}, "options": [{"value": "stale"}]},
+    )
+    svc = ConfigFieldsCrudService(repo, reader=reader)
+
+    svc.remove_inline_options(_TENANT, "gender")
+
+    assert repo.last["ops"] == [
+        {"action": REMOVE, "path": ["overrides", "personal.gender", "options"]}
+    ]
+
+
+def test_remove_inline_options_is_noop_when_no_options_attribute(repo):
+    """When the stored entry carries NO inline `options` nothing is written — apply_ops is never
+    called with an empty op set."""
+    reader = _reader_row_with(
+        "fields",
+        "region",
+        {"scope": {"enabled": True}},
+    )
+    svc = ConfigFieldsCrudService(repo, reader=reader)
+
+    result = svc.remove_inline_options(_TENANT, "region")
+
+    assert result.get("no_op") is True
+    assert repo.calls == [], "a no-op must not reach apply_ops (never a whole-row replace either)"
+
+
+def test_remove_inline_options_is_noop_when_field_entry_absent(repo):
+    """A field with no stored entry at all carries no inline `options` → safe no-op, no write."""
+    svc = ConfigFieldsCrudService(repo, reader=FakeReader({}))
+
+    result = svc.remove_inline_options(_TENANT, "region")
+
+    assert result.get("no_op") is True
+    assert repo.calls == []
+
+
 def test_delete_group_removes_whole_group_entry(service, repo):
     """delete_group removes the whole functional_groups.<gkey> entry."""
     service.delete_group(_TENANT, "custom_group")

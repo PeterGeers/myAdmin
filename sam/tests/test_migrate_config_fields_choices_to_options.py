@@ -22,6 +22,13 @@ Two layers, both without AWS / boto3 (steering 34/39):
    proves the real h-dcn ``referral_source``-shaped vocabulary survives as value-only ``options``,
    and that a re-run is a no-op (idempotence).
 
+3. **Kind-aware DROP-not-convert** (section 4) — a SCOPE-BACKED field (stored spec carries an
+   enabled ``scope``) carrying legacy ``choices`` + a stale inline ``options`` is DRIVEN over the
+   SAME real service + real writer, proving the W2 write-edge guard is actually exercised: the
+   migration must NOT convert (``set_field`` with inline options would be rejected by W2) but DROP
+   both the legacy ``choices`` and the stale inline ``options`` so the field sources purely from the
+   ``config#scope`` dimension. This is the C7↔C2/W2 correction (real case: h-dcn field ``region``).
+
 **Validates: Requirements 2.1** · **Components: C7**
 """
 
@@ -445,3 +452,174 @@ def test_migrate_tenant_no_choices_row_is_a_noop():
     plans = mig.migrate_tenant(_TENANT, service=service, reader=reader)
     assert plans == []
     assert table.update_item_calls == 0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# 4. SCOPE-BACKED (W2) legacy-`choices` entry — DROP-not-convert (the C7↔C2/W2 correction)
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+#
+# The bug this guards: a scope-backed field (stored spec carries an enabled `scope`) that still
+# holds legacy `choices` (and a stale inline `options`) must NOT be converted to inline `options`
+# — the W2 write-edge guard REJECTS inline options on a scope-backed field, so a convert CRASHES.
+# The migration must DROP both the legacy `choices` and the stale inline `options` so the field
+# sources purely from the config#scope dimension. Driven over the REAL ConfigFieldsCrudService +
+# REAL writer over the FakeTable, so W2 is actually exercised (the test that would have caught the
+# bug). The real h-dcn case was tenant h-dcn field `region`.
+
+
+class _SetFieldSpy:
+    """Wraps the real service, recording every ``set_field`` call so a test can PROVE the migration
+    never hands a scope-backed/reference field an inline `options` payload (which W2/W1 would
+    reject). Every other method delegates to the real service unchanged — so W1/W2, the Change-Op
+    writer, and apply_ops are all the REAL implementations (no mocked write mechanics)."""
+
+    def __init__(self, service):
+        self._service = service
+        self.set_field_calls: list[dict] = []
+
+    def set_field(self, tenant_id, field_key, def_attrs, **kwargs):
+        self.set_field_calls.append({"field_key": field_key, "def_attrs": dict(def_attrs)})
+        return self._service.set_field(tenant_id, field_key, def_attrs, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._service, name)
+
+
+@pytest.mark.unit
+def test_migrate_tenant_scope_backed_field_drops_choices_and_stale_options_no_convert():
+    # A scope-backed field (enabled `scope`) carrying BOTH legacy `choices` and a stale inline
+    # `options` — the exact shape that CRASHED the naive convert on the W2 guard (h-dcn `region`).
+    table = FakeTable()
+    _seed_variable_field_row(
+        table,
+        fields={
+            "region": {
+                "type": "enum",
+                "scope": {"enabled": True},
+                "choices": ["noord", "zuid"],
+                "options": [{"value": "STALE"}],
+                "functional_group": "membership",
+            }
+        },
+    )
+    real_service, reader = _service_and_reader(table)
+    service = _SetFieldSpy(real_service)
+
+    plans = mig.migrate_tenant(_TENANT, service=service, reader=reader)
+    assert [p.entry_key for p in plans] == ["region"]
+
+    # W2 is exercised by the REAL service: the migration must NEVER hand `region` an inline
+    # `options` payload (that is exactly what set_field's W2 guard rejects) — so set_field is not
+    # called for it at all (drop-not-convert uses the dedicated removal ops only).
+    region_set_field_calls = [
+        c for c in service.set_field_calls if c["field_key"] == "region"
+    ]
+    assert region_set_field_calls == [], (
+        "a scope-backed field must NOT be converted via set_field({'options': ...}) — W2 rejects "
+        "inline options; the migration must DROP the legacy vocabulary instead"
+    )
+
+    # The stored row: BOTH the legacy `choices` and the stale inline `options` are gone, so the
+    # field sources purely from the config#scope dimension. The scope sub-object survives.
+    stored = table.get_item(
+        Key=schema.build_key(
+            _TENANT, schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields")
+        )
+    )["Item"]
+    entry = stored["fields"]["region"]
+    assert "choices" not in entry, "legacy `choices` must be dropped on a scope-backed field"
+    assert "options" not in entry, "stale inline `options` must be dropped on a scope-backed field"
+    assert entry["scope"] == {"enabled": True}, "the scope sub-object (the real source) survives"
+    assert entry["functional_group"] == "membership", "sibling attrs survive (no whole-row replace)"
+
+
+@pytest.mark.unit
+def test_migrate_tenant_scope_backed_uses_update_item_never_whole_row_put():
+    table = FakeTable()
+    _seed_variable_field_row(
+        table,
+        fields={
+            "region": {
+                "type": "enum",
+                "scope": {"enabled": True},
+                "choices": ["noord", "zuid"],
+                "options": [{"value": "STALE"}],
+            }
+        },
+    )
+    puts_before = table.put_item_calls
+    service, reader = _service_and_reader(table)
+
+    mig.migrate_tenant(_TENANT, service=service, reader=reader)
+
+    # Two scoped Change-Ops for the drop: REMOVE choices + REMOVE options — each its own
+    # version-conditional update_item; never a whole-row put_item replace.
+    assert table.update_item_calls >= 2, (
+        "the drop must go through update_item as scoped REMOVE ops (choices + stale options)"
+    )
+    assert table.put_item_calls == puts_before, (
+        "the migration must NOT issue a whole-row put_item replace (R3.3 / steering 39)"
+    )
+
+
+@pytest.mark.unit
+def test_migrate_tenant_scope_backed_rerun_is_a_noop():
+    table = FakeTable()
+    _seed_variable_field_row(
+        table,
+        fields={
+            "region": {
+                "type": "enum",
+                "scope": {"enabled": True},
+                "choices": ["noord", "zuid"],
+                "options": [{"value": "STALE"}],
+            }
+        },
+    )
+    service, reader = _service_and_reader(table)
+
+    first = mig.migrate_tenant(_TENANT, service=service, reader=reader)
+    assert [p.entry_key for p in first] == ["region"]
+    updates_after_first = table.update_item_calls
+
+    # Re-run: `choices` is gone so nothing is planned, and nothing is written (idempotent).
+    second = mig.migrate_tenant(_TENANT, service=service, reader=reader)
+    assert second == [], "a re-run must plan nothing (idempotent) once choices is dropped"
+    assert table.update_item_calls == updates_after_first, "a re-run must not write"
+
+
+@pytest.mark.unit
+def test_migrate_tenant_scope_backed_only_choices_no_stale_options_drops_choices():
+    # Scope-backed with ONLY legacy choices (no stale inline options): still drop-not-convert,
+    # and remove_inline_options is a safe no-op (nothing to drop there).
+    table = FakeTable()
+    _seed_variable_field_row(
+        table,
+        fields={"region": {"type": "enum", "scope": {"enabled": True}, "choices": ["noord"]}},
+    )
+    service, reader = _service_and_reader(table)
+
+    mig.migrate_tenant(_TENANT, service=service, reader=reader)
+
+    entry = table.get_item(
+        Key=schema.build_key(
+            _TENANT, schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields")
+        )
+    )["Item"]["fields"]["region"]
+    assert "choices" not in entry
+    assert "options" not in entry, "no inline options is created for a scope-backed field"
+
+
+@pytest.mark.unit
+def test_classify_entry_kind_matches_write_edge_guards():
+    # The migration's CONVERT-vs-DROP classifier reuses the service's W1/W2 predicates, so it can
+    # never disagree with what set_field would actually reject.
+    assert mig.classify_entry_kind("region", {"type": "enum", "scope": {"enabled": True}}) == (
+        "scope-backed"
+    )
+    assert mig.classify_entry_kind("some_ref", {"type": "reference"}) == "reference"
+    assert mig.classify_entry_kind("gender", {"type": "enum"}) == "inline-enum"
+    # An explicitly-disabled scope is NOT scope-backed (matches _is_scope_backed_field).
+    assert mig.classify_entry_kind("x", {"type": "enum", "scope": {"enabled": False}}) == (
+        "inline-enum"
+    )
