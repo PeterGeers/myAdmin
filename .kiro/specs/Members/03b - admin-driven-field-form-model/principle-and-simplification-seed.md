@@ -12,6 +12,10 @@
 
 # SPEC: Admin-driven field/form model — remove hardcoded validation rules (simplification)
 
+> **This is the originating owner note (dated).** Where it differs from the evolved spec, the
+> SOURCE OF TRUTH is `requirements.md` + `design.md` (e.g. the scope gate is axis-vs-value, not the
+> value-level orphan block sketched below; the booleans are not "independent" — see Req 2/4).
+
 **Raised 2026-10-29 by the owner.** The field/form configuration has accumulated hardcoded,
 implicit rules that OVERRULE the tenant administrator and interact in ways that are hard to
 predict. Each was added "to be safe"; together they are accidental complexity. This spec is a
