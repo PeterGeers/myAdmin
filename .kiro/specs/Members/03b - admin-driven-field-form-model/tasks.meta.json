@@ -374,6 +374,11 @@
         "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
         "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
         "timestamp": 1793301506156
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310399076
       }
     ],
     "10.1 Retire the `membershiptype#<code>` catalog rows (data)": [
@@ -484,6 +489,71 @@
         "executionId": "3db4c6d4-312e-421e-a673-da0851b9f9da",
         "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
         "timestamp": 1793307324239
+      }
+    ],
+    "9. DEPLOY — ship BU-1..BU-6 + BU-9 to TEST via CI/CD (mandatory, steering 43)": [
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310399216
+      }
+    ],
+    "9b.1 Field-config modal edits membership_type inline like any enum": [
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310407209
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310529142
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310534850
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310582673
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310589102
+      }
+    ],
+    "9b.2 Application-form editors source membership_type from the field's own options": [
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310407966
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310576890
+      },
+      {
+        "executionId": "0a5531e8-0a2a-401c-9a83-f41c856d033b",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793311114057
+      }
+    ],
+    "9b.3 Frontend parity tests (change-with-tests)": [
+      {
+        "executionId": "62f15b00-133a-498a-96b5-eb99d01d80f1",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793314007542
+      }
+    ],
+    "9b. BU-8a — FRONTEND: membership_type is a regular enum field everywhere (close the all-planes gap)": [
+      {
+        "executionId": "62f15b00-133a-498a-96b5-eb99d01d80f1",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793314007690
       }
     ]
   }
