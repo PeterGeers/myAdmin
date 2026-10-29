@@ -34,6 +34,7 @@ Container-gated: SKIPS cleanly without the local-DynamoDB container.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 
@@ -59,8 +60,29 @@ from sam.members.repository.projection_config_reader import MembersProjectionRea
 from sam.members.repository.projection_config_write_repository import (  # noqa: E402
     MembersConfigWriteRepository,
 )
+from sam.members.domain.scope_dimensions import (  # noqa: E402
+    ScopeDimension,
+    StaticScopeConfigProvider,
+)
 
 pytestmark = pytest.mark.e2e
+
+
+# ── The C7 choices->options backfill, loaded from scripts/ (not an importable package) ──────
+# Reused VERBATIM here (not hand-rolled) so the legacy-row cases migrate exactly the way the
+# committed migration does — see `sam/tests/test_migrate_config_fields_choices_to_options.py`.
+def _load_migration_module():
+    path = os.path.join(_REPO_ROOT, "scripts", "migrate_config_fields_choices_to_options.py")
+    spec = importlib.util.spec_from_file_location(
+        "migrate_config_fields_choices_to_options", path
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_mig = _load_migration_module()
 
 _TENANT = "enum-roundtrip-tenant"
 _VOCAB = ["internet", "facebook", "bigtwin", "family", "other", "young-ones"]
@@ -116,6 +138,53 @@ def _resolved_vocab(table) -> list[str]:
     return [o.value for o in (f.options or [])]
 
 
+def _seed_bare_choices_variable_field(table, field_key: str, vocab):
+    """Seed a tenant VARIABLE field carrying bare `choices` (`options` ABSENT) DIRECTLY into the
+    `config#fields` row — the real h-dcn un-migrated legacy shape.
+
+    This mirrors the C7 migration test's `_seed_variable_field_row`
+    (`sam/tests/test_migrate_config_fields_choices_to_options.py`) rather than going through
+    `set_field`: the write surface (03a C2) RETIRED `choices`, so `set_field` correctly REJECTS a
+    `choices` payload. A legacy row can only arrive by direct seeding (it was written before the
+    invariant existed) — which is exactly the state the C7 backfill exists to migrate. Keyed under
+    the `fields` map by its bare key (the real shape for a tenant-added selectable field).
+    """
+    item = table.get_item(Key=_key()).get("Item")
+    if item is None:
+        item = {
+            schema.PARTITION_KEY_ATTR: _TENANT,
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS
+            ),
+            "fields": {},
+            "overrides": {},
+            "functional_groups": {},
+            schema.VERSION_ATTR: "v-seed",
+        }
+    fields = dict(item.get("fields") or {})
+    fields[field_key] = {
+        "type": "enum",
+        "label": {"en": "Ref", "nl": "Bron"},
+        "functional_group": "membership",
+        "order": 50,
+        "choices": list(vocab),  # bare `choices`, no `options` — the un-migrated legacy shape
+    }
+    item["fields"] = fields
+    table.put_item(Item=item)
+
+
+def _run_c7_backfill(table):
+    """Run the committed C7 `choices`->`options` backfill over the live table for `_TENANT`,
+    reusing the real migration driver (`migrate_tenant`) — the sanctioned way an un-migrated
+    legacy row reaches the one-vocabulary model."""
+    reader = MembersProjectionReader(table=table)
+    service = ConfigFieldsCrudService(
+        MembersConfigWriteRepository(table=table, version_fn=_version),
+        reader=reader,
+    )
+    return _mig.migrate_tenant(_TENANT, service=service, reader=reader)
+
+
 # ─────────────────────────────────────────────────────────────────────────────────────
 # ENUM — strict PUT == GET of the INLINE vocabulary (the source lives in the row)
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -132,24 +201,38 @@ def test_roundtrip_symmetry_options_authored(table):
 
 
 def test_roundtrip_symmetry_choices_only_legacy_row(table):
-    """The REAL h-dcn shape: vocabulary stored under bare `choices`, `options` absent.
+    """The REAL h-dcn shape: a legacy row with the vocabulary under bare `choices`, `options`
+    absent — which the one-vocabulary model reaches via the C7 backfill (migrate-then-resolve).
 
-    EXPECTED FAIL on unfixed code (harness-first proof): the editor read path yields an EMPTY
-    vocabulary because the variable-field resolve does not promote choices->options. The 03a
-    fix (single canonical `options` + no silent fallback) makes input == output here too.
+    POST-FIX reality (design C6/C7 + Fix-Checking). The write surface RETIRED `choices` (C2), so
+    a bare-`choices` row can no longer be AUTHORED through `set_field` — it exists only as an
+    UN-MIGRATED legacy row, seeded directly here (the shape the C7 migration test seeds). The
+    design's realization of this case's original intent — "a choices-only row must still surface
+    in the editor, not vanish" — is MIGRATE-THEN-RESOLVE, not fail-loud: the C6 `choices`-present
+    sentinel is the MIGRATION-WINDOW encoding of the P3 asymmetry and is RETIRED once C7 backfills
+    (design Glossary / C6 / C7). An un-migrated row fails loud precisely BECAUSE it SHOULD have
+    been migrated; migrating it is how the legacy vocabulary round-trips as the canonical
+    `options`. So: seed the legacy bare-`choices` row DIRECTLY, run the C7 backfill, then the
+    editor read path resolves the SAME six values as `options` (input == output).
     """
     MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(_TENANT)
-    svc = _service(table)
-    svc.set_group(_TENANT, "membership", {"label": {"en": "Membership"}, "order": 30})
-    # Author under bare `choices` (the legacy shape the real row has), no `options`.
-    svc.set_field(_TENANT, "referral_source", {
-        "type": "enum", "label": {"en": "Ref"}, "order": 50, "functional_group": "membership",
-        "choices": list(_VOCAB),
-    })
+    # A legacy bare-`choices` row (the real h-dcn shape), seeded directly — NOT via set_field,
+    # which (post-C2) rejects `choices`. This is the un-migrated shape the C7 backfill targets.
+    _seed_bare_choices_variable_field(table, "referral_source", _VOCAB)
+
+    # The C7 `choices`->`options` backfill — the sanctioned path onto the one-vocabulary model.
+    plans = _run_c7_backfill(table)
+    assert [p.entry_key for p in plans] == ["referral_source"], (
+        "the C7 backfill must plan exactly the one un-migrated referral_source legacy row"
+    )
+
+    # After migration the legacy vocabulary round-trips as the canonical `options` — the choices
+    # did NOT vanish from the config editor (the case's original intent), they were migrated.
     got = _resolved_vocab(table)
     assert got == _VOCAB, (
-        f"ROUND-TRIP BROKEN (bug): authored {_VOCAB} but the editor read path returned {got}. "
-        f"A choices-only row resolves to empty options -> choices disappear in the config editor."
+        f"ROUND-TRIP BROKEN: seeded a legacy bare-`choices` row {_VOCAB}; after the C7 backfill "
+        f"the editor read path returned {got}. The legacy vocabulary must migrate to canonical "
+        f"`options` and round-trip identically — a choices-only row must NOT vanish."
     )
 
 
@@ -159,46 +242,79 @@ def test_roundtrip_symmetry_choices_only_legacy_row(table):
 _SCOPE_VOCAB = ["Noord", "Zuid", "Oost", "West"]
 
 
-def test_roundtrip_symmetry_scope_backed_field(table):
-    """Author a scope-backed selectable field; its `options` and its `scope.values` MUST be the
-    SAME single list (design G2/F7 — `scope.values == [o.value for o in options]`).
+def _scope_seam(table):
+    """The read-assembly SEAM wired with the region scope dimension as its SANCTIONED source.
 
-    EXPECTED FAIL on unfixed code (NEW counterexample): a scope field's `options` round-trips,
-    but `FieldScope.values` is a SEPARATELY stored copy — here it comes back `()` while `options`
-    is populated. Two copies of one vocabulary, only one survives: the `FieldScope(values=())`
-    divergence (design bug-condition manifestation #2). The 03a fix makes `scope.values` the
-    DERIVED projection of the one canonical `options` at a single seam point, so they can never
-    diverge.
+    A scope-backed field's vocabulary comes from `config#scope` (the scope dimension), NOT inline
+    options — design C4/W2. The resolver stays PURE (it does not populate `options` from the
+    dimension); the seam does, in `_assemble_field_options` from the injected `scope_vocab`. So
+    the post-fix read path for a scope field is the seam (`get_field_config`), exactly as the
+    sanctioned-source test `sam/tests/test_members_scope_dimension_choices.py` reads it — the raw
+    resolver would only carry `choices`, never `options`. The region vocabulary is provided via a
+    `StaticScopeConfigProvider` (the E2E table has no `config#scope` row), mirroring that test.
+    """
+    reader = MembersProjectionReader(table=table)
+    repo = DynamoDbMembersRepository(table=table)
+    scope_provider = StaticScopeConfigProvider(
+        {_TENANT: (ScopeDimension(key="region", values=_SCOPE_VOCAB),)}
+    )
+    return MembershipService(
+        repo, overlay_provider=reader, scope_config_provider=scope_provider
+    )
+
+
+def test_roundtrip_symmetry_scope_backed_field(table):
+    """A scope-backed selectable field: its `options` come from the scope DIMENSION (its
+    sanctioned source), and its scope display vocabulary is the SAME single list — there is no
+    independent `scope.values` copy to diverge (design G2/F7, C4/W2).
+
+    Authored through the SANCTIONED source, not inline. The write edge REJECTS inline options on a
+    scope-backed field (W2) — a scope field's vocabulary is `config#scope`, never inline — so the
+    field is authored as a CHOICELESS scope-backed enum and the region values are provided via the
+    scope dimension (`scope_vocab`), exactly as `test_members_scope_dimension_choices.py` does.
+    The read-assembly seam populates the field's one canonical `options` FROM that dimension; the
+    `FieldScope(values=())` divergence is impossible BY CONSTRUCTION because scope values ARE the
+    field's options (one vocabulary, one derivation point) — the staff serializer therefore emits
+    NO independent `values` sub-key.
     """
     MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(_TENANT)
     svc = _service(table)
     svc.set_group(_TENANT, "membership", {"label": {"en": "Membership"}, "order": 30})
-    # A scope-backed field: inline `options` (the vocabulary) AND a `scope` sub-object marking it
-    # a scope axis. The scope is authored WITHOUT an independent `values` copy — under the ONE
-    # vocabulary model the values ARE the field's options, so the read must DERIVE them.
+    # A CHOICELESS scope-backed enum: an enabled `scope` sub-object marks it a scope axis, and it
+    # carries NO inline `options` (W2 rejects inline vocabulary on a scope-backed field). Its
+    # dropdown vocabulary is sourced from the scope dimension at the read seam.
     svc.set_field(_TENANT, "region", {
         "type": "enum", "label": {"en": "Region"}, "order": 55, "functional_group": "membership",
-        "options": [{"value": v, "label": {"en": v, "nl": v}} for v in _SCOPE_VOCAB],
         "scope": {"enabled": True, "required_for": ["Members_CRUD"]},
     })
 
-    cfg = FieldResolver(MembersProjectionReader(table=table)).resolve(_TENANT)
-    field = next((f for f in cfg.fields if f.key == "region"), None)
-    assert field is not None, "scope-backed field `region` must resolve"
+    seam = _scope_seam(table)
+    config = seam.get_field_config(_TENANT)
+    region = next((f for f in config["fields"] if f["key"] == "region"), None)
+    assert region is not None, "scope-backed field `region` must resolve through the seam"
 
-    option_values = [o.value for o in (field.options or [])]
+    # `options` is populated from the scope dimension at the ONE read-assembly seam, in the rich
+    # `{value, label}` shape (a bare scope value carries an empty i18n label, design G4).
+    option_values = [str(o.get("value")) for o in (region.get("options") or [])]
     assert option_values == _SCOPE_VOCAB, (
-        f"scope field `options` must carry the authored vocabulary; got {option_values}"
+        f"scope field `options` must be populated from the scope dimension; got {option_values}"
     )
-    assert field.scope is not None and field.scope.enabled, (
+    assert region.get("options") == [
+        {"value": v, "label": {}} for v in _SCOPE_VOCAB
+    ], "scope options must be the dimension values projected to the canonical rich shape (G4)"
+
+    # The field resolves as an enabled scope axis, and the serialized scope carries NO independent
+    # `values` copy — scope values ARE the field's options (single vocabulary, G2/F7), so the
+    # `FieldScope(values=())` divergence cannot occur: there is only one list, the options above.
+    scope = region.get("scope")
+    assert scope is not None and scope.get("enabled") is True, (
         "the field must resolve as an enabled scope axis"
     )
-    scope_values = list(field.scope.values)
-    assert scope_values == option_values, (
-        f"SCOPE VOCAB SPLIT (bug): `options` = {option_values} but `scope.values` = {scope_values}. "
-        f"`options` and `scope.values` are tracked as TWO copies of one vocabulary — `scope.values` "
-        f"came back `{tuple(scope_values)}` while `options` is populated (the FieldScope(values=()) "
-        f"divergence). They must be the SAME single list: scope.values == [o.value for o in options]."
+    assert "values" not in scope, (
+        "SCOPE VOCAB SPLIT would re-appear if scope carried an INDEPENDENT `values` copy. Under "
+        "the one-vocabulary model scope.values is the DERIVED projection of the field's `options` "
+        "(a single derivation point), so the serializer emits no separate `values` sub-key — the "
+        f"one vocabulary is the options {option_values}."
     )
 
 
