@@ -112,20 +112,31 @@ them as its own acceptance criteria.
 
 **User Story:** As a tenant admin, I want to manage a scope field's values only in the field editor, so that the access-control dimension always matches the field's options without my editing anything twice.
 
-> **Data-model note:** today `region`'s values live on `config#scope` and the field is empty (the
-> inverse of the unified model). Requirement 3 moves the values onto the field; this requirement
-> keeps the dimension correct by DERIVING `config#scope` from the field — so the same values feed
-> access control without a second authoring surface. Req 3 and Req 4 are two faces of the SAME
-> data-model shift and share the migration-safety proof (Req 3.4).
+> **Two things, both stay working.** SCOPE DEFINITION — which field is a scope field and its values
+> — is authored on the SAM side (`config#scope`). USER ACCESS — `user_tenant_roles` /
+> `user_tenant_scope`: which user is granted which values — is authored in Flask and PROJECTED into
+> SAM as `scopegrant#` rows. This spec changes the DEFINITION's authoring surface (the field editor)
+> and must leave the Flask→SAM projection of roles/grants working UNCHANGED.
+>
+> **Save triggers an update of TWO items** (the UI trigger): saving a scope field (1) derives and
+> writes the `config#scope` definition, and (2) keeps the Flask side (`members.scope_dimensions`
+> mirror the grant validators read) consistent so `user_tenant_scope` keeps working.
+>
+> **A breaking change is a combined Tenant_Admin + SysAdmin effort (prior decision, recorded in
+> `scope-dimension-authoring-trigger.md`).** The reconciliation that classifies routine vs.
+> grant-orphaning changes EXISTS (`UserTenantScopeService.reconcile_scope_change`) and is unit-
+> tested, but is currently UNWIRED — no save path calls it. 03b must WIRE IT INTO the scope-field
+> save; it is NOT a free "reuse".
 
 #### Acceptance Criteria
 
 1. THE field editor SHALL be the single authoring surface for a scope field's vocabulary; there SHALL be no separate standalone scope-dimension editor
-2. WHEN the admin saves a scope field THEN the system SHALL DERIVE the dimension from the field's options and write SAM `config#scope` (authoritative) then the Flask `members.scope_dimensions` mirror
+2. WHEN the admin saves a scope field THEN the save SHALL update BOTH items: derive and write the SAM `config#scope` definition (authoritative), then keep the Flask `members.scope_dimensions` mirror consistent (the frontend-mirror the grant validators read); the Flask→SAM projection of `user_tenant_roles` / `user_tenant_scope` grants (`scopegrant#` rows) SHALL be left UNCHANGED and keep working
 3. WHEN the authoritative `config#scope` write fails THEN nothing SHALL be mirrored to Flask AND the admin SHALL see a caller-safe error
 4. WHEN only the Flask mirror write fails THEN SAM SHALL remain authoritative AND the admin SHALL be offered a retry of just the mirror
-5. WHEN a save would rename or remove a scope value that strands an existing `user_tenant_scope` grant THEN the system SHALL surface or block it using the existing orphaning reconciliation; grants SHALL NOT be silently stranded
-6. Access-control RESOLUTION (which members a scoped caller may see) SHALL be UNCHANGED by this spec; only the authoring/derivation trigger is added, with regression coverage
+5. WHEN a save is ROUTINE (adds a dimension or value, stranding no existing grant) THEN it SHALL apply and remind the admin to review user scope grants
+6. WHEN a save would rename or remove a value/dimension that strands an existing `user_tenant_scope` grant THEN it SHALL be BLOCKED with a "contact your System Administrator to realign grants" message (a breaking change is a combined Tenant_Admin + SysAdmin effort); the save SHALL NOT silently strand a grant. This SHALL be implemented by WIRING IN the existing `reconcile_scope_change` / `assert_appliable` reconciliation (currently built but unwired), not by reimplementing it
+7. Access-control RESOLUTION (which members a scoped caller may see) SHALL be UNCHANGED by this spec; only the authoring/derivation trigger and the wiring-in of reconciliation are added, with regression coverage
 
 ### Requirement 5: Uniform per-language enum labels in display and filters
 
@@ -151,7 +162,7 @@ them as its own acceptance criteria.
 
 1. THE migration SHALL state, per change, the exact table + row it rewrites:
    a. `config#fields` (in `governance_projection` / `test_governance_projection`) — relocate `region`'s values onto the field, fold `membership_type` into the field's enum `options` with the `allowed`/retired flag, and carry any 03a `choices`→`options` backfill not yet applied to that environment;
-   b. `config#scope` (same table) — reconcile the derived dimension values with the relocated `region` field (Requirement 4), without stranding a `scopegrant#` / `user_tenant_scope` grant;
+   b. `config#scope` (same table) — reconcile the derived dimension values with the relocated `region` field (Requirement 4); a value RENAME/REMOVE that would strand a `scopegrant#` / `user_tenant_scope` grant is BLOCKED pending SysAdmin realignment (Req 4.6), never silently applied by the migration;
    c. `sam-members` / `test_sam-members` — retire the `membershiptype#<code>` catalog rows once folded into the field, leaving existing member records' `membership.membership_type` references valid (grandfathered, not orphaned)
 2. THE migration SHALL be idempotent and re-runnable, and SHALL back up every affected row (per table) before writing
 3. THE migration SHALL be preceded and followed by an integrity scan asserting zero un-migrated rows, zero stranded grants, and zero orphaned member references, consistent with the Requirement 3.5 proof
