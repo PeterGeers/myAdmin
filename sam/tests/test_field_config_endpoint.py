@@ -186,29 +186,39 @@ class TestGetFieldConfigDomain:
     def test_soft_deleted_types_are_excluded_from_options(self, repo):
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         config = service.get_field_config("h-dcn")
-        values = {o["value"] for o in config["membership_type_options"]}
+        # 03b BU-3: options live ON the membership_type field (no standalone feed). Pre-fold the
+        # assembly seam falls back to the active catalog, so a soft-deleted type is still excluded.
+        mt = next(f for f in config["fields"] if f["key"] == "membership_type")
+        values = {o["value"] for o in mt["options"]}
         assert "retired" not in values
 
-    def test_standalone_membership_type_options_match_the_field_options(self, repo):
+    def test_standalone_membership_type_options_feed_is_removed(self, repo):
+        # 03b BU-3 (Req 3.3): the standalone `membership_type_options` payload feed is DROPPED —
+        # the field carries its own options like any other enum, no second source to drift from.
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         config = service.get_field_config("h-dcn")
+        assert "membership_type_options" not in config
+        # The vocabulary is on the field (pre-fold: served from the catalog fallback).
         mt = next(f for f in config["fields"] if f["key"] == "membership_type")
-        assert config["membership_type_options"] == mt["options"]
+        assert [o["value"] for o in mt["options"]] == ["erelid", "donateur", "sponsor"]
 
     def test_membership_type_field_key_constant_matches(self):
         assert MEMBERSHIP_TYPE_FIELD_KEY == "membership.membership_type"
 
     def test_config_is_tenant_scoped(self, repo):
-        # 'other' tenant's types never leak into h-dcn's config, and vice-versa.
+        # 'other' tenant's types never leak into h-dcn's config, and vice-versa. 03b BU-3: read
+        # the vocabulary off each tenant's membership_type field (no standalone feed).
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         h = service.get_field_config("h-dcn")
         other = service.get_field_config("other")
-        assert {o["value"] for o in h["membership_type_options"]} == {
+        h_mt = next(f for f in h["fields"] if f["key"] == "membership_type")
+        other_mt = next(f for f in other["fields"] if f["key"] == "membership_type")
+        assert {o["value"] for o in h_mt["options"]} == {
             "erelid",
             "donateur",
             "sponsor",
         }
-        assert {o["value"] for o in other["membership_type_options"]} == {"member"}
+        assert {o["value"] for o in other_mt["options"]} == {"member"}
 
     def test_overlay_variable_fields_appear_in_config(self, repo):
         # A tenant overlay (design C3) adds a variable "club detail" field → origin=variable.
@@ -264,9 +274,11 @@ class TestGetFieldConfigDomain:
     def test_tenant_with_no_catalog_has_empty_options(self, repo):
         service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
         config = service.get_field_config("unknown-tenant")
-        assert config["membership_type_options"] == []
-        # ...but the fixed base fields are still resolved.
-        assert any(f["key"] == "membership_type" for f in config["fields"])
+        # 03b BU-3: no standalone feed; the field is still resolved, with empty options
+        # (no inline options authored AND an empty catalog fallback → an empty option list).
+        assert "membership_type_options" not in config
+        mt = next(f for f in config["fields"] if f["key"] == "membership_type")
+        assert mt["options"] == []
 
 
 class TestGetFieldConfigServesApplicationAttributes:
@@ -407,10 +419,15 @@ def test_field_config_route_returns_200_not_501(inject_service):
     assert data["tenant_id"] == "h-dcn"
 
 
-def test_field_config_route_carries_active_membership_type_options(inject_service):
+def test_field_config_route_carries_membership_type_options_on_the_field(inject_service):
+    # 03b BU-3: the membership_type vocabulary rides on the field's own `options` (no standalone
+    # feed). Pre-fold the assembly seam falls back to the active catalog, so the route still
+    # serves the active, ordered types with the soft-deleted one excluded.
     resp = app.handler(_event("GET", "/members/field-config"))
     data = _data(resp)
-    values = [o["value"] for o in data["membership_type_options"]]
+    assert "membership_type_options" not in data
+    mt = next(f for f in data["fields"] if f["key"] == "membership_type")
+    values = [o["value"] for o in mt["options"]]
     assert values == ["erelid", "donateur", "sponsor"]
     assert "retired" not in values
 

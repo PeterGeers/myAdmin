@@ -31,16 +31,16 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
 
 ## Tasks
 
-- [ ] 1. BU-1 — Unified option model + option-integrity write-seam (Req 3, the spine)
+- [x] 1. BU-1 — Unified option model + option-integrity write-seam (Req 3, the spine)
 
-  - [ ] 1.1 Extend `EnumOption` with `allowed` + `order`
+  - [x] 1.1 Extend `EnumOption` with `allowed` + `order`
     - `sam/members/domain/fixed_fields.py`: add `allowed: bool = True` and `order: int | None = None`
       to `EnumOption` (`{value, label{nl,en}, roles?}`); an absent `allowed` reads `true` (back-compat)
     - Ensure every serializer that emits options carries the two new keys (resolved view, API DTO)
     - _Steering: 38-sam-module-field-config, 39-backend-data-access-sam-dynamodb, 35-sam-module-architecture, 11-tech-stack_
     - _Requirements: 3.1_
 
-  - [ ] 1.2 Add option-integrity checks at the config write seam
+  - [x] 1.2 Add option-integrity checks at the config write seam
     - `sam/members/domain/config_write_service.py` (same seam as the kept invariants 1/2): reject a
       write that would leave a required or off-form enum with zero `allowed:true` options (Req 3.4a);
       reject removal/rename of an option `value` still referenced by a member (via the injected
@@ -49,7 +49,7 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 38-sam-module-field-config, 39-backend-data-access-sam-dynamodb, 36-config-and-parameters, 30-backend-api-flask-mysql (caller-safe errors), 11-tech-stack_
     - _Requirements: 3.2a, 3.4a_
 
-  - [ ] 1.3 Write-seam + option-model tests (change-with-tests)
+  - [x] 1.3 Write-seam + option-model tests (change-with-tests)
     - `sam/tests/test_config_write_service.py`: zero-`allowed` rejected; in-use option cannot
       vanish/rename; `allowed:false` permitted; relabel permitted
     - **Property 1 / Property 2** round-trip over the REAL `config#fields` fixture (Task 7.x):
@@ -57,9 +57,9 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - **Validates: Requirements 3.1, 3.2, 3.2a, 3.4a**
     - `cd backend && source .venv/bin/activate && pytest sam/tests/test_config_write_service.py -q`
 
-- [ ] 2. BU-2 + BU-3 — reference check + assembly read the field, not the catalog (Req 3)
+- [x] 2. BU-2 + BU-3 — reference check + assembly read the field, not the catalog (Req 3)
 
-  - [ ] 2.1 Re-point the membership_type reference check to the field options
+  - [x] 2.1 Re-point the membership_type reference check to the field options
     - `sam/members/domain/_membership_writes_validation.py` `_validate_membership_type_reference`:
       replace `self._repo.get_membership_type(...)`/`entry.active` with a lookup against the resolved
       `membership_type` field options — unknown value → `MEMBERSHIP_TYPE_UNKNOWN_REFERENCE`, present
@@ -72,7 +72,7 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 38-sam-module-field-config, 39-backend-data-access-sam-dynamodb, 30-backend-api-flask-mysql (caller-safe errors), 11-tech-stack_
     - _Requirements: 3.2, 3.2a, 3.4a_
 
-  - [ ] 2.2 Assembly seam reads the field's own options (no catalog injection)
+  - [x] 2.2 Assembly seam reads the field's own options (no catalog injection)
     - `sam/members/domain/_membership_writes_fieldconfig.py` `get_field_config` /
       `_assemble_field_options`: stop injecting `list_membership_types(active_only=True)`; options come
       from the field's resolved `options` (one assembly pass, no per-kind branch); drop the standalone
@@ -80,15 +80,15 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 38-sam-module-field-config, 39-backend-data-access-sam-dynamodb, 11-tech-stack_
     - _Requirements: 3.3_
 
-  - [ ] 2.3 Reference-check + assembly tests (change-with-tests)
+  - [x] 2.3 Reference-check + assembly tests (change-with-tests)
     - `sam/tests/test_membership_writes*` / resolved-field surface tests: unknown/retired/
       grandfathered-existing against field options; default-from-options when off-form; no catalog injection
     - **Validates: Requirements 3.2, 3.2a, 3.3, 3.4a**
     - `cd backend && source .venv/bin/activate && pytest sam/tests/ -q -k "membership or resolved_field"`
 
-- [ ] 3. BU-4 — remove the hardcoded field bindings (Req 1)
+- [x] 3. BU-4 — remove the hardcoded field bindings (Req 1)
 
-  - [ ] 3.1 Remove the no-relax + overlay-invariant + forced-required/visible
+  - [x] 3.1 Remove the no-relax + overlay-invariant + forced-required/visible
     - `config_write_service._collect_application_attr_reasons`: delete invariant 3 (the
       `platform_required and application_required is False` reject) + the `platform_required` plumbing
     - `field_resolver._reject_invalid_overlay`: delete the `override.required is False and fixed.required`
@@ -98,16 +98,16 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 38-sam-module-field-config, 35-sam-module-architecture, 32-frontend-ui, 11-tech-stack_
     - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-  - [ ] 3.2 Tests prove the admin is not overruled (change-with-tests)
+  - [x] 3.2 Tests prove the admin is not overruled (change-with-tests)
     - Delete/invert the relax assertions: `test_config_write_service.py` (~753/829),
       `test_field_resolver.py:209`, `test_status_retirement_preservation_props.py:397`; KEEP
       "two axes don't alias" in `test_field_models_application_attrs.py`
     - **Property 3**: for any field but `member_id`, no save is rejected on an unauthored binding
     - **Validates: Requirements 1.1, 1.2, 1.4**
 
-- [ ] 4. BU-5 — config toggles persist both ways at the ROOT (Req 2)
+- [x] 4. BU-5 — config toggles persist both ways at the ROOT (Req 2)
 
-  - [ ] 4.1 Fix the change-op diff root cause
+  - [x] 4.1 Fix the change-op diff root cause
     - `frontend/.../fieldConfigChangeOps.ts`: diff against the LOADED state so a true→false transition
       emits an explicit `false` (stop treating `undefined` as both "unchanged" and "off"); the attr
       emitters no longer omit a deliberately-false attribute
@@ -116,40 +116,42 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 32-frontend-ui, 38-sam-module-field-config, 39-backend-data-access-sam-dynamodb, 11-tech-stack_
     - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-  - [ ] 4.2 Round-trip-every-boolean test (change-with-tests)
+  - [x] 4.2 Round-trip-every-boolean test (change-with-tests)
     - `fieldConfigChangeOps.test.ts` + `ApplicationFieldAttributes.test.tsx` / `ApplicationFieldModal.test.tsx`:
       ON→OFF→ON for EVERY boolean attribute in EVERY modal, so a future boolean cannot regress the same way
     - **Property 4**: OFF→save→reload shows OFF (explicit `false`, never dropped `undefined`)
     - **Validates: Requirements 2.1, 2.2, 2.3, 2.5**
     - `cd frontend && npx vitest --run src/components/TenantAdmin/MembersConfig`
 
-- [ ] 5. BU-9 — display + filter by resolved per-language label (Req 5)
+- [x] 5. BU-9 — display + filter by resolved per-language label (Req 5)
 
-  - [ ] 5.1 Filter/search match the active-language label, not the stored key
+  - [x] 5.1 Filter/search match the resolved per-language label OR the stored key
     - `frontend/.../useMembersColumns.ts` `searchedRows` + `enrichedRows` (`columnValue.coerceByType`):
-      for enum columns match the resolved label (via `resolveEnumValueLabel`/`labelResolver`) — nl
-      `Overleden`, gb `Passed Away` both match stored `died`; build a per-column value→label map ONCE
-      (not per row per keystroke); two options sharing a label match both keys. Key stays stored verbatim
+      for enum columns a search term matches if it matches the resolved per-language label (via
+      `resolveEnumValueLabel`/`labelResolver`) OR the stored key — both. nl `Overleden`, gb
+      `Passed Away`, AND the raw stored key `died` all match the same `died` row (label matching is
+      ADDED on top of key matching; key matching is NOT removed). Build a per-column value→label map
+      ONCE (not per row per keystroke); two options sharing a label match both keys. Key stays stored verbatim
     - _Steering: 32-frontend-ui, 38-sam-module-field-config (per-language labels), 11-tech-stack_
     - _Requirements: 5.1, 5.2, 5.3, 5.4_
 
-  - [ ] 5.2 Filter-parity test (change-with-tests)
-    - `applicationFilterParity.test.ts` + a `useMembersColumns` test: NL and GB label text both filter
-      the same stored key
+  - [x] 5.2 Filter-parity test (change-with-tests)
+    - `applicationFilterParity.test.ts` + a `useMembersColumns` test: the NL label, the GB label, AND
+      the raw stored key all filter the same row (label OR key both supported)
     - **Property 6**: every enum display AND filter resolves `label[locale]→en→nl→value`
     - **Validates: Requirements 5.1, 5.2, 5.3**
     - `cd frontend && npx vitest --run`
 
-- [ ] 6. BU-6 — scope derive-on-save; axis-vs-value gate; two-call orchestration (Req 4)
+- [x] 6. BU-6 — scope derive-on-save; axis-vs-value gate; two-call orchestration (Req 4)
 
-  - [ ] 6.1 Derive config#scope from the field + two separate frontend calls
+  - [x] 6.1 Derive config#scope from the field + two separate frontend calls
     - Frontend scope-field save makes TWO calls (no runtime cross-plane call): SAM
       `PUT /members/config/scope` (derive the dimension from the field's options, authoritative) THEN
       the Flask `members.scope_dimensions` mirror call. Flask→SAM `scopegrant#` projection unchanged
     - _Steering: 35-sam-module-architecture, 39-backend-data-access-sam-dynamodb, 30-backend-api-flask-mysql, 31-backend-database-flask-mysql, 32-frontend-ui, 11-tech-stack_
     - _Requirements: 4.1, 4.2_
 
-  - [ ] 6.2 Axis-vs-value gate (atomic) + error + resync
+  - [x] 6.2 Axis-vs-value gate (atomic) + error + resync
     - VALUE add/remove within the same scope field → auto-apply on both planes (grants extend/shrink;
       tenant admin owns the data consequence). SCOPE-AXIS change (the set of `scope.enabled` fields
       changes, incl. turning scope off) → do NOT auto-apply, do NOT persist `scope.enabled` (atomic
@@ -158,23 +160,23 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 35-sam-module-architecture, 30-backend-api-flask-mysql (caller-safe errors), 32-frontend-ui, 11-tech-stack_
     - _Requirements: 4.3, 4.4, 4.5, 4.6, 4.7_
 
-  - [ ] 6.3 Scope-gate tests (change-with-tests)
+  - [x] 6.3 Scope-gate tests (change-with-tests)
     - value-add/remove auto-applies on both planes; axis-change blocks atomically with the SysAdmin
       message and persists nothing; mirror-failure surfaces error + resync
     - **Property 5**: value change auto-applies + config#scope == field options; axis change gated
     - **Validates: Requirements 4.2, 4.5, 4.6**
     - `cd backend && source .venv/bin/activate && pytest sam/tests/ -q -k scope` ; `cd frontend && npx vitest --run`
 
-- [ ] 7. BU-7 — data migration (EXPAND + VERIFY), TEST then PROD (Req 6)
+- [x] 7. BU-7 — data migration (EXPAND + VERIFY), TEST then PROD (Req 6)
 
-  - [ ] 7.1 Commit the real-row fixture + the integrity-scan (the proof)
+  - [x] 7.1 Commit the real-row fixture + the integrity-scan (the proof)
     - Commit a real `config#fields` + membership-type-catalog + member-tally fixture under
       `backend/tests/fixtures/`; implement the integrity scan asserting zero un-folded catalog rows and
       zero orphaned member references (the design proof), runnable per-tenant
     - _Steering: 39-backend-data-access-sam-dynamodb (prove round-trips against REAL data), 34-backend-testing, 23-aws-accounts, 41-shell-environment, 11-tech-stack_
     - _Requirements: 3.6, 6.2, 6.3_
 
-  - [ ] 7.2 EXPAND migration script (fold catalog → field options; drop forbidden `choices`)
+  - [x] 7.2 EXPAND migration script (fold catalog → field options; drop forbidden `choices`)
     - `sam/members/migration/`: fold each tenant's CURRENT membership types into the `membership_type`
       field's `options` (`value`=type_code, `label`, `order`, `allowed`=`active`; `erelid`→`allowed:false`)
       and REMOVE the forbidden legacy `choices` key wherever it co-exists with `options` (incl. region).
@@ -182,13 +184,13 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 39-backend-data-access-sam-dynamodb, 38-sam-module-field-config, 23-aws-accounts, 41-shell-environment, 42-local-dynamodb-testing, 11-tech-stack_
     - _Requirements: 6.1, 6.2_
 
-  - [ ] 7.3 Run EXPAND + VERIFY on TEST (`test_*` tables)
+  - [x] 7.3 Run EXPAND + VERIFY on TEST (`test_*` tables)
     - Back up → dry-run → apply the fold on `test_governance_projection` / `test_sam-members`; run the
       all-tenant integrity scan (7.1); confirm the listed values; account `nonprofit-deploy` (506221081911)
     - _Steering: 23-aws-accounts, 41-shell-environment, 42-local-dynamodb-testing_
     - _Requirements: 6.3, 6.4, 6.5_
 
-- [ ] 8. Checkpoint — EXPAND verified on TEST before DEPLOY relies on it
+- [x] 8. Checkpoint — EXPAND verified on TEST before DEPLOY relies on it
   - Confirm the fold + all-tenant scan pass on TEST and the SAM/Flask/frontend unit suites are green.
     The re-pointed reader (Tasks 2/3) must have its transitional fallback/lock in place so DEPLOY order
     is non-fatal. Ask the user if questions arise.

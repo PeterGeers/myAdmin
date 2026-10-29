@@ -4,8 +4,9 @@
  *
  * This is the change-with-tests pairing for the new `ApplicationFieldAttributes` behavior (the full
  * dedicated suite is task 3.5). It asserts the R3/R4 contract the component owns:
- *  - the application-required toggle writes `application_required`, TIGHTENS an optional field, and
- *    is DISABLED/forced-on for a platform-required field (R3.1);
+ *  - the application-required toggle writes `application_required` as an EXPLICIT boolean (OFF is a
+ *    deliberate `false`, 03b Req 2.1), seeds from the platform-required default, and is NEVER
+ *    force-on/disabled — the admin freely sets requiredness for any field (03b Req 1.2/1.3);
  *  - the enum subset picker is offered ONLY on a field with choices, is constrained to the field's
  *    OWN choices, writes a proper subset to `application_choices`, and stores the full set as `null`
  *    (R3.2 / R4.1);
@@ -47,8 +48,9 @@ const FIELD_CONFIG: FieldConfig = {
         { value: 'c', label: { en: 'C', nl: 'C' } },
       ],
     },
-    // A platform-required base field (no choices) — required toggle forced on + disabled. Its
-    // storage `group` drives the origin-aware overlay key (`{group}.{key}` → `contact.email`).
+    // A platform-required base field (no choices). After 03b Req 1 the required toggle SEEDS on
+    // from the platform-required default but is NEVER forced/disabled — the admin may relax it.
+    // Its storage `group` drives the origin-aware overlay key (`{group}.{key}` → `contact.email`).
     {
       key: 'email',
       group: 'contact',
@@ -60,8 +62,9 @@ const FIELD_CONFIG: FieldConfig = {
       label: { en: 'Email', nl: 'E-mail' },
     },
     // The membership-type field (R4, task 3.3). It is NOT platform-required and carries static
-    // served options, but when exposed it is forced required and its subset is the LIVE catalog
-    // (`membershipTypeCatalog`), NOT these static options.
+    // served options. After 03b Req 1.2 it is NO LONGER forced required when exposed (the admin
+    // sets requiredness); its subset is still the LIVE catalog (`membershipTypeCatalog`), NOT
+    // these static options.
     {
       key: 'membership_type',
       group: 'membership',
@@ -158,16 +161,21 @@ describe('ApplicationFieldAttributes — application-required (R3.1)', () => {
     expect(findField(next, 'preference')?.field.application_required).toBe(true);
   });
 
-  it('is forced ON and DISABLED for a platform-required field (no relax)', () => {
+  it('seeds ON for a platform-required field but is NOT disabled — the admin may relax it (03b Req 1)', () => {
     const { onChange } = renderAttrs('email', overrideOnFormOverlay('contact.email'));
     const toggle = screen.getByTestId('application-field-required-toggle');
-    // Forced ON — a platform-required field is always required on the form (R3.1).
+    // Seeds ON from the platform-required default (a sensible initial state, not a lock, R3.1).
     expect(toggle).toBeChecked();
-    // The platform-required provenance is surfaced so the admin understands why it cannot relax.
+    expect(toggle).not.toBeDisabled();
+    // The platform-required provenance is still surfaced as information.
     expect(screen.getByText('platform-required')).toBeInTheDocument();
-    // And the no-relax guard holds: a click can NEVER write a relax to the overlay (R3.1 / R8.1c).
+    // 03b Req 1.1/1.4: the former no-relax binding is REMOVED — clicking the toggle off now
+    // writes a relax to the overlay. 03b Req 2.1/2.4 (BU-5): the OFF is an EXPLICIT `false`, not a
+    // dropped `undefined` the change-op diff would treat as "unchanged" (the toggle root cause).
     fireEvent.click(toggle);
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as MembersConfigValue;
+    expect(findField(next, 'contact.email')?.field.application_required).toBe(false);
   });
 });
 
@@ -280,7 +288,7 @@ describe('ApplicationFieldAttributes — format dropdown (R3.3)', () => {
 /*  over the LIVE catalog, empty/unknown-subset validation.            */
 /* ------------------------------------------------------------------ */
 describe('ApplicationFieldAttributes — membership-type coherence (R4, task 3.3)', () => {
-  it('forces the exposed membership-type field application-required (forced ON + disabled, R4.2)', () => {
+  it('does NOT force the membership-type field application-required — the admin sets it (03b Req 1.2)', () => {
     const { onChange } = renderAttrs(
       'membership_type',
       membershipOnFormOverlay(),
@@ -288,13 +296,18 @@ describe('ApplicationFieldAttributes — membership-type coherence (R4, task 3.3
       CATALOG,
     );
     const toggle = screen.getByTestId('application-field-required-toggle');
-    // Forced ON even though the field is NOT platform-required — an exposed membership-type field
-    // is always application-required (spec 10 D21 / R4.2).
-    expect(toggle).toBeChecked();
+    // 03b Req 1.2: the former force-on/disable binding for the membership-type field is REMOVED.
+    // The field is NOT platform-required (`required: false`) and carries no authored value, so the
+    // toggle seeds OFF and is freely settable — no overrule.
+    expect(toggle).not.toBeChecked();
+    expect(toggle).not.toBeDisabled();
+    // The membership-type provenance is still surfaced as information.
     expect(screen.getByText('membership-type')).toBeInTheDocument();
-    // The no-relax guard holds: clicking the forced toggle never writes a relax to the overlay.
+    // Clicking it ON now writes an explicit boolean (the admin's choice), not a no-op.
     fireEvent.click(toggle);
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as MembersConfigValue;
+    expect(findField(next, 'membership.membership_type')?.field.application_required).toBe(true);
   });
 
   it('sources the subset from the LIVE catalog, NOT the field\u2019s static served options (R4.1)', () => {

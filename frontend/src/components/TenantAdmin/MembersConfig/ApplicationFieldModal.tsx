@@ -241,22 +241,21 @@ export const ApplicationFieldModal: React.FC<ApplicationFieldModalProps> = ({
 
   /**
    * Author the on-the-form state onto the ONE overlay through the SHARED engine (R1.1 / §3.1).
-   * Toggling ON writes `application_visible: true`; toggling OFF clears it to the default
-   * (`undefined`, R2.3) — exactly the engine semantics the retired toggle-list used, now routed
-   * through the modal. The write target is origin-aware (`resolveWriteTarget`), so a tenant field
-   * lands under `fields[key]` and a base field under `fixed_overrides[{group}.{key}]`.
+   * Toggling ON writes `application_visible: true`; toggling OFF writes an EXPLICIT
+   * `application_visible: false` (spec 03b BU-5 / Req 2.1 — the toggle root-cause fix: a dropped
+   * `undefined` was treated as "unchanged" and silently reverted on reload). The write target is
+   * origin-aware (`resolveWriteTarget`), so a tenant field lands under `fields[key]` and a base
+   * field under `fixed_overrides[{group}.{key}]`.
    */
   const toggleOnForm = (on: boolean) => {
     if (!field) return;
     const target = resolveWriteTarget(field);
     if (!target.writable) return; // calculated/read-only — never authored (R2.5)
+    // Send the EXPLICIT boolean (spec 03b BU-5 / Req 2.1): turning a field OFF the form must persist
+    // as `false`, not a dropped `undefined` the change-op diff treats as "unchanged" (the toggle
+    // root cause). The diff against the LOADED state emits the explicit OFF so a reload shows OFF.
     onChange(
-      upsertField(
-        overlay,
-        target.overlayKey,
-        { application_visible: on ? true : undefined },
-        target.origin,
-      ),
+      upsertField(overlay, target.overlayKey, { application_visible: on }, target.origin),
     );
   };
 
@@ -330,15 +329,11 @@ export const ApplicationFieldModal: React.FC<ApplicationFieldModalProps> = ({
     if (requiredForced) return; // no-relax: a platform-required field is never relaxed (R2)
     const target = resolveWriteTarget(field);
     if (!target.writable) return;
-    // ON writes `application_required: true`; OFF clears to the default (undefined), mirroring the
-    // on-the-form toggle's clear-to-default semantics (R2.3).
+    // Send the EXPLICIT boolean (spec 03b BU-5 / Req 2.1): turning required OFF must persist as
+    // `false`, not a dropped `undefined` the change-op diff treats as "unchanged" (the toggle root
+    // cause). Same uniform fix as the on-the-form toggle (Req 2.3 — not a special-cased subset).
     onChange(
-      upsertField(
-        overlay,
-        target.overlayKey,
-        { application_required: on ? true : undefined },
-        target.origin,
-      ),
+      upsertField(overlay, target.overlayKey, { application_required: on }, target.origin),
     );
   };
 
