@@ -581,10 +581,13 @@ class ConfigFieldsCrudService:
           an inline ``options`` payload would re-freeze a stale copy of the catalog — the
           two-copies disease on the WRITE side. Reference vocabulary lives in the catalog, never
           inline → reject a non-empty inline ``options`` payload.
-        - **W2 — scope-backed field, inline options rejected.** A scope-backed field is sourced
-          from ``scope_vocab`` (the ``config#scope`` dimension). Authored inline options (Bug 2's
-          shape) are rejected at the write edge — chosen over a read-time precedence rule so the
-          stored row stays honest (no inline vocabulary competing with the dimension).
+        - **W2 — REMOVED (03a Option A).** A scope-backed field is now a NORMAL enum for authoring:
+          its inline ``options`` payload is ACCEPTED (the editor round-trips the ``config#scope``
+          dimension's options back on save — that is the whole point). Its dropdown may ALSO be
+          sourced from ``scope_vocab`` (the ``config#scope`` dimension) at the C4 read seam (the
+          pre-existing S5j read-path behaviour, UNCHANGED). An earlier revision wrongly rejected the
+          only authoring path here; that rejection is gone. A scope-backed field falls through to W3
+          like any enum.
         - **W3 — inline-source enum, EXPLICIT empty options rejected.** The write-edge invariant:
           an inline-source (enum) field CANNOT be made selectable with zero ``options``. Scoped to
           an EXPLICIT empty ``options`` payload (``[]``) — staging a field before adding its
@@ -616,16 +619,13 @@ class ConfigFieldsCrudService:
                 )
             return
 
-        # W2 — scope-backed field may never carry inline options (scope_vocab is the source).
-        if self._is_scope_backed_field(def_attrs, stored):
-            if inline_options_present:
-                raise ConfigFieldsCrudError(
-                    f"set_field: field {field_key!r} is scope-backed — its options are sourced "
-                    "from the scope dimension (config#scope); an inline `options` payload is "
-                    "rejected so the stored row never carries inline vocabulary competing with "
-                    "the dimension (W2)"
-                )
-            return
+        # W2 REMOVED (03a Option A). A scope-backed field is a NORMAL enum for authoring: its
+        # `options` payload is ACCEPTED here (that is the whole point — the editor round-trips the
+        # scope dimension's options back on save). Its dropdown may ALSO be sourced from the
+        # config#scope dimension at read time (the pre-existing S5j read-path behaviour), which is
+        # UNCHANGED. An earlier revision wrongly rejected the only authoring path with a W2 guard;
+        # that rejection is removed. A scope-backed field now falls through to W3 like any enum
+        # (W3 still rejects an inline enum saved with an EXPLICIT empty `options`).
 
         # W3 — inline-source enum cannot be made selectable with an EXPLICIT empty options list.
         if (

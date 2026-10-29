@@ -204,22 +204,23 @@ The expected CORRECT behaviour for buggy inputs is defined in Correctness Proper
 ### Write-side vocabulary invariants (new guards)
 
 Because the C1 editor now seeds from `options` IDENTICALLY for all kinds, the write edge must
-stop a stale catalog/scope snapshot from being re-frozen as inline `options`. These are WRITE-EDGE
+stop a stale CATALOG snapshot from being re-frozen as inline `options`. These are WRITE-EDGE
 rules enforced in C2 (the uncommitted C2 code must gain them):
 
-1. **Only inline-source (enum) fields persist `options`.** Reference and scope-backed fields NEVER
-   write `options` back. The write edge DROPS/IGNORES (or rejects, per the chosen handling below)
-   an `options` payload on a reference or scope field. Rationale: a reference field's `options` are
-   a snapshot of the LIVE catalog populated at the read seam (C4); if those get saved back as
-   INLINE options on the next edit, we re-freeze a stale copy of the live catalog — the
-   two-copies disease on the WRITE side. The source of truth for reference is the catalog and for
-   scope is `scope_vocab`; neither is ever persisted inline.
-2. **Reject inline options on scope-backed fields at write time.** A scope-backed field sourced
-   from `scope_vocab` must not carry authored inline options (Bug 2's shape). Rejecting at the
-   write edge is cleaner than a read-time precedence rule — it keeps the stored row honest (no
-   inline vocabulary competing with the dimension) rather than silently preferring one source at
-   read. This is the chosen handling for both (1) and (2): **reject** an inline-`options` payload
-   on a reference or scope-backed field with a caller-safe 400.
+1. **A REFERENCE field never persists `options`.** The write edge rejects an inline-`options`
+   payload on a reference field. Rationale: a reference field's `options` are a snapshot of the
+   LIVE catalog populated at the read seam (C4); if those get saved back as INLINE options on the
+   next edit, we re-freeze a stale copy of the live catalog — the two-copies disease on the WRITE
+   side. The source of truth for reference is the catalog; it is never persisted inline.
+2. **W2 REMOVED (Option A) — a SCOPE-backed field is a NORMAL enum for authoring.** An earlier
+   revision rejected an inline-`options` payload on a scope-backed field. That was wrong: the
+   inline `options` payload is the ONLY authoring path (the editor round-trips the dimension's
+   options back on save), so the rejection blocked the sole way to save the field (the live symptom
+   `set_field: field 'region' is scope-backed — inline options rejected (W2)`). The write surface
+   now ACCEPTS a scope-backed field's `options` (point 3 / W3 still applies to an explicit empty
+   list). Its dropdown may ALSO be sourced from the `config#scope` dimension at READ time — the
+   pre-existing S5j read path, UNCHANGED — and the dimension values are kept in sync with the
+   field on the Flask authoring plane, so the two sources do not diverge.
 3. **Selectable inline-source field cannot be saved with zero `options`** (the write-edge
    invariant, Glossary / point 1) — rejected with a caller-safe 400. This is what makes
    "inline-source enum reads back empty" ALWAYS the asymmetry, hence the clean fail-loud
@@ -311,14 +312,17 @@ caller-safe 400 (steering 30; no `str(e)` leak) BEFORE any repository call.
 
 **Validates: Requirements 2.4**
 
-Property 5: Write-Edge Source Integrity — Only Inline-Source Fields Persist Options
+Property 5: Write-Edge Source Integrity — Reference Never Persists Options (W2 removed)
 
-_For any_ write to a selectable field: (a) a reference or scope-backed field SHALL NOT persist an
-`options` payload — the write edge rejects an inline-`options` payload on such a field with a
-caller-safe 400 (steering 30), so a stale catalog/scope snapshot can never be re-frozen inline (no
+_For any_ write to a selectable field: (a) a REFERENCE field SHALL NOT persist an `options`
+payload — the write edge rejects an inline-`options` payload on a reference field with a
+caller-safe 400 (steering 30), so a stale catalog snapshot can never be re-frozen inline (no
 two-copies disease on the write side); and (b) an inline-source (enum) field SHALL NOT be saved
-with zero `options` — the write edge rejects it with a caller-safe 400, which is the write-edge
-invariant that makes "inline-source enum reads back empty" always the P3 asymmetry.
+with an EXPLICIT empty `options` list — the write edge rejects it with a caller-safe 400, which is
+the write-edge invariant that makes "inline-source enum reads back empty" always the P3 asymmetry.
+A SCOPE-backed field is NOT covered by (a): W2 was removed (Option A) — its inline `options` are
+ACCEPTED by the write surface (that is the only authoring path), and its dropdown may ALSO be
+sourced from the `config#scope` dimension at read time (the S5j read path, UNCHANGED).
 
 **Validates: Requirements 2.4, 2.6**
 
@@ -377,27 +381,34 @@ label:{}}` — labels/roles are legitimately absent for scope, see Write-side in
 `options`. `MembersFieldModal.optionsToChoices` / `formFromResolvedField` seed the editor from the
 single `options` the seam returns — IDENTICALLY for enum, reference, and scope (no reference/scope
 special-case); C6 makes a propagated-but-empty source an error, not a silent empty. **Latent-bug
-note:** because the editor now seeds from `options` identically for all kinds, a reference/scope
-field's catalog/scope-derived `options` could be emitted back as inline `options` on the next
-save. C2's write-side source-integrity guard (below) is what prevents that re-freeze — the
-read-side uniformity is safe ONLY with the write-side guard in place.
+note:** because the editor now seeds from `options` identically for all kinds, a REFERENCE field's
+catalog-derived `options` could be emitted back as inline `options` on the next save. C2's W1
+write-side source-integrity guard (below) is what prevents that re-freeze for reference fields — the
+read-side uniformity is safe for reference ONLY with the W1 guard in place. (A SCOPE-backed field
+is intentionally NOT guarded this way — W2 was removed (Option A): saving its dimension-derived
+`options` back inline is the sanctioned authoring round-trip, and its read-time dropdown may still
+be dimension-sourced via the UNCHANGED S5j path, which keeps the two in sync.)
 
 **C2 — Write surface accepts `options` only, with source-integrity guards**
 (`config_fields_crud_service.py`). Remove `choices` from `FIELD_DEFINITION_ATTRS`. Storage key
 stays `overrides`, served under wire key `fixed_overrides` (one-key contract preserved). Write
-remains a Change-Op on a single path — no whole-row replace (R3.3). The uncommitted C2 code gains
-THREE write-side guards (Write-side invariants; Property 5):
-- **Only inline-source (enum) fields persist `options`.** Reject an inline-`options` payload on a
+remains a Change-Op on a single path — no whole-row replace (R3.3). The C2 code carries
+TWO write-side guards (Write-side invariants; Property 5) — W2 was REMOVED (Option A):
+- **A REFERENCE field never persists `options` (W1).** Reject an inline-`options` payload on a
   REFERENCE field with a caller-safe 400 — a reference field's `options` are a live-catalog
   snapshot populated at the read seam (C4); persisting them inline re-freezes a stale copy (the
   two-copies disease on the write side). Reference vocabulary lives in the catalog, never inline.
-- **Reject inline options on scope-backed fields.** A scope-backed field is sourced from
-  `scope_vocab`; authored inline options (Bug 2's shape) are rejected at the write edge with a
-  caller-safe 400 — chosen over a read-time precedence rule so the stored row stays honest (no
-  inline vocabulary competing with the dimension).
-- **Selectable inline-source field cannot be saved with zero `options`** (the write-edge
-  invariant) — rejected with a caller-safe 400. This is what makes the read-time fail-loud
-  discriminator (inline-source enum reads back empty ⇒ asymmetry) unambiguous.
+- **W2 REMOVED (Option A) — a scope-backed field is a NORMAL enum for authoring.** An earlier
+  revision rejected an inline-`options` payload on a scope-backed field, but that inline payload is
+  the ONLY authoring path (the editor round-trips the dimension's options back on save), so the
+  rejection blocked the sole way to save the field (live symptom `set_field: field 'region' is
+  scope-backed — inline options rejected (W2)`). The write surface now ACCEPTS a scope-backed
+  field's `options`; its dropdown may ALSO be sourced from the `config#scope` dimension at read
+  time (the S5j read path, UNCHANGED). W3 still applies if saved with an explicit empty list.
+- **Selectable inline-source field cannot be saved with zero `options` (W3).** An EXPLICIT empty
+  `options` list is rejected with a caller-safe 400. This is what makes the read-time fail-loud
+  discriminator (inline-source enum reads back empty ⇒ asymmetry) unambiguous. W3 applies to any
+  enum, scope-backed or not.
 
 **C3 — Write-edge duplicate-`value` guard** (`config_fields_crud_service.py`, before any repo
 call). Reject an `options` list with a duplicate `value` via `ConfigFieldsCrudError` (subclasses
@@ -540,15 +551,25 @@ separately — that boundary is unchanged; this collapse is DISPLAY vocabulary o
 | F12 | `_field_choice_values`: a write-side `_collect(spec.get("options")) or _collect(spec.get("choices"))` coalesce, used to validate an `application_choices` subset against the field's vocabulary | `config_write_service.py` (`_field_choice_values`, :542) | migrate to read `options` only (drop the `choices` fallback) now that C7 backfills every live row and C2 drops `choices` on the write — so the write-side validator reads the ONE canonical vocabulary. Prefer this migration over a C8 allow-list carve-out (the migration is clean: C7 guarantees `options` is present before C8 flips to BLOCKING) |
 
 **New write-side source-integrity guards (additions, not removals — see Write-side invariants &
-C2, Property 5).** Beyond retiring the fallbacks above, C2 ADDS three write-edge guards that did
+C2, Property 5).** Beyond retiring the fallbacks above, C2 ADDS two write-edge guards that did
 not exist before: (W1) reject an inline-`options` payload on a REFERENCE field — a reference
 field's `options` are a live-catalog snapshot populated at the read seam; persisting them inline
 re-freezes a stale copy (the two-copies disease on the write side, a latent bug introduced by C1's
-identical-seeding). (W2) reject inline options on a SCOPE-backed field (chosen over a read-time
-precedence rule, so the stored row carries no inline vocabulary competing with the dimension).
-(W3) reject a save of an inline-source enum with ZERO `options` (the write-edge invariant that
-makes the read-time fail-loud discriminator unambiguous). All three reject with a caller-safe 400
-(steering 30).
+identical-seeding). (W3) reject a save of an inline-source enum with ZERO `options` (the write-edge
+invariant that makes the read-time fail-loud discriminator unambiguous). Both reject with a
+caller-safe 400 (steering 30).
+
+**W2 was REMOVED (Option A).** An earlier revision of this design added a W2 guard that rejected
+an inline-`options` payload on a SCOPE-backed field. That was wrong: for a scope-backed field the
+inline `options` payload is the ONLY authoring path (the editor round-trips the dimension's options
+back on save), so W2 rejected the sole way to save the field and surfaced as the live symptom
+(`set_field: field 'region' is scope-backed — inline options rejected (W2)`). A scope-backed field
+is therefore treated as a NORMAL enum by the write surface: its `options` are ACCEPTED (W3 still
+applies if an inline enum is saved with an EXPLICIT empty `options`). Its dropdown may ALSO be
+sourced from the `config#scope` dimension at READ time — the pre-existing S5j read path
+(resolver carve-out + `_as_variable_field` `scope_vocab` sourcing + `_assemble_field_options`'s
+scope branch), which is UNCHANGED. The dimension values are derived from / kept in sync with the
+field on the Flask authoring plane, so the two sources do not diverge.
 
 ### Deployment ordering
 
@@ -690,9 +711,11 @@ Strengthen spec-03's `test_set_enum_choices_on_field_is_isolated` from isolation
   `[o.value for o in options]` derived at the seam (F7/G2); reference fills from the injected
   catalog map (F8); duplicate-`value` guard rejects (C3).
 - **Write-side guards (Property 5, C2):** the write edge REJECTS an inline-`options` payload on a
-  reference field (no stale-catalog re-freeze) and on a scope-backed field (no inline vocabulary
-  competing with the dimension) with a caller-safe 400; and REJECTS a save of an inline-source
-  enum with zero `options` (the write-edge invariant) with a caller-safe 400.
+  reference field (no stale-catalog re-freeze, W1) with a caller-safe 400; and REJECTS a save of an
+  inline-source enum with an EXPLICIT empty `options` (the write-edge invariant, W3) with a
+  caller-safe 400. **W2 was REMOVED (Option A):** a scope-backed field's inline `options` are
+  ACCEPTED (the only authoring path), its dropdown may ALSO be dimension-sourced at read time (the
+  S5j read path, UNCHANGED).
 - **No-per-kind-branch serializer test (covers dropped C8 rule (c)):** a targeted
   unit/integration test asserting `_serialize_field` (F9) and `_public_field_options` (F10)
   resolve the ONE canonical `options` from the seam with NO per-kind read-shape branch — the R3.2
@@ -714,7 +737,7 @@ Strengthen spec-03's `test_set_enum_choices_on_field_is_isolated` from isolation
 | R2.3 no silent fallbacks — fail loud on the asymmetry (write-edge discriminator; staff-raise / public-drop split) | C6 (write-edge-invariant discriminator, per-consumer blast-radius split, hard gate), F1–F12 (F9/F10 serializer fallbacks, F12 write-side coalesce; F11 is a documented source-selector carve-out), Fail-Loud Checking (P3) |
 | R2.4 write-edge duplicate-`value` 400 before repo call; source-integrity guards | C3 (P4), C2 write-side guards (P5) |
 | R2.5 strengthen isolation test → + symmetry + real shapes | Strengthened Isolation Test |
-| R2.6 one vocabulary model; kinds differ only in source; uniform fail-loud; scope `values` derived from `options`; only inline-source fields persist `options` | Read-assembly seam C4 (resolver stays pure), C5/C6, write-side source-integrity guards C2 (P5, no stale-catalog re-freeze; reject inline options on scope), F7, F8, F9 (`_serialize_field` collapse), F10 (`_public_field_options` fallback drop, R3.2 subset preserved), F11 (source-selector carve-out), scope collapse (G2/G4), extended gate (P1, P3) |
+| R2.6 one vocabulary model; kinds differ only in source; uniform fail-loud; scope `values` derived from `options`; only inline-source fields persist `options` | Read-assembly seam C4 (resolver stays pure), C5/C6, write-side source-integrity guards C2 (P5, W1 no stale-catalog re-freeze; W2 REMOVED — scope inline options accepted, dimension-sourced at read via the UNCHANGED S5j path), F7, F8, F9 (`_serialize_field` collapse), F10 (`_public_field_options` fallback drop, R3.2 subset preserved), F11 (source-selector carve-out), scope collapse (G2/G4), extended gate (P1, P3) |
 | R2.7 mechanical guard fails the build on re-introduction of a retired path | C8 — increment 2 (extended `check_sam_config_crud.py` rules (a)(b)(d) + planted-violation tests; rule (c) DROPPED and covered by a no-per-kind-branch test instead; report-only→blocking AFTER increment 1, G6) |
 | R3.1 already-resolving fields render identically | Preservation (P2) |
 | R3.2 `application_choices` unchanged (separate subset) | Preservation (P2) |
