@@ -520,13 +520,19 @@ class ConfigWriteService:
     def _field_choice_values(spec: Mapping) -> set | None:
         """The field's resolved CHOICE vocabulary as a set, or ``None`` when it declares none.
 
-        Mirrors the retired Flask ``_field_enum_values`` / ``_field_choice_values`` (R8.4): a
-        field's choice vocabulary is read from rich ``options`` (``{value,...}`` dicts or bare
-        strings) FIRST, then from a bare ``choices`` string list — the single ``options``/
-        ``choices`` reader the public read side already uses. Returns the non-blank string values
-        as a set for subset-membership checks, or ``None`` when the field declares no usable
-        vocabulary (not an enum / value-less) — the caller treats an ``application_choices`` subset
-        on such a field as a write error (you cannot subset a field that has no choices).
+        Reads the field's vocabulary from the ONE canonical ``options`` list (``{value,...}`` dicts
+        or bare strings). Used to validate that an ``application_choices`` subset is drawn from the
+        field's actual vocabulary (R3.2 — the public-form subset concept is PRESERVED). Returns the
+        non-blank string values as a set for subset-membership checks, or ``None`` when the field
+        declares no usable vocabulary (not an enum / value-less) — the caller treats an
+        ``application_choices`` subset on such a field as a write error (you cannot subset a field
+        that has no choices).
+
+        The legacy ``choices`` fallback was RETIRED (spec 03a, F12/N2): now that C7 backfills every
+        live row to ``options`` and C2 drops ``choices`` from the write surface, the
+        ``_collect(...) or _collect(spec.get("choices"))`` coalesce is dead — this helper reads
+        ``options`` ONLY, matching the one-vocabulary model (R2.1). Only the vocabulary SOURCE
+        tightened; the ``application_choices`` subset VALIDATION behaviour is unchanged.
         """
 
         def _collect(raw) -> list | None:
@@ -539,7 +545,7 @@ class ConfigWriteService:
                     values.append(value)
             return values or None
 
-        values = _collect(spec.get("options")) or _collect(spec.get("choices"))
+        values = _collect(spec.get("options"))
         return set(values) if values else None
 
     @staticmethod

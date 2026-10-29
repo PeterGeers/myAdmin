@@ -647,9 +647,33 @@ def test_validate_application_attributes_non_list_subset_raises():
     assert repo.calls == []
 
 
-def test_validate_application_attributes_subset_from_bare_choices_list_accepted():
-    """R8.1a (happy): choices may be declared as a bare string ``choices`` list (not only rich
-    ``options``); a subset ⊆ that list writes."""
+def test_validate_application_attributes_subset_vocabulary_read_from_options_only():
+    """R8.1a / F12 (03a C2): the subset-validation vocabulary is read from the ONE canonical
+    ``options`` list ONLY — a subset ⊆ the field's ``options`` writes.
+
+    The retired bare-``choices`` fallback is covered by the companion test below; here the happy
+    path confirms ``options`` is the single source the subset validates against."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "region": _enum_field_spec(
+                ["Noord", "Zuid", "Oost"], application_choices=["Noord", "Zuid"]
+            )
+        }
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    written = repo.calls[0]["attributes"]["fields"]["region"]
+    assert written["application_choices"] == ["Noord", "Zuid"]
+
+
+def test_validate_application_attributes_bare_choices_no_longer_supplies_subset_vocabulary():
+    """F12 (03a C2, N2): the write-side subset validator reads ``options`` ONLY — the legacy
+    ``options or choices`` coalesce is RETIRED. A field declaring its vocabulary under the bare
+    ``choices`` name (no ``options``) now resolves NO usable subset vocabulary, so an
+    ``application_choices`` subset on it is a write error (you cannot subset a field that has no
+    ``options``) — exactly the "no silent fallback" behaviour 03a enforces. C7 migrates any live
+    bare-``choices`` row into ``options`` and C2 drops ``choices`` on the write, so this path is
+    dead for real data."""
     repo = FakeWriteRepository()
     body = {
         "fields": {
@@ -661,9 +685,10 @@ def test_validate_application_attributes_subset_from_bare_choices_list_accepted(
             }
         }
     }
-    _service(repo).put_config(_TENANT, "fields", body)
-    written = repo.calls[0]["attributes"]["fields"]["region"]
-    assert written["application_choices"] == ["Noord", "Zuid"]
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", body)
+    assert "overlay.region" in str(exc.value)
+    assert repo.calls == []
 
 
 # ── R8.1b: format must be a well-formed {checker, params?} with a known checker ───────────

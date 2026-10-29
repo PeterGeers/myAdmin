@@ -94,6 +94,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from sam.members.domain._membership_errors import MEMBERSHIP_TYPE_FIELD_KEY
 from sam.members.domain.fixed_fields import field_by_key
 
 from sam.members.repository.projection_config_write_repository import (
@@ -116,6 +117,13 @@ __all__ = [
 #: Field DEFINITION attributes — the ONLY attrs :meth:`set_field` may write. Deliberately EXCLUDES
 #: every ``application_*`` attr and ``format`` (those live on :data:`FIELD_APPLICATION_ATTRS`), so
 #: a definition op is structurally unable to touch application-form config.
+#:
+#: ``choices`` was RETIRED (spec 03a, C2): the write surface now accepts ONLY the one canonical
+#: ``options`` vocabulary. ``choices`` is no longer an accepted definition attribute, so a write
+#: carrying it is rejected out-of-surface (:class:`ConfigFieldsCrudError`) — there is one
+#: vocabulary model end-to-end (R2.1, R3.3). The storage key stays ``overrides``, served under the
+#: wire key ``fixed_overrides`` (the one-key contract is unchanged); the write remains a Change-Op
+#: on a single path (no whole-row replace).
 FIELD_DEFINITION_ATTRS = frozenset(
     {
         "type",
@@ -123,7 +131,6 @@ FIELD_DEFINITION_ATTRS = frozenset(
         "order",
         "required",
         "visible",
-        "choices",
         "options",
         "scope",
         "functional_group",
@@ -253,10 +260,19 @@ class ConfigFieldsCrudService:
         self._require_attr_surface(
             def_attrs, FIELD_DEFINITION_ATTRS, op="set_field"
         )
+        self._reject_duplicate_option_values(def_attrs, op="set_field")
 
         def derive(snapshot):
             placement = self._resolve_placement(
                 tenant_id, field_key, snapshot=snapshot
+            )
+            # Write-side source-integrity guards (design W1/W2/W3, Property 5). Run AFTER placement
+            # (so the field's stored spec is observable from the snapshot for kind classification)
+            # but BEFORE op emission — hence before any repository call. They reject a stale
+            # catalog/scope snapshot being re-frozen inline (W1/W2) and an inline-source enum made
+            # selectable with an explicitly-empty vocabulary (W3).
+            self._guard_write_source_integrity(
+                field_key, def_attrs, placement, snapshot=snapshot
             )
             return self._attr_ops(placement, def_attrs)
 
@@ -341,6 +357,47 @@ class ConfigFieldsCrudService:
 
         return self._run(tenant_id, derive, client_op_id=client_op_id)
 
+    # ── Legacy-cleanup op (migration companion — NOT part of the normal write surface) ──
+
+    def remove_legacy_choices(
+        self, tenant_id: str, field_key: str, *, client_op_id: str | None = None
+    ) -> dict:
+        """Remove a field's LEGACY ``choices`` attribute via a scoped Change-Op REMOVE (03a C7).
+
+        This is the one-time ``choices`` → ``options`` backfill's companion. It is DELIBERATELY NOT
+        part of the normal client write surface: :data:`FIELD_DEFINITION_ATTRS` no longer lists
+        ``choices`` (C2 retired it), so :meth:`set_field` correctly REJECTS any payload mentioning
+        ``choices`` (even ``choices: None``) via :meth:`_require_attr_surface`. That guard is right
+        for the normal surface — there is ONE vocabulary model (``options``) and ``choices`` is off
+        it — but it leaves no way for the migration to retire the legacy attribute through
+        ``set_field``. This method is that way: it exists SOLELY to drop the retired ``choices``
+        attribute of a field, modelled on :meth:`reset_field`/:meth:`delete_field` (derive a
+        placement, then emit a scoped REMOVE op DIRECTLY — never routed through the attr-surface
+        guard).
+
+        It emits a SINGLE version-conditional ``update_item`` REMOVE on the ``choices`` path
+        (``REMOVE <map>.<key>.choices``) — NO whole-row ``put_item`` replace (R3.3 / steering 39);
+        DynamoDB leaves every sibling attribute physically untouched.
+
+        Idempotent / safe no-op: if the field's stored spec carries NO ``choices`` attribute (an
+        already-migrated row, or a never-legacy field), NOTHING is written — the method returns a
+        no-op result rather than emitting an empty op set (``apply_ops`` requires a non-empty op
+        set). Re-running the backfill therefore writes nothing once ``choices`` is gone.
+        """
+        snapshot = self._read_snapshot(tenant_id)
+        placement = self._resolve_placement(
+            tenant_id, field_key, snapshot=snapshot
+        )
+        stored = self._stored_field_spec(snapshot, placement)
+        if "choices" not in stored:
+            # Already migrated (or never legacy) → safe no-op. Do NOT call apply_ops with an empty
+            # op set (it requires a non-empty sequence). Report the no-op explicitly.
+            return {"version": None, "idempotent_replay": False, "no_op": True}
+        op = {"action": REMOVE, "path": [placement["map"], placement["key"], "choices"]}
+        return self._apply(
+            tenant_id, [op], snapshot=snapshot, client_op_id=client_op_id
+        )
+
     # ── Group ops (attrs ⊆ {label, order}) ──────────────────────────────────────────────
 
     def set_group(
@@ -408,6 +465,213 @@ class ConfigFieldsCrudService:
                 f"{op} may only write {sorted(allowed)!r}; rejected out-of-surface "
                 f"attribute(s) {sorted(extra)!r} — these belong to a different, disjoint op"
             )
+
+    @staticmethod
+    def _reject_duplicate_option_values(
+        attrs: Mapping[str, Any], *, op: str
+    ) -> None:
+        """Reject an ``options`` list carrying a duplicate ``value`` BEFORE any repository call
+        (design C3 / P4; R2.4; steering 30).
+
+        The one canonical vocabulary is ``options``, a list of ``{"value": ...}`` entries (a bare
+        string is shorthand for ``{"value": <string>}``). Two entries with the SAME ``value`` are a
+        content error — the stored vocabulary would carry an ambiguous duplicate the reader cannot
+        round-trip meaningfully — so this is a deliberate, caller-safe rejection via
+        :class:`ConfigFieldsCrudError` (subclasses :class:`ValueError`). The edge maps it to a 400
+        with a GENERIC client message; the full detail (which values duplicated) rides the exception
+        string the edge LOGS server-side, never echoed to the client (no ``str(e)`` leak,
+        steering 30). The guard fires at the write edge, before placement reads or ``apply_ops`` —
+        a duplicate never reaches storage.
+
+        An ABSENT ``options`` attr is untouched; a non-list / non-``value`` shape is left to the
+        normal validation path (this guard only speaks to duplicate VALUES within a well-shaped
+        list). ``None`` entry values are ignored (no value to compare).
+        """
+        options = attrs.get("options")
+        if not isinstance(options, (list, tuple)):
+            return
+        seen: set = set()
+        duplicates: list = []
+        for entry in options:
+            value = entry.get("value") if isinstance(entry, Mapping) else entry
+            if value is None:
+                continue
+            if value in seen:
+                duplicates.append(value)
+            else:
+                seen.add(value)
+        if duplicates:
+            # Dedupe while preserving first-seen order for a stable, diagnosable message. This
+            # string is LOGGED server-side by the edge (keyed to a correlation id); the client sees
+            # only the edge's generic 400 message (steering 30).
+            ordered_unique = list(dict.fromkeys(duplicates))
+            raise ConfigFieldsCrudError(
+                f"{op}: options may not contain duplicate value(s) "
+                f"{ordered_unique!r} — each option value must be unique"
+            )
+
+    # ── Write-side source-integrity guards (design W1/W2/W3, Property 5) ────────────────
+
+    def _guard_write_source_integrity(
+        self,
+        field_key: str,
+        def_attrs: Mapping[str, Any],
+        placement: Mapping[str, Any],
+        *,
+        snapshot: Mapping[str, Any] | None,
+    ) -> None:
+        """Reject a definition write that violates a selectable field's source-integrity invariant
+        (design "Write-side vocabulary invariants" W1/W2/W3; Property 5), BEFORE any repository
+        call.
+
+        Because C1 now seeds the editor from ``options`` IDENTICALLY for every kind, the write edge
+        must stop a stale catalog/scope snapshot being re-frozen inline, and must stop an
+        inline-source enum being made selectable with no vocabulary. Three deliberate, caller-safe
+        rejections (each raises :class:`ConfigFieldsCrudError`, which the edge maps to a 400 with a
+        GENERIC client message; the full reason rides the exception string the edge LOGS
+        server-side under a correlation id — no ``str(e)`` leak, steering 30):
+
+        - **W1 — reference field, inline options rejected.** A reference field (the
+          ``membership_type`` reference key, or a field whose declared ``type`` is ``reference``)
+          sources its vocabulary from the LIVE catalog, populated at the read seam (C4). Persisting
+          an inline ``options`` payload would re-freeze a stale copy of the catalog — the
+          two-copies disease on the WRITE side. Reference vocabulary lives in the catalog, never
+          inline → reject a non-empty inline ``options`` payload.
+        - **W2 — scope-backed field, inline options rejected.** A scope-backed field is sourced
+          from ``scope_vocab`` (the ``config#scope`` dimension). Authored inline options (Bug 2's
+          shape) are rejected at the write edge — chosen over a read-time precedence rule so the
+          stored row stays honest (no inline vocabulary competing with the dimension).
+        - **W3 — inline-source enum, EXPLICIT empty options rejected.** The write-edge invariant:
+          an inline-source (enum) field CANNOT be made selectable with zero ``options``. Scoped to
+          an EXPLICIT empty ``options`` payload (``[]``) — staging a field before adding its
+          vocabulary (a ``set_field`` that does NOT carry ``options`` at all) stays legitimate, so
+          an ABSENT ``options`` key never trips this guard. This invariant is what makes the
+          read-time fail-loud discriminator unambiguous (an inline enum that reads back empty is
+          ALWAYS the P3 asymmetry, never a legitimately-empty save).
+
+        Kind is classified from the payload UNIONED with the field's stored spec in the snapshot:
+        an UPDATE may carry ONLY ``options`` (no ``type``/``scope``), so the field's kind is read
+        from what is already stored when the payload is silent — matching how the surrounding code
+        (the read seam's ``MEMBERSHIP_TYPE_FIELD_KEY`` reference check, the resolver's ``scope``
+        carry) classifies kind.
+        """
+        stored = self._stored_field_spec(snapshot, placement)
+        inline_options_present = "options" in def_attrs
+        inline_options = def_attrs.get("options")
+        has_inline_option_values = bool(
+            isinstance(inline_options, (list, tuple)) and len(inline_options) > 0
+        )
+
+        # W1 — reference field may never carry inline options (catalog is the source of truth).
+        if self._is_reference_field(field_key, def_attrs, stored):
+            if inline_options_present:
+                raise ConfigFieldsCrudError(
+                    f"set_field: field {field_key!r} is a reference field — its options are a "
+                    "snapshot of the live catalog populated on read; an inline `options` payload "
+                    "is rejected so a stale catalog copy is never re-frozen inline (W1)"
+                )
+            return
+
+        # W2 — scope-backed field may never carry inline options (scope_vocab is the source).
+        if self._is_scope_backed_field(def_attrs, stored):
+            if inline_options_present:
+                raise ConfigFieldsCrudError(
+                    f"set_field: field {field_key!r} is scope-backed — its options are sourced "
+                    "from the scope dimension (config#scope); an inline `options` payload is "
+                    "rejected so the stored row never carries inline vocabulary competing with "
+                    "the dimension (W2)"
+                )
+            return
+
+        # W3 — inline-source enum cannot be made selectable with an EXPLICIT empty options list.
+        if (
+            inline_options_present
+            and not has_inline_option_values
+            and self._is_inline_enum_field(def_attrs, stored)
+        ):
+            raise ConfigFieldsCrudError(
+                f"set_field: field {field_key!r} is an inline-source enum — it cannot be saved "
+                "selectable with zero `options` (the write-edge invariant). Supply at least one "
+                "option, or stage the field without an `options` key until its vocabulary is "
+                "ready (W3)"
+            )
+
+    @staticmethod
+    def _stored_field_spec(
+        snapshot: Mapping[str, Any] | None, placement: Mapping[str, Any]
+    ) -> Mapping[str, Any]:
+        """The field's CURRENTLY STORED spec from the consistent snapshot, or ``{}`` when absent.
+
+        Reads the snapshot in the reader's WIRE shape (``overrides`` served under
+        ``fixed_overrides``), matching :meth:`_entry_exists`. Lets the source-integrity guard
+        classify a field's kind from what is already stored when an UPDATE payload carries only
+        ``options`` (no ``type``/``scope``).
+        """
+        if not isinstance(snapshot, Mapping):
+            return {}
+        wire_key = _MAP_TO_WIRE_KEY.get(placement["map"], placement["map"])
+        container = snapshot.get(wire_key)
+        if not isinstance(container, Mapping):
+            return {}
+        spec = container.get(placement["key"])
+        return spec if isinstance(spec, Mapping) else {}
+
+    @staticmethod
+    def _effective_type(
+        def_attrs: Mapping[str, Any], stored: Mapping[str, Any]
+    ) -> str | None:
+        """The field's effective declared ``type`` — the payload's value if present, else the
+        stored spec's (payload ∪ snapshot). ``None`` when neither declares one."""
+        if "type" in def_attrs:
+            declared = def_attrs.get("type")
+        else:
+            declared = stored.get("type")
+        return declared if isinstance(declared, str) else None
+
+    @staticmethod
+    def _effective_scope(
+        def_attrs: Mapping[str, Any], stored: Mapping[str, Any]
+    ) -> Any:
+        """The field's effective ``scope`` sub-object — the payload's value if the key is present
+        (an explicit ``None`` disables scope), else the stored spec's."""
+        if "scope" in def_attrs:
+            return def_attrs.get("scope")
+        return stored.get("scope")
+
+    @classmethod
+    def _is_reference_field(
+        cls,
+        field_key: str,
+        def_attrs: Mapping[str, Any],
+        stored: Mapping[str, Any],
+    ) -> bool:
+        """True when the field is a REFERENCE field (W1), classified the way the surrounding code
+        does: the ``membership_type`` reference key (by bare or dotted identity, mirroring the read
+        seam's ``MEMBERSHIP_TYPE_FIELD_KEY`` check) OR an effective declared ``type`` of
+        ``reference``."""
+        dotted = cls._dotted_for(field_key)
+        if dotted == MEMBERSHIP_TYPE_FIELD_KEY or field_key == MEMBERSHIP_TYPE_FIELD_KEY:
+            return True
+        return cls._effective_type(def_attrs, stored) == "reference"
+
+    @classmethod
+    def _is_scope_backed_field(
+        cls, def_attrs: Mapping[str, Any], stored: Mapping[str, Any]
+    ) -> bool:
+        """True when the field is SCOPE-BACKED (W2): its effective ``scope`` sub-object is a mapping
+        with a truthy ``enabled`` flag (an enabled scope axis, sourced from ``scope_vocab``). An
+        explicit ``scope: None`` in the payload disables scope and is NOT scope-backed."""
+        scope = cls._effective_scope(def_attrs, stored)
+        return isinstance(scope, Mapping) and bool(scope.get("enabled"))
+
+    @classmethod
+    def _is_inline_enum_field(
+        cls, def_attrs: Mapping[str, Any], stored: Mapping[str, Any]
+    ) -> bool:
+        """True when the field is an INLINE-SOURCE enum (W3): the effective declared ``type`` is
+        ``enum``. (Reference and scope-backed fields are classified and handled ahead of this by
+        W1/W2, so this is reached only for a non-reference, non-scope field.)"""
+        return cls._effective_type(def_attrs, stored) == "enum"
 
     # ── Op emission (absent = untouched / null = REMOVE that aspect) ────────────────────
 
