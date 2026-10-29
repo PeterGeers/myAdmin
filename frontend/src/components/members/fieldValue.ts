@@ -144,6 +144,73 @@ function resolveEnumValueLabel(
 }
 
 /**
+ * Build a per-field stored-key → active-language-label map for an enum/reference
+ * field's rich `options` (BU-9, R5.2/R5.3). This is the ONE-PER-COLUMN map the
+ * Members overview builds so filter/search can match on the label text the user
+ * sees (nl `Overleden`, gb `Passed Away`) instead of the hidden stored key
+ * (`died`) — WITHOUT re-resolving a label per row per keystroke.
+ *
+ * Returns `null` when the field has no rich `{ value, label }` options (a bare
+ * `string[]` list has no label to resolve — the value IS its own label there),
+ * so the caller can cheaply skip label-aware matching for that column and fall
+ * back to the raw stored value. The stored key is NEVER rewritten (R5.4) — this
+ * map is read-only presentation metadata.
+ *
+ * Note two options MAY resolve to the SAME label; the map keeps both keys (keyed
+ * by value), so a filter on that shared label text matches every key that
+ * resolves to it (R5.3) — the lookup direction (value→label) preserves that.
+ */
+export function buildEnumLabelMap(
+  field: FieldConfigField,
+  lang: string,
+): Map<string, string> | null {
+  const options = field.options;
+  if (!Array.isArray(options) || options.length === 0) return null;
+  const map = new Map<string, string>();
+  for (const opt of options) {
+    if (opt && typeof opt === 'object' && 'value' in opt) {
+      const rich = opt as EnumOptionConfig;
+      const value = String(rich.value);
+      map.set(value, resolveEnumLabel(rich.label, lang, value));
+    }
+  }
+  return map.size > 0 ? map : null;
+}
+
+/**
+ * Resolve a stored enum VALUE to the text a filter/search matches against, using
+ * a precomputed {@link buildEnumLabelMap} (BU-9, R5.2/R5.3/R5.4). The match text
+ * is the resolved per-language LABEL **OR** the stored KEY — BOTH, so an NL user
+ * typing `Overleden`, a GB user typing `Passed Away`, AND anyone typing the raw
+ * stored key `died` all match the same `died` row. Label matching is ADDED on top
+ * of key matching; the key is NEVER dropped from the match (R5.4 — the key stays
+ * stored verbatim and remains findable).
+ *
+ * Returns a combined `"<label> <key>"` string when the value is a known option
+ * (so a case-insensitive `includes` matches either half), and the stringified raw
+ * value when the value has no option (e.g. a grandfathered/retired key no longer
+ * in `options`, or no rich-options map at all) — so it still matches on its raw
+ * form rather than vanishing from the filter. `null`/`undefined` resolve to the
+ * empty string (an absent cell matches an empty query only).
+ *
+ * Keyed by value, so two options sharing the SAME label keep their distinct keys
+ * in the match text — a filter on that shared label matches both keys, and a
+ * filter on either specific key still matches only that key's rows.
+ */
+export function enumValueToFilterText(
+  labelMap: Map<string, string> | null,
+  value: unknown,
+): string {
+  if (value === null || value === undefined) return '';
+  const raw = String(value);
+  if (!labelMap) return raw;
+  const label = labelMap.get(raw);
+  // Label OR key: a known option matches on its label AND on its stored key.
+  if (label === undefined || label === raw) return raw;
+  return `${label} ${raw}`;
+}
+
+/**
  * Render a member field value for READ-ONLY display, honoring the field `type`.
  *
  * - `date` → localized date string (via `formatDate`); an unparseable value

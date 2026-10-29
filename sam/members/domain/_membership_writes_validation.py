@@ -508,29 +508,59 @@ class ValidationMixin:
         value = membership.get("membership_type")
         return str(value) if value is not None else None
 
+    def _resolved_membership_type_options(
+        self, tenant_id: str
+    ) -> Sequence[Any] | None:
+        """The ``membership_type`` field's resolved ENUM options (03b BU-2, Req 3.2/3.2a/3.4a).
+
+        The unified model (Req 3.1): a selectable field carries its OWN vocabulary as rich
+        :class:`EnumOption`s, each with an ``allowed`` (retired/grandfather) flag. The reference
+        check reads the ``membership_type`` field's options from the resolved config — NOT the
+        separate ``membershiptype#<code>`` catalog — so "reference" is a feature on the field, not
+        a distinct store. Returns the field's :attr:`options` (the rich option list) when present,
+        else ``None`` (the field carries no inline vocabulary — see the transitional fallback in
+        :meth:`_validate_membership_type_reference`).
+        """
+        config = self._field_resolver.resolve(
+            tenant_id, scope_vocab=self._scope_vocab(tenant_id)
+        )
+        field = config.field(MEMBERSHIP_TYPE_FIELD_KEY)
+        if field is None:
+            return None
+        return field.options
+
     def _validate_membership_type_reference(
         self, tenant_id: str, record: Member
     ) -> None:
-        """Authoritatively validate the member's ``membership_type`` catalog reference (C8).
+        """Authoritatively validate the member's ``membership_type`` reference (03b BU-2, C8).
 
         The domain — never the frontend — is the authority for referential integrity (R2.4,
-        Property 2): the React dropdown that lists a tenant's active types is convenience only,
-        so a create/update MUST re-check the effective ``membership.membership_type`` against
-        the tenant's LIVE catalog. The rule (design C8):
+        Property 2): the React dropdown that lists a tenant's assignable types is convenience
+        only, so a create/update MUST re-check the effective ``membership.membership_type``. Under
+        the 03b unified enum model (Req 3.1) the reference check reads the ``membership_type``
+        FIELD's OWN resolved options (``{value, label, allowed}``) rather than the separate
+        ``membershiptype#<code>`` catalog — "reference" is a feature on the field:
 
-        - the value must reference a catalog entry that **exists** for THIS tenant (Property 1,
-          tenant-agnostic — the check is against the tenant's own catalog, no ``if tenant``);
-        - that entry must be **active** — a soft-deleted (retired) type is not assignable to a
-          new/edited member (it has left the dropdown), so it fails the reference check;
-        - an **unknown** code fails too.
+        - the value must be one of the field's option ``value``s — an UNKNOWN value →
+          :data:`MEMBERSHIP_TYPE_UNKNOWN_REFERENCE` (Req 3.2a: a record pointing at a removed
+          option is read-stable but save-blocked until its value is changed to an existing one);
+        - the matched option must be ``allowed:true`` — a RETIRED (``allowed:false``) option is
+          not assignable to a new/changed record → :data:`MEMBERSHIP_TYPE_RETIRED` (Req 3.2,
+          grandfather semantics: existing members keep the value, it just leaves the picker).
+
+        **Transitional catalog fallback (03b migration safety, Req 6.4 — the EXPAND-before-reader
+        gate).** This re-pointed reader ships BEFORE the migration folds the catalog into the
+        field's options (Task 7). While the field carries NO inline options yet, it FALLS BACK to
+        the legacy ``membershiptype#<code>`` catalog (existence + ``active``) so a deploy that
+        lands before the fold cannot break member writes. The fallback is REMOVED in CONTRACT
+        (Task 10.2) once the fold is verified and the catalog rows are retired.
 
         A missing ``membership_type`` is NOT rejected here — the fixed-field registry
-        (:func:`validate_fixed_fields`) owns the "required" rule (a create with no type already
-        fails there; a partial update that does not touch it is left alone). This method only
-        rejects a *present* value that does not resolve to a live entry, merging its error into
-        the caller's :class:`MemberValidationError` (a 422). It is applied only on create/update
-        writes — never on reads — so an EXISTING member that references a since-retired type
-        stays valid (we do not retroactively invalidate stored members, design C8).
+        (:func:`validate_fixed_fields`) owns the "required" rule. This method only rejects a
+        *present* value, merging its error into the caller's :class:`MemberValidationError`
+        (a 422). It runs only on create/changed-value updates (the caller's ``_membership_type_of``
+        compare, design C8) — never on reads — so an EXISTING member referencing a since-retired/
+        removed value stays valid and updatable when the update does not change the value.
         """
         membership = record.get("membership")
         if not isinstance(membership, Mapping):
@@ -539,18 +569,66 @@ class ValidationMixin:
         if type_code is None or (isinstance(type_code, str) and not type_code.strip()):
             # Absence/blank is the fixed-field registry's concern (required-ness), not ours.
             return
+        code = str(type_code)
 
-        entry = self._repo.get_membership_type(tenant_id, str(type_code))
+        options = self._resolved_membership_type_options(tenant_id)
+        if not options:
+            # Transitional fallback (Req 6.4): the field has no inline vocabulary yet (pre-fold),
+            # so validate against the legacy catalog exactly as before. Removed in CONTRACT.
+            self._validate_membership_type_reference_from_catalog(tenant_id, code)
+            return
+
+        matched = next((o for o in options if str(o.value) == code), None)
+        if matched is None:
+            raise MemberValidationError(
+                {
+                    MEMBERSHIP_TYPE_FIELD_KEY: FieldError(
+                        code=MEMBERSHIP_TYPE_UNKNOWN_REFERENCE,
+                        detail=(
+                            f"unknown membership type {code!r} "
+                            "(not one of the membership_type field's options)"
+                        ),
+                        params={"type_code": code},
+                    )
+                }
+            )
+        if not matched.allowed:
+            raise MemberValidationError(
+                {
+                    MEMBERSHIP_TYPE_FIELD_KEY: FieldError(
+                        code=MEMBERSHIP_TYPE_RETIRED,
+                        detail=(
+                            f"membership type {code!r} is retired (allowed=false) "
+                            "and cannot be assigned to a new or updated member"
+                        ),
+                        params={"type_code": code},
+                    )
+                }
+            )
+
+    def _validate_membership_type_reference_from_catalog(
+        self, tenant_id: str, code: str
+    ) -> None:
+        """Legacy catalog reference check — the transitional fallback (03b, removed in CONTRACT).
+
+        The pre-03b behaviour: a present ``membership_type`` must reference a catalog entry that
+        EXISTS for this tenant and is ACTIVE. Preserved verbatim so a deploy landing before the
+        EXPAND fold (Task 7) — when the field still carries no inline options — keeps rejecting an
+        unknown/retired type exactly as it did. :meth:`_validate_membership_type_reference` calls
+        this ONLY while the field has no inline options; once the fold lands the field-option path
+        governs and this fallback is deleted with the catalog (Task 10.2).
+        """
+        entry = self._repo.get_membership_type(tenant_id, code)
         if entry is None:
             raise MemberValidationError(
                 {
                     MEMBERSHIP_TYPE_FIELD_KEY: FieldError(
                         code=MEMBERSHIP_TYPE_UNKNOWN_REFERENCE,
                         detail=(
-                            f"unknown membership type {str(type_code)!r} "
+                            f"unknown membership type {code!r} "
                             "(not in the tenant's Lidmaatschap Beheer catalog)"
                         ),
-                        params={"type_code": str(type_code)},
+                        params={"type_code": code},
                     )
                 }
             )
@@ -560,10 +638,10 @@ class ValidationMixin:
                     MEMBERSHIP_TYPE_FIELD_KEY: FieldError(
                         code=MEMBERSHIP_TYPE_RETIRED,
                         detail=(
-                            f"membership type {str(type_code)!r} is retired (active=false) "
+                            f"membership type {code!r} is retired (active=false) "
                             "and cannot be assigned to a new or updated member"
                         ),
-                        params={"type_code": str(type_code)},
+                        params={"type_code": code},
                     )
                 }
             )

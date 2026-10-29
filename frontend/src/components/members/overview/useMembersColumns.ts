@@ -17,7 +17,10 @@ import {
   COMPACT_FIELD_KEYS, MEMBER_NUMBER_KEY, FIXED_COLUMN_LABEL_KEYS,
   INITIAL_FILTERS, resolveLabel, type OverviewColumn,
 } from './membersOverviewModel';
-import { renderFieldValue, isColumnCandidate, valueFor } from '../fieldValue';
+import {
+  renderFieldValue, isColumnCandidate, valueFor,
+  buildEnumLabelMap, enumValueToFilterText,
+} from '../fieldValue';
 import { coerceByType, shouldFlatten } from '../columnValue';
 import type {
   Member, MemberRow, FieldConfig, FieldConfigField, ScopeDimension,
@@ -164,6 +167,24 @@ export function useMembersColumns({
     [lang],
   );
 
+  // ── Per-column enum value→label map (BU-9, R5.2/R5.3/R5.4) ───────────────────
+  // Filter/search must match the LABEL the user sees in their language (nl
+  // `Overleden`, gb `Passed Away`) OR the hidden stored key (`died`) — BOTH, so
+  // either way of typing finds the same row (label matching is ADDED on top of
+  // key matching, the key is never dropped). Build the value→label map ONCE per
+  // enum column here — keyed on the field config + lang — so a keystroke in the
+  // search box or a column filter resolves a cell's label+key by a cheap Map
+  // lookup, NOT by re-resolving `options` per row per keystroke. A field with no
+  // rich `{value,label}` options maps to `null` (its value is its own label). The
+  // stored key is never rewritten (R5.4). Keyed by value, so two options sharing a
+  // label keep both keys and a filter on that label matches both.
+  const enumLabelMaps = useMemo(
+    () => new Map<string, Map<string, string> | null>(
+      (fieldConfig?.fields ?? []).map(f => [f.key, buildEnumLabelMap(f, lang)]),
+    ),
+    [fieldConfig, lang],
+  );
+
   // Every candidate field (visible !== false) the global search scans.
   const searchableFields: FieldConfigField[] = useMemo(
     () => (fieldConfig?.fields ?? []).filter(isColumnCandidate),
@@ -172,7 +193,11 @@ export function useMembersColumns({
 
   // Narrow the rows by the global search BEFORE the per-column filter/sort
   // toolkit. A row matches when ANY candidate field's resolved value contains
-  // the query (case-insensitive substring). Scope is never widened.
+  // the query (case-insensitive substring). For an enum/reference field the
+  // match is against the ACTIVE-LANGUAGE LABEL **OR** the stored KEY (via the
+  // one-per-column `enumLabelMaps` lookup, R5.2/R5.4) — both, so `Overleden`,
+  // `Passed Away`, and the raw `died` key all match the same row. Scope is never
+  // widened.
   const searchedRows: MemberRow[] = useMemo(() => {
     const q = globalSearch.trim().toLowerCase();
     if (q === '') return memberRows;
@@ -180,29 +205,48 @@ export function useMembersColumns({
       searchableFields.some(f => {
         const value = valueFor(row, f.group, f.key);
         if (value === null || value === undefined) return false;
-        return String(value).toLowerCase().includes(q);
+        const labelMap = enumLabelMaps.get(f.key) ?? null;
+        const text = labelMap
+          ? enumValueToFilterText(labelMap, value)
+          : String(value);
+        return text.toLowerCase().includes(q);
       }),
     );
-  }, [memberRows, searchableFields, globalSearch]);
+  }, [memberRows, searchableFields, globalSearch, enumLabelMaps]);
 
   // ── On-the-fly flatten (session-columns task 4.3, design C4) ──────────────────
-  // Promote each chosen NON-ALIAS column key to a flat top-level property on the
-  // row, coerced by the field `type` so sort compares a real number/date. Flat
-  // aliases are SKIPPED via `shouldFlatten`. Maps over `searchedRows` (search
-  // runs first), feeding the ENRICHED result to `useFilterableTable`.
+  // Promote each chosen column's resolved value to a flat top-level property on
+  // the row so the per-column filter (`useColumnFilters`, which reads `row[key]`)
+  // and the sort compare a real, display-faithful value.
+  //
+  //   • ENUM/reference columns (BU-9, R5.2/R5.3/R5.4): promote the ACTIVE-LANGUAGE
+  //     LABEL together with the stored KEY (via the one-per-column
+  //     `enumLabelMaps`), so the column filter matches the `Overleden`/`Passed
+  //     Away` text the user sees OR the raw `died` key — both. This applies even
+  //     to a flat-alias key (`status`, `membership_type`) — the alias carries the
+  //     stored key, which is exactly the findings.md #2 bug (the status filter
+  //     keyed off the value); overlaying the label (while keeping the key
+  //     matchable) here is the fix. The stored record key is untouched (R5.4).
+  //   • NON-enum, NON-alias columns: coerced by the field `type` so a number/date
+  //     sorts correctly (design C4). Flat aliases are left to `flattenMember`.
   const enrichedRows: MemberRow[] = useMemo(() => {
-    const promotable = chosenColumns
-      .map(c => c.field)
-      .filter(f => shouldFlatten(f.key));
+    const fields = chosenColumns.map(c => c.field);
+    const promotable = fields.filter(
+      f => shouldFlatten(f.key) || (enumLabelMaps.get(f.key) ?? null) !== null,
+    );
     if (promotable.length === 0) return searchedRows;
     return searchedRows.map(row => {
       const extra: Record<string, unknown> = {};
       for (const f of promotable) {
-        extra[f.key] = coerceByType(f, valueFor(row, f.group, f.key));
+        const labelMap = enumLabelMaps.get(f.key) ?? null;
+        const raw = valueFor(row, f.group, f.key);
+        extra[f.key] = labelMap
+          ? enumValueToFilterText(labelMap, raw)
+          : coerceByType(f, raw);
       }
       return { ...row, ...extra };
     });
-  }, [searchedRows, chosenColumns]);
+  }, [searchedRows, chosenColumns, enumLabelMaps]);
 
   // The Members table sorts by name ascending by default.
   const defaultSort = useMemo(

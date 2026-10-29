@@ -149,11 +149,28 @@ class EnumOption:
     caller's allowed options as a convenience, but the **domain layer authoritatively rejects**
     a create/edit that sets a role-restricted value the caller may not choose (see
     :func:`roles_for_option`). Frozen because it is shared config, never mutated in place.
+
+    **Unified enum model (03b, BU-1, Req 3.1).** This is the one spine shape every selectable
+    field's vocabulary hangs off — the per-kind catalog is being collapsed onto the field's own
+    options — so two per-option attributes are carried here:
+
+    - ``allowed`` — the **retired/grandfather flag** (Req 3.2). ``True`` means the option is
+      OFFERED in the picker; ``False`` means it is RETIRED: hidden from the picker for new /
+      changed records, WHILE existing stored values equal to it stay valid, displayed, and
+      accepted on read and validation. It is freely toggleable both ways. It defaults to ``True``
+      so an **absent** ``allowed`` in stored/authored data reads as allowed (back-compat: every
+      existing option predates the flag and must keep being offered).
+    - ``order`` — the option's render / default-selection rank. ``None`` means "unranked"
+      (authoring may leave it unset). The default supplied for a field that is off the form / is
+      required is the first ``allowed:true`` option by ``order`` (Req 3.4a) — a tie or an absent
+      ``order`` falls back to the option's position in the list.
     """
 
     value: str
     label: Mapping[str, str] = field(default_factory=dict)
     roles: Sequence[str] | None = None
+    allowed: bool = True
+    order: int | None = None
 
     def allows_role(self, caller_roles: Sequence[str]) -> bool:
         """Return True if a caller holding ``caller_roles`` may select this option (R4.12).

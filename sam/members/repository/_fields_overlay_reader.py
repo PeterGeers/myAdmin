@@ -38,6 +38,22 @@ from sam.members.repository._config_reader_base import (
 )
 
 
+def _coerce_option_order(raw) -> int | None:
+    """Coerce a projected enum-option ``order`` to ``int | None`` (03b, Req 3.1).
+
+    The ``order`` is render / default-selection rank config data (not user input), so a stray
+    value degrades to ``None`` (unranked) rather than raising — consistent with the reader's
+    tolerant coercion of other projected numerics. An absent key, ``None``, or a non-numeric
+    value all read as ``None``; a bool is rejected (``True``/``False`` are not a rank).
+    """
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 class MalformedOptionsError(ValueError):
     """A projected field's ``options`` vocabulary is present but not a canonical shape (C5/F3).
 
@@ -210,9 +226,15 @@ class _FieldOverlayReadMixin:
         """Map projected enum-option specs onto :class:`EnumOption`s — ONE canonical shape (C5/F3).
 
         A selectable field has ONE vocabulary: ``options``, a list of RICH canonical entries
-        ``{value, label{nl,en}?, roles?}`` (the authoring UI / Flask builder shape). This reader
-        surfaces exactly that — there is no longer a second ``choices`` shape to coalesce (F1/F2)
-        and no bare-string coercion / degrade-to-``None`` branch (F3). The retired behaviours:
+        ``{value, label{nl,en}?, roles?, allowed?, order?}`` (the authoring UI / Flask builder
+        shape). This reader surfaces exactly that — there is no longer a second ``choices`` shape
+        to coalesce (F1/F2) and no bare-string coercion / degrade-to-``None`` branch (F3).
+
+        **Unified enum model (03b, BU-1, Req 3.1).** Each spec MAY carry two per-option
+        attributes beyond ``{value, label, roles}``: ``allowed`` (the retired/grandfather flag)
+        and ``order`` (render / default rank). An **absent** ``allowed`` reads as ``True`` —
+        every option authored before the flag existed must keep being offered (back-compat); an
+        absent/non-integer ``order`` reads as ``None`` (unranked). The retired behaviours:
 
         - the bare-string ``"man"`` coercion (a legacy ``choices`` value) is GONE — legacy
           bare-``choices`` rows are migrated to value-only ``options`` by C7, so a bare string here
@@ -249,6 +271,11 @@ class _FieldOverlayReadMixin:
                     value=str(o["value"]),
                     label=dict(o.get("label") or {}),
                     roles=tuple(roles) if roles else None,
+                    # Unified enum model (03b, Req 3.1/3.2): an absent `allowed` reads as True
+                    # (back-compat — options predate the retired flag and stay offered); a
+                    # non-integer/absent `order` reads as None (unranked).
+                    allowed=bool(o.get("allowed", True)),
+                    order=_coerce_option_order(o.get("order")),
                 )
             )
         return tuple(options)

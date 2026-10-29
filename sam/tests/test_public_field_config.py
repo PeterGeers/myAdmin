@@ -207,9 +207,11 @@ class TestApplicationSubset:
         # canonical `options` to m/l only (R4a.2/R3.2). Post-03a (F10) the public output is the
         # uniform rich {value,label} shape for EVERY kind — not a bare value list. The subset
         # FILTER is preserved; only the bare-`choices` fallback is retired.
+        # 03b (BU-1, Req 3.1): an inline enum option now carries the `allowed` retired/grandfather
+        # flag (always present, defaults True); `order` is omitted when unranked.
         assert fields["shirt_size"]["options"] == [
-            {"value": "m", "label": {"nl": "M", "en": "M"}},
-            {"value": "l", "label": {"nl": "L", "en": "L"}},
+            {"value": "m", "label": {"nl": "M", "en": "M"}, "allowed": True},
+            {"value": "l", "label": {"nl": "L", "en": "L"}, "allowed": True},
         ]
 
     def test_membership_type_exposes_only_the_subset_of_active_catalog(self, service):

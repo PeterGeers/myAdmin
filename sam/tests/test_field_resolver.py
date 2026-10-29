@@ -8,9 +8,10 @@ Unit tests cover the observable behaviour:
 - an overlay **adds** variable fields (under the ``overlay`` group, origin VARIABLE) — adding a
   tenant is pure data, no schema change (R2.2);
 - an overlay may **override presentation** of a fixed field (label / visible / order) and may
-  **tighten** an optional fixed field to required, but may **never** weaken a platform
-  invariant (drop/loosen a required fixed field, collide with a fixed key, enum without
-  choices) — those raise :class:`OverlayError`;
+  set requiredness either way on any field — the former no-relax binding (an overlay could not
+  loosen a required fixed field) is REMOVED (03b Req 1); the remaining well-formedness rules
+  (override an unknown key, collide with a fixed key, enum without choices, dangling group) still
+  raise :class:`OverlayError`;
 - the resolver is **tenant-agnostic** (Property 5): two tenants differ only by their overlay
   data, never by a code path.
 
@@ -31,7 +32,7 @@ Validates: Requirements R2.2, R2.3
 from __future__ import annotations
 
 import pytest
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from sam.members.domain.calculated_fields import CALCULATED_FIELDS
@@ -203,17 +204,17 @@ def test_override_can_tighten_optional_fixed_field_to_required():
     assert street.provenance is FieldProvenance.BASE_OVERRIDDEN
 
 
-# ── Overlay may NEVER weaken a platform invariant ─────────────────────────────────────
+# ── Overlay well-formedness (the no-relax binding is REMOVED — 03b Req 1) ─────────────
 
 
-def test_overlay_cannot_loosen_a_platform_required_field():
-    # 'personal.last_name' is platform-required (the identity anchor); an overlay must not make
-    # it optional. (first_name is now optional, so last_name is the still-required example that
-    # exercises the guard.)
+def test_overlay_may_loosen_a_platform_required_field():
+    # 03b Req 1.1/1.4: the former no-relax binding (an overlay could not make a platform-required
+    # fixed field optional) OVERRULED the admin and is REMOVED. An overlay setting required=False
+    # on a platform-required field (here the identity anchor 'personal.last_name') now resolves
+    # WITHOUT OverlayError — requiredness is the admin's to set on any field but member_id.
     overlay = TenantOverlay(overrides={"personal.last_name": FixedFieldOverride(required=False)})
-    with pytest.raises(OverlayError) as exc:
-        _resolver({"t": overlay}).resolve("t")
-    assert "personal.last_name" in exc.value.reasons
+    cfg = _resolver({"t": overlay}).resolve("t")
+    assert cfg.field("personal.last_name").required is False
 
 
 def test_overlay_cannot_override_an_unknown_fixed_field():
@@ -238,15 +239,15 @@ def test_enum_variable_field_without_choices_is_rejected():
 
 
 def test_all_overlay_violations_are_collected_at_once():
+    # The no-relax binding is gone (03b Req 1), so the collected violations are the remaining
+    # well-formedness ones: a choiceless enum variable field AND an override of an unknown field.
     overlay = TenantOverlay(
         fields={"grade": OverlayField(key="grade", type=FieldType.ENUM)},  # missing choices
-        # loosen a still-required platform field — s5k made member_number optional, so `status`
-        # is now the example of a required base field an overlay may NOT weaken.
-        overrides={"membership.status": FixedFieldOverride(required=False)},  # loosen
+        overrides={"personal.nope": FixedFieldOverride(visible=False)},  # unknown field
     )
     with pytest.raises(OverlayError) as exc:
         _resolver({"t": overlay}).resolve("t")
-    assert "membership.status" in exc.value.reasons
+    assert "personal.nope" in exc.value.reasons
     assert f"{OVERLAY_GROUP}.grade" in exc.value.reasons
 
 
@@ -1112,3 +1113,101 @@ def test_merge_rule_resolved_set_is_exactly_base_union_tenant_keys():
     with pytest.raises(OverlayError) as exc:
         _resolver({"t": overlay_bad}).resolve("t")
     assert "personal.city" in exc.value.reasons
+
+
+# ══════════════════════════════════════════════════════════════════════════════════════
+# 03b BU-4 Task 3.2 — Property 3: the admin is AUTHORITATIVE (requiredness is theirs to set)
+#
+# Req 1.1/1.2/1.4 + design Property 3: "For any field other than member_id, no resolve is
+# rejected on a cross-field binding the admin did not author (the removed no-relax/overlay
+# invariants)." The former no-relax binding — an overlay could not make a platform-required
+# fixed field optional — was a Hardcoded_Binding that OVERRULED the admin; `_reject_invalid_overlay`
+# no longer carries it (see the inline `test_overlay_may_loosen_a_platform_required_field` and
+# `test_all_overlay_violations_are_collected_at_once` above for the single-case / collection cases).
+#
+# These lock the guarantee HOLISTICALLY and as a PROPERTY, so an incidental single-field case can
+# never be the only thing standing between the admin and a re-introduced binding:
+#   - EVERY platform-required fixed field can be relaxed to optional via an override, and EVERY
+#     platform-optional one can be tightened to required — both directions, every field;
+#   - a property over an arbitrary {field → required bool} overlay resolves WITHOUT OverlayError and
+#     the resolved `required` equals exactly what the admin authored (the admin is obeyed verbatim);
+#   - Req 1.3: the resolver enforces NO requiredness of its own — the resolved required-ness of a
+#     field is ENTIRELY the admin's authored value when they author one (member_id, the system UUID,
+#     is not a tenant field in the registry, so no tenant config can touch it: it is the ONLY
+#     intrinsic invariant, and it is enforced OUTSIDE this overlay seam).
+#
+# Validates: Requirements 1.1, 1.2, 1.3, 1.4
+# ══════════════════════════════════════════════════════════════════════════════════════
+
+# The platform-required fixed fields (required=True in the registry) the admin may now relax, and
+# the platform-optional ones the admin may now tighten — derived from the registry so a future
+# required-ness change to the base is covered automatically.
+_PLATFORM_REQUIRED_FIXED = tuple(f.dotted_key() for f in FIXED_FIELDS if f.required)
+_PLATFORM_OPTIONAL_FIXED = tuple(f.dotted_key() for f in FIXED_FIELDS if not f.required)
+
+
+def test_admin_may_relax_every_platform_required_fixed_field():
+    # Req 1.1/1.2/1.4 (Property 3): EVERY platform-required fixed field — last_name, status,
+    # membership_type, joined_date — can be made optional by an override, all in ONE overlay,
+    # with no OverlayError. The resolver obeys the admin on all of them, not just one.
+    assert _PLATFORM_REQUIRED_FIXED  # guard: the registry still has required fixed fields
+    overlay = TenantOverlay(
+        overrides={
+            dotted: FixedFieldOverride(required=False) for dotted in _PLATFORM_REQUIRED_FIXED
+        }
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    for dotted in _PLATFORM_REQUIRED_FIXED:
+        resolved = cfg.field(dotted)
+        assert resolved is not None
+        assert resolved.required is False, (
+            f"admin relaxed {dotted!r} but the resolver kept it required — a no-relax binding "
+            f"has been re-introduced (03b Req 1)"
+        )
+
+
+def test_admin_may_tighten_every_platform_optional_fixed_field():
+    # The mirror direction (Req 1): EVERY platform-optional fixed field can be tightened to
+    # required by the admin — requiredness is theirs to set either way, on any field.
+    assert _PLATFORM_OPTIONAL_FIXED
+    overlay = TenantOverlay(
+        overrides={
+            dotted: FixedFieldOverride(required=True) for dotted in _PLATFORM_OPTIONAL_FIXED
+        }
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")
+    for dotted in _PLATFORM_OPTIONAL_FIXED:
+        resolved = cfg.field(dotted)
+        assert resolved is not None
+        assert resolved.required is True
+
+
+_ALL_FIXED_DOTTED = tuple(f.dotted_key() for f in FIXED_FIELDS)
+
+
+@settings(max_examples=50)
+@given(
+    required_by_field=st.dictionaries(
+        keys=st.sampled_from(_ALL_FIXED_DOTTED),
+        values=st.booleans(),
+        min_size=0,
+        max_size=len(_ALL_FIXED_DOTTED),
+    )
+)
+def test_property3_admin_authored_requiredness_is_obeyed_verbatim_for_any_field(required_by_field):
+    # Property 3 (Validates: Requirements 1.1, 1.2, 1.4): for an ARBITRARY admin-authored
+    # {fixed field → required bool} overlay, resolve NEVER raises on a requiredness choice, and
+    # the resolved `required` of every authored field equals EXACTLY the admin's value — the
+    # resolver imposes no requiredness binding of its own (Req 1.3). This is the property the
+    # single-field cases above are instances of.
+    overlay = TenantOverlay(
+        overrides={
+            dotted: FixedFieldOverride(required=value)
+            for dotted, value in required_by_field.items()
+        }
+    )
+    cfg = _resolver({"t": overlay}).resolve("t")  # must not raise OverlayError for ANY combination
+    for dotted, value in required_by_field.items():
+        resolved = cfg.field(dotted)
+        assert resolved is not None
+        assert resolved.required is value
