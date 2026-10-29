@@ -43,8 +43,13 @@ from check_sam_config_crud import (  # noqa: E402
     RESPONSE_SHAPE_ALLOWED_FILES,
     SCAN_DIRS,
     EXCLUDED_DIRS,
+    VOCAB_KEY,
+    WRITE_PATH_FILES,
+    VOCAB_CONSUMER_DIRS,
     check_file,
+    check_file_report_only,
     scan_directory,
+    scan_directory_report_only,
     _is_dotted_group_key,
 )
 
@@ -419,3 +424,331 @@ class TestGuardConfig:
         assert ".aws-sam" in EXCLUDED_DIRS
         assert "__pycache__" in EXCLUDED_DIRS
         assert ".venv" in EXCLUDED_DIRS
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# 03a anti-reintroduction rules (a)(b)(d) — REPORT-ONLY this increment (design C8, R2.7).
+#
+# Each rule gets a PLANTED-VIOLATION proof: plant the retired pattern → the guard REPORTS it (via
+# ``check_file_report_only``); the clean/current shape → no finding. Because this increment is
+# REPORT-ONLY, the rules are asserted to DETECT a planted violation AND to be absent from the
+# blocking ``check_file`` result (they never change the exit code until the task-12 flip).
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+
+# A write-surface module path rule (a) scans (one of WRITE_PATH_FILES), and a vocabulary-consumer
+# module path rules (b)/(d) scan (under VOCAB_CONSUMER_DIRS). Both are the real repo-relative
+# layout so the scope predicates match exactly as a full scan would.
+_WRITE_PATH_REL = "sam/members/domain/config_fields_crud_service.py"
+_CONSUMER_REL = "sam/members/repository/_fields_overlay_reader.py"
+_SERIALIZER_REL = "sam/members/domain/_membership_catalog.py"
+_WRITE_VALIDATOR_REL = "sam/members/domain/config_write_service.py"
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# (a) a ``choices`` vocabulary key on the config#fields WRITE path
+# ─────────────────────────────────────────────────────────────────────────────────────────
+
+
+class TestRuleAChoicesOnWritePath:
+    """Rule (a): ``choices`` re-added to the config#fields WRITE surface (03a C2, retired)."""
+
+    def test_planted_choices_in_definition_attrs_set_is_reported(self, tmp_path):
+        """A PLANTED ``"choices"`` element in a FIELD_DEFINITION_ATTRS frozenset is REPORTED."""
+        f = _write(
+            tmp_path,
+            _WRITE_PATH_REL,
+            """\
+            FIELD_DEFINITION_ATTRS = frozenset(
+                {"type", "label", "options", "choices", "scope"}
+            )
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "choices" in findings[0]
+        assert "rule (a)" in findings[0]
+
+    def test_planted_choices_dict_key_in_write_payload_is_reported(self, tmp_path):
+        """A PLANTED ``choices`` dict-literal key in a write payload is REPORTED."""
+        f = _write(
+            tmp_path,
+            _WRITE_PATH_REL,
+            """\
+            def build_write(values):
+                return {"options": values, "choices": values}
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "choices" in findings[0]
+        assert "rule (a)" in findings[0]
+
+    def test_clean_options_only_write_surface_has_no_finding(self, tmp_path):
+        """The current ``options``-only write definition-attr set yields NO rule-(a) finding."""
+        f = _write(
+            tmp_path,
+            _WRITE_PATH_REL,
+            """\
+            FIELD_DEFINITION_ATTRS = frozenset(
+                {"type", "label", "order", "required", "visible", "options", "scope"}
+            )
+            """,
+        )
+        assert check_file_report_only(f) == []
+
+    def test_sanctioned_remove_legacy_choices_op_is_not_reported(self, tmp_path):
+        """``remove_legacy_choices`` naming ``"choices"`` as a REMOVE path SEGMENT is clean.
+
+        It appears as a LIST element (an op path segment) and in a ``"choices" not in stored``
+        membership Compare — neither a set element nor a dict key — so rule (a) does not flag the
+        one sanctioned migration op.
+        """
+        f = _write(
+            tmp_path,
+            _WRITE_PATH_REL,
+            """\
+            def remove_legacy_choices(placement, stored):
+                if "choices" not in stored:
+                    return {"no_op": True}
+                return {"action": "REMOVE", "path": [placement["map"], placement["key"], "choices"]}
+            """,
+        )
+        assert check_file_report_only(f) == []
+
+    def test_choices_key_outside_write_path_is_not_reported(self, tmp_path):
+        """A ``choices`` definition-attr set in a NON-write-surface module is out of scope for (a)."""
+        f = _write(
+            tmp_path,
+            "sam/members/domain/some_other_module.py",
+            """\
+            ATTRS = frozenset({"options", "choices"})
+            """,
+        )
+        # Not in WRITE_PATH_FILES → rule (a) does not apply (rule (b)/(d) shapes are also absent).
+        assert check_file_report_only(f) == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# (b) an ``options or choices`` / ``choices or options`` fallback, or a get("choices") source read
+# ─────────────────────────────────────────────────────────────────────────────────────────
+
+
+class TestRuleBVocabularyFallback:
+    """Rule (b): the retired two-names vocabulary fallback shapes (F1/F9/F10/F12)."""
+
+    def test_planted_options_or_choices_coalesce_is_reported(self, tmp_path):
+        """A PLANTED ``field.options or field.choices`` coalesce in a reader is REPORTED."""
+        f = _write(
+            tmp_path,
+            _CONSUMER_REL,
+            """\
+            def resolve(field):
+                return field.options or field.choices
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "rule (b)" in findings[0]
+
+    def test_planted_choices_or_options_coalesce_is_reported(self, tmp_path):
+        """The reversed ``field.choices or field.options`` coalesce is REPORTED too."""
+        f = _write(
+            tmp_path,
+            _CONSUMER_REL,
+            """\
+            def resolve(field):
+                return field.choices or field.options
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "rule (b)" in findings[0]
+
+    def test_planted_get_choices_source_read_in_validator_is_reported(self, tmp_path):
+        """A PLANTED ``spec.get("choices")`` vocabulary-source read (F12 shape) is REPORTED."""
+        f = _write(
+            tmp_path,
+            _WRITE_VALIDATOR_REL,
+            """\
+            def field_choice_values(spec):
+                return _collect(spec.get("options")) or _collect(spec.get("choices"))
+            """,
+        )
+        findings = check_file_report_only(f)
+        # The coalesce (b1) AND the get("choices") source read (b2) both match — dedup by lineno
+        # collapses them to ONE finding on that line.
+        assert len(findings) == 1
+        assert "rule (b)" in findings[0]
+
+    def test_fail_loud_choices_read_is_not_reported(self, tmp_path):
+        """A C6 fail-loud ``if field.choices: raise …`` (NOT a coalesce) yields NO finding.
+
+        The retired SHAPE is the ``X or Y`` coalesce; a bare ``field.choices`` read that feeds a
+        loud raise (the asymmetry boundary) is legitimate and must not be flagged.
+        """
+        f = _write(
+            tmp_path,
+            "sam/members/domain/_membership_writes_fieldconfig.py",
+            """\
+            def public_field_options(field, tenant_id):
+                if field.options:
+                    return [dict(o) for o in field.options]
+                if field.choices:
+                    raise UnpropagatedVocabularyError(tenant_id, field.key, kind="inline-enum")
+                return None
+            """,
+        )
+        assert check_file_report_only(f) == []
+
+    def test_clean_options_only_serializer_has_no_finding(self, tmp_path):
+        """A serializer reading only ``field_options`` (the seam's one options) is clean for (b)."""
+        f = _write(
+            tmp_path,
+            _SERIALIZER_REL,
+            """\
+            def serialize_field(field, field_options):
+                payload = {}
+                payload["options"] = (
+                    [dict(o) for o in field_options] if field_options is not None else None
+                )
+                return payload
+            """,
+        )
+        assert check_file_report_only(f) == []
+
+    def test_coalesce_outside_consumer_layer_is_not_reported(self, tmp_path):
+        """An ``options or choices`` coalesce in a non-consumer module is out of scope for (b)."""
+        f = _write(
+            tmp_path,
+            "sam/tests/helpers/vocab.py",
+            """\
+            def resolve(field):
+                return field.options or field.choices
+            """,
+        )
+        assert check_file_report_only(f) == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# (d) FieldScope.values populated independently of options
+# ─────────────────────────────────────────────────────────────────────────────────────────
+
+
+class TestRuleDScopeValuesIndependence:
+    """Rule (d): scope ``values`` re-split from ``options`` (the FieldScope(values=()) divergence)."""
+
+    def test_planted_fieldscope_values_kwarg_is_reported(self, tmp_path):
+        """A PLANTED ``FieldScope(values=…)`` construction is REPORTED."""
+        f = _write(
+            tmp_path,
+            _CONSUMER_REL,
+            """\
+            def build_scope(spec, values):
+                return FieldScope(enabled=True, values=values)
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "rule (d)" in findings[0]
+
+    def test_planted_scope_values_assignment_is_reported(self, tmp_path):
+        """A PLANTED assignment to a scope ``.values`` attribute is REPORTED."""
+        f = _write(
+            tmp_path,
+            _CONSUMER_REL,
+            """\
+            def build_scope(field, values):
+                field.scope.values = values
+                return field
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "rule (d)" in findings[0]
+
+    def test_clean_options_only_fieldscope_has_no_finding(self, tmp_path):
+        """The current ``FieldScope(options=options)`` construction (values DERIVED) is clean."""
+        f = _write(
+            tmp_path,
+            _CONSUMER_REL,
+            """\
+            def build_scope(spec, options):
+                return FieldScope(enabled=True, options=options)
+            """,
+        )
+        assert check_file_report_only(f) == []
+
+    def test_fieldscope_values_outside_consumer_layer_is_not_reported(self, tmp_path):
+        """A ``FieldScope(values=…)`` in a non-consumer module is out of scope for (d)."""
+        f = _write(
+            tmp_path,
+            "sam/tests/fixtures/scopes.py",
+            """\
+            FIXTURE = FieldScope(values=("a", "b"))
+            """,
+        )
+        assert check_file_report_only(f) == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# Report-only semantics: the 03a rules never change the BLOCKING result this increment
+# ─────────────────────────────────────────────────────────────────────────────────────────
+
+
+class TestReportOnlySemantics:
+    """The 03a rules (a)(b)(d) are report-only: they emit findings but not blocking violations."""
+
+    def test_planted_rule_a_violation_is_not_a_blocking_violation(self, tmp_path):
+        """A planted rule-(a) violation is REPORTED but absent from the blocking ``check_file``."""
+        f = _write(
+            tmp_path,
+            _WRITE_PATH_REL,
+            """\
+            FIELD_DEFINITION_ATTRS = frozenset({"options", "choices"})
+            """,
+        )
+        assert check_file_report_only(f)      # reported
+        assert check_file(f) == []            # NOT blocking this increment
+
+    def test_scan_directory_report_only_aggregates_findings(self, tmp_path):
+        """``scan_directory_report_only`` aggregates rule findings across the tree."""
+        _write(
+            tmp_path,
+            _CONSUMER_REL,
+            "def resolve(field):\n    return field.options or field.choices\n",
+        )
+        _write(
+            tmp_path,
+            "sam/members/domain/clean.py",
+            "def serialize(field, field_options):\n    return {'options': field_options}\n",
+        )
+        findings = scan_directory_report_only(tmp_path / "sam")
+        assert len(findings) == 1
+        assert "rule (b)" in findings[0]
+
+    def test_scan_directory_report_only_skips_excluded_dirs(self, tmp_path):
+        """A planted coalesce under an excluded build dir (.aws-sam) is not scanned."""
+        _write(
+            tmp_path,
+            "sam/members/.aws-sam/build/copy/_fields_overlay_reader.py",
+            "def resolve(field):\n    return field.options or field.choices\n",
+        )
+        assert scan_directory_report_only(tmp_path / "sam") == []
+
+
+class TestRule03aConfig:
+    """Module-level configuration sanity checks for the 03a rules."""
+
+    def test_vocab_key_is_choices(self):
+        assert VOCAB_KEY == "choices"
+
+    def test_write_path_files_use_posix_paths(self):
+        for path in WRITE_PATH_FILES:
+            assert "\\" not in path, f"{path} uses backslashes"
+            assert path.startswith("sam/"), path
+        assert "sam/members/domain/config_fields_crud_service.py" in WRITE_PATH_FILES
+        assert "sam/members/domain/config_write_service.py" in WRITE_PATH_FILES
+
+    def test_vocab_consumer_dirs_target_members_domain_and_repository(self):
+        assert "sam/members/domain/" in VOCAB_CONSUMER_DIRS
+        assert "sam/members/repository/" in VOCAB_CONSUMER_DIRS
