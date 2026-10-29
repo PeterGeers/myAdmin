@@ -846,3 +846,236 @@ class TestG5LegitimatelyEmptyDoesNotRaiseOnPublicPathEither:
         public = svc.get_public_field_config(_TENANT)  # must NOT raise
         note = [f for f in public["fields"] if f["key"] == "club_note"]
         assert note and note[0]["options"] is None
+
+# ── 03a task 9b — NO-PER-KIND-BRANCH serializer test (covers the DROPPED C8 rule (c)) ─────────
+#
+# Design DROPPED the C8 blocking AST rule (c) — a per-field-KIND branch check in vocabulary
+# CONSUMERS — because it needed TWO documented carve-outs (the R3.2 public-SUBSET FILTER in
+# `_public_field_options`, and the frontend source-selector `resolveChoiceSource` / F11); a rule
+# that needs carve-outs to avoid flagging legitimate code will false-positive and erode trust in
+# the guard. The invariant that rule (c) was meant to protect — "the serializers have NO per-kind
+# branch in the resulting `options` READ SHAPE" — is covered HERE by a targeted BEHAVIORAL test
+# instead of a brittle AST/string scan (the mechanism the design explicitly rejected).
+#
+# MECHANISM (behavioral, primary guard): feed ONE overlay carrying all three selectable KINDS —
+#   * inline enum       (vocabulary SOURCE = the field's own inline options),
+#   * scope-vocab-backed (SOURCE = the injected scope dimension values),
+#   * reference          (SOURCE = the live active membership_type catalog),
+# through the ONE read-assembly seam and BOTH serializers (staff `_serialize_field` via
+# `get_field_config` = F9, and public `_public_field_options` via `get_public_field_config` = F10)
+# and assert all three kinds produce the SAME uniform rich `{value, label}` option read shape. The
+# kinds differ ONLY in SOURCE, never in the serialized read shape — exactly the "no per-kind
+# read-shape branch in a consumer" invariant. If a consumer re-branched by kind (e.g.
+# `if field.type == reference/enum/scope` shaping options differently), these uniform-shape
+# assertions would break.
+#
+# ALLOWED, explicitly (so a future reader does NOT mistake a legitimate projection for a
+# violation):
+#   * the R3.2 public-SUBSET FILTER in `_public_field_options` — narrowing `options` down to the
+#     declared `application_choices` — is a legitimately different PROJECTION, NOT a per-kind
+#     read-shape branch. This test asserts the ABSENCE of a forbidden per-kind branch, NOT the
+#     absence of the subset projection; the subset filter is deliberately exercised and allowed.
+#   * the per-kind SOURCE SELECTION inside the seam (`_assemble_field_options`) — the ONE place a
+#     per-kind decision legitimately lives (which injected source populates `options`) — is NOT a
+#     consumer read-shape branch and is allowed.
+#   * the F11 frontend source-selector (`resolveChoiceSource`) is OUT OF SCOPE for this SAM test
+#     (it is frontend TS, the OTHER documented carve-out) — it is covered by the frontend tests.
+#
+# Validates: Requirements 2.6, 2.7 · Components: C4 (F9/F10 collapse), test-based replacement for
+# the DROPPED C8 blocking rule (c).
+
+from sam.members.domain.field_resolver import FixedFieldOverride  # noqa: E402
+from sam.members.domain.scope_dimensions import (  # noqa: E402
+    ScopeDimension,
+    StaticScopeConfigProvider,
+)
+
+
+def _three_kind_overlay() -> TenantOverlay:
+    """An overlay with all THREE selectable kinds, each application-visible with a declared
+    `application_choices` SUBSET, so both serializers run over every kind AND the R3.2 subset
+    filter is exercised on the public path:
+
+      * `referral_source` — inline enum (SOURCE = inline options), a tenant-added variable field,
+      * `region`          — scope-vocab-backed enum, NO inline options (SOURCE = scope dimension),
+                            a tenant-added variable field bound to a scope dimension,
+      * `membership_type` — reference (SOURCE = the live active catalog). It is a FIXED field, so
+                            it is NOT a variable overlay field — it is opted onto the public form
+                            via a `fixed_overrides` entry (the D20 "fixed field onto the form"
+                            path), which carries the public-form attributes + subset.
+    """
+    return TenantOverlay(
+        functional_groups={
+            "membership": FunctionalGroup(
+                key="membership", label={"nl": "Lid", "en": "Membership"}, order=4
+            ),
+        },
+        # membership_type is a FIXED reference field — a tenant puts it on the form via a
+        # fixed-field OVERRIDE (never a variable `fields` entry, which would collide with the
+        # fixed key). The override carries only the public-form attributes + the R3.2 subset.
+        overrides={
+            "membership.membership_type": FixedFieldOverride(
+                application_visible=True,
+                application_required=False,
+                application_choices=("gewoon",),  # R3.2 subset of the active catalog
+            ),
+        },
+        fields={
+            "referral_source": OverlayField(
+                key="referral_source",
+                type=FieldType.ENUM,
+                required=False,
+                label={"nl": "Bron", "en": "Source"},
+                options=(
+                    EnumOption(value="internet", label={"nl": "Internet", "en": "Internet"}),
+                    EnumOption(value="facebook", label={"nl": "Facebook", "en": "Facebook"}),
+                    EnumOption(value="staff_only", label={"nl": "Staf", "en": "Staff"}),
+                ),
+                functional_group="membership",
+                order=50,
+                application_visible=True,
+                application_required=False,
+                application_choices=("internet", "facebook"),  # R3.2 subset (staff_only excluded)
+            ),
+            "region": OverlayField(
+                key="region",
+                type=FieldType.ENUM,  # scope-vocab-backed: NO inline options
+                required=False,
+                label={"nl": "Regio", "en": "Region"},
+                functional_group="membership",
+                order=60,
+                application_visible=True,
+                application_required=False,
+                application_choices=("noord",),  # R3.2 subset of the scope dimension values
+            ),
+        },
+    )
+
+
+@pytest.fixture()
+def three_kind_service(catalog_repo) -> MembershipService:
+    """A service wiring all three kinds: the catalog_repo feeds the reference vocabulary, and a
+    scope-config provider binds `region` to a dimension so its `options` come from scope_vocab."""
+    scope = StaticScopeConfigProvider(
+        {
+            _TENANT: [
+                ScopeDimension(
+                    key="region", field="region", enabled=True, values=("noord", "zuid")
+                )
+            ]
+        }
+    )
+    return MembershipService(
+        catalog_repo,
+        overlay_provider=StaticOverlayProvider({_TENANT: _three_kind_overlay()}),
+        scope_config_provider=scope,
+    )
+
+
+class TestNoPerKindReadShapeBranchInSerializers:
+    """The test-based replacement for the dropped C8 blocking rule (c): both serializers resolve
+    the ONE canonical `options` from the seam with NO per-kind read-shape branch — enum, scope,
+    and reference all flow through the SAME serialization path and produce the SAME `{value,
+    label?}` option shape. Kinds differ only in SOURCE (chosen once at the seam), never in the
+    serialized READ shape."""
+
+    # The three selectable kinds exercised, keyed by field → vocabulary SOURCE.
+    _KINDS = ("referral_source", "region", "membership_type")
+
+    def test_staff_serializer_produces_uniform_option_shape_for_all_kinds(
+        self, three_kind_service
+    ):
+        # STAFF read (`_serialize_field`, F9): every kind's `options` is a list of rich dicts
+        # carrying at least {value, label}. No kind yields a different read shape — e.g. no bare
+        # string list for one kind and dicts for another, no per-kind extra/missing shape key that
+        # would betray an `if field.type == ...` read-shape branch.
+        editor = three_kind_service.get_field_config(_TENANT)
+        for key in self._KINDS:
+            opts = _field(editor, key)["options"]
+            assert opts is not None and len(opts) >= 1, f"{key}: expected populated options"
+            for o in opts:
+                assert isinstance(o, dict), f"{key}: option is not a rich dict (read-shape branch?)"
+                assert "value" in o and "label" in o, f"{key}: option missing uniform {{value,label}}"
+                assert isinstance(o["value"], str)
+                assert isinstance(o["label"], dict)
+
+    def test_public_serializer_produces_uniform_option_shape_for_all_kinds(
+        self, three_kind_service
+    ):
+        # PUBLIC read (`_public_field_options`, F10): the SAME uniform {value, label} shape for
+        # every kind — with the staff-only `roles` gate dropped from the public contract. The
+        # per-kind read-shape branch is ABSENT on the public path too.
+        public = three_kind_service.get_public_field_config(_TENANT)
+        for key in self._KINDS:
+            opts = _field(public, key)["options"]
+            assert opts is not None and len(opts) >= 1, f"{key}: expected populated public options"
+            for o in opts:
+                assert isinstance(o, dict), f"{key}: public option is not a rich dict"
+                assert "value" in o and "label" in o, f"{key}: public option missing {{value,label}}"
+                assert "roles" not in o  # staff-only gate never on the public contract
+
+    def test_shared_option_keyset_is_identical_across_all_kinds_on_each_read(
+        self, three_kind_service
+    ):
+        # The STRONGEST uniformity assertion: within a single read, the set of keys each kind's
+        # option carries is the SAME across kinds (modulo the reference `order` which is a seam
+        # SOURCE attribute, not a per-kind consumer branch). A per-kind read-shape branch would
+        # make one kind's option dict carry a structurally different keyset than another's.
+        public = three_kind_service.get_public_field_config(_TENANT)
+        keysets = {
+            key: {frozenset(o) for o in _field(public, key)["options"]}
+            for key in self._KINDS
+        }
+        # On the public read, roles is dropped and reference `order` is a source attribute; the
+        # common uniform shape is {value, label}. Every kind's options are a SUPERSET of that.
+        for key, sets in keysets.items():
+            for ks in sets:
+                assert {"value", "label"} <= set(ks), f"{key}: option keyset {ks} lacks the uniform core"
+
+    def test_r32_public_subset_filter_is_allowed_and_applied_not_flagged(
+        self, three_kind_service
+    ):
+        # EXPLICIT: the R3.2 public-SUBSET FILTER is a LEGITIMATE projection, NOT a per-kind
+        # read-shape branch — this test ALLOWS it and in fact asserts it still applies. The public
+        # read narrows each kind's seam `options` down to the declared `application_choices`:
+        #   * inline enum    → {internet, facebook}      (staff_only filtered out),
+        #   * scope-backed   → {noord}                   (subset of {noord, zuid}),
+        #   * reference      → {gewoon}                  (subset of the active catalog).
+        # The filter is applied UNIFORMLY to every kind off the ONE `options` — it does not shape
+        # the options differently BY KIND, it narrows by the SAME subset rule. Absence of a
+        # forbidden per-kind branch is NOT absence of this subset projection.
+        public = three_kind_service.get_public_field_config(_TENANT)
+        assert [o["value"] for o in _field(public, "referral_source")["options"]] == [
+            "internet",
+            "facebook",
+        ]
+        assert [o["value"] for o in _field(public, "region")["options"]] == ["noord"]
+        assert [o["value"] for o in _field(public, "membership_type")["options"]] == ["gewoon"]
+        # And the editor (no subset filter) still exposes the FULL vocabulary for each kind — the
+        # subset is a public-only PROJECTION, applied uniformly, not a per-kind read-shape branch.
+        editor = three_kind_service.get_field_config(_TENANT)
+        assert [o["value"] for o in _field(editor, "referral_source")["options"]] == [
+            "internet",
+            "facebook",
+            "staff_only",
+        ]
+        assert [o["value"] for o in _field(editor, "region")["options"]] == ["noord", "zuid"]
+        assert [o["value"] for o in _field(editor, "membership_type")["options"]] == [
+            "gewoon",
+            "erelid",
+        ]
+
+    def test_staff_and_public_resolve_the_same_vocabulary_from_the_same_seam(
+        self, three_kind_service
+    ):
+        # Both serializers consume the ONE `options` the seam populated: for every kind, each
+        # value the PUBLIC read exposes is a value the STAFF read exposes (public ⊆ staff), with an
+        # IDENTICAL label — i.e. they read the SAME source vocabulary, differing only by the R3.2
+        # subset projection, never by a per-kind read-shape branch.
+        editor = three_kind_service.get_field_config(_TENANT)
+        public = three_kind_service.get_public_field_config(_TENANT)
+        for key in self._KINDS:
+            staff_by_val = {o["value"]: o["label"] for o in _field(editor, key)["options"]}
+            for o in _field(public, key)["options"]:
+                assert o["value"] in staff_by_val, f"{key}: public value not in staff vocabulary"
+                assert o["label"] == staff_by_val[o["value"]], f"{key}: label differs across reads"
