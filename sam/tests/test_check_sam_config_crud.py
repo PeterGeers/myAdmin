@@ -36,6 +36,8 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 
+import pytest  # noqa: E402
+
 from check_sam_config_crud import (  # noqa: E402
     RAW_WRITE_METHODS,
     RAW_SHAPE_KEYS,
@@ -50,8 +52,22 @@ from check_sam_config_crud import (  # noqa: E402
     check_file_report_only,
     scan_directory,
     scan_directory_report_only,
+    main,
     _is_dotted_group_key,
 )
+
+
+def run_main(file_paths) -> int:
+    """Run the guard's ``main`` over ``file_paths`` (single-file mode) and return its exit code.
+
+    ``main`` calls ``sys.exit`` (so the shell sees the code); we capture the ``SystemExit`` and
+    return its integer code. This is how the planted-violation tests prove the guard actually
+    BLOCKS (exit 1) rather than merely reporting — the post-task-12 blocking contract.
+    """
+    with pytest.raises(SystemExit) as exc:
+        main([str(p) for p in file_paths])
+    code = exc.value.code
+    return 0 if code is None else int(code)
 
 
 def _write(root: Path, rel: str, body: str) -> Path:
@@ -427,12 +443,14 @@ class TestGuardConfig:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════
-# 03a anti-reintroduction rules (a)(b)(d) — REPORT-ONLY this increment (design C8, R2.7).
+# 03a anti-reintroduction rules (a)(b)(d) — now BLOCKING (design C8, R2.7; 03a task 12).
 #
-# Each rule gets a PLANTED-VIOLATION proof: plant the retired pattern → the guard REPORTS it (via
-# ``check_file_report_only``); the clean/current shape → no finding. Because this increment is
-# REPORT-ONLY, the rules are asserted to DETECT a planted violation AND to be absent from the
-# blocking ``check_file`` result (they never change the exit code until the task-12 flip).
+# Each rule gets a PLANTED-VIOLATION proof: plant the retired pattern → the guard DETECTS it (via
+# ``check_file_report_only``) AND ``main`` exits NON-ZERO on it (the guard FAILS the build); the
+# clean/current shape → no finding and ``main`` exits ZERO. The two detection helpers remain
+# SEPARATE entry points so each rule family can be exercised in isolation, but after the task-12
+# flip a finding from either family fails the build — asserted here through ``main`` /
+# :func:`run_main` so the proof is "plant → FAILS, revert → passes", not merely "reported".
 # ═══════════════════════════════════════════════════════════════════════════════════════════
 
 # A write-surface module path rule (a) scans (one of WRITE_PATH_FILES), and a vocabulary-consumer
@@ -467,6 +485,8 @@ class TestRuleAChoicesOnWritePath:
         assert len(findings) == 1
         assert "choices" in findings[0]
         assert "rule (a)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
 
     def test_planted_choices_dict_key_in_write_payload_is_reported(self, tmp_path):
         """A PLANTED ``choices`` dict-literal key in a write payload is REPORTED."""
@@ -482,6 +502,8 @@ class TestRuleAChoicesOnWritePath:
         assert len(findings) == 1
         assert "choices" in findings[0]
         assert "rule (a)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
 
     def test_clean_options_only_write_surface_has_no_finding(self, tmp_path):
         """The current ``options``-only write definition-attr set yields NO rule-(a) finding."""
@@ -495,6 +517,8 @@ class TestRuleAChoicesOnWritePath:
             """,
         )
         assert check_file_report_only(f) == []
+        # BLOCKING (task 12): revert → the guard PASSES (exit 0).
+        assert run_main([f]) == 0
 
     def test_sanctioned_remove_legacy_choices_op_is_not_reported(self, tmp_path):
         """``remove_legacy_choices`` naming ``"choices"`` as a REMOVE path SEGMENT is clean.
@@ -549,6 +573,8 @@ class TestRuleBVocabularyFallback:
         findings = check_file_report_only(f)
         assert len(findings) == 1
         assert "rule (b)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
 
     def test_planted_choices_or_options_coalesce_is_reported(self, tmp_path):
         """The reversed ``field.choices or field.options`` coalesce is REPORTED too."""
@@ -563,6 +589,8 @@ class TestRuleBVocabularyFallback:
         findings = check_file_report_only(f)
         assert len(findings) == 1
         assert "rule (b)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
 
     def test_planted_get_choices_source_read_in_validator_is_reported(self, tmp_path):
         """A PLANTED ``spec.get("choices")`` vocabulary-source read (F12 shape) is REPORTED."""
@@ -579,6 +607,8 @@ class TestRuleBVocabularyFallback:
         # collapses them to ONE finding on that line.
         assert len(findings) == 1
         assert "rule (b)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
 
     def test_fail_loud_choices_read_is_not_reported(self, tmp_path):
         """A C6 fail-loud ``if field.choices: raise …`` (NOT a coalesce) yields NO finding.
@@ -599,6 +629,8 @@ class TestRuleBVocabularyFallback:
             """,
         )
         assert check_file_report_only(f) == []
+        # BLOCKING (task 12): a legitimate fail-loud read does NOT fail the build (exit 0).
+        assert run_main([f]) == 0
 
     def test_clean_options_only_serializer_has_no_finding(self, tmp_path):
         """A serializer reading only ``field_options`` (the seam's one options) is clean for (b)."""
@@ -615,6 +647,8 @@ class TestRuleBVocabularyFallback:
             """,
         )
         assert check_file_report_only(f) == []
+        # BLOCKING (task 12): revert → the guard PASSES (exit 0).
+        assert run_main([f]) == 0
 
     def test_coalesce_outside_consumer_layer_is_not_reported(self, tmp_path):
         """An ``options or choices`` coalesce in a non-consumer module is out of scope for (b)."""
@@ -650,6 +684,8 @@ class TestRuleDScopeValuesIndependence:
         findings = check_file_report_only(f)
         assert len(findings) == 1
         assert "rule (d)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
 
     def test_planted_scope_values_assignment_is_reported(self, tmp_path):
         """A PLANTED assignment to a scope ``.values`` attribute is REPORTED."""
@@ -665,6 +701,8 @@ class TestRuleDScopeValuesIndependence:
         findings = check_file_report_only(f)
         assert len(findings) == 1
         assert "rule (d)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
 
     def test_clean_options_only_fieldscope_has_no_finding(self, tmp_path):
         """The current ``FieldScope(options=options)`` construction (values DERIVED) is clean."""
@@ -677,6 +715,8 @@ class TestRuleDScopeValuesIndependence:
             """,
         )
         assert check_file_report_only(f) == []
+        # BLOCKING (task 12): revert → the guard PASSES (exit 0).
+        assert run_main([f]) == 0
 
     def test_fieldscope_values_outside_consumer_layer_is_not_reported(self, tmp_path):
         """A ``FieldScope(values=…)`` in a non-consumer module is out of scope for (d)."""
@@ -691,15 +731,27 @@ class TestRuleDScopeValuesIndependence:
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────
-# Report-only semantics: the 03a rules never change the BLOCKING result this increment
+# Blocking semantics: the 03a rules (a)(b)(d) now FAIL the build (task-12 flip, G6)
 # ─────────────────────────────────────────────────────────────────────────────────────────
 
 
-class TestReportOnlySemantics:
-    """The 03a rules (a)(b)(d) are report-only: they emit findings but not blocking violations."""
+class TestBlockingSemantics:
+    """The 03a rules (a)(b)(d) are now BLOCKING: a finding fails the build (exit 1) via ``main``.
 
-    def test_planted_rule_a_violation_is_not_a_blocking_violation(self, tmp_path):
-        """A planted rule-(a) violation is REPORTED but absent from the blocking ``check_file``."""
+    The two detection helpers stay SEPARATE entry points: ``check_file`` returns ONLY the two
+    original spec-03 findings and ``check_file_report_only`` returns ONLY the 03a rule (a/b/d)
+    findings — so a rule-(a) plant is still absent from ``check_file`` at the function level. The
+    BLOCKING contract lives in ``main``, which folds BOTH families into the exit code; these tests
+    assert that contract directly (plant → exit 1, revert → exit 0).
+    """
+
+    def test_planted_rule_a_violation_fails_the_build(self, tmp_path):
+        """A planted rule-(a) violation makes the guard EXIT NON-ZERO (the task-12 blocking flip).
+
+        ``check_file`` (the spec-03 family) is still empty for a rule-(a) plant — the families are
+        reported by separate entry points — but ``main`` now FAILS the build on the rule-(a)
+        finding.
+        """
         f = _write(
             tmp_path,
             _WRITE_PATH_REL,
@@ -707,8 +759,9 @@ class TestReportOnlySemantics:
             FIELD_DEFINITION_ATTRS = frozenset({"options", "choices"})
             """,
         )
-        assert check_file_report_only(f)      # reported
-        assert check_file(f) == []            # NOT blocking this increment
+        assert check_file_report_only(f)      # detected by the 03a family
+        assert check_file(f) == []            # not a spec-03-family finding (separate entry point)
+        assert run_main([f]) == 1             # BLOCKING: the guard fails the build
 
     def test_scan_directory_report_only_aggregates_findings(self, tmp_path):
         """``scan_directory_report_only`` aggregates rule findings across the tree."""
@@ -734,6 +787,27 @@ class TestReportOnlySemantics:
             "def resolve(field):\n    return field.options or field.choices\n",
         )
         assert scan_directory_report_only(tmp_path / "sam") == []
+
+    def test_spec03_blocking_check_still_fails_the_build(self, tmp_path):
+        """A planted spec-03 raw-write violation also fails the build via ``main`` (unchanged)."""
+        f = _write(
+            tmp_path,
+            "sam/members/repository/rogue_config_writer.py",
+            _gov("def w(table, i):\n    table.put_item(Item=i)\n"),
+        )
+        assert check_file(f)                  # spec-03 blocking finding present
+        assert run_main([f]) == 1             # still BLOCKING
+
+    def test_clean_file_passes_the_build(self, tmp_path):
+        """A clean options-only file makes the guard EXIT ZERO (no finding in either family)."""
+        f = _write(
+            tmp_path,
+            _SERIALIZER_REL,
+            "def serialize(field, field_options):\n    return {'options': field_options}\n",
+        )
+        assert check_file(f) == []
+        assert check_file_report_only(f) == []
+        assert run_main([f]) == 0             # BLOCKING contract: clean tree passes
 
 
 class TestRule03aConfig:
