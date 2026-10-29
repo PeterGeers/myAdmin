@@ -62,6 +62,14 @@ export interface EnumOption {
   value: string;
   label: { nl: string; en: string };
   roles?: string[];
+  /**
+   * Retire/grandfather flag (spec 03b unified enum model). `false` = the option is RETIRED:
+   * hidden from the picker for new/changed records but still RESOLVING the reference of records
+   * that already hold it (so it is never an orphan). Absent reads as `true` (offered) — back-compat.
+   */
+  allowed?: boolean;
+  /** Presentation / default-selection rank (spec 03b). Absent sorts after ranked options. */
+  order?: number;
 }
 
 /** Bilingual label map rendered as `label[language]` (steering 32). */

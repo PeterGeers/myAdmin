@@ -50,8 +50,8 @@ const FIELD_CONFIG: FieldConfig = {
     { key: 'member_number', group: 'membership', functional_group: 'membership', order: 1, type: 'string', origin: 'fixed', provenance: 'base', label: { en: 'Member number', nl: 'Lidnummer' } },
     // calculated/read-only → NOT offerable
     { key: 'age', functional_group: 'contact', order: 2, type: 'number', origin: 'calculated', read_only: true, label: { en: 'Age', nl: 'Leeftijd' } },
-    // reference field (membership-type) → subset sources from the LIVE catalog (task 4.2 / R1.3)
-    { key: 'membership_type', group: 'membership', functional_group: 'membership', order: 2, type: 'reference', provenance: 'base', origin: 'fixed', label: { en: 'Membership type', nl: 'Lidmaatschapstype' } },
+    // reference field (membership_type) → subset sources from the field's OWN options (03b 9b.2)
+    { key: 'membership_type', group: 'membership', functional_group: 'membership', order: 2, type: 'reference', provenance: 'base', origin: 'fixed', options: [{ value: 'regular', label: { en: 'Regular', nl: 'Regulier' } }, { value: 'student', label: { en: 'Student', nl: 'Student' } }], label: { en: 'Membership type', nl: 'Lidmaatschapstype' } },
     // scope axis → subset sources from the scope DIMENSION values (= its own options)
     { key: 'region', functional_group: 'contact', order: 3, type: 'enum', provenance: 'tenant_added', scope: { enabled: true, required_for: ['Member'] }, options: [{ value: 'north', label: { en: 'North', nl: 'Noord' } }, { value: 'south', label: { en: 'South', nl: 'Zuid' } }], label: { en: 'Region', nl: 'Regio' } },
     // enum field → subset sources from its OWN options
@@ -64,16 +64,10 @@ const FIELD_CONFIG: FieldConfig = {
   ],
 };
 
-/** The tenant's LIVE membership-type catalog — the reference field's subset source (R4.1). */
-const CATALOG = [
-  { type_code: 'regular', label: { en: 'Regular', nl: 'Regulier' } },
-  { type_code: 'student', label: { en: 'Student', nl: 'Student' } },
-] as unknown as import('../../../../types/members').MembershipType[];
-
 function renderModal(
   fieldKey: string | null,
   overlay: MembersConfigValue = {},
-  opts: { formInScope?: boolean; catalog?: typeof CATALOG | null } = {},
+  opts: { formInScope?: boolean } = {},
   onChange = vi.fn(),
 ) {
   const utils = render(
@@ -85,7 +79,6 @@ function renderModal(
       overlay={overlay}
       onChange={onChange}
       formInScope={opts.formInScope ?? true}
-      membershipTypeCatalog={opts.catalog ?? CATALOG}
       lang="en"
     />,
   );
@@ -286,7 +279,6 @@ describe('ApplicationFieldModal — format writes only a KNOWN token (task 4.3 /
         overlay={{}}
         onChange={vi.fn()}
         formInScope
-        membershipTypeCatalog={CATALOG}
         lang="en"
       />,
     );
@@ -300,11 +292,11 @@ describe('ApplicationFieldModal — format writes only a KNOWN token (task 4.3 /
 });
 
 describe('ApplicationFieldModal — enum-subset picker SOURCE adapts to field kind (task 4.2 / R1.3)', () => {
-  it('renders the picker for a REFERENCE field sourced from the live catalog', () => {
+  it('renders the picker for a REFERENCE field sourced from the field\u2019s own options (03b 9b.2)', () => {
     renderModal('membership_type', {}, { formInScope: true });
     const source = screen.getByTestId('application-field-modal-subset-source');
     expect(source).toHaveAttribute('data-source-kind', 'reference');
-    // The options are the LIVE catalog codes, not the field's static choices.
+    // The options are the field's OWN option values (the live catalog is retired, 03b).
     expect(screen.getByTestId('application-field-modal-subset-option-regular')).toBeInTheDocument();
     expect(screen.getByTestId('application-field-modal-subset-option-student')).toBeInTheDocument();
   });
@@ -331,9 +323,27 @@ describe('ApplicationFieldModal — enum-subset picker SOURCE adapts to field ki
     expect(screen.queryByTestId('application-field-modal-subset')).not.toBeInTheDocument();
   });
 
-  it('surfaces an empty-source note for a reference field with an EMPTY live catalog', () => {
-    renderModal('membership_type', {}, { formInScope: true, catalog: [] });
-    // The picker still renders (choice-bearing by kind) but shows "no types yet" and no options.
+  it('surfaces an empty-source note for a reference field with NO options yet (03b 9b.2)', () => {
+    // membership_type is choice-bearing by kind, but with an empty option set the picker shows
+    // the "no options yet" note and offers nothing (the field has no authored vocabulary).
+    const emptyCfg = {
+      ...FIELD_CONFIG,
+      fields: FIELD_CONFIG.fields.map((f) =>
+        f.key === 'membership_type' ? { ...f, options: [] } : f,
+      ),
+    } as typeof FIELD_CONFIG;
+    render(
+      <ApplicationFieldModal
+        isOpen
+        onClose={vi.fn()}
+        fieldKey="membership_type"
+        fieldConfig={emptyCfg}
+        overlay={{}}
+        onChange={vi.fn()}
+        formInScope
+        lang="en"
+      />,
+    );
     expect(screen.getByTestId('application-field-modal-subset')).toBeInTheDocument();
     expect(screen.getByTestId('application-field-modal-subset-empty-source')).toBeInTheDocument();
   });

@@ -41,6 +41,10 @@ function toOptions(value: MembersConfigValue): EnumOption[] {
       value: o.value ?? '',
       label: { nl: o.label?.nl ?? '', en: o.label?.en ?? '' },
       ...(o.roles && o.roles.length ? { roles: o.roles } : {}),
+      // Carry the 03b retire/grandfather flag + rank through verbatim. An absent `allowed`
+      // reads as offered (back-compat); it is only ever stored when explicitly retired (false).
+      ...(o.allowed === false ? { allowed: false } : {}),
+      ...(typeof o.order === 'number' ? { order: o.order } : {}),
     }));
   }
   if (Array.isArray(value)) {
@@ -80,6 +84,16 @@ export const EnumOptionsEditor: React.FC<Props> = ({
       { value: '', label: { nl: '', en: '' } },
     ] as unknown as MembersConfigValue);
 
+  // Retire/grandfather toggle (spec 03b): turning an option OFF stores `allowed:false` (hidden
+  // from the picker, reference still resolves); ON removes the flag (absent === offered).
+  const toggleAllowed = (idx: number, offered: boolean) => {
+    const opt = options[idx];
+    const next = { ...opt };
+    if (offered) delete (next as { allowed?: boolean }).allowed;
+    else (next as { allowed?: boolean }).allowed = false;
+    update(idx, next);
+  };
+
   const toggleRole = (idx: number, role: string, on: boolean) => {
     const opt = options[idx];
     const roles = new Set(opt.roles ?? []);
@@ -87,9 +101,8 @@ export const EnumOptionsEditor: React.FC<Props> = ({
     else roles.delete(role);
     const nextRoles = Array.from(roles);
     update(idx, {
-      value: opt.value,
-      label: opt.label,
-      ...(nextRoles.length ? { roles: nextRoles } : {}),
+      ...opt,
+      ...(nextRoles.length ? { roles: nextRoles } : { roles: undefined }),
     });
   };
 
@@ -148,6 +161,26 @@ export const EnumOptionsEditor: React.FC<Props> = ({
               colorScheme="red"
               onClick={() => remove(idx)}
             />
+          </HStack>
+          {/* Retire/grandfather control (spec 03b): a RETIRED option (allowed:false) stays a valid
+              stored reference but is hidden from the picker for new/changed records. */}
+          <HStack pl={1} mb={1} spacing={2}>
+            <Switch
+              size="sm"
+              colorScheme="orange"
+              isChecked={opt.allowed !== false}
+              onChange={(e) => toggleAllowed(idx, e.target.checked)}
+              aria-label={`Option ${idx + 1} offered`}
+            />
+            <Text fontSize="xs" color={opt.allowed === false ? 'yellow.300' : 'gray.400'}>
+              {opt.allowed === false
+                ? lang === 'nl'
+                  ? 'Gearchiveerd (niet meer aanbieden)'
+                  : 'Retired (no longer offered)'
+                : lang === 'nl'
+                  ? 'Aangeboden'
+                  : 'Offered'}
+            </Text>
           </HStack>
           {/* Per-option role restriction (R4.12) */}
           <Box pl={1}>

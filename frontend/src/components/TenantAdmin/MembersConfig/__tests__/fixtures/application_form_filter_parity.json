@@ -92,6 +92,41 @@
         "application_choices": [
           "gewoon",
           "erelid"
+        ],
+        "options": [
+          {
+            "value": "gewoon",
+            "label": {
+              "nl": "Gewoon lid",
+              "en": "Gewoon lid"
+            },
+            "order": 10
+          },
+          {
+            "value": "erelid",
+            "label": {
+              "nl": "Erelid",
+              "en": "Erelid"
+            },
+            "order": 20
+          },
+          {
+            "value": "donateur",
+            "label": {
+              "nl": "Donateur",
+              "en": "Donateur"
+            },
+            "order": 30
+          },
+          {
+            "value": "oudlid",
+            "label": {
+              "nl": "Oud lid",
+              "en": "Oud lid"
+            },
+            "order": 40,
+            "allowed": false
+          }
         ]
       },
       {

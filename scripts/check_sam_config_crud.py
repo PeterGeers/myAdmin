@@ -11,10 +11,12 @@ partial-overlay-overwrites-full-record defect (root-cause-analysis.md):
 
   (a) A RAW GOVERNANCE-TABLE WRITE OUTSIDE THE CHANGE-OP WRITE REPOSITORY — a
       ``.put_item(`` / ``.update_item(`` / ``.delete_item(`` call in a ``sam/**`` PRODUCT
-      module that writes the GOVERNANCE PROJECTION table, other than the two sanctioned
+      module that writes the GOVERNANCE PROJECTION table, other than the sanctioned
       sites (the Change-Op write repository
-      ``sam/members/repository/projection_config_write_repository.py`` and the one-time C6
-      LIST->MAP migration ``sam/members/migration/functional_groups_list_to_map.py``). The
+      ``sam/members/repository/projection_config_write_repository.py``, the one-time C6
+      LIST->MAP migration ``sam/members/migration/functional_groups_list_to_map.py``, and the
+      one-time C6 membership_type EXPAND migration
+      ``sam/members/migration/membership_type_catalog_to_field_options.py`` — spec 03b Task 7.2). The
       whole-record ``put_item`` replace must stay an INTERNAL primitive only those sites
       build the item with — a new raw write anywhere else is exactly how a whole-record
       replace would sneak back onto the client-reachable path (R1.5 / R11.1 / R11.2a).
@@ -133,13 +135,19 @@ RAW_WRITE_METHODS = frozenset({"put_item", "update_item", "delete_item"})
 #:     C6 create/migration primitive (``put_config`` / ``ensure_skeleton``) and ``update_item``
 #:     is the runtime Change-Op path (``apply_ops``); and
 #:   * the one-time C6 LIST->MAP migration backfill (design C6 / task 2.0), which is the OTHER
-#:     sanctioned whole-row ``put_item`` (R1.5 explicitly keeps the migration as a primitive).
+#:     sanctioned whole-row ``put_item`` (R1.5 explicitly keeps the migration as a primitive); and
+#:   * the one-time C6 membership_type EXPAND migration (spec 03b Task 7.2 — fold each tenant's
+#:     ``membershiptype#<code>`` catalog into the ``membership_type`` field's enum ``options`` and
+#:     drop the forbidden ``choices`` residue), the SAME sanctioned whole-row ``put_item`` migration
+#:     primitive as the LIST->MAP backfill — a legitimate one-time EXPAND fold, gated behind the
+#:     runbook's ``--apply --i-have-a-restore-point`` affirmations.
 #: No other product module may write the governance table directly. A new sanctioned writer is
 #: a REVIEWED addition here — never a guard suppression (steering 39).
 RAW_WRITE_ALLOWED_FILES = frozenset(
     {
         "sam/members/repository/projection_config_write_repository.py",
         "sam/members/migration/functional_groups_list_to_map.py",
+        "sam/members/migration/membership_type_catalog_to_field_options.py",
     }
 )
 

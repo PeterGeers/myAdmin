@@ -205,24 +205,18 @@ describe('MembersFieldModal — create', () => {
 });
 
 describe('MembersFieldModal — reference vs enum branch (Property 4, R3.1/R3.2/R3.3)', () => {
-  it('a REFERENCE field shows the catalog pointer, NOT an enum-values editor (R3.1/R3.3)', () => {
+  it('a REFERENCE field (membership_type) shows the INLINE options editor, NOT a catalog pointer (03b 9b.1, R3.1/R3.3)', () => {
     renderModal({ mode: 'create' });
     // Drive the field type to `reference` the same way the enum test does (the Type select).
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'reference' } });
     const modal = screen.getByTestId('members-field-modal');
-    // The read-only note + its pointer link to the membership-type catalog are shown (no dead end).
-    expect(within(modal).getByTestId('members-field-modal-reference-note')).toBeInTheDocument();
-    expect(within(modal).getByTestId('members-field-modal-reference-link')).toBeInTheDocument();
-    // The inline enum choices editor is ABSENT for a reference field — values live in the catalog.
-    expect(within(modal).queryByText('Choices')).not.toBeInTheDocument();
-  });
-
-  it('clicking the pointer invokes the onManageCatalog handler when wired (R3.1)', () => {
-    const onManageCatalog = vi.fn();
-    renderModal({ mode: 'create', onManageCatalog });
-    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'reference' } });
-    fireEvent.click(screen.getByTestId('members-field-modal-reference-link'));
-    expect(onManageCatalog).toHaveBeenCalledTimes(1);
+    // 03b unified enum model: a reference field is a NORMAL enum that owns its own options — the
+    // inline values editor ("Choices" + "Add option") is shown, edited exactly like any enum.
+    expect(within(modal).getByText('Choices')).toBeInTheDocument();
+    expect(within(modal).getByLabelText('Add option')).toBeInTheDocument();
+    // The retired catalog note + its pointer are GONE (the catalog is being retired, Task 10).
+    expect(within(modal).queryByTestId('members-field-modal-reference-note')).not.toBeInTheDocument();
+    expect(within(modal).queryByTestId('members-field-modal-reference-link')).not.toBeInTheDocument();
   });
 
   it('a REFERENCE field still exposes the presentation attributes (label / order) for editing (R3.2)', () => {
@@ -474,6 +468,43 @@ describe('MembersFieldModal — origin-aware write-back (remediation task 2.2, R
 
     const next = onChange.mock.calls[0][0] as Record<string, any>;
     expect(next.fixed_overrides['personal.last_name'].visible).toBe(false);
+  });
+
+  /**
+   * A base field resolved as `visible: false` (a stored tenant override hiding a platform field).
+   * The form seeds Visible=OFF; re-enabling it must emit an EXPLICIT `visible: true` to CLEAR the
+   * stored `false` — the reported bug was that re-enabling Visible silently no-op'd because the
+   * modal emitted `visible: undefined` on the ON path (dropped by the Change-Op diff).
+   */
+  function visibleFalseBaseConfig(): FieldConfig {
+    const cfg = provenanceConfig();
+    const lastName = cfg.fields.find((f) => f.key === 'last_name');
+    if (lastName) (lastName as Record<string, unknown>).visible = false;
+    return cfg;
+  }
+
+  it('re-ticking Visible on a base override currently visible=false emits an EXPLICIT `visible: true` (clears the hide — the reported visible-stuck-off bug)', () => {
+    const onChange = vi.fn();
+    renderModal({
+      mode: 'edit',
+      fieldKey: 'last_name',
+      fieldConfig: visibleFalseBaseConfig(),
+      overlay: writeOverlay(),
+      onChange,
+    });
+    // Form seeds Visible=OFF from the resolved field; tick it back ON.
+    const visibleSwitch = screen.getByLabelText('Visible') as HTMLInputElement;
+    expect(visibleSwitch.checked).toBe(false);
+    fireEvent.click(visibleSwitch);
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    const next = onChange.mock.calls[0][0] as Record<string, any>;
+    const override = next.fixed_overrides['personal.last_name'];
+    // Must carry an EXPLICIT `true` so the downstream Change-Op diff emits a `visible` op that
+    // overwrites the stored `visible: false`. A `visible: undefined` (the old bug) would be dropped
+    // by `definitionAttrs` and the field would stay hidden despite the toggle being on.
+    expect(override).toHaveProperty('visible');
+    expect(override.visible).toBe(true);
   });
 
   it('create always writes a tenant VARIABLE field under `fields` (never fixed_overrides, R1.5)', () => {

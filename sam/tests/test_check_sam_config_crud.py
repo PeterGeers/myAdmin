@@ -183,6 +183,26 @@ class TestRawGovernanceWrites:
         )
         assert check_file(f) == []
 
+    def test_sanctioned_membership_type_expand_migration_is_allowed(self, tmp_path):
+        """The one-time C6 membership_type EXPAND migration may whole-row put_item (spec 03b 7.2).
+
+        Same sanctioned whole-row ``put_item`` primitive as the LIST->MAP backfill — a legitimate
+        one-time EXPAND fold of the catalog into the field's ``options``. It is allow-listed, so
+        its gated ``put_item`` does not trip the guard.
+        """
+        f = _write(
+            tmp_path,
+            "sam/members/migration/membership_type_catalog_to_field_options.py",
+            _gov(
+                """\
+                def run(table, item):
+                    new_item = dict(item)
+                    table.put_item(Item=new_item)
+                """
+            ),
+        )
+        assert check_file(f) == []
+
     def test_write_on_a_different_aggregate_is_not_flagged(self, tmp_path):
         """A raw write in a module with NO governance-table marker (members table) is clean.
 
@@ -389,6 +409,27 @@ class TestScanDirectory:
         )
         assert scan_directory(tmp_path / "sam") == []
 
+    def test_current_sam_tree_is_clean(self):
+        """The guard over the ACTUAL ``sam/`` tree returns clean (exit 0 / no violations).
+
+        Regression guard for spec 03b Task 7.2: the membership_type EXPAND migration issues a
+        sanctioned whole-row ``put_item`` on the projection table; once allow-listed it must NOT
+        redden the suite. Running the real check_file over every ``sam/**`` module — including the
+        two 03a rule families — asserts the live tree has no raw-write / raw-shape / retired-vocab
+        violation, i.e. the guard's OK path (GUARD_RC=0 in CI). This is the test-level mirror of
+        ``python scripts/check_sam_config_crud.py`` printing ``[OK]``.
+        """
+        sam_root = _REPO_ROOT / "sam"
+        assert sam_root.is_dir(), f"expected SAM tree at {sam_root}"
+        violations = scan_directory(sam_root)
+        assert violations == [], "guard found violations in the live sam/ tree:\n" + "\n".join(
+            violations
+        )
+        report_only = scan_directory_report_only(sam_root)
+        assert report_only == [], "03a rules found violations in the live sam/ tree:\n" + "\n".join(
+            report_only
+        )
+
 
 class TestDottedGroupKeyHeuristic:
     """The dotted ``{group}.{key}`` matcher is precise (no i18n / error-code false positives)."""
@@ -425,6 +466,13 @@ class TestGuardConfig:
         )
         assert (
             "sam/members/migration/functional_groups_list_to_map.py"
+            in RAW_WRITE_ALLOWED_FILES
+        )
+        # spec 03b Task 7.2 — the one-time C6 membership_type EXPAND migration is the SAME
+        # sanctioned whole-row put_item primitive as the LIST->MAP backfill, so it is
+        # allow-listed by a reviewed addition (steering 39), never by a guard suppression.
+        assert (
+            "sam/members/migration/membership_type_catalog_to_field_options.py"
             in RAW_WRITE_ALLOWED_FILES
         )
 

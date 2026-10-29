@@ -38,14 +38,13 @@
  * never disagree.
  */
 import type { MembersConfigValue } from '../../../types/membersConfig';
-import type { FieldConfig, FieldConfigField, LocalizedLabel, MembershipType } from '../../../types/members';
+import type { FieldConfig, FieldConfigField, LocalizedLabel } from '../../../types/members';
 import type {
   PublicField,
   PublicFieldConfig,
   PublicFieldOption,
 } from '../../public/application/applicationFieldConfig';
 import { findField } from './overlayModel';
-import { isMembershipTypeField, catalogChoices } from './applicationMembershipType';
 
 /** The applicant locales the preview offers (mirrors the server `SUPPORTED_LOCALES`). */
 const PREVIEW_LOCALES = ['nl', 'en'] as const;
@@ -167,6 +166,9 @@ function projectEnumOptions(
     } else if (opt && typeof opt === 'object') {
       const value = typeof opt.value === 'string' ? opt.value : String(opt.value ?? '');
       if (!value) continue;
+      // Spec 03b: a RETIRED option (`allowed:false`) is grandfathered-only — never OFFERED on the
+      // applicant form, so the preview omits it (mirrors the public serializer).
+      if ((opt as { allowed?: boolean }).allowed === false) continue;
       if (allowed === null || allowed.has(value)) {
         out.push({ value, label: toLocalizedLabel(opt.label, value) });
       }
@@ -184,7 +186,6 @@ function projectEnumOptions(
 function projectField(
   overlay: MembersConfigValue | undefined,
   field: FieldConfigField,
-  catalog: MembershipType[] | null | undefined,
 ): PublicField {
   const key = dottedKey(field);
   const subset = fieldSubset(overlay, field);
@@ -200,16 +201,11 @@ function projectField(
 
   if (field.show_when != null) out.show_when = field.show_when;
 
-  if (isMembershipTypeField(field)) {
-    // Reference field → the LIVE catalog, filtered to the declared subset (full set when none).
-    const all = catalogChoices(catalog, 'nl').map(
-      (c): PublicFieldOption => ({ value: c.value, label: c.label }),
-    );
-    out.options = subset === null ? all : all.filter((o) => subset.map(String).includes(o.value));
-  } else {
-    const options = projectEnumOptions(field, subset);
-    if (options !== undefined) out.options = options;
-  }
+  // Spec 03b: membership_type is a normal enum field that owns its `options` — projected exactly
+  // like every other enum from the field's own served options (allowed-filtered), NOT a live
+  // catalog. `isMembershipTypeField` no longer special-cases the source.
+  const options = projectEnumOptions(field, subset);
+  if (options !== undefined) out.options = options;
 
   const format = fieldFormat(overlay, field);
   if (format) out.format = format;
@@ -232,12 +228,11 @@ function projectField(
 export function buildPreviewConfig(
   fieldConfig: FieldConfig | null | undefined,
   overlay: MembersConfigValue | undefined,
-  membershipTypeCatalog?: MembershipType[] | null,
 ): PublicFieldConfig {
   const fields = Array.isArray(fieldConfig?.fields) ? fieldConfig!.fields : [];
   const projected = fields
     .filter((f) => fieldIsOnForm(overlay, f))
-    .map((f) => projectField(overlay, f, membershipTypeCatalog));
+    .map((f) => projectField(overlay, f));
 
   return {
     fields: projected,

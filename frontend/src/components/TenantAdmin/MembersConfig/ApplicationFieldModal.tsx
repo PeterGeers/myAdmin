@@ -47,7 +47,7 @@
  * adapts to the FIELD KIND (via the pure `applicationChoiceSource` helpers — kept out of this
  * component so the rules are unit-testable):
  *   - a REFERENCE field (e.g. `membership_type`) sources from the tenant's LIVE catalog
- *     (`membershipTypeCatalog`), NOT the field's static choices (R4.1);
+ *     (the field's OWN resolved `options` — spec 03b; the live catalog is retired);
  *   - a SCOPE axis sources from the scope DIMENSION values (= the field's own options under the
  *     single-vocabulary model, R3.2/R3.3);
  *   - an ENUM/choices field sources from its OWN options.
@@ -104,7 +104,7 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import type { MembersConfigValue } from '../../../types/membersConfig';
-import type { FieldConfig, FieldConfigField, MembershipType } from '../../../types/members';
+import type { FieldConfig, FieldConfigField } from '../../../types/members';
 import { resolveFieldConfigLabel } from '../../../services/membersConfigService';
 import { findField, upsertField, type FieldOrigin } from './overlayModel';
 import { isChoiceBearingField, resolveChoiceSource } from './applicationChoiceSource';
@@ -136,13 +136,6 @@ export interface ApplicationFieldModalProps {
    * context would pass `false` (no application attributes authored there).
    */
   formInScope: boolean;
-  /**
-   * The tenant's LIVE membership-type catalog (`GET /membership-types`). Threaded through for the
-   * enum-subset picker whose source adapts to the field kind (task 4.2 / R1.3) — the membership-type
-   * field's subset is authored over this live catalog rather than the field's static choices.
-   * Optional/absent (and unused by THIS task's scaffold); the deferred picker reads it when it lands.
-   */
-  membershipTypeCatalog?: MembershipType[] | null;
   lang: 'nl' | 'en';
 }
 
@@ -219,7 +212,6 @@ export const ApplicationFieldModal: React.FC<ApplicationFieldModalProps> = ({
   overlay,
   onChange,
   formInScope,
-  membershipTypeCatalog,
   lang,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
@@ -264,8 +256,10 @@ export const ApplicationFieldModal: React.FC<ApplicationFieldModalProps> = ({
   // dimension values; enum → own options). `resolveChoiceSource` returns null for a plain string
   // field — the picker then does NOT render (R1.3, the spec 11 choice-on-string fix).
   const choiceSource = useMemo(
-    () => (field ? resolveChoiceSource(field, membershipTypeCatalog, lang) : null),
-    [field, membershipTypeCatalog, lang],
+    // Spec 03b: membership_type sources from the field's own options (resolveChoiceSource reads
+    // field.options); the live catalog is retired, so no catalog is threaded in anymore.
+    () => (field ? resolveChoiceSource(field, null, lang) : null),
+    [field, lang],
   );
   const showPicker = field ? isChoiceBearingField(field) : false;
 
@@ -372,8 +366,8 @@ export const ApplicationFieldModal: React.FC<ApplicationFieldModalProps> = ({
   const sourceHint = (kind: 'reference' | 'scope' | 'enum'): string => {
     if (kind === 'reference') {
       return t(
-        'Keuzes uit de live lidmaatschapstypecatalogus. Alles aangevinkt = de volledige set.',
-        'Choices from the live membership-type catalog. All checked = the full set.',
+        'Keuzes uit de eigen opties van dit veld. Alles aangevinkt = de volledige set.',
+        'Choices from this field\u2019s own options. All checked = the full set.',
       );
     }
     if (kind === 'scope') {
