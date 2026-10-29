@@ -391,6 +391,12 @@ export const MembersFieldModal: React.FC<MembersFieldModalProps> = ({
       functional_group: mode === 'create' ? groupKey : undefined,
       order: form.order.trim() ? Number(form.order) : undefined,
     };
+    // CREATE authors a brand-new tenant VARIABLE field under `fields`, diffed against an EMPTY
+    // baseline — there is no prior stored `required: true` to overwrite, so `required` OFF ≡ absent
+    // (the diff emits nothing either way and the resolved field is not-required). Hence create does
+    // NOT need the explicit-`false` the edit path needs; authoring `required: false` here would only
+    // add a redundant op. Left as-is deliberately (the absent==false equivalence holds only on create
+    // against an empty baseline — on EDIT a stored `true` must be explicitly cleared, see handleSave).
     if (form.required) field.required = true;
     if (!form.visible) field.visible = false;
     if (form.read_only) field.read_only = true;
@@ -438,8 +444,22 @@ export const MembersFieldModal: React.FC<MembersFieldModalProps> = ({
       // Explicitly clear attributes that were turned off so they do not linger.
       const patch: Partial<OverlayField> = {
         ...field,
-        required: form.required ? true : undefined,
+        // Send the EXPLICIT boolean for `required` so turning the toggle OFF emits `required: false`
+        // (NOT `undefined`). The Change-Op diff (`fieldConfigChangeOps.definitionAttrs`) only emits an
+        // attr when it is `!== undefined`, so a `required: undefined` would be DROPPED and a stored
+        // `required: true` override would never be cleared (the field would stay required despite the
+        // toggle being off). Absent-vs-false matters: to CHANGE a stored `true` to not-required you
+        // must send an explicit `false`. This mirrors how `visible` already works (explicit `false`
+        // when off). The backend round-trips a `false` correctly (resolver honors `required=false`).
+        required: form.required,
         visible: form.visible ? undefined : false,
+        // `read_only` is PLATFORM-OWNED, not a clearable tenant override: the resolver pins it `true`
+        // ONLY for CALCULATED fields (which are not writable here — the modal returns early for them)
+        // and `false` for every fixed/variable field. It is NOT in the backend `FIELD_DEFINITION_ATTRS`
+        // write surface nor in the client `DEFINITION_ATTRS` diff list, so it never crosses the wire
+        // via a Change-Op regardless of what we put here. There is therefore no stored `read_only: true`
+        // override a user needs to clear, so absence==false is correct and the `required` bug does NOT
+        // apply — kept as-is deliberately.
         read_only: form.read_only ? true : undefined,
         // Single-vocabulary (spec 03a / C1): clear/author the enum vocabulary under the ONE
         // canonical `options` key — never `choices`.
