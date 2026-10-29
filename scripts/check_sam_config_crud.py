@@ -69,11 +69,12 @@ vocabulary paths and the scope ``values``-vs-``options`` divergence from creepin
   carve-outs → false-positive risk; its invariant is covered by a behavioral test (task 9b),
   not a blocking AST rule.)
 
-**ROLLOUT — rules (a)(b)(d) are REPORT-ONLY in this increment (03a task 10).** They EMIT
-findings (visible in the output) but do NOT change the exit code: the flip to BLOCKING is a
-separate increment (03a task 12), performed only AFTER the fix (C7 + C1–C6) has landed and the
-tree is clean (design G6 — never redden a valid in-flight state on day one). The two ORIGINAL
-spec-03 checks (a=raw governance write, b=raw-shape response key) REMAIN BLOCKING.
+**ROLLOUT — rules (a)(b)(d) are now BLOCKING (03a task 12).** They were introduced REPORT-ONLY
+in 03a task 10 (emit findings, do not change the exit code), and have now been FLIPPED to
+BLOCKING — only AFTER the fix (C7 + C1–C6) landed and the tree was confirmed clean (design G6 —
+never redden a valid in-flight state on day one). A finding on rule (a), (b), or (d) now fails
+the build (exit 1) exactly like the two ORIGINAL spec-03 checks (a=raw governance write,
+b=raw-shape response key), via the same exit-code mechanism.
 
 Detection is AST-based (``ast``), so a comment or docstring that merely MENTIONS
 ``put_item`` / ``field_overlay`` / ``choices`` does not trip the guard — only real code does.
@@ -87,8 +88,8 @@ Usage::
     python scripts/check_sam_config_crud.py            # full scan of SCAN_DIRS (CI)
     python scripts/check_sam_config_crud.py [path ...]  # check only the given files (hook)
 
-Exit code 0 = clean (blocking checks), 1 = blocking violations found. REPORT-ONLY findings
-(the 03a rules a/b/d) are printed but never by themselves cause a non-zero exit this increment.
+Exit code 0 = clean, 1 = violations found. ALL rules are now blocking: the two original
+spec-03 checks AND the three 03a anti-reintroduction rules (a/b/d) each cause a non-zero exit.
 """
 
 from __future__ import annotations
@@ -205,8 +206,12 @@ EXCLUDED_DIRS = frozenset(
 SCAN_DIRS = ("sam",)
 
 # ──────────────────────────────────────────────────────────────────────────────────
-# 03a — anti-reintroduction rules (a)(b)(d). REPORT-ONLY this increment (design C8, R2.7):
-# these emit findings but do NOT change the exit code. The flip to BLOCKING is 03a task 12.
+# 03a — anti-reintroduction rules (a)(b)(d). Now BLOCKING (design C8, R2.7; 03a task 12):
+# a finding on any of the three fails the build (exit 1), via the same exit-code mechanism as
+# the two original spec-03 checks. They were introduced report-only (task 10) and flipped here
+# once the fix (C7 + C1-C6) landed and the tree was confirmed clean (G6). The dedicated
+# check_file_report_only / scan_directory_report_only entry points are RETAINED (kept separate
+# from the spec-03 check_file so each rule family can be exercised independently in tests).
 # ──────────────────────────────────────────────────────────────────────────────────
 
 #: The retired legacy vocabulary attribute name. ``choices`` was the bare value list; the one
@@ -594,10 +599,11 @@ def _check_scope_values_independence(tree: ast.AST, rel: str) -> list[str]:
 
 
 def _report_only_findings(tree: ast.AST, rel: str) -> list[str]:
-    """Aggregate the 03a REPORT-ONLY rules (a)(b)(d) for one parsed file.
+    """Aggregate the 03a rules (a)(b)(d) for one parsed file.
 
-    Kept SEPARATE from :func:`check_file` so the two ORIGINAL spec-03 checks stay blocking while
-    these three stay report-only this increment (03a task 10; the flip to blocking is task 12).
+    Kept as a SEPARATE entry point from :func:`check_file` so the three 03a rules can be
+    exercised independently in tests. Both families are now BLOCKING in ``main`` (03a task 12
+    flipped these from report-only); the function name is retained for API stability.
     """
     findings: list[str] = []
     findings.extend(_check_write_path_choices(tree, rel))       # (a)
@@ -629,11 +635,12 @@ def check_file(filepath: Path) -> list[str]:
 
 
 def check_file_report_only(filepath: Path) -> list[str]:
-    """Return the 03a REPORT-ONLY findings (rules a/b/d) for a single ``.py`` file.
+    """Return the 03a rule (a/b/d) findings for a single ``.py`` file.
 
-    Separate from :func:`check_file` so the three 03a rules emit findings without affecting the
-    exit code this increment (design C8 rollout; the flip to blocking is 03a task 12). A file
-    that cannot be parsed yields no findings (same lint-not-compiler contract as check_file).
+    A SEPARATE entry point from :func:`check_file` so the three 03a rules can be exercised
+    independently; both families are now BLOCKING in ``main`` (03a task 12). The name is
+    retained for API stability. A file that cannot be parsed yields no findings (same
+    lint-not-compiler contract as check_file).
     """
     rel = _rel_posix(filepath)
     try:
@@ -664,7 +671,7 @@ def scan_directory(root: Path) -> list[str]:
 
 
 def scan_directory_report_only(root: Path) -> list[str]:
-    """Scan every ``.py`` file under ``root`` and return all 03a REPORT-ONLY findings (a/b/d)."""
+    """Scan every ``.py`` file under ``root`` and return all 03a rule (a/b/d) findings (blocking)."""
     all_findings: list[str] = []
     for py_file in _iter_py_files(root):
         all_findings.extend(check_file_report_only(py_file))
@@ -703,21 +710,22 @@ def main(argv=None) -> int:
             all_violations.extend(scan_directory(dir_path))
             report_only.extend(scan_directory_report_only(dir_path))
 
-    # 03a rules (a)(b)(d) are REPORT-ONLY this increment (design C8 rollout; the flip to
-    # BLOCKING is 03a task 12). Print any findings for visibility, but DO NOT let them change
-    # the exit code — only the two original spec-03 checks are blocking today.
+    # 03a rules (a)(b)(d) are now BLOCKING (design C8 rollout increment 2, task 12 — flipped
+    # only AFTER the fix C7 + C1-C6 landed and the tree is clean, G6). A finding on any of the
+    # three fails the build exactly like the two original spec-03 checks, via the SAME exit-code
+    # mechanism: print the findings and fold their count into the non-zero-exit decision below.
     if report_only:
         print(
-            f"[REPORT-ONLY] {len(report_only)} anti-reintroduction finding(s) "
-            f"(03a rules a/b/d — not yet blocking):\n"
+            f"Found {len(report_only)} anti-reintroduction guard violation(s) "
+            f"(03a rules a/b/d — BLOCKING):\n"
         )
         for f in report_only:
-            print(f"  [REPORT-ONLY] {f}")
+            print(f"  [FAIL] {f}")
         print(
-            "\nThese findings do NOT fail the build in this increment. They flip to BLOCKING "
-            "in 03a task 12, once the fix (C7 + C1-C6) has landed and the tree is clean (G6). "
-            "Fix the call site — do NOT suppress the guard; a new sanctioned site is a reviewed "
-            "allow-list addition (steering 39).\n"
+            "\nThe one canonical vocabulary is 'options'; the retired 'choices' two-names paths "
+            "and the scope values-vs-options divergence must not be reintroduced. Fix the call "
+            "site — do NOT suppress the guard; a new sanctioned site is a reviewed allow-list "
+            "addition (steering 39).\n"
         )
 
     if all_violations:
@@ -731,19 +739,17 @@ def main(argv=None) -> int:
             "in an API response. Fix the call site / response shape — do NOT suppress the "
             "guard. A new sanctioned site is a reviewed allow-list addition (steering 39)."
         )
+
+    # Non-zero exit if EITHER the two original spec-03 checks OR the three 03a rules (a/b/d,
+    # now blocking) found anything.
+    if all_violations or report_only:
         sys.exit(1)
 
-    if report_only:
-        print(
-            "[OK] No BLOCKING violations (raw governance-table write / raw storage-shape "
-            "response key). See the [REPORT-ONLY] 03a findings above — not yet blocking."
-        )
-    else:
-        print(
-            "[OK] No raw governance-table writes outside the Change-Op write repository, no "
-            "raw storage-shape key in an API response, and no 03a anti-reintroduction findings "
-            "(rules a/b/d clean)."
-        )
+    print(
+        "[OK] No raw governance-table writes outside the Change-Op write repository, no "
+        "raw storage-shape key in an API response, and no 03a anti-reintroduction findings "
+        "(rules a/b/d clean)."
+    )
     sys.exit(0)
 
 
