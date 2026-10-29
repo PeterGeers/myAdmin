@@ -79,7 +79,8 @@ them as its own acceptance criteria.
 1. WHEN the admin turns a field's `required`, `application_visible`, or `application_required` OFF and saves THEN the write SHALL emit an explicit value under the Change-Op contract (never a dropped `undefined`), and a reload SHALL show OFF
 2. WHEN the admin turns any of those ON and saves THEN a reload SHALL show ON
 3. THE fix SHALL apply uniformly to every field in every functional group, not a special-cased subset
-4. (Confirmed scope note) the `required` toggle was fixed for staff records in 03a; this requirement extends the SAME fix to the application-form toggles (`application_visible`, `application_required`), which still drop the OFF write
+4. THE ROOT CAUSE SHALL be fixed, not patched per-toggle: the change-op diff currently treats `undefined` as BOTH "unchanged" and "turned off", so an OFF is dropped. THE diff SHALL distinguish these — e.g. by diffing against the LOADED state so a true→false transition always emits an explicit `false` — so NO boolean field attribute can silently drop an OFF, now or in future
+5. THERE SHALL be a test that ROUND-TRIPS every boolean attribute (ON→OFF→ON) in every field/application modal, so a future boolean cannot regress the same way (03a fixed `required`; 03b fixes `application_visible`/`application_required`; the root fix + this test prevent a fourth occurrence)
 
 ### Requirement 3: One unified enum-field model (relocate the two side-effecting shapes)
 
@@ -106,9 +107,11 @@ them as its own acceptance criteria.
 #### Acceptance Criteria
 
 1. THE target model SHALL be: a selectable field is a single ENUM; its options each carry value + per-language label + a retired/grandfather flag; and the field carries its feature attributes (requiredness, application-form flags, scope-binding) directly on the field — no separate per-kind storage model and no `active_only` catalog apparatus
-2. FOR a retired value THE behaviour SHALL be Grandfather semantics: hidden from the picker for new/changed records, WHILE existing stored values equal to it are retained, displayed, and accepted on read and validation; and the retired/active state SHALL be freely toggleable both ways
+2. FOR a value that is RETIRED (`allowed:false`) THE behaviour SHALL be Grandfather semantics: hidden from the picker for new/changed records, WHILE existing stored values equal to it are retained, displayed, and accepted on read and validation; the retired/active state SHALL be freely toggleable both ways
+2a. FOR a value that is DELETED/REMOVED from a field's options THE existing member records holding it SHALL keep that stored value (readable and displayed) — deletion SHALL NOT wipe stored values; HOWEVER a save/update of such a record SHALL be rejected with a caller-safe validation error until its value is changed to an existing option (the record is read-stable but not save-stable while it points at a removed option)
 3. THE unification SHALL relocate `membership_type` (catalog → field enum options) onto the field model; `region` is ALREADY inline on the field (live data) and SHALL NOT be relocated — only kept consistent via Req 4; `status` and the `application_*` attributes already fit the generic model and SHALL NOT require relocation
 4. AFTER the collapse, membership_type options SHALL be authored through the ORDINARY field-options editor like any other enum, preserving the catalog's capabilities as option attributes: per-option bilingual `label`, `order`, and the `allowed`/retired flag, with `value` (the former `type_code`) immutable as the stored reference key; there SHALL be no separate membership-type management screen
+4a. A required enum field, or one that is OFF the application form (so the form supplies a default), SHALL have at least one `allowed:true` option; the default supplied SHALL be the first `allowed:true` option by `order` (or an explicitly flagged default option). An authored config that would leave such a field with zero `allowed:true` options SHALL be rejected at the write seam (a well-formedness rule, not an overrule)
 5. THE `application_*` attributes (`application_visible` / `application_required` / `application_choices`) SHALL be documented in `data-model.md` as part of the field model (closing the documentation gap)
 6. THE design phase SHALL produce a MIGRATION-SAFETY PROOF — gating implementation and requiring owner sign-off BEFORE any code — that, against the REAL stored h-dcn data, maps every currently-stored `membership_type` value (incl. the retired `erelid`) onto the unified model and shows that NO stored member's `membership.membership_type` reference is orphaned; and confirms region remains consistent between `config#fields` and `config#scope` (region needs no migration)
 7. IF the proof shows relocating a shape is unsafe THEN unifying only the BEHAVIOUR (Grandfather + uniform features) for that shape, without moving its storage, SHALL be the accepted fallback — decided in design and reflected back into this requirement
@@ -160,9 +163,10 @@ them as its own acceptance criteria.
 
 #### Acceptance Criteria
 
-1. FOR every enum field THE table and detail display SHALL show the resolved per-language label (`label[active locale] → en → nl → value`), never the bare stored value when a label exists
-2. FOR every enum field THE filter control SHALL present and match on the resolved per-language label, not the stored value
-3. THE Members status-field filter SHALL use the resolved label like every other enum filter (correcting the recorded case, `findings.md` #2, where it keyed off the stored value)
+1. THE member record SHALL store the option KEY (`options.value`, e.g. `died`); the TABLE and MODAL/detail SHALL show the label in the user's selected language (e.g. nl `Overleden`, gb `Passed Away`), never the bare key when a label exists
+2. FOR every enum field THE filter/search SHALL match on the user's resolved LABEL text, not the hidden key: an NL user filtering the Status field matches on `Overleden` (or part of it), a GB user on `Passed Away` (or part) — the user SHALL NOT have to type the hidden key `died`
+3. THE Members status-field filter SHALL behave like every other enum filter (correcting `findings.md` #2, where it keyed off the stored value); THE match SHALL be against the label shown for the active language, built once per column (value→label map), not per row per keystroke
+4. THE enum `options.value` (the key) SHALL remain language-neutral and stored verbatim; only the label is per-language
 
 ### Requirement 6: A data migration is required, naming each table/row, run TEST and PROD identically
 
@@ -171,9 +175,9 @@ them as its own acceptance criteria.
 > **Scope note (corrected against spec 02 + verified against LIVE h-dcn data 2026-10-29):**
 > `config#fields` / `config#scope` are now authored directly by the SAM write path in
 > `governance_projection` (no longer MySQL-projected — `data-model.md` is stale here, fixed by
-> Requirement 8). **region is ALREADY the unified model:** the live `config#fields.region` carries
-> its full inline `choices`+`options` (10 values) with `scope:{enabled:true}`, and `config#scope`
-> already mirrors the same 10 values — so region needs NO data migration, only the derive-on-save
+> Requirement 8). **region is ALREADY the unified model:** the live `config#fields.region` already carries its
+> inline `options` (10 values) with `scope:{enabled:true}`, and `config#scope` already mirrors the
+> same 10 values (the legacy `choices` key is forbidden residue removed by the migration, Req 6.1a) — so region needs NO data migration, only the derive-on-save
 > trigger (Requirement 4) keeps the two consistent going forward. **membership_type is the one real
 > relocation:** its override carries NO inline options — the vocabulary lives entirely in the
 > `membershiptype#<code>` catalog (7 entries; `erelid` is `active:false`/retired). So the migration
@@ -183,13 +187,14 @@ them as its own acceptance criteria.
 #### Acceptance Criteria
 
 1. THE migration SHALL state, per change, the exact table + row it rewrites:
-   a. `config#fields` (in `governance_projection` / `test_governance_projection`) — fold the `membership_type` catalog into the field's enum `options` with the `allowed`/retired flag (`erelid` → `allowed:false`), and carry any residual 03a `choices`→`options` cleanup not yet applied to that environment. region is NOT rewritten (already inline+synced per live data);
+   a. `config#fields` (in `governance_projection` / `test_governance_projection`) — fold the `membership_type` catalog into the field's enum `options` with the `allowed`/retired flag (`erelid` → `allowed:false`), and REMOVE the forbidden legacy `choices` key wherever it co-exists with `options` (incl. region) so `options`/`options.value` is the only representation (the canonical verb; `choices` is forbidden on config fields). region's VALUES are not rewritten (already inline+synced per live data), only the forbidden `choices` residue is dropped;
    b. `sam-members` / `test_sam-members` — retire the `membershiptype#<code>` catalog rows once folded into the field, leaving existing member records' `membership.membership_type` references valid (grandfathered, not orphaned);
    c. `config#scope` is NOT migrated for region (already consistent); it is kept consistent by the derive-on-save trigger (Requirement 4). Scope VALUE add/remove is a save-time auto-apply and a scope-AXIS change is the save-time SysAdmin-project gate (Req 4) — neither is a migration step
-2. THE migration SHALL be idempotent and re-runnable, and SHALL back up every affected row (per table) before writing
+2. THE migration SHALL load the tenant's CURRENT membership types into the `membership_type` field's `options` (value=`type_code`, label, order, `allowed`=`active`) and SHALL LIST the resulting values so the owner can verify what was loaded; it SHALL be idempotent and re-runnable, and SHALL back up every affected row (per table) before writing
 3. THE migration SHALL be preceded and followed by an integrity scan asserting zero un-migrated rows and zero orphaned member references (the membership_type collapse), consistent with the Requirement 3 proof
-4. THE migration SHALL be run against TEST (`test_*` tables) and PRODUCTION (unprefixed tables) IDENTICALLY, each integrity-scan-gated, before `test → main` is considered safe (promotion/migration-parity gate, analysis D5); account targeting per steering 23/41 (`nonprofit-deploy`, 506221081911)
-5. IF Requirement 3.6 selects the behaviour-only fallback for a shape THEN no storage migration SHALL run for that shape, and the acceptance criteria above SHALL cover only the shapes actually relocated
+4. THE rollout SHALL be ordered so the data is converted BEFORE the re-pointed code runs: (a) the additive fold into `config#fields` first (harmless to old code), (b) THEN deploy the re-pointed reader. IF the deploy sequence alone cannot guarantee this ordering in an environment THEN a LOCK SHALL prevent the re-pointed code path from running until the fold is confirmed. The catalog rows are retired only AFTER the post-fold scan passes (contract step)
+5. THE migration SHALL be run against TEST (`test_*` tables) and PRODUCTION (unprefixed tables) IDENTICALLY, each integrity-scan-gated, before `test → main` is considered safe (promotion/migration-parity gate, analysis D5), for ALL tenants (not only h-dcn) — verifying no other tenant has catalog rows left un-folded; account targeting per steering 23/41 (`nonprofit-deploy`, 506221081911)
+6. IF Requirement 3.6 selects the behaviour-only fallback for a shape THEN no storage migration SHALL run for that shape, and the acceptance criteria above SHALL cover only the shapes actually relocated
 
 ### Requirement 7: Remove dead and not-asked-for code
 
@@ -200,8 +205,10 @@ them as its own acceptance criteria.
 1. 03b SHALL NOT touch `config#views` (neither the leftover rows nor the cleanup routine). The user-preferred-columns feature it belonged to is a VALID requirement that was removed during an earlier spec over an unresolved error; it is DEFERRED (Out of Scope), not dead-to-delete — removing the residue now could make reviving the feature harder
 2. THE separate membership-type management apparatus SHALL be REMOVED once the collapse (Req 3.4) lands — the TenantAdmin → Members → Membership Types screen (`MembershipTypesManager.tsx` / `MembershipTypeModal.tsx`), the `list/create/update/deactivate MembershipType` client wrappers, the `GET/POST/PUT/DELETE /membership-types` routes, the catalog domain/repository CRUD, and their tests — with its capability absorbed by the ordinary field-options editor (Req 3.4); the READ path the member form/validation needs is re-pointed at the field options, not deleted
 3. THE removed-binding plumbing from Requirement 1 (the no-relax / forced-required / forced-visible machinery and its tests) SHALL be deleted, not merely disabled
-4. THE design-phase trace SHALL enumerate further dead/stale paths in the Members frontend and backend (unused builders, readers, options no longer reachable after Requirements 1 and 3) for removal in THIS spec
-5. THE change SHALL result in a net DECREASE in lines of code across the touched Members modules
+4. THE forbidden legacy `choices` key SHALL be removed from config fields (the canonical verb is `options`; `choices` is forbidden) — migrated out of stored data (Req 6.1a) and removed from code paths that still read/write it
+5. THE dead `UserTenantScopeService.reconcile_scope_change` / `ScopeChangeReconciliation` / `ScopeReconciliationBlocked` / `assert_appliable` SHALL be DELETED with their tests — confirmed to have NO production caller (it was never the 03b gate; the axis-vs-value rule in Req 4 is)
+6. THE design-phase trace SHALL enumerate further dead/stale paths in the Members frontend and backend (unused builders, readers, options no longer reachable after Requirements 1 and 3) for removal in THIS spec
+7. THE change SHALL result in a net DECREASE in lines of code across the touched Members modules, RECORDED as a measurable lines-of-code and file-count delta in the definition of done (Req 8)
 
 ### Requirement 8: Governance definition-of-done
 
@@ -211,7 +218,8 @@ them as its own acceptance criteria.
 
 1. ANY steering file that documents a removed rule (candidate: `38-sam-module-field-config.md`) SHALL be updated within THIS spec
 2. `sam/members/docs/data-model.md` SHALL be updated to reflect the final enum/retired-value model decided in design (Requirement 3) and the removed `config#views` residue
-3. THE CI/CD quality gates and the promotion/migration-parity gate (below) SHALL be honored before `test → main`
+3. THE net code-decrease (Req 7.7) SHALL be RECORDED as a concrete lines-of-code and file-count delta in the spec's definition of done (measurable evidence of the simplification)
+4. THE CI/CD quality gates and the promotion/migration-parity gate (below) SHALL be honored before `test → main`
 
 ## Out of Scope
 
