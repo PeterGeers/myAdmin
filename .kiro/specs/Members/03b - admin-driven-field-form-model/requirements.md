@@ -110,7 +110,7 @@ them as its own acceptance criteria.
 3. THE unification SHALL relocate `membership_type` (catalog → field enum options) onto the field model; `region` is ALREADY inline on the field (live data) and SHALL NOT be relocated — only kept consistent via Req 4; `status` and the `application_*` attributes already fit the generic model and SHALL NOT require relocation
 4. AFTER the collapse, membership_type options SHALL be authored through the ORDINARY field-options editor like any other enum, preserving the catalog's capabilities as option attributes: per-option bilingual `label`, `order`, and the `allowed`/retired flag, with `value` (the former `type_code`) immutable as the stored reference key; there SHALL be no separate membership-type management screen
 5. THE `application_*` attributes (`application_visible` / `application_required` / `application_choices`) SHALL be documented in `data-model.md` as part of the field model (closing the documentation gap)
-6. THE design phase SHALL produce a MIGRATION-SAFETY PROOF — gating implementation and requiring owner sign-off BEFORE any code — that, against the REAL stored h-dcn data, maps every currently-stored `membership_type` value (incl. the retired `erelid`) onto the unified model and shows that NO stored member's `membership.membership_type` reference is orphaned; and confirms region remains consistent between `config#fields` and `config#scope` with no grant stranded
+6. THE design phase SHALL produce a MIGRATION-SAFETY PROOF — gating implementation and requiring owner sign-off BEFORE any code — that, against the REAL stored h-dcn data, maps every currently-stored `membership_type` value (incl. the retired `erelid`) onto the unified model and shows that NO stored member's `membership.membership_type` reference is orphaned; and confirms region remains consistent between `config#fields` and `config#scope` (region needs no migration)
 7. IF the proof shows relocating a shape is unsafe THEN unifying only the BEHAVIOUR (Grandfather + uniform features) for that shape, without moving its storage, SHALL be the accepted fallback — decided in design and reflected back into this requirement
 
 ### Requirement 4: Scope dimension is DERIVED from the field (the one binding kept)
@@ -134,11 +134,15 @@ them as its own acceptance criteria.
 > lives on the Flask plane — it is never reached by a SAM→Flask hop. Flask's own projection of
 > roles/grants back into SAM (`scopegrant#`) is a separate, unchanged pipeline.
 >
-> **A breaking change is a combined Tenant_Admin + SysAdmin effort (prior decision, recorded in
-> `scope-dimension-authoring-trigger.md`).** The reconciliation that classifies routine vs.
-> grant-orphaning changes EXISTS (`UserTenantScopeService.reconcile_scope_change`) and is unit-
-> tested, but is currently UNWIRED — no save path calls it. 03b must WIRE IT INTO the scope-field
-> save; it is NOT a free "reuse".
+> **What triggers the SysAdmin/project message is a SCOPE-AXIS change, NOT a value change (owner,
+> 2026-10-29).** Adding or removing a VALUE within the same scope field (e.g. a region) is routine
+> and AUTO-APPLIED: the platform simply makes one more / one fewer value selectable, and a
+> `user_tenant` grant extends or shrinks accordingly. How the tenant admin handles the data of a
+> removed value is THEIR responsibility — the platform offers NO "proven" reconciliation and does
+> NOT block the change. The SysAdmin/project message fires ONLY when the scope AXIS changes — a
+> different field becomes the scope field, or a combination of fields — because that is a structural
+> change to the access model (the same decision point as onboarding a new tenant). The value-level
+> grant-orphaning block is therefore NOT 03b's gate.
 
 #### Acceptance Criteria
 
@@ -146,9 +150,9 @@ them as its own acceptance criteria.
 2. WHEN the admin saves a scope field THEN the FRONTEND SHALL make two separate calls (no cross-plane call between planes): first the SAM call deriving+writing `config#scope` (authoritative), then the Flask call keeping the `members.scope_dimensions` mirror consistent (the grant validators read it); the Flask→SAM projection of `user_tenant_roles` / `user_tenant_scope` grants (`scopegrant#` rows) SHALL be left UNCHANGED and keep working
 3. WHEN the authoritative `config#scope` write fails THEN nothing SHALL be mirrored to Flask AND the admin SHALL see a caller-safe error
 4. WHEN only the Flask mirror write fails THEN SAM SHALL remain authoritative AND the admin SHALL be offered a retry of just the mirror
-5. WHEN a save is ROUTINE (adds a dimension or value, stranding no existing grant) THEN it SHALL apply and remind the admin to review user scope grants
-6. WHEN a save would rename or remove a value/dimension that strands an existing `user_tenant_scope` grant THEN it SHALL be BLOCKED with a "contact your System Administrator to realign grants" message (a breaking change is a combined Tenant_Admin + SysAdmin effort); the save SHALL NOT silently strand a grant. This SHALL be implemented by WIRING IN the existing `reconcile_scope_change` / `assert_appliable` reconciliation (currently built but unwired) INSIDE the Flask scope-dimension call (where the grant data lives — no cross-plane call), not by reimplementing it
-7. Access-control RESOLUTION (which members a scoped caller may see) SHALL be UNCHANGED by this spec; only the authoring/derivation trigger and the wiring-in of reconciliation are added, with regression coverage
+5. WHEN the admin ADDS or REMOVES a value within the same scope field (e.g. a region) THEN the change SHALL be AUTO-APPLIED to `config#scope` + the Flask mirror (one more / one fewer selectable value; a `user_tenant` grant extends or shrinks); the platform SHALL NOT block it and SHALL NOT attempt an automatic data reconciliation — managing the data of a removed value is the tenant admin's responsibility
+6. WHEN the change alters the scope AXIS — a different field becomes the scope field, or a combination of fields — THEN the save SHALL NOT auto-apply; it SHALL surface a "create a project with your System Administrator" message, because this is a structural access-model change (the tenant-onboarding decision point)
+7. Access-control RESOLUTION (which members a scoped caller may see) SHALL be UNCHANGED by this spec; only the field-editor authoring + the two-item derive-on-save (value changes) and the axis-change SysAdmin message are added, with regression coverage
 
 ### Requirement 5: Uniform per-language enum labels in display and filters
 
@@ -181,9 +185,9 @@ them as its own acceptance criteria.
 1. THE migration SHALL state, per change, the exact table + row it rewrites:
    a. `config#fields` (in `governance_projection` / `test_governance_projection`) — fold the `membership_type` catalog into the field's enum `options` with the `allowed`/retired flag (`erelid` → `allowed:false`), and carry any residual 03a `choices`→`options` cleanup not yet applied to that environment. region is NOT rewritten (already inline+synced per live data);
    b. `sam-members` / `test_sam-members` — retire the `membershiptype#<code>` catalog rows once folded into the field, leaving existing member records' `membership.membership_type` references valid (grandfathered, not orphaned);
-   c. `config#scope` is NOT migrated for region (already consistent); it is kept consistent by the derive-on-save trigger (Requirement 4). A future value RENAME/REMOVE that would strand a `scopegrant#` / `user_tenant_scope` grant is BLOCKED pending SysAdmin realignment (Req 4.6) — a save-time rule, not a migration step
+   c. `config#scope` is NOT migrated for region (already consistent); it is kept consistent by the derive-on-save trigger (Requirement 4). Scope VALUE add/remove is a save-time auto-apply and a scope-AXIS change is the save-time SysAdmin-project gate (Req 4) — neither is a migration step
 2. THE migration SHALL be idempotent and re-runnable, and SHALL back up every affected row (per table) before writing
-3. THE migration SHALL be preceded and followed by an integrity scan asserting zero un-migrated rows, zero stranded grants, and zero orphaned member references, consistent with the Requirement 3.5 proof
+3. THE migration SHALL be preceded and followed by an integrity scan asserting zero un-migrated rows and zero orphaned member references (the membership_type collapse), consistent with the Requirement 3 proof
 4. THE migration SHALL be run against TEST (`test_*` tables) and PRODUCTION (unprefixed tables) IDENTICALLY, each integrity-scan-gated, before `test → main` is considered safe (promotion/migration-parity gate, analysis D5); account targeting per steering 23/41 (`nonprofit-deploy`, 506221081911)
 5. IF Requirement 3.6 selects the behaviour-only fallback for a shape THEN no storage migration SHALL run for that shape, and the acceptance criteria above SHALL cover only the shapes actually relocated
 

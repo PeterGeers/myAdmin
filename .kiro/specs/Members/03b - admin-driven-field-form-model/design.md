@@ -8,7 +8,7 @@ with a per-option `allowed` flag — "reference" is a feature on a field, not a 
 fixing the config toggles that silently drop an OFF write, making enum labels resolve uniformly in
 filters, and deleting the dead plumbing left behind — for a NET DECREASE in code. It concerns the
 SAM Members module (`sam/members/`) and its React frontend; the only cross-plane touch is the Flask
-`members.scope_dimensions` mirror + the grant reconciliation (Req 4).
+`members.scope_dimensions` mirror (Req 4).
 
 All design claims below are grounded in the real code and LIVE h-dcn data read during this phase
 (not assumptions). No code is written until this design is approved.
@@ -28,9 +28,11 @@ All design claims below are grounded in the real code and LIVE h-dcn data read d
   in the `membershiptype#<code>` catalog in `sam-members` (7 entries; `erelid` is `active:false`).
 - **`application_*` attributes** are written onto fields by the code but absent from
   `data-model.md`/`config-guide.md` — a documentation gap, not a structural divergence.
-- **The grant reconciliation is built but UNWIRED.** `UserTenantScopeService.reconcile_scope_change`
-  / `assert_appliable` exist and are unit-tested but have NO production caller (full-repo grep);
-  it lives on the Flask plane while `config#scope` is now SAM-authored.
+- **Scope changes split by AXIS vs VALUE (owner rule).** Adding/removing a VALUE in the scope
+  field (e.g. a region) auto-applies — one more/fewer selectable value, grants extend/shrink, the
+  tenant admin owns the data consequence. Only a SCOPE-AXIS change (a different field, or a field
+  combination, becomes the scope) triggers a "create a project with your SysAdmin" message. The
+  value-level `reconcile_scope_change` orphan-block is NOT 03b's gate.
 
 ## Architecture
 
@@ -44,16 +46,15 @@ Planes and ownership (steering 35/39, confirmed this phase):
   removed) membership-type catalog in `sam-members`.
 - **Flask plane** owns `user_tenant_roles` / `user_tenant_scope` (the grants), projected into SAM as
   `scopegrant#` rows, and holds the `members.scope_dimensions` mirror the grant validators read.
-- **The one cross-plane interaction** 03b adds is the scope-field save (Req 4): it updates SAM
-  `config#scope` and keeps the Flask mirror consistent, and wires in the grant reconciliation. No
-  runtime SAM→MySQL call: the frontend makes two separate calls, and the reconciliation runs inside
-  the Flask call where the grant data lives (see Req 4 design below).
+- **The scope-field save** (Req 4): the frontend makes two separate calls (SAM `config#scope`,
+  then the Flask mirror) — no runtime cross-plane call. A VALUE add/remove auto-applies on both; a
+  scope-AXIS change instead surfaces the SysAdmin-project message and does not auto-apply.
 
 Data-flow deltas:
 - Selectable-field read: options come from the FIELD's own resolved `options` (one assembly pass),
   no catalog injection.
 - Member write: the membership_type reference check reads the field's options, not the catalog.
-- Scope-field save: derive `config#scope` from the field → reconcile grants → write SAM then mirror.
+- Scope-field save (value change): derive `config#scope` from the field → write SAM → write Flask mirror; grants extend/shrink. Scope-AXIS change → SysAdmin-project message, no auto-apply.
 
 ## Migration-safety proof (Req 3.6 — the implementation gate)
 
@@ -168,7 +169,7 @@ So an OFF emits an explicit `false` → `set_field_application` issues `SET ... 
 every field in every group (Req 2.3). Paired tests: `fieldConfigChangeOps.test.ts`,
 `ApplicationFieldAttributes.test.tsx`, `ApplicationFieldModal.test.tsx`.
 
-## Requirement 4 — scope dimension DERIVED from the field; reconciliation wired in
+## Requirement 4 — scope dimension DERIVED from the field; axis-change gates to SysAdmin
 
 ### Two-item save
 Saving a scope-flagged field (`scope:{enabled:true}`) derives the `config#scope` dimension from the
@@ -177,26 +178,29 @@ model, spec 02 — SAM first), (2) the Flask `members.scope_dimensions` mirror t
 read. The Flask→SAM projection of `user_tenant_roles`/`user_tenant_scope` (`scopegrant#` rows) is
 UNCHANGED and keeps working. A failed mirror surfaces a retry; SAM stays source of truth (Req 4.3/4.4).
 
-### Reconciliation (the combined Tenant_Admin + SysAdmin rule)
-Before a scope-field save that changes the value set is applied, the proposed dimension set is
-classified by `reconcile_scope_change` (routine vs. orphaning). Routine → apply + remind. Orphaning
-(a rename/remove stranding a grant) → BLOCK with "contact your System Administrator to realign
-grants" (`assert_appliable` raises `ScopeReconciliationBlocked`). This logic EXISTS but is unwired;
-03b wires it into the save path.
+### Value change vs axis change (the gate)
+- **Value add/remove within the SAME scope field** (e.g. a region) → AUTO-APPLY on both planes: one
+  more/fewer selectable value; a `user_tenant` grant extends or shrinks. The platform does NOT block
+  and does NOT auto-reconcile the data of a removed value — that is the tenant admin's responsibility
+  (there is no "proven" safe reconciliation to offer).
+- **Scope-AXIS change** — a different field, or a combination of fields, becomes the scope → do NOT
+  auto-apply; surface a "create a project with your System Administrator" message. This is a
+  structural access-model change (the tenant-onboarding decision point).
+
+Note: the existing `UserTenantScopeService.reconcile_scope_change` (value-level orphan classifier)
+is NOT the 03b gate and is not wired in by this spec; the gate is the axis-vs-value distinction
+above. `reconcile_scope_change` stays as-is (built, unwired) for a possible later use.
 
 **No cross-plane call — the FRONTEND is the only coordinator (Req 4).** SAM and Flask never call
 each other at runtime (steering 35/39). On a scope-field save the frontend makes TWO separate calls:
 1. **SAM call** `PUT /members/config/scope` — derive the dimension from the field's options and
    write `config#scope` (authoritative) first.
-2. **Flask call** — update the `members.scope_dimensions` mirror the grant validators read, and
-   run `reconcile_scope_change` / `assert_appliable` HERE (the grant data `user_tenant_scope` lives
-   on the Flask plane, reached without any cross-plane hop). Routine → apply + remind; orphaning →
-   block with the SysAdmin-realign message, refused atomically.
+2. **Flask call** — update the `members.scope_dimensions` mirror the grant validators read (the
+   grant data `user_tenant_scope` lives on the Flask plane, reached without any cross-plane hop).
 
 Flask's own projection of `user_tenant_roles` / `user_tenant_scope` back into SAM as `scopegrant#`
-rows is a SEPARATE, unchanged pipeline. 03b wires `reconcile_scope_change` into the Flask
-scope-dimension call (it is built but currently has no caller); it does not reimplement it and adds
-no SAM→Flask or Flask→SAM runtime call.
+rows is a SEPARATE, unchanged pipeline. No SAM→Flask or Flask→SAM runtime call is added. The
+axis-vs-value gate (above) decides auto-apply vs the SysAdmin-project message.
 
 ## Requirement 5 — uniform enum labels in filters
 
@@ -220,8 +224,8 @@ A SAM-plane (DynamoDB) migration script under `sam/members/migration/`:
 Properties: idempotent + re-runnable; back up every affected row first (reuse the
 `.agent-output` backup pattern + a committed fixture under `backend/tests/fixtures/`);
 integrity scan (the proof above) before AND after asserting zero orphans; run TEST then PROD
-identically, scan-gated (account `nonprofit-deploy` 506221081911, steering 23/41). A value
-rename/remove that would strand a grant is a SAVE-time block (Req 4), never a migration step.
+identically, scan-gated (account `nonprofit-deploy` 506221081911, steering 23/41). Scope value
+changes are a save-time concern (Req 4), never a migration step.
 
 ## Requirement 7 — remove dead/not-asked-for code
 
@@ -260,7 +264,7 @@ For `required`/`application_visible`/`application_required`, OFF→save→reload
 
 **Validates: Requirements 2.1, 2.2, 2.3**
 ### Property 5: Scope consistency
-After a scope-field save, `config#scope` values equal the field's option values, and no `user_tenant_scope` grant is stranded (routine) or the save is blocked (orphaning).
+After a scope-field VALUE change, `config#scope` values equal the field's option values and the change auto-applies (grants extend/shrink); a scope-AXIS change does NOT auto-apply and surfaces the SysAdmin-project message.
 
 **Validates: Requirements 4.2, 4.5, 4.6**
 ### Property 6: Label resolution
@@ -276,8 +280,8 @@ Every enum display AND filter resolves `label[locale]→en→nl→value`.
 - The membership_type reference check raises a localized `MemberValidationError` (422) with
   `code` (`errors.membershipType.unknownReference` / `.retired`-equivalent) — re-pointed at the
   field options but the error contract is unchanged.
-- An orphaning scope change raises `ScopeReconciliationBlocked` → a caller-safe "contact your
-  System Administrator to realign grants" message (Req 4.6); the save is refused atomically.
+- A scope-AXIS change is not auto-applied; the save returns a caller-safe "create a project with
+  your System Administrator" message (Req 4.6). A value add/remove auto-applies (no error).
 - A failed Flask mirror write (SAM `config#scope` already written) surfaces a retry; SAM stays
   authoritative (Req 4.4).
 
@@ -288,7 +292,7 @@ Every enum display AND filter resolves `label[locale]→en→nl→value`.
 - **Migration-safety scan** as an automated test over the real member tally (the proof above).
 - **Behavioral tests** for each removal (admin CAN set application_required off on a platform field;
   a toggle OFF persists; a retired option is hidden from the picker but an existing member keeps it).
-- **Scope reconciliation**: routine applies; an orphaning change blocks with the SysAdmin message.
+- **Scope gate**: a value add/remove auto-applies on both planes; a scope-AXIS change surfaces the SysAdmin-project message and does not auto-apply.
 - **Filter parity**: label-based filtering matches the resolved label, not the stored value.
 - Change-with-tests contract (steering 30/34/39): every behavioral edit updates its paired test in
   the same change; no weakening assertions to go green.
