@@ -54,13 +54,10 @@ import {
 } from '../../../services/membersConfigService';
 import { deriveFieldConfigChangeOps } from './fieldConfigChangeOps';
 import { getSlug } from '../../../services/landingPageApi';
-import {
-  listMembershipTypes,
-  publishApplicationForm,
-} from '../../../services/members/membersConfigApi';
+import { publishApplicationForm } from '../../../services/members/membersConfigApi';
 import { computeReadiness } from './applicationReadiness';
 import type { MembersConfigValue } from '../../../types/membersConfig';
-import type { FieldConfig, MembershipType } from '../../../types/members';
+import type { FieldConfig } from '../../../types/members';
 import { ApplicationFieldModalList } from './ApplicationFieldModalList';
 import { ApplicationFieldModal } from './ApplicationFieldModal';
 import { ApplicationFormShellPanel } from './ApplicationFormShellPanel';
@@ -98,11 +95,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   // the mail_config body, and the readiness signal. Best-effort (null when the fetch fails).
   const [fieldConfig, setFieldConfig] = useState<FieldConfig | null>(null);
   // The tenant's LIVE membership-type catalog (task 3.3 / R4). Needed so the membership-type field's
-  // subset picker authors over the real catalog (not the field's static choices) and the subset is
-  // validated against it. Best-effort: a failed/empty load leaves it null and the generic R3
-  // controls apply — the membership-type panel then shows "no types in the catalog yet".
-  const [membershipTypeCatalog, setMembershipTypeCatalog] = useState<MembershipType[] | null>(null);
-
   // The ONE working field_overlay object the whole builder authors (design §3.1). Every per-field
   // attribute toggle transforms THIS object; the single Save commits it once.
   const [overlay, setOverlay] = useState<MembersConfigValue>({});
@@ -143,14 +135,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       const overlayValue = (cfg?.field_overlay as MembersConfigValue) ?? {};
       setOverlay(overlayValue);
       setBaseline(JSON.stringify(overlayValue));
-      // The LIVE membership-type catalog (task 3.3 / R4) — best-effort, like the field config. A
-      // failure leaves it null; the membership-type subset picker then shows "no types yet".
-      try {
-        const catalog = await listMembershipTypes<MembershipType[]>();
-        setMembershipTypeCatalog(Array.isArray(catalog) ? catalog : []);
-      } catch {
-        // ignore — best-effort; a missing catalog just shows "no membership types yet".
-      }
       // The public slug is read-mostly here (E4): the builder DISPLAYS the derived URL and points
       // at the Landing Page editor to change it. A slug read failure degrades to "no address yet".
       let slug: string | null = null;
@@ -469,7 +453,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
           <ApplicationFormPreview
             fieldConfig={fieldConfig}
             overlay={overlay}
-            membershipTypeCatalog={membershipTypeCatalog}
             lang={lang}
           />
         </GridItem>
@@ -514,7 +497,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
         overlay={overlay}
         onChange={setOverlay}
         formInScope
-        membershipTypeCatalog={membershipTypeCatalog}
         lang={lang}
       />
     </Box>
