@@ -46,7 +46,8 @@ Planes and ownership (steering 35/39, confirmed this phase):
   `scopegrant#` rows, and holds the `members.scope_dimensions` mirror the grant validators read.
 - **The one cross-plane interaction** 03b adds is the scope-field save (Req 4): it updates SAM
   `config#scope` and keeps the Flask mirror consistent, and wires in the grant reconciliation. No
-  runtime SAM→MySQL call (the reconciliation runs on the Flask plane — decision D-a below).
+  runtime SAM→MySQL call: the frontend makes two separate calls, and the reconciliation runs inside
+  the Flask call where the grant data lives (see Req 4 design below).
 
 Data-flow deltas:
 - Selectable-field read: options come from the FIELD's own resolved `options` (one assembly pass),
@@ -183,16 +184,19 @@ classified by `reconcile_scope_change` (routine vs. orphaning). Routine → appl
 grants" (`assert_appliable` raises `ScopeReconciliationBlocked`). This logic EXISTS but is unwired;
 03b wires it into the save path.
 
-**Cross-plane design decision (open, to resolve here):** the reconciliation reads `user_tenant_scope`
-(MySQL) and lives on the Flask plane; `config#scope` is authored on the SAM plane. Steering 35/39
-forbid a runtime SAM→MySQL call. Options for where the check runs:
-- **(D-a) Flask authoring endpoint owns it** — the scope-field save is mediated by the existing Flask
-  config path that already writes the mirror; it calls `reconcile_scope_change` before writing SAM
-  `config#scope` via the SAM write API. Keeps the DB read on the Flask plane (no boundary breach).
-- **(D-b) SAM save returns "proposed", Flask reconciles** — SAM computes the derived dimension,
-  Flask (owning the grant data) reconciles and either applies or blocks.
-RECOMMENDED: **D-a** — the frontend-mirror model already has the frontend/Flask writing both planes;
-the reconciliation belongs where the grant data is. Confirm in review before implementation.
+**No cross-plane call — the FRONTEND is the only coordinator (Req 4).** SAM and Flask never call
+each other at runtime (steering 35/39). On a scope-field save the frontend makes TWO separate calls:
+1. **SAM call** `PUT /members/config/scope` — derive the dimension from the field's options and
+   write `config#scope` (authoritative) first.
+2. **Flask call** — update the `members.scope_dimensions` mirror the grant validators read, and
+   run `reconcile_scope_change` / `assert_appliable` HERE (the grant data `user_tenant_scope` lives
+   on the Flask plane, reached without any cross-plane hop). Routine → apply + remind; orphaning →
+   block with the SysAdmin-realign message, refused atomically.
+
+Flask's own projection of `user_tenant_roles` / `user_tenant_scope` back into SAM as `scopegrant#`
+rows is a SEPARATE, unchanged pipeline. 03b wires `reconcile_scope_change` into the Flask
+scope-dimension call (it is built but currently has no caller); it does not reimplement it and adds
+no SAM→Flask or Flask→SAM runtime call.
 
 ## Requirement 5 — uniform enum labels in filters
 
