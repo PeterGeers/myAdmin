@@ -120,23 +120,27 @@ are no other platform-required fields and no hardcoded per-field special-cases. 
       hard block — a field with no options yet is a legitimate in-progress/admin state (create the
       field now, add options later), consistent with "admin decides, human backstops". (If any soft
       guidance is wanted it is a non-blocking hint, never a save-blocking guard.)
-    - **Design-phase caveat (MUST trace before committing design):** the reference/catalog
-      machinery for membership_type may be consumed elsewhere (the membership-type catalog CRUD
-      screen, the application form, member-record validation, access/scope). Collapsing to
-      enum-with-`allowed` is the right DIRECTION; the blast radius needs a read-only trace in the
-      design phase (what reads the catalog / `active_only`) so nothing that depends on it silently
-      breaks. Direction decided; mechanics proven in design, not assumed.
+    - **Design-phase caveat — RESOLVED in design (2026-10-29, live h-dcn data):** the blast-radius
+      trace was done. FINDINGS: `region` is ALREADY unified (inline options + `config#scope` in
+      sync) so it needs NO migration; `membership_type` is the SOLE relocation (catalog → field
+      options), proven orphan-free against the full 1215-member population (`erelid` grandfathered
+      via `allowed:false`). The consumers to re-point are `_validate_membership_type_reference`,
+      the default stamp, and the option-assembly seam; the separate catalog CRUD screen is removed.
+      Final mechanics: requirements.md Req 3/6 + design.md BU-1..BU-3, BU-7, BU-8.
 
-**D2 — scope-authoring-trigger: RESOLVED → option (i), FULL trigger folds into 03b.**
-03b owns the whole flow: the field-editor save DERIVES the scope dimension from the field's enum
-options and writes BOTH planes — SAM `config#scope` (authoritative, `PUT /members/config/scope`)
-and the Flask `members.scope_dimensions` mirror (frontend-mirror model, steering-verified). This
-includes grant-orphaning handling (a value RENAME/REMOVE that would strand a `user_tenant_scope`
-grant is surfaced/blocked, not silently applied — reuse the existing `is_orphaning` reconciliation).
-This is consistent with D1d: a field owns its options; the catalog/dimension it feeds is DERIVED.
-Access-control blast radius is in-scope and must have explicit regression coverage; access-control
-RESOLUTION (who-sees-what) itself is unchanged. This ABSORBS `scope-dimension-authoring-trigger.md`
-(that backlog item is retired/relinked once 03b lands).
+**D2 — scope-authoring-trigger: RESOLVED → FULL trigger folds into 03b. (UPDATED 2026-10-29 to the
+axis-vs-value rule — supersedes the earlier value-level-orphan wording.)**
+03b owns the flow: the field-editor save DERIVES the scope dimension from the field's options and
+the FRONTEND writes BOTH planes (no runtime cross-plane call) — SAM `config#scope` (authoritative,
+`PUT /members/config/scope`) then the Flask `members.scope_dimensions` mirror. The gate is
+AXIS-vs-VALUE, not value-level orphaning: adding/removing a VALUE within the same scope field
+AUTO-APPLIES (one more/fewer selectable value; a grant extends/shrinks; the tenant admin owns the
+data consequence — no "proven" reconciliation offered). A SCOPE-AXIS change (a different field, or a
+combination of fields, becomes the scope) does NOT auto-apply — it surfaces a "create a project with
+your SysAdmin" message (the tenant-onboarding decision point). The value-level
+`reconcile_scope_change` / `is_orphaning` reconciliation is NOT the gate and is DELETED as dead code
+(Req 7.5), not reused. Access-control RESOLUTION (who-sees-what) is unchanged. This ABSORBS
+`scope-dimension-authoring-trigger.md`. Final wording: requirements.md Req 4 + design.md BU-6.
 
 **D3 — json-editor alignment: RESOLVED → option (ii), Members-specific (no alignment now).**
 Keep the field model in `sam/members/domain/` per rule-of-three (steering 38 rule 7); do NOT shape
