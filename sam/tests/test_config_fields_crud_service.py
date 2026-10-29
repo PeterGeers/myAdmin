@@ -2372,22 +2372,25 @@ def test_set_field_accepts_unique_option_values_duplicate_guard_passes(service, 
 
 
 # ===========================================================================
-# 03a TASK 7 (C2) — WRITE-SIDE SOURCE-INTEGRITY GUARDS W1 / W2 / W3
-# (design "Write-side vocabulary invariants" W1/W2/W3; Property 5)
+# 03a TASK 7 (C2) — WRITE-SIDE SOURCE-INTEGRITY GUARDS W1 / W3  (W2 REMOVED — Option A)
+# (design "Write-side vocabulary invariants" W1/W3; Property 5)
 # ===========================================================================
 #
 # Because C1 now seeds the editor from `options` IDENTICALLY for every kind, the write edge must
-# stop a stale catalog/scope snapshot being re-frozen inline, and stop an inline-source enum being
-# made selectable with no vocabulary. Three NEW caller-safe rejections (ConfigFieldsCrudError →
-# 400), each BEFORE any repository call (no `str(e)` leak — the reason is server-side-logged):
+# stop a stale catalog snapshot being re-frozen inline, and stop an inline-source enum being made
+# selectable with no vocabulary. Two caller-safe rejections (ConfigFieldsCrudError → 400), each
+# BEFORE any repository call (no `str(e)` leak — the reason is server-side-logged):
 #
 #   W1 — a REFERENCE field (the `membership_type` reference key, or a field whose declared `type`
 #        is `reference`) may NOT carry an inline `options` payload. Its options are a snapshot of
 #        the LIVE catalog populated at the read seam (C4); persisting them inline would re-freeze a
 #        stale copy — the two-copies disease on the WRITE side.
-#   W2 — a SCOPE-BACKED field (an enabled `scope` sub-object, sourced from `scope_vocab`) may NOT
-#        carry inline `options` (Bug 2's shape) — rejected at the write edge so the stored row
-#        stays honest (no inline vocabulary competing with the dimension).
+#   W2 — REMOVED (Option A). A scope-backed field is a NORMAL enum for authoring: the write surface
+#        ACCEPTS its inline `options` (the editor round-trips the config#scope dimension's options
+#        back on save — the only authoring path). Its dropdown may ALSO be sourced from the scope
+#        dimension at the C4 read seam (the S5j read path, UNCHANGED). An earlier revision wrongly
+#        added W2, rejecting that only authoring path; it is removed here. A scope-backed field
+#        falls through to W3 like any enum.
 #   W3 — an INLINE-SOURCE enum may NOT be saved selectable with an EXPLICIT empty `options` list
 #        (the write-edge invariant). Scoped to an EXPLICIT `options: []` — staging a field WITHOUT
 #        an `options` key stays legitimate (an absent key never trips W3), which is what makes the
@@ -2463,35 +2466,51 @@ def test_w1_reference_field_without_options_is_accepted(repo):
 
 
 # ---------------------------------------------------------------------------
-# W2 — scope-backed field rejects an inline `options` payload (→ caller-safe 400)
+# W2 REMOVED (03a Option A) — scope-backed field ACCEPTS an inline `options` payload
 # ---------------------------------------------------------------------------
+#
+# A scope-backed field is a NORMAL enum for authoring: the editor round-trips the config#scope
+# dimension's options back on save, so `set_field` MUST ACCEPT its inline `options`. (Its dropdown
+# may ALSO be sourced from the config#scope dimension at the C4 read seam — the S5j read path,
+# UNCHANGED.) The former W2 rejection wrongly blocked the only authoring path and is removed; these
+# tests now assert the save is accepted and emits the Change-Op.
 
 
-def test_w2_scope_backed_field_by_payload_scope_rejects_inline_options(repo):
-    """W2: a `set_field` carrying BOTH an enabled `scope` sub-object AND inline `options` is
-    rejected — a scope-backed field sources its vocabulary from `scope_vocab`, never inline."""
+def test_w2_scope_backed_field_with_inline_options_is_accepted(repo):
+    """Option A: a `set_field` carrying BOTH an enabled `scope` sub-object AND inline `options` is
+    ACCEPTED (W2 removed) — the editor round-trips the scope dimension's options back on save."""
     svc = ConfigFieldsCrudService(repo)
     scope_value = copy.deepcopy(_SCOPE_SUBOBJECT)  # enabled=True
-    with pytest.raises(ConfigFieldsCrudError) as exc:
-        svc.set_field(
-            _TENANT,
-            "region",
-            {"scope": scope_value, "options": [{"value": "North"}]},
-        )
-    assert "scope" in str(exc.value).lower()
-    assert not repo.calls, "W2 must reject BEFORE any repository call"
+    svc.set_field(
+        _TENANT,
+        "region",
+        {"scope": scope_value, "options": [{"value": "North"}]},
+    )
+    assert repo.calls, "a scope-backed field saved with inline `options` must be written (no W2)"
+    assert repo.last["ops"] == [
+        {
+            "action": SET,
+            "path": ["fields", "region"],
+            "value": {"scope": scope_value, "options": [{"value": "North"}]},
+        }
+    ]
 
 
-def test_w2_scope_backed_field_kind_read_from_stored_spec_when_payload_silent(repo):
-    """W2: on an UPDATE whose payload carries ONLY `options` (no `scope`), the scope-backed kind is
-    read from the STORED spec in the snapshot (an enabled `scope`) — still rejected."""
+def test_w2_scope_backed_field_with_inline_options_accepted_when_payload_silent_on_scope(repo):
+    """Option A: on an UPDATE whose payload carries ONLY `options` (no `scope`), a stored
+    scope-backed field ACCEPTS the inline `options` — W2 removed, no rejection by stored kind."""
     svc = _service_with_snapshot(
         repo, fields={"region": {"scope": copy.deepcopy(_SCOPE_SUBOBJECT)}}
     )
-    with pytest.raises(ConfigFieldsCrudError) as exc:
-        svc.set_field(_TENANT, "region", {"options": [{"value": "North"}]})
-    assert "scope" in str(exc.value).lower()
-    assert not repo.calls
+    svc.set_field(_TENANT, "region", {"options": [{"value": "North"}]})
+    assert repo.calls, "a scope-backed field updated with inline `options` must be written (no W2)"
+    assert repo.last["ops"] == [
+        {
+            "action": SET,
+            "path": ["fields", "region", "options"],
+            "value": [{"value": "North"}],
+        }
+    ]
 
 
 def test_w2_scope_backed_field_without_options_is_accepted(repo):
