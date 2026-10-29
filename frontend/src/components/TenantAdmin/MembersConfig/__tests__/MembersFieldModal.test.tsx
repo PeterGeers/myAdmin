@@ -403,6 +403,79 @@ describe('MembersFieldModal — origin-aware write-back (remediation task 2.2, R
     expect(onClose).toHaveBeenCalled();
   });
 
+  /**
+   * A base field resolved as `required: true` (a stored tenant override, mirroring live TEST data
+   * for `personal.email` / `personal.phone`). The form seeds Required=ON; the modal config below
+   * carries `required: true` so the seed matches.
+   */
+  function requiredBaseConfig(): FieldConfig {
+    const cfg = provenanceConfig();
+    const lastName = cfg.fields.find((f) => f.key === 'last_name');
+    if (lastName) (lastName as Record<string, unknown>).required = true;
+    return cfg;
+  }
+
+  it('unticking Required on a base override currently required=true emits an EXPLICIT `required: false` (clears the override — not undefined/absent)', () => {
+    const onChange = vi.fn();
+    renderModal({
+      mode: 'edit',
+      fieldKey: 'last_name',
+      fieldConfig: requiredBaseConfig(),
+      overlay: writeOverlay(),
+      onChange,
+    });
+    // Form seeds Required=ON from the resolved field; untick it.
+    const requiredSwitch = screen.getByLabelText('Required') as HTMLInputElement;
+    expect(requiredSwitch.checked).toBe(true);
+    fireEvent.click(requiredSwitch);
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as Record<string, any>;
+    const override = next.fixed_overrides['personal.last_name'];
+    // The emitted override must carry an EXPLICIT `false` so the downstream Change-Op diff emits a
+    // `required` op that overwrites the stored `required: true`. A `required: undefined` (the old
+    // bug) would be dropped by `definitionAttrs` and the override would silently stay required.
+    expect(override).toHaveProperty('required');
+    expect(override.required).toBe(false);
+  });
+
+  it('ticking Required on a base override currently not required emits `required: true`', () => {
+    const onChange = vi.fn();
+    renderModal({
+      mode: 'edit',
+      fieldKey: 'last_name',
+      fieldConfig: provenanceConfig(), // last_name resolves not-required
+      overlay: writeOverlay(),
+      onChange,
+    });
+    const requiredSwitch = screen.getByLabelText('Required') as HTMLInputElement;
+    expect(requiredSwitch.checked).toBe(false);
+    fireEvent.click(requiredSwitch);
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    const next = onChange.mock.calls[0][0] as Record<string, any>;
+    expect(next.fixed_overrides['personal.last_name'].required).toBe(true);
+  });
+
+  it('unticking Visible still emits an EXPLICIT `visible: false` (regression guard for the explicit-off pattern `required` now shares)', () => {
+    const onChange = vi.fn();
+    renderModal({
+      mode: 'edit',
+      fieldKey: 'last_name',
+      fieldConfig: provenanceConfig(),
+      overlay: writeOverlay(),
+      onChange,
+    });
+    const visibleSwitch = screen.getByLabelText('Visible') as HTMLInputElement;
+    expect(visibleSwitch.checked).toBe(true);
+    fireEvent.click(visibleSwitch);
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    const next = onChange.mock.calls[0][0] as Record<string, any>;
+    expect(next.fixed_overrides['personal.last_name'].visible).toBe(false);
+  });
+
   it('create always writes a tenant VARIABLE field under `fields` (never fixed_overrides, R1.5)', () => {
     const onChange = vi.fn();
     renderModal({
