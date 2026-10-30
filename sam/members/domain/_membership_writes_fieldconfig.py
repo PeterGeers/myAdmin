@@ -126,7 +126,6 @@ class FieldConfigSurfaceMixin:
         """
         scope_vocab = self._scope_vocab(tenant_id)
         config = self._field_resolver.resolve(tenant_id, scope_vocab=scope_vocab)
-        options = self._active_membership_type_options(tenant_id)
 
         # ── The ONE selectable-vocabulary assembly seam (design C4 / F8) ──────────────
         # For EVERY field, resolve its canonical `options` from its INJECTED source here —
@@ -138,7 +137,7 @@ class FieldConfigSurfaceMixin:
         # consume the ONE `options` this computed — they do not re-branch by kind.
         assembled = {
             f.dotted_key(): self._assemble_field_options(
-                f, tenant_id=tenant_id, options=options, scope_vocab=scope_vocab
+                f, tenant_id=tenant_id, scope_vocab=scope_vocab
             )
             for f in config.fields
         }
@@ -294,7 +293,6 @@ class FieldConfigSurfaceMixin:
         """
         scope_vocab = self._scope_vocab(tenant_id)
         config = self._field_resolver.resolve(tenant_id, scope_vocab=scope_vocab)
-        options = self._active_membership_type_options(tenant_id)
 
         # ── Per-consumer blast-radius split (design C6 "Blast-radius policy", task 9) ─────
         # The PUBLIC application path must NEVER let one misconfigured field black out a whole
@@ -316,7 +314,7 @@ class FieldConfigSurfaceMixin:
                 # staff read — the public serializer consumes it and then applies the R3.2 subset
                 # FILTER, so both reads resolve the same vocabulary from the same assembly point.
                 field_options = self._assemble_field_options(
-                    f, tenant_id=tenant_id, options=options, scope_vocab=scope_vocab
+                    f, tenant_id=tenant_id, scope_vocab=scope_vocab
                 )
                 fields.append(
                     self._serialize_public_field(f, field_options=field_options)
@@ -549,7 +547,6 @@ class FieldConfigSurfaceMixin:
         field: ResolvedField,
         *,
         tenant_id: str,
-        options: Sequence[Mapping[str, Any]],
         scope_vocab: Mapping[str, Sequence[str]],
     ) -> list[dict[str, Any]] | None:
         """The ONE selectable-vocabulary assembly pass (design C4 / F8, R2.1/R2.6).
@@ -564,12 +561,10 @@ class FieldConfigSurfaceMixin:
         - **membership_type** (03b BU-3, Req 3.3): the FIELD's OWN resolved rich
           :class:`EnumOption`s (``{value, label, allowed, order?}``) — "reference" is now a feature
           ON the field, so its vocabulary is served from the field itself via the same enum
-          serializer the inline-enum branch uses, NOT injected from a separate catalog. While the
-          migration (Task 7) has not yet folded the catalog into the field's options, this branch
-          FALLS BACK to the injected ACTIVE-catalog ``options`` (``_active_membership_type_options``)
-          so a pre-fold deploy still serves a usable vocabulary (transitional, Req 6.4 — the
-          EXPAND-before-reader gate, consistent with the re-pointed reference check / default). The
-          fallback is removed in CONTRACT (Task 10.2) with the catalog.
+          serializer the inline-enum branch uses, NOT injected from a separate catalog. The
+          transitional active-catalog fallback was REMOVED in CONTRACT (Task 10.5) once the fold
+          was verified; the field's own options are the only source (a reference with zero options
+          yet is a legitimately-empty source → ``None``).
         - **scope-backed** (an overlay enum whose key is bound to a tenant scope dimension — its
           key is present in the injected ``scope_vocab``): the dimension's values projected to
           rich ``{value, label}`` options. ``scope_vocab`` / ``scope_dimensions.values`` is the
@@ -593,25 +588,17 @@ class FieldConfigSurfaceMixin:
         is simply empty — zero active types yet) — all valid in-progress states.
         """
         # membership_type — serve the FIELD's OWN inline options, NOT a catalog injection (03b
-        # BU-3, Req 3.3). Under the unified enum model "reference" is a feature ON the field: its
-        # vocabulary lives in the field's own resolved `options` (each `{value, label, allowed,
-        # order?}`), so this seam reads them straight off the field via the SAME enum serializer
-        # the inline-enum branch uses below — one assembly pass, no per-kind catalog injection. The
-        # `allowed`/`order` keys the migration folds in ride through unchanged (the grandfather
-        # flag the picker needs to hide a retired value while existing records keep it).
-        #
-        # Transitional catalog fallback (03b migration safety, Req 6.4 — the EXPAND-before-reader
-        # gate, consistent with the re-pointed reference check in `_membership_writes_validation`
-        # / `_membership_writes_application`): while the field carries NO inline options yet
-        # (pre-fold, Task 7) this re-pointed reader FALLS BACK to the injected active-catalog
-        # `options` so a deploy landing before the fold still serves a usable membership_type
-        # vocabulary. The fallback is REMOVED in CONTRACT (Task 10.2) once the fold is verified
-        # and the catalog rows are retired — thereafter the field's own options are the only source.
+        # BU-3, Req 3.3 / CONTRACT Task 10.5). Under the unified enum model "reference" is a
+        # feature ON the field: its vocabulary lives in the field's own resolved `options` (each
+        # `{value, label, allowed, order?}`), read straight off the field via the SAME enum
+        # serializer the inline-enum branch uses below — one assembly pass, no per-kind catalog
+        # injection. The `allowed`/`order` keys the migration folded in ride through unchanged.
+        # The transitional active-catalog fallback was removed with the catalog (Task 10.5); a
+        # reference with zero options yet is a legitimately-empty source (G5) → `None`.
         if field.dotted_key() == MEMBERSHIP_TYPE_FIELD_KEY:
             if field.options:
                 return [self._serialize_enum_option(o) for o in field.options]
-            # Pre-fold: no inline options yet → the legacy active-catalog feed (transitional).
-            return [dict(o) for o in options]
+            return None
 
         # scope-backed — project the injected scope dimension's values to rich options. The key
         # ∈ scope_vocab is the SAME discriminator the resolver uses for a scope-dimension-backed
@@ -645,17 +632,3 @@ class FieldConfigSurfaceMixin:
         # field with no `options` and no `choices`) → legitimately sourceless (G5), `None`.
         return None
 
-    def _active_membership_type_options(self, tenant_id: str) -> list[dict[str, Any]]:
-        """The tenant's ACTIVE catalog entries as JSON-friendly dropdown options (design C8).
-
-        Asks the repository for the tenant's active membership types (``active_only=True``,
-        tenant-scoped — Property 1), already ordered by ``(order, type_code)``. Each option
-        carries the reference ``value`` (``type_code``) the member record stores plus its
-        i18n ``label`` and ``order`` for presentation. Retired (soft-deleted) types are
-        excluded by the repository, so they never render.
-
-        Reuses :meth:`_serialize_catalog_option` so the dropdown feed and the catalog list
-        route (task 3.4) project each entry identically (one serializer, one shape).
-        """
-        entries = self._repo.list_membership_types(tenant_id, active_only=True)
-        return [self._serialize_catalog_option(entry) for entry in entries]
