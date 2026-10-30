@@ -236,7 +236,7 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 32-frontend-ui, 33-frontend-testing, 11-tech-stack_
     - _Requirements: 7.2_
 
-  - [ ] 10.5 Remove the membership-type catalog apparatus — SAM PLANE (routes, module, repo WRITE methods, transitional fallback)
+  - [x] 10.5 Remove the membership-type catalog apparatus — SAM PLANE (routes, module, repo WRITE methods, transitional fallback)
     - Delete the `GET/POST/PUT/DELETE /membership-types` RouteSpecs (`handler/routes.py`) + their
       dispatch arms (`handler/_dispatch_members.py`); remove `_membership_catalog.py` + the repository
       WRITE methods (`save_membership_type`/`deactivate_membership_type`) from `members_repository.py`
@@ -252,11 +252,34 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 35-sam-module-architecture, 39-backend-data-access-sam-dynamodb, 34-backend-testing, 11-tech-stack_
     - _Requirements: 7.2_
 
-  - [ ] 10.3 Delete the removed-binding plumbing + dead reconciliation + forbidden `choices` code
-    - Delete the no-relax/overlay-invariant plumbing (Task 3) not merely disable; DELETE
-      `reconcile_scope_change` / `ScopeChangeReconciliation` / `ScopeReconciliationBlocked` /
-      `assert_appliable` in `backend/src/services/user_tenant_scope_service.py` + their tests (confirmed
-      no production caller); remove `choices` read/write code paths (`options` canonical). Do NOT touch `config#views`
+  - [x] 10.3 Delete the removed-binding plumbing + dead reconciliation + forbidden `choices` code
+    - DONE. Three parts, grounded in what actually runs (verified against `ProjectionSync`, not
+      assumed):
+    - **(a) Dead scope reconciliation — DELETED.** Removed `reconcile_scope_change` /
+      `ScopeChangeReconciliation` / `ScopeReconciliationBlocked` / `assert_appliable` (+ the
+      `list_grants` helper only it used, + the unused `dataclass`/`field` import) from
+      `backend/src/services/user_tenant_scope_service.py`, and their whole test section from
+      `backend/tests/unit/test_user_tenant_scope_service.py` (+ the dead `list_grants` branch in
+      the test's FakeDB). Confirmed NO production caller (grep across `backend/`, frontend = zero).
+      This superseded spec-02 tasks 3.9/3.10 (03b Req 4's axis-vs-value gate is the real gate, not
+      the orphan-block). `pytest tests/unit/test_user_tenant_scope_service.py` -> 29 passed.
+    - **(b) No-relax / overlay-invariant plumbing — already gone.** Task 3 already DELETED the
+      no-relax reject (invariant 3 + `platform_required` reject clause) from
+      `config_write_service._collect_application_attr_reasons` and the relax clause from
+      `field_resolver._reject_invalid_overlay`, and the frontend `requiredForced`. Verified: the
+      only remaining `platform_required` use is the LIVE Req 3.4a option-integrity check
+      (`_collect_option_integrity_reasons`), not the removed binding. Nothing left to delete.
+    - **(c) Forbidden `choices` read/write — already gone on the SAM plane (03a).** The SAM reader
+      (`_fields_overlay_reader.py`) no longer reads stored `choices`; the SAM write surface
+      (`FIELD_DEFINITION_ATTRS`) rejects it; the EXPAND migration strips it from data. The ONLY
+      residual `choices` read/write code is the Flask `config#*` projection builders — which
+      `ProjectionSync` NO LONGER emits (spec-02 1.15/3.7/5.8) and which are the reversible
+      rollback path still feeding the not-yet-run PROD migrations. Deleting them now would break
+      the live migration scripts + spend the rollback net before PROD is verified, and is already
+      owned by spec-02's GATED end-of-band cleanup (Task 1.19 + scope/mail peers, gated on the
+      Task 8 PROD promotion). DEFERRED there — captured in
+      `.kiro/specs/myBacklog/spec02-config-builder-end-of-band-cleanup.md` so it is not forgotten.
+      Do NOT touch `config#views` (confirmed no `choices` intersection there).
     - _Steering: 39-backend-data-access-sam-dynamodb, 38-sam-module-field-config, 34-backend-testing, 11-tech-stack_
     - _Requirements: 7.3, 7.4, 7.5, 7.6_
 

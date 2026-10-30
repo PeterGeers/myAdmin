@@ -49,7 +49,6 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
 from typing import Any
 
 from services.scope_canon import scope_canon
@@ -74,26 +73,6 @@ class ScopeValidationError(ValueError):
     PUT is atomic (nothing is written on a bad grant — design Error Handling). The
     route (task 5.2) maps this to a 400.
     """
-
-
-class ScopeReconciliationBlocked(ValueError):
-    """A proposed scope-dimension change would ORPHAN one or more existing grants (R23).
-
-    The ORPHANING tier of the two-tier reconciliation (OQ-7): a rename/remove of a dimension
-    or the removal of a granted value would strand an existing ``user_tenant_scope`` grant
-    (leave it referencing a dimension/value that no longer exists). The change is REFUSED (not
-    applied); the frontend shows a contact-SysAdmin interim message (the structural fix, Option
-    D, is out of scope). Carries the orphaned references so the UI can name them.
-
-    Attributes:
-        orphaned: a list of ``{"email", "dimension", "values"}`` describing each grant that the
-            proposed change would strand (the values no longer declared, or ``["*"]`` when the
-            whole dimension would be removed/renamed).
-    """
-
-    def __init__(self, message: str, orphaned: list[dict[str, Any]]):
-        super().__init__(message)
-        self.orphaned = orphaned
 
 
 class UserTenantScopeService:
@@ -473,140 +452,3 @@ class UserTenantScopeService:
             except (json.JSONDecodeError, TypeError):
                 return None
         return raw
-
-    # -- cross-plane scope-grant reconciliation (Task 3.9 / Requirement 23) --------------
-
-    def list_grants(self, administration: str, module: str) -> list[dict[str, Any]]:
-        """Return every ``user_tenant_scope`` grant for the tenant + module (R23 detection).
-
-        Each item is ``{"email", "scopes"}`` with ``scopes`` the parsed grant dict. Tenant-
-        isolated on ``administration`` (steering 31). Read-only; never touches
-        ``user_tenant_roles`` (axis independence, R1.3/Property 5).
-        """
-        self._require_tenant(administration)
-        rows = self.db.execute_query(
-            "SELECT email, scopes FROM user_tenant_scope "
-            "WHERE administration = %s AND module = %s",
-            (administration, module),
-            fetch=True,
-        )
-        grants: list[dict[str, Any]] = []
-        for row in rows or []:
-            parsed = self._parse_scopes(row.get("scopes"))
-            grants.append(
-                {
-                    "email": row.get("email"),
-                    "scopes": parsed if isinstance(parsed, dict) else {},
-                }
-            )
-        return grants
-
-    def reconcile_scope_change(
-        self,
-        administration: str,
-        module: str,
-        proposed_dimensions: Sequence[Mapping[str, Any]] | None,
-    ) -> ScopeChangeReconciliation:
-        """Classify a PROPOSED scope-dimension change against the tenant's existing grants (R23).
-
-        Compares the proposed dimension set (the SAM/overlay-derived ``config#scope`` dimensions
-        — the shape ``members.scope_dimensions`` carries) against every current
-        ``user_tenant_scope`` grant for the tenant, BEFORE the change is applied. Two tiers
-        (OQ-7 RESOLVED, message-based interim — the frontend NEVER auto-rewrites grants):
-
-        - **ROUTINE** (new tenant / add a dimension or value — no existing grant orphaned): the
-          caller auto-mirrors the dimension set and surfaces a REMINDER to review user scope
-          grants. Returned as ``tier="routine"`` with ``orphaned=[]``.
-        - **ORPHANING** (rename/remove a dimension, or drop a granted value — would strand an
-          existing grant): the change is BLOCKED. Returned as ``tier="orphaning"`` with the
-          orphaned references; :meth:`assert_appliable` raises
-          :class:`ScopeReconciliationBlocked` so the caller refuses to apply it.
-
-        Invariant (R23): a grant referencing a dimension/value NOT present in the proposed set is
-        an orphan. A granted ``["*"]`` (whole-dimension) orphans only if the dimension itself is
-        removed/renamed (an added/removed value does not strand a wildcard grant). Canonical-
-        equality (``scope_canon``) is used so a declared-spelling change that is canonically the
-        same value is NOT an orphan.
-        """
-        self._require_tenant(administration)
-        # Index the proposed dimensions by key → set of canonical declared values (enabled only;
-        # a disabled dimension is treated as absent, matching validation).
-        proposed: dict[str, set[str]] = {}
-        for entry in proposed_dimensions or ():
-            if not isinstance(entry, Mapping):
-                continue
-            key = entry.get("key")
-            if not key or not entry.get("enabled", True):
-                continue
-            raw_values = entry.get("values") or ()
-            if isinstance(raw_values, str) or not isinstance(raw_values, Sequence):
-                raw_values = ()
-            proposed[key] = {scope_canon(v) for v in raw_values if isinstance(v, str)}
-
-        orphaned: list[dict[str, Any]] = []
-        for grant in self.list_grants(administration, module):
-            email = grant["email"]
-            for dim_key, granted in grant["scopes"].items():
-                if not isinstance(granted, Sequence) or isinstance(granted, str):
-                    continue
-                if dim_key not in proposed:
-                    # The whole dimension is gone (removed or renamed) → every grant on it is
-                    # stranded, including a wildcard grant.
-                    orphaned.append(
-                        {"email": email, "dimension": dim_key, "values": list(granted)}
-                    )
-                    continue
-                # A wildcard grant survives any value-set change (it means "the whole dimension").
-                if any(g == WILDCARD_VALUE for g in granted if isinstance(g, str)):
-                    continue
-                declared = proposed[dim_key]
-                stranded = [
-                    g
-                    for g in granted
-                    if isinstance(g, str) and scope_canon(g) not in declared
-                ]
-                if stranded:
-                    orphaned.append(
-                        {"email": email, "dimension": dim_key, "values": stranded}
-                    )
-
-        tier = "orphaning" if orphaned else "routine"
-        return ScopeChangeReconciliation(tier=tier, orphaned=orphaned)
-
-
-@dataclass(frozen=True)
-class ScopeChangeReconciliation:
-    """The result of classifying a proposed scope-dimension change (Task 3.9 / R23).
-
-    ``tier`` is ``"routine"`` (no existing grant orphaned — auto-mirror + reminder) or
-    ``"orphaning"`` (at least one grant would be stranded — block + contact-SysAdmin).
-    ``orphaned`` lists the stranded references (empty for routine).
-    """
-
-    tier: str
-    orphaned: list[dict[str, Any]] = field(default_factory=list)
-
-    @property
-    def is_routine(self) -> bool:
-        return self.tier == "routine"
-
-    @property
-    def is_orphaning(self) -> bool:
-        return self.tier == "orphaning"
-
-    def assert_appliable(self) -> None:
-        """Raise :class:`ScopeReconciliationBlocked` when the change would orphan a grant (R23).
-
-        The no-silent-stale-grant invariant: a caller calls this before applying a proposed scope
-        change; a routine change passes, an orphaning change refuses (never applied silently).
-        """
-        if self.is_orphaning:
-            names = ", ".join(
-                f"{o['email']}:{o['dimension']}={o['values']}" for o in self.orphaned
-            )
-            raise ScopeReconciliationBlocked(
-                "Scope change blocked: it would orphan existing user scope grants "
-                f"({names}). Contact your System Administrator to realign grants before "
-                "removing or renaming a dimension or value.",
-                self.orphaned,
-            )
