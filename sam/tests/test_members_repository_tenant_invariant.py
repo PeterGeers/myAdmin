@@ -258,11 +258,6 @@ def _all_repository_operations(repo: DynamoDbMembersRepository):
         "list_member_payments": lambda: repo.list_member_payments(TENANT, "M-1"),
         "list_membership_types": lambda: repo.list_membership_types(TENANT),
         "get_membership_type": lambda: repo.get_membership_type(TENANT, "erelid"),
-        "save_membership_type": lambda: repo.save_membership_type(TENANT, _mtype("erelid")),
-        "deactivate_membership_type": lambda: (
-            repo.save_membership_type(TENANT, _mtype("erelid")),
-            repo.deactivate_membership_type(TENANT, "erelid"),
-        ),
         "get_analytics_set": lambda: repo.get_analytics_set(TENANT, "set-1"),
         "list_analytics_sets": lambda: repo.list_analytics_sets(TENANT),
         "save_analytics_set": lambda: repo.save_analytics_set(TENANT, _aset("set-1")),
@@ -353,8 +348,6 @@ class TestEveryOperationPinsTheTenantPartition:
             "list_member_payments",
             "list_membership_types",
             "get_membership_type",
-            "save_membership_type",
-            "deactivate_membership_type",
             "get_analytics_set",
             "list_analytics_sets",
             "save_analytics_set",
@@ -413,7 +406,10 @@ class TestCrossTenantIsInvisible:
     def test_reads_never_return_another_tenants_records(self, repo):
         repo.save_member("tenant-a", _member("M-1"))
         repo.save_membership("tenant-a", "M-1", {"membership_id": "MS-1"})
-        repo.save_membership_type("tenant-a", _mtype("erelid"))
+        # 03b CONTRACT (Task 10.5): the catalog WRITE method is gone; seed the row directly via
+        # the kept build_membership_type_item + put_item to exercise the read-isolation invariant.
+        _a = _mtype("erelid")
+        repo.table.put_item(Item=td.build_membership_type_item("tenant-a", _a.type_code, _a.to_item()))
         # Same ids, different tenant — all must come back empty / None.
         assert repo.get_member("tenant-b", "M-1") is None
         assert list(repo.list_members("tenant-b")) == []
@@ -428,7 +424,6 @@ class TestCrossTenantIsInvisible:
             lambda: repo.list_members(""),
             lambda: repo.save_member("", _member("M-1")),
             lambda: repo.delete_member("", "M-1"),
-            lambda: repo.save_membership_type("", _mtype("erelid")),
         ):
             with pytest.raises(ValueError):
                 run()
