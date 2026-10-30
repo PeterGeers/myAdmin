@@ -10,8 +10,6 @@ export { ApplicationFieldAttributes } from './ApplicationFieldAttributes';
 export { ApplicationFormShellPanel } from './ApplicationFormShellPanel';
 export { ApplicationReadinessPanel } from './ApplicationReadinessPanel';
 export { ApplicationFormPreview } from './ApplicationFormPreview';
-export { MembershipTypesManager } from './MembershipTypesManager';
-export { MembershipTypeModal } from './MembershipTypeModal';
 export { MembersParamSubEditor } from './MembersParamSubEditor';
 export { MembersTypedField } from './MembersTypedField';
 export { EnumOptionsEditor, looksLikeEnumOptions } from './EnumOptionsEditor';

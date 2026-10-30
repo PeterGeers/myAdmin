@@ -19,15 +19,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@chakra-ui/react';
 import {
-  getFieldConfig, listMembershipTypes,
+  getFieldConfig,
   getColumnPreferences, saveColumnPreferences,
 } from '../../../services/membersApiService';
 import { ALWAYS_ON_COLUMN_KEY } from '../ColumnChooser';
-import type { FieldConfig, MembershipType } from '../../../types/members';
+import type { FieldConfig } from '../../../types/members';
 
 export interface UseMembersDataReturn {
   fieldConfig: FieldConfig | null;
-  membershipTypes: MembershipType[] | null;
   chosenKeys: string[];
   handleColumnsChange: (nextKeys: string[]) => void;
 }
@@ -39,10 +38,6 @@ export function useMembersData(t: (key: string) => string): UseMembersDataReturn
   const toast = useToast();
 
   const [fieldConfig, setFieldConfig] = useState<FieldConfig | null>(null);
-  // The tenant's ACTIVE Lidmaatschap Beheer catalog entries (R5.8), fetched via
-  // listMembershipTypes(true). Feed the add/edit modals' membership_type dropdown with
-  // active-only types; the domain re-validates the chosen type authoritatively.
-  const [membershipTypes, setMembershipTypes] = useState<MembershipType[] | null>(null);
 
   // The user's own ordered chosen-column keys (session-columns R3.1). This is the
   // single source of which non-fixed columns show; member_number is implied +
@@ -108,18 +103,8 @@ export function useMembersData(t: (key: string) => string): UseMembersDataReturn
     });
   }, [toast, t]);
 
-  // Load the ACTIVE membership-type catalog (R5.8) once — GET /membership-types?active_only=true.
-  // The add/edit modals render the membership_type dropdown from these active-only entries; a
-  // failed load leaves it null (the modals then fall back to the field-config embedded options).
-  useEffect(() => {
-    Promise.resolve(listMembershipTypes<MembershipType[]>(true))
-      .then(types => setMembershipTypes(Array.isArray(types) ? types : []))
-      .catch(() => setMembershipTypes(null));
-  }, []);
-
   return {
     fieldConfig,
-    membershipTypes,
     chosenKeys,
     handleColumnsChange,
   };
