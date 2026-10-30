@@ -18,8 +18,6 @@ import {
   isEditableField,
   isCalculatedField,
   editableFields,
-  isMembershipTypeField,
-  membershipTypeOptions,
   resolveLabel,
   DEFAULT_SECTION_KEY,
 } from './fieldForm';
@@ -265,37 +263,6 @@ describe('buildInitialValues + buildValidationSchema — show_when-aware require
     await expect(
       schema.validate({ first_name: 'A', membership_type: 'motor', motor_brand: '', region: '' }),
     ).rejects.toBeTruthy();
-  });
-});
-
-describe('membership_type catalog dropdown (R5.8) — active-only, bilingual, domain-validated', () => {
-  it('isMembershipTypeField identifies the catalog-backed reference field', () => {
-    expect(isMembershipTypeField({ key: 'membership_type', type: 'reference' })).toBe(true);
-    expect(isMembershipTypeField({ key: 'status', type: 'enum' })).toBe(false);
-  });
-
-  it('membershipTypeOptions maps active catalog entries to {value,label} options', () => {
-    const opts = membershipTypeOptions([
-      { key: 'erelid', label: { nl: 'Erelid', en: 'Honorary' }, active: true },
-      { key: 'donateur', label: { nl: 'Donateur', en: 'Donor' }, active: true },
-    ]);
-    expect(opts).toEqual([
-      { value: 'erelid', label: { nl: 'Erelid', en: 'Honorary' } },
-      { value: 'donateur', label: { nl: 'Donateur', en: 'Donor' } },
-    ]);
-  });
-
-  it('coerces a plain-string label into a {nl,en} bilingual label', () => {
-    const opts = membershipTypeOptions([{ key: 'member', label: 'Lid' }]);
-    expect(opts).toEqual([{ value: 'member', label: { nl: 'Lid', en: 'Lid' } }]);
-  });
-
-  it('drops entries with no usable key and tolerates null/undefined feeds', () => {
-    expect(membershipTypeOptions(null)).toEqual([]);
-    expect(membershipTypeOptions(undefined)).toEqual([]);
-    expect(
-      membershipTypeOptions([{ key: '', label: { nl: 'x' } }, { key: 'ok', label: { nl: 'OK' } }]),
-    ).toEqual([{ value: 'ok', label: { nl: 'OK' } }]);
   });
 });
 

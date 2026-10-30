@@ -32,47 +32,11 @@ import type {
   FieldConfigField,
   FunctionalGroup,
   LocalizedLabel,
-  MembershipType,
 } from '../../types/members';
 import type { LazyOption } from '../common/lazySelect.types';
 
 /** The key of the synthesized default section for fields with no (or a dangling) group. */
 export const DEFAULT_SECTION_KEY = '__default__';
-
-/** The bare field key of the catalog-backed membership-type dropdown (design C-SURFACE, R5.8). */
-export const MEMBERSHIP_TYPE_FIELD_KEY = 'membership_type';
-
-/**
- * Whether `field` is the catalog-backed `membership_type` reference (R5.8, enum-source #3). Its
- * dropdown options are the tenant's ACTIVE **Lidmaatschap Beheer** catalog entries — fetched via
- * `listMembershipTypes(true)` (`GET /membership-types?active_only=true`), NOT authored on the
- * field — so it is rendered from the injected catalog feed rather than the field's own `options`.
- */
-export function isMembershipTypeField(field: FieldConfigField): boolean {
-  return field.key === MEMBERSHIP_TYPE_FIELD_KEY;
-}
-
-/**
- * Turn the ACTIVE membership-type catalog feed (`listMembershipTypes(true)`) into `{ value, label }`
- * dropdown options (R5.8). Each entry's `key` is the reference `value` the member record stores; its
- * bilingual `label` (or plain string) is resolved for display by the caller. Only active entries are
- * ever fed in (the service returns active-only), so no client-side active filtering is needed here —
- * the domain re-validates the chosen type against the live active catalog authoritatively.
- */
-export function membershipTypeOptions(
-  types: MembershipType[] | null | undefined,
-): EnumOptionConfig[] {
-  return (types ?? [])
-    // The API returns `type_code` (the reference value the member record stores); older
-    // callers/tests used `key`. Prefer `type_code`, fall back to `key`.
-    .map((mt) => ({ code: mt?.type_code ?? mt?.key, label: mt?.label }))
-    .filter((mt): mt is { code: string; label: MembershipType['label'] } =>
-      typeof mt.code === 'string' && mt.code.length > 0)
-    .map((mt) => ({
-      value: mt.code,
-      label: typeof mt.label === 'string' ? { nl: mt.label, en: mt.label } : mt.label,
-    }));
-}
 
 /** A resolved, ordered section of fields to render in a modal (design C-SURFACE, R4.9). */
 export interface FieldSection {

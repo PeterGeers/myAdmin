@@ -87,7 +87,6 @@ const MembersPage: React.FC = () => {
   // ── Config / membership types / column prefs (no longer the members list) ────
   const {
     fieldConfig,
-    membershipTypes,
     chosenKeys,
     handleColumnsChange,
   } = useMembersData(t);
@@ -404,7 +403,6 @@ const MembersPage: React.FC = () => {
         isOpen={isAddOpen}
         onClose={onAddClose}
         fieldConfig={fieldConfig}
-        membershipTypes={membershipTypes}
         onSaved={loadMembers}
       />
 
@@ -414,7 +412,6 @@ const MembersPage: React.FC = () => {
         onClose={handleEditClose}
         member={selectedMember}
         fieldConfig={fieldConfig}
-        membershipTypes={membershipTypes}
         onSaved={loadMembers}
       />
 
