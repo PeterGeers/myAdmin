@@ -442,8 +442,11 @@ def test_duplicate_member_number_across_members_is_allowed(table):
     hooks = register_hdcn_hooks(TenantHookRegistry())
     repo_a = DynamoDbMembersRepository(table=table, client=table.meta.client)
     repo_b = DynamoDbMembersRepository(table=table, client=table.meta.client)
-    svc_a = MembershipService(repo_a, tenant_hooks=hooks)
-    svc_b = MembershipService(repo_b, tenant_hooks=hooks)
+    # 03b CONTRACT (Task 10.5): membership_type owns its `erelid` vocabulary as INLINE field
+    # options (the catalog is retired), so the reference check needs the overlay to resolve it.
+    overlay = StaticOverlayProvider({"h-dcn": _HDCN_MT_OVERLAY})
+    svc_a = MembershipService(repo_a, overlay_provider=overlay, tenant_hooks=hooks)
+    svc_b = MembershipService(repo_b, overlay_provider=overlay, tenant_hooks=hooks)
 
     b1 = _valid_member_body(member_number="12345")
     created_a = svc_a.create_member("h-dcn", b1, {"region": ["*"]})
