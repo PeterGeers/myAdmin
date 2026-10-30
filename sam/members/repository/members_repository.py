@@ -265,23 +265,6 @@ class MembersRepository(Protocol):
         """Return the catalog entry ``type_code`` for ``tenant_id``, or ``None`` if absent."""
         ...
 
-    def save_membership_type(
-        self, tenant_id: str, entry: MembershipTypeEntry
-    ) -> MembershipTypeEntry:
-        """Create or update a catalog entry for ``tenant_id`` (validated before persist)."""
-        ...
-
-    def deactivate_membership_type(
-        self, tenant_id: str, type_code: str
-    ) -> MembershipTypeEntry | None:
-        """Soft-delete a catalog entry (``active=false``) — never a hard delete (C8).
-
-        Deactivating keeps existing members' references valid while removing the type from the
-        dropdown for new/edited members, so historical member records are never orphaned.
-        Returns the deactivated entry, or ``None`` if no such entry exists.
-        """
-        ...
-
     # ── Analytics-sets (member saved-sets, F-012) ──────────────────────────────────
 
     def get_analytics_set(
@@ -498,12 +481,6 @@ class _StubMembersRepository:
         raise NotImplementedError(self._PENDING)
 
     def get_membership_type(self, tenant_id: str, type_code: str):
-        raise NotImplementedError(self._PENDING)
-
-    def save_membership_type(self, tenant_id: str, entry):
-        raise NotImplementedError(self._PENDING)
-
-    def deactivate_membership_type(self, tenant_id: str, type_code: str):
         raise NotImplementedError(self._PENDING)
 
     def get_analytics_set(self, tenant_id: str, set_id: str):
@@ -1056,50 +1033,6 @@ class DynamoDbMembersRepository:
         )
         item = response.get("Item")
         return MembershipTypeEntry.from_item(item) if item is not None else None
-
-    def save_membership_type(
-        self, tenant_id: str, entry: MembershipTypeEntry
-    ) -> MembershipTypeEntry:
-        """Create or update a catalog entry, validated before persist.
-
-        The entry's own ``tenant_id`` must match the caller's ``tenant_id`` (no cross-tenant
-        write, Property 1). :meth:`MembershipTypeEntry.to_item` validates the shape, and
-        :func:`table_design.build_membership_type_item` stamps the authoritative primary key,
-        so a malformed or misplaced entry can never be written.
-        """
-        self._require_tenant(tenant_id)
-        if entry.tenant_id and entry.tenant_id != tenant_id:
-            raise ValueError(
-                f"entry.tenant_id {entry.tenant_id!r} does not match the caller tenant "
-                f"{tenant_id!r} (no cross-tenant write, Property 1)"
-            )
-        # Bind the entry to the caller's tenant, then validate + serialize.
-        bound = (
-            entry
-            if entry.tenant_id == tenant_id
-            else replace(entry, tenant_id=tenant_id)
-        )
-        payload = bound.to_item()
-        item = td.build_membership_type_item(tenant_id, bound.type_code, payload)
-        self.table.put_item(Item=item)
-        return bound
-
-    def deactivate_membership_type(
-        self, tenant_id: str, type_code: str
-    ) -> MembershipTypeEntry | None:
-        """Soft-delete a catalog entry (``active=false``) — never a hard delete (C8).
-
-        Reads the entry, flips ``active`` to ``False``, and re-persists it, so existing member
-        references stay valid while the type leaves the dropdown for new/edited members.
-        Returns the deactivated entry, or ``None`` if no such entry exists.
-        """
-        self._require_tenant(tenant_id)
-        existing = self.get_membership_type(tenant_id, type_code)
-        if existing is None:
-            return None
-        if not existing.active:
-            return existing  # already soft-deleted — idempotent
-        return self.save_membership_type(tenant_id, existing.deactivated())
 
     # ── Analytics-sets (member saved-sets, F-012) ──────────────────────────────────
 

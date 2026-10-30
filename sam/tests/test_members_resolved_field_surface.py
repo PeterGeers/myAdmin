@@ -120,6 +120,15 @@ def _overlay_with_groups_and_options() -> TenantOverlay:
             "membership.member_number": FixedFieldOverride(
                 member_number_format=MemberNumberFormat(prefix="Nr-", width=4),
             ),
+            # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE field
+            # options (the `membershiptype#` catalog is retired). `gewoon`/`motor` are the codes
+            # the show_when-gated `motor_brand` keys off; the reference check reads these.
+            "membership.membership_type": FixedFieldOverride(
+                options=(
+                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Regular"}, allowed=True, order=10),
+                    EnumOption(value="motor", label={"nl": "Motor", "en": "Motor"}, allowed=True, order=20),
+                ),
+            ),
         },
     )
 

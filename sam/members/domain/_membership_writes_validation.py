@@ -548,12 +548,10 @@ class ValidationMixin:
           not assignable to a new/changed record → :data:`MEMBERSHIP_TYPE_RETIRED` (Req 3.2,
           grandfather semantics: existing members keep the value, it just leaves the picker).
 
-        **Transitional catalog fallback (03b migration safety, Req 6.4 — the EXPAND-before-reader
-        gate).** This re-pointed reader ships BEFORE the migration folds the catalog into the
-        field's options (Task 7). While the field carries NO inline options yet, it FALLS BACK to
-        the legacy ``membershiptype#<code>`` catalog (existence + ``active``) so a deploy that
-        lands before the fold cannot break member writes. The fallback is REMOVED in CONTRACT
-        (Task 10.2) once the fold is verified and the catalog rows are retired.
+        The transitional active-catalog fallback was REMOVED in CONTRACT (Task 10.5): the
+        field's own options are the only vocabulary. A present value with no matching option
+        is an unknown reference (422); with the field carrying no options at all, any present
+        value is unknown — the field-option path governs exclusively.
 
         A missing ``membership_type`` is NOT rejected here — the fixed-field registry
         (:func:`validate_fixed_fields`) owns the "required" rule. This method only rejects a
@@ -572,13 +570,7 @@ class ValidationMixin:
         code = str(type_code)
 
         options = self._resolved_membership_type_options(tenant_id)
-        if not options:
-            # Transitional fallback (Req 6.4): the field has no inline vocabulary yet (pre-fold),
-            # so validate against the legacy catalog exactly as before. Removed in CONTRACT.
-            self._validate_membership_type_reference_from_catalog(tenant_id, code)
-            return
-
-        matched = next((o for o in options if str(o.value) == code), None)
+        matched = next((o for o in (options or []) if str(o.value) == code), None)
         if matched is None:
             raise MemberValidationError(
                 {
@@ -606,42 +598,3 @@ class ValidationMixin:
                 }
             )
 
-    def _validate_membership_type_reference_from_catalog(
-        self, tenant_id: str, code: str
-    ) -> None:
-        """Legacy catalog reference check — the transitional fallback (03b, removed in CONTRACT).
-
-        The pre-03b behaviour: a present ``membership_type`` must reference a catalog entry that
-        EXISTS for this tenant and is ACTIVE. Preserved verbatim so a deploy landing before the
-        EXPAND fold (Task 7) — when the field still carries no inline options — keeps rejecting an
-        unknown/retired type exactly as it did. :meth:`_validate_membership_type_reference` calls
-        this ONLY while the field has no inline options; once the fold lands the field-option path
-        governs and this fallback is deleted with the catalog (Task 10.2).
-        """
-        entry = self._repo.get_membership_type(tenant_id, code)
-        if entry is None:
-            raise MemberValidationError(
-                {
-                    MEMBERSHIP_TYPE_FIELD_KEY: FieldError(
-                        code=MEMBERSHIP_TYPE_UNKNOWN_REFERENCE,
-                        detail=(
-                            f"unknown membership type {code!r} "
-                            "(not in the tenant's Lidmaatschap Beheer catalog)"
-                        ),
-                        params={"type_code": code},
-                    )
-                }
-            )
-        if not entry.active:
-            raise MemberValidationError(
-                {
-                    MEMBERSHIP_TYPE_FIELD_KEY: FieldError(
-                        code=MEMBERSHIP_TYPE_RETIRED,
-                        detail=(
-                            f"membership type {code!r} is retired (active=false) "
-                            "and cannot be assigned to a new or updated member"
-                        ),
-                        params={"type_code": code},
-                    )
-                }
-            )
