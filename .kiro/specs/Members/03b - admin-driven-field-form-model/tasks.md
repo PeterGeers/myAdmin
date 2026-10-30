@@ -223,14 +223,33 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - After the TEST post-fold scan passes and the re-pointed reader is confirmed live: delete the
       catalog rows in `test_sam-members` (then PROD in Task 12); member references untouched (grandfathered)
     - _Steering: 39-backend-data-access-sam-dynamodb, 23-aws-accounts, 41-shell-environment_
-    - _Requirements: 6.4_
+    - _Requirements: 6.4_ 
 
-  - [ ] 10.2 Remove the membership-type management apparatus (code)
-    - Delete `MembershipTypesManager.tsx` / `MembershipTypeModal.tsx`, the `list/create/update/deactivate
-      MembershipType` client wrappers, the `GET/POST/PUT/DELETE /membership-types` routes,
-      `_membership_catalog.py` + the repository catalog methods, and their tests. Remove the transitional
-      catalog fallback (Task 2.1). Keep the member-form/validation read path (now on field options). The authoring surfaces are already off the catalog after Task 9b, so removing these leaves no broken reference.
-    - _Steering: 35-sam-module-architecture, 32-frontend-ui, 34-backend-testing, 11-tech-stack_
+  - [x] 10.2 Remove the membership-type management apparatus — FRONTEND (code)
+    - DONE (committed `e4ca04a09`): deleted `MembershipTypesManager.tsx` / `MembershipTypeModal.tsx` + their test, the
+      `list/create/update/deactivate MembershipType` client wrappers (+ re-exports + body types),
+      the TenantAdmin dashboard tab + barrel re-exports. Re-pointed the member add/edit form read
+      path off the catalog onto the field's own resolved `options` (dropped the `listMembershipTypes`
+      async feed + the `membershipTypes` prop plumbing + `fieldForm`'s `membershipTypeOptions`/
+      `isMembershipTypeField`/`MEMBERSHIP_TYPE_FIELD_KEY`). Updated all paired tests to the eager
+      field-options path. Frontend trees green (2196 passed); CRUD guard [OK]. Net −1696 LOC.
+    - _Steering: 32-frontend-ui, 33-frontend-testing, 11-tech-stack_
+    - _Requirements: 7.2_
+
+  - [ ] 10.5 Remove the membership-type catalog apparatus — SAM PLANE (routes, module, repo WRITE methods, transitional fallback)
+    - Delete the `GET/POST/PUT/DELETE /membership-types` RouteSpecs (`handler/routes.py`) + their
+      dispatch arms (`handler/_dispatch_members.py`); remove `_membership_catalog.py` + the repository
+      WRITE methods (`save_membership_type`/`deactivate_membership_type`) from `members_repository.py`
+      (interface + pending-stub + impl) and the `MembershipService` catalog methods. KEEP the repository
+      READ (`list_membership_types`/`get_membership_type`) — the EXPAND migration
+      (`membership_type_catalog_to_field_options.py`, Tasks 10.1/12) reads it to fold the catalog.
+      Remove the transitional catalog fallback (Task 2.1) in `_membership_writes_validation.py` /
+      `_membership_writes_fieldconfig.py` — the reader is now field-options-only. Migrate the ~95 SAM
+      fixture tests that seed `membership_type` via a catalog to author inline `EnumOption`s instead
+      (change-with-tests); update the parity harness that asserts the 5 catalog routes exist; the
+      pre-03b `hdcn_catalog_seed.py` seed path that uses the WRITE methods must be retired alongside.
+      Iterate the FULL SAM suite to green before marking done (do NOT leave it half-migrated → red).
+    - _Steering: 35-sam-module-architecture, 39-backend-data-access-sam-dynamodb, 34-backend-testing, 11-tech-stack_
     - _Requirements: 7.2_
 
   - [ ] 10.3 Delete the removed-binding plumbing + dead reconciliation + forbidden `choices` code

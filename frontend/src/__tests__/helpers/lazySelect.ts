@@ -6,9 +6,9 @@
  * `membership_type` and the `region` scope dimension — from a native `<select name="…">`/`<option>`
  * to the shared `LazySelect` combobox (see `MembersFieldFormBody.tsx`). A `LazySelect` renders a
  * `role="combobox"` trigger inside a `data-testid="${name}-lazyselect"` container; its
- * `role="option"` children exist only AFTER the combobox is opened, and — for an async source such
- * as `membership_type` (`optionsDepKey="membership_type"`, fed by `listMembershipTypes(true)`) —
- * only after that source resolves.
+ * `role="option"` children exist only AFTER the combobox is opened (and, for any async-sourced
+ * LazySelect, only after that source resolves). Spec 03b: `membership_type` is now an EAGER
+ * field-options source like every other enum — no async catalog feed.
  *
  * These helpers centralize the "find trigger → open → (await async source) → read/pick option" flow
  * so the next control/LazySelect refactor is a one-line helper change rather than scattered query
@@ -18,7 +18,6 @@
  * `membership_type`, `region`, `tier`) and they resolve the `${name}-lazyselect` trigger.
  */
 
-import { expect } from 'vitest';
 import { screen, fireEvent, within, waitFor } from '@/test-utils';
 
 /** The combobox trigger element for the LazySelect registered under `name` (throws if absent). */
@@ -71,34 +70,28 @@ export async function pickLazySelectOption(
 }
 
 /**
- * Convenience: open the `membership_type` LazySelect (async catalog source) and return its listbox
- * once `listMembershipTypes(true)` has run. Pass the mocked `listMembershipTypes` spy.
+ * Open the `membership_type` LazySelect and return its listbox. Spec 03b: membership_type is now a
+ * normal enum field fed EAGERLY from the field config's own `options` (the live catalog is retired),
+ * so there is no async source to await — this just opens the combobox. The optional second argument
+ * is retained for call-site compatibility with the old async-catalog signature and is ignored.
  */
 export async function openMembershipType(
-  listMembershipTypesSpy: { mock: { calls: unknown[][] } } | (() => void),
+  _ignored?: unknown,
   container?: HTMLElement,
 ): Promise<HTMLElement> {
-  const awaitSource =
-    typeof listMembershipTypesSpy === 'function'
-      ? (listMembershipTypesSpy as () => void)
-      : () => {
-        // Assert the async catalog feed has been requested with active_only=true.
-        expect(
-          (listMembershipTypesSpy as { mock: { calls: unknown[][] } }).mock.calls.some(
-            (c) => c[0] === true,
-          ),
-        ).toBe(true);
-      };
-  return openLazySelect('membership_type', { container, awaitSource });
+  return openLazySelect('membership_type', { container });
 }
 
-/** Pick a `membership_type` option once the async catalog has resolved. */
+/**
+ * Pick a `membership_type` option from the eager field-options dropdown. The optional `_ignored`
+ * middle argument preserves the old `(optionName, spy, container)` call shape and is unused.
+ */
 export async function pickMembershipType(
   optionName: string,
-  listMembershipTypesSpy: { mock: { calls: unknown[][] } },
+  _ignored?: unknown,
   container?: HTMLElement,
 ): Promise<void> {
-  const listbox = await openMembershipType(listMembershipTypesSpy, container);
+  const listbox = await openMembershipType(_ignored, container);
   const option = await within(listbox).findByRole('option', { name: optionName });
   fireEvent.mouseDown(option);
 }
