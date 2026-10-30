@@ -139,7 +139,7 @@ function renderEditBody() {
   const resolved = formFields(fieldConfig);
   const sections = groupFieldsBySection(resolved, fieldConfig.functional_groups);
   return render(
-    <Formik initialValues={{}} onSubmit={() => {}}>
+    <Formik initialValues={{}} onSubmit={() => { }}>
       <Form>
         <MembersFieldFormBody
           sections={sections}
@@ -150,7 +150,6 @@ function renderEditBody() {
           t={t}
           dimensionKey="region"
           regionValues={[]}
-          membershipTypes={null}
         />
       </Form>
     </Formik>,

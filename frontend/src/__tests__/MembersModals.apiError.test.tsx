@@ -49,7 +49,6 @@ const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
 const mockCreateMember = vi.mocked(membersApiService.createMember);
-const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes);
 
 const mockMembers: Member[] = [
   {
@@ -92,14 +91,14 @@ const fillByName = (dialog: HTMLElement, name: string, value: string) => {
   fireEvent.change(control, { target: { value } });
 };
 
-// membership_type (async catalog) + region (eager scope dimension) route through the shared
+// membership_type (eager field options) + region (eager scope dimension) route through the shared
 // LazySelect combobox — open then pick so Formik `setFieldValue` fires. Labels resolve to `nl`
-// (this suite does not init i18n). The active catalog here has a single entry (Erelid).
+// (this suite does not init i18n). The field carries a single membership_type option (Erelid).
 const fillValidForm = async (dialog: HTMLElement) => {
   fillByName(dialog, 'first_name', 'Piet');
   fillByName(dialog, 'last_name', 'de Nieuwe');
   fillByName(dialog, 'email', 'piet@h-dcn.example');
-  await pickMembershipType('Erelid', mockListMembershipTypes, dialog);
+  await pickMembershipType('Erelid', undefined, dialog);
   await pickLazySelectOption('region', 'Zuid', { container: dialog });
 };
 
@@ -119,9 +118,6 @@ beforeEach(() => {
   );
   mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
   mockGetMember.mockResolvedValue(mockMembers[0] as never);
-  mockListMembershipTypes.mockResolvedValue([
-    { key: 'erelid', label: { nl: 'Erelid', en: 'Honorary' }, active: true },
-  ] as never);
 });
 
 describe('MembersAddModal — 422 field errors (task 4.4)', () => {

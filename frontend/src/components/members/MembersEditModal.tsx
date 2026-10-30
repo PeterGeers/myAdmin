@@ -35,7 +35,7 @@ import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { useAuth } from '../../context/AuthContext';
 import { updateMember } from '../../services/membersApiService';
 import { applyApiError } from '../../shared/api/applyApiError';
-import type { FieldConfig, Member, MembershipType } from '../../types/members';
+import type { FieldConfig, Member } from '../../types/members';
 import { MembersFieldFormBody } from './MembersFieldFormBody';
 import { editableFields, formFields, groupFieldsBySection, memberNumberError } from './fieldForm';
 import {
@@ -49,18 +49,12 @@ interface MembersEditModalProps {
   member: Member | null;
   /** Resolved field config (fixed base ⊕ overlay + scope dimensions + functional groups). */
   fieldConfig: FieldConfig | null;
-  /**
-   * The tenant's ACTIVE **Lidmaatschap Beheer** catalog entries (R5.8), fetched by the page via
-   * `listMembershipTypes(true)`. Feeds the `membership_type` dropdown with active types only; the
-   * domain re-validates the chosen type authoritatively.
-   */
-  membershipTypes?: MembershipType[] | null;
   /** Called after a successful update so the page can refresh its list. */
   onSaved: () => void;
 }
 
 export const MembersEditModal: React.FC<MembersEditModalProps> = ({
-  isOpen, onClose, member, fieldConfig, membershipTypes, onSaved,
+  isOpen, onClose, member, fieldConfig, onSaved,
 }) => {
   const { t, i18n } = useTypedTranslation('members');
   const toast = useToast();
@@ -164,7 +158,6 @@ export const MembersEditModal: React.FC<MembersEditModalProps> = ({
                   dimensionKey={dimensionKey}
                   regionValues={regionValues}
                   dimensionLabel={dimensionLabel}
-                  membershipTypes={membershipTypes}
                 />
               </ModalBody>
               <ModalFooter>

@@ -24,7 +24,6 @@ import { LandingPageEditor } from './LandingPage';
 import {
   MembersConfigEditor,
   MembersMailConfigEditor,
-  MembershipTypesManager,
   ApplicationFormBuilder,
 } from './MembersConfig';
 
@@ -264,20 +263,14 @@ export function TenantAdminDashboard() {
             )}
             {hasMembers && (
               <TabPanel>
-                {/* Members admin area: the field-config editor + the membership-type catalog
-                    management surface (membership-type-catalog-admin-ui task 2.1) as sibling
-                    sections under the same hasMembers gate. */}
+                {/* Members admin area: the field-config editor + Mail + Application-form
+                    authoring surfaces as sibling sections under the same hasMembers gate.
+                    (The standalone membership-type catalog tab was retired in spec 03b —
+                    membership_type is now a normal enum field authored inline.) */}
                 <Tabs colorScheme="orange" variant="soft-rounded" size="sm" isLazy>
                   <TabList>
                     <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
                       {membersLang === 'nl' ? 'Veldconfiguratie' : 'Field configuration'}
-                    </Tab>
-                    <Tab
-                      color="gray.300"
-                      _selected={{ color: 'orange.400', bg: 'gray.800' }}
-                      data-testid="members-admin-membership-types-tab"
-                    >
-                      {membersLang === 'nl' ? 'Lidmaatschapstypes' : 'Membership types'}
                     </Tab>
                     <Tab
                       color="gray.300"
@@ -297,9 +290,6 @@ export function TenantAdminDashboard() {
                   <TabPanels>
                     <TabPanel px={0}>
                       <MembersConfigEditor tenant={currentTenant} />
-                    </TabPanel>
-                    <TabPanel px={0}>
-                      <MembershipTypesManager tenant={currentTenant} />
                     </TabPanel>
                     <TabPanel px={0}>
                       {/* The typed Mail function authors the SAM-owned config#mail scalars

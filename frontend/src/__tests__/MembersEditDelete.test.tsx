@@ -52,15 +52,6 @@ const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
 const mockUpdateMember = vi.mocked(membersApiService.updateMember);
 const mockDeleteMember = vi.mocked(membersApiService.deleteMember);
-const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes);
-
-// The active membership-type catalog the page feeds the membership_type dropdown from via
-// listMembershipTypes(true) (R5.8, task 4.7). Keys match the field's embedded options so the
-// dropdown offers `gewoon`/`erelid` (pre-fill lands on `gewoon`; edits can select `erelid`).
-const mockMembershipTypes = [
-  { key: 'gewoon', label: { nl: 'Gewoon lid', en: 'Ordinary' }, active: true },
-  { key: 'erelid', label: { nl: 'Erelid', en: 'Honorary' }, active: true },
-];
 
 // The flat table row (list view).
 const mockRow: Member = {
@@ -139,7 +130,6 @@ describe('MembersEditModal — broadened over the resolved field set', () => {
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockFullMember as never);
     mockUpdateMember.mockResolvedValue({ member_id: 'm-1' } as never);
-    mockListMembershipTypes.mockResolvedValue(mockMembershipTypes as never);
   });
 
   describe('opening + pre-fill (R8.2, R4.9)', () => {
@@ -149,11 +139,11 @@ describe('MembersEditModal — broadened over the resolved field set', () => {
       expect((dialog.querySelector('[name="first_name"]') as HTMLInputElement).value).toBe('Jan');
       expect((dialog.querySelector('[name="last_name"]') as HTMLInputElement).value).toBe('de Vries');
       expect((dialog.querySelector('[name="email"]') as HTMLInputElement).value).toBe('jan@h-dcn.example');
-      // membership_type + region are now LazySelect comboboxes — read the trigger's displayed value
-      // at rest instead of `.value` on a native control. The async membership_type catalog has NOT
-      // resolved at rest (it loads on open), so the trigger shows the raw stored value `gewoon`; the
-      // eager region source resolves immediately, so its in-set value shows as `Noord`.
-      expect(getLazySelectDisplay('membership_type', dialog)).toContain('gewoon');
+      // membership_type + region are now LazySelect comboboxes fed EAGERLY from the field config's
+      // own options (spec 03b — the live catalog is retired). Both resolve immediately, so the
+      // membership_type trigger shows the resolved label `Gewoon lid` for stored `gewoon`, and the
+      // in-set region value shows as `Noord`.
+      expect(getLazySelectDisplay('membership_type', dialog)).toContain('Gewoon lid');
       expect(getLazySelectDisplay('region', dialog)).toContain('Noord');
     });
   });
@@ -177,9 +167,9 @@ describe('MembersEditModal — broadened over the resolved field set', () => {
     it('calls updateMember with the storage-group-shaped nested body (NO tenant)', async () => {
       const dialog = await openEditModal();
       fillByName(dialog, 'first_name', 'Jan Jansen');
-      // membership_type (async catalog) + region (eager) → drive through the LazySelect combobox so
+      // membership_type + region (both eager field-options) → drive through the LazySelect combobox so
       // Formik `setFieldValue` fires. Pick the Dutch labels ("Erelid" → erelid; "Zuid").
-      await pickMembershipType('Erelid', mockListMembershipTypes, dialog);
+      await pickMembershipType('Erelid', undefined, dialog);
       await pickLazySelectOption('region', 'Zuid', { container: dialog });
 
       fireEvent.click(within(dialog).getByText('editModal.save'));
@@ -277,7 +267,6 @@ describe('MembersDeleteConfirm (task 19.3)', () => {
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockFullMember as never);
     mockDeleteMember.mockResolvedValue({} as never);
-    mockListMembershipTypes.mockResolvedValue(mockMembershipTypes as never);
   });
 
   const openDeleteConfirm = async () => {

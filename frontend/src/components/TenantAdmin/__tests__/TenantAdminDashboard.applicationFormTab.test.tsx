@@ -9,7 +9,7 @@
  *
  * These assertions cover the OBSERVABLE wiring this task owns (R1.1 / R1.4):
  *   1. the 4th tab renders (with its testid) as a SIBLING of the existing
- *      Field-configuration / Membership-types / Mail sub-tabs, ONLY under `hasMembers`;
+ *      Field-configuration / Mail sub-tabs, ONLY under `hasMembers`;
  *   2. its label is bilingual — "Application form" (en) / "Aanmeldformulier" (nl);
  *   3. selecting it mounts the ApplicationFormBuilder with the current tenant;
  *   4. when the tenant does NOT have MEMBERS, the whole Members area (and thus the
@@ -106,7 +106,6 @@ vi.mock('../../../services/apiService', () => ({
 vi.mock('../MembersConfig', () => ({
   MembersConfigEditor: () => <div data-testid="stub-members-config-editor" />,
   MembersMailConfigEditor: () => <div data-testid="stub-members-mail-editor" />,
-  MembershipTypesManager: () => <div data-testid="stub-membership-types" />,
   ApplicationFormBuilder: ({ tenant }: { tenant: string }) => (
     <div data-testid="stub-application-form-builder">builder:{tenant}</div>
   ),
@@ -150,8 +149,7 @@ describe('TenantAdminDashboard — Application form Members sub-tab (task 2.2, R
     expect(appFormTab).toBeInTheDocument();
     expect(appFormTab).toHaveTextContent('Application form');
 
-    // It is a SIBLING of the existing Membership-types + Mail sub-tabs (R1.1).
-    expect(screen.getByTestId('members-admin-membership-types-tab')).toBeInTheDocument();
+    // It is a SIBLING of the existing Field-configuration + Mail sub-tabs (R1.1).
     expect(screen.getByTestId('members-admin-mail-tab')).toBeInTheDocument();
   });
 
