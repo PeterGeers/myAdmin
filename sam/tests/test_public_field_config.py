@@ -90,6 +90,13 @@ def _overlay_public_form() -> TenantOverlay:
                 application_visible=True,
                 application_required=True,
                 application_choices=("gewoon",),
+                # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE field
+                # options (the catalog is retired). The full set is gewoon + erelid (both active);
+                # the application SUBSET then narrows the public read to ``gewoon`` only.
+                options=(
+                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Regular"}, allowed=True, order=10),
+                    EnumOption(value="erelid", label={"nl": "Erelid", "en": "Honorary"}, allowed=True, order=20),
+                ),
             ),
             # last_name intentionally NOT application_visible → never exposed.
         },
@@ -308,14 +315,33 @@ class TestBodyShape:
 # form offers and what submit accepts cannot drift (R5.4).
 
 
-def _overlay_membership_type_subset(subset: tuple[str, ...]) -> TenantOverlay:
-    """Put `membership_type` on the public form with the given application subset (public-safe codes)."""
+def _overlay_membership_type_subset(
+    subset: tuple[str, ...], *, options: tuple[str, ...] = ()
+) -> TenantOverlay:
+    """Put `membership_type` on the public form with the given application subset + inline options.
+
+    03b CONTRACT (Task 10.5): membership_type owns its vocabulary as the field's OWN inline
+    ``EnumOption``s (the catalog is retired). The application ``subset`` then narrows that inline
+    vocabulary for the public read; a subset entry NOT in the inline options is a dangling
+    reference (R4a.4) that fails loud. ``options`` defaults to the ``subset`` itself when not
+    given, so a well-formed subset is ⊆ its options by construction.
+    """
+    option_codes = options or subset
     return TenantOverlay(
         overrides={
             "membership.membership_type": FixedFieldOverride(
                 application_visible=True,
                 application_required=True,
                 application_choices=subset,
+                options=tuple(
+                    EnumOption(
+                        value=code,
+                        label={"nl": code, "en": code},
+                        allowed=True,
+                        order=(i + 1) * 10,
+                    )
+                    for i, code in enumerate(option_codes)
+                ),
             ),
         },
         fields={},
@@ -323,9 +349,11 @@ def _overlay_membership_type_subset(subset: tuple[str, ...]) -> TenantOverlay:
 
 
 def _service_with_catalog(overlay: TenantOverlay, *active_codes: str) -> MembershipService:
+    # `active_codes` name the field's inline membership_type vocabulary (03b CONTRACT: the field
+    # owns its options; the catalog is retired). They are seeded into the overlay's inline options
+    # by the caller via `_overlay_membership_type_subset(options=...)`; a repo catalog is NOT the
+    # source of the vocabulary any more. The repo is kept only to satisfy the service wiring.
     repo = _ApplicationRepo()
-    for order, code in enumerate(active_codes, start=1):
-        repo.add_type(TENANT, _entry(TENANT, code, order=order * 10))
     return MembershipService(
         repo, overlay_provider=StaticOverlayProvider({TENANT: overlay})
     )
@@ -337,7 +365,7 @@ class TestMembershipTypeReferenceSubsetAgainstLiveCatalog:
         # in the declared public-safe set (R5.3 — the form offers only the public-safe types).
         # The public schema emits the BARE key (`membership_type`), not the dotted storage key.
         svc = _service_with_catalog(
-            _overlay_membership_type_subset(("gewoon",)), "gewoon", "erelid"
+            _overlay_membership_type_subset(("gewoon",), options=("gewoon", "erelid"))
         )
         fields = _by_key(svc.get_public_field_config(TENANT)["fields"])
         values = [o["value"] for o in fields["membership_type"]["options"]]
@@ -349,9 +377,10 @@ class TestMembershipTypeReferenceSubsetAgainstLiveCatalog:
         # silently drop the entry and serve a short list — a silent drop is exactly the
         # partial-corruption class this spec exists to prevent (root-cause-analysis).
         svc = _service_with_catalog(
-            _overlay_membership_type_subset(("gewoon", "ghost")),  # ghost ∉ catalog
-            "gewoon",
-            "erelid",
+            # ghost ∉ the field's inline options → a dangling subset entry (R4a.4).
+            _overlay_membership_type_subset(
+                ("gewoon", "ghost"), options=("gewoon", "erelid")
+            )
         )
         with pytest.raises(OverlayError) as exc:
             svc.get_public_field_config(TENANT)
@@ -365,10 +394,15 @@ class TestMembershipTypeReferenceSubsetAgainstLiveCatalog:
         assert "ghost" in reason
         assert "options" in reason.lower()
 
-    def test_dangling_reference_against_an_empty_catalog_also_fails_loud(self):
-        # A referenced type against an EMPTY catalog is still a dangling reference — fail loud,
-        # never serve an empty dropdown as if the config were valid.
-        svc = _service_with_catalog(_overlay_membership_type_subset(("gewoon",)))
+    def test_dangling_reference_against_empty_inline_options_also_fails_loud(self):
+        # 03b CONTRACT (Task 10.5): a subset entry against a field with NO inline options is still
+        # a dangling reference — fail loud, never serve an empty dropdown as if the config were
+        # valid. (Under the unified model the vocabulary is the field's own options, not a
+        # catalog; an application_choices subset that references a value the field does not define
+        # is the same R4a.4 dangling-reference bug.)
+        svc = _service_with_catalog(
+            _overlay_membership_type_subset(("gewoon",), options=("erelid",))
+        )
         with pytest.raises(OverlayError):
             svc.get_public_field_config(TENANT)
 
@@ -381,7 +415,7 @@ class TestMembershipTypeReferenceSubsetAgainstLiveCatalog:
         # (`_membership_type_subset_error` rejects anything outside this same set — pinned in
         # test_create_application_membership_type.py::TestExposedNonSubsetRejected).
         svc = _service_with_catalog(
-            _overlay_membership_type_subset(("gewoon",)), "gewoon", "erelid"
+            _overlay_membership_type_subset(("gewoon",), options=("gewoon", "erelid"))
         )
         fields = _by_key(svc.get_public_field_config(TENANT)["fields"])
         exposed = {o["value"] for o in fields["membership_type"]["options"]}
@@ -411,12 +445,13 @@ class TestMembershipTypeReferenceSubsetAgainstLiveCatalog:
             _service,
         )
 
-        # READ half: a visible field whose subset references `ghost` (∉ the live catalog) fails
-        # loud on the public read, naming the dangling entry against the catalog (REFERENCE).
+        # READ half: a visible field whose subset references `ghost` (∉ the field's inline
+        # options) fails loud on the public read, naming the dangling entry (03b CONTRACT: the
+        # vocabulary is the field's own options, R4a.4 dangling-reference guard).
         read_svc = _service_with_catalog(
-            _overlay_membership_type_subset(("gewoon", "ghost")),  # ghost ∉ catalog
-            "gewoon",
-            "erelid",
+            _overlay_membership_type_subset(
+                ("gewoon", "ghost"), options=("gewoon", "erelid")
+            )
         )
         with pytest.raises(OverlayError) as read_exc:
             read_svc.get_public_field_config(TENANT)
