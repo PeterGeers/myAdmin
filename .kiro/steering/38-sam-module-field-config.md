@@ -31,10 +31,17 @@ on purpose — it points at the reference impl and the spec for detail, it does 
    filters. Keep view-contexts and analytics as **separate tenant config**, never baked into the
    catalog shape as fields.
 
-4. **First-class, versioned, observable projection.** The tenant config projects to a **first-class,
-   versioned, observable** projection (the Members pattern), not ad-hoc reads. Version **per-param**
-   (not off a coarse tenant row) and expose a read-side delivered/loaded status. Ship this from day
-   one — don't retrofit observability.
+4. **First-class, versioned, observable config rows.** The tenant config lives in **first-class,
+   versioned, observable** `config#*` rows (the Members pattern), not ad-hoc reads. Version
+   **per-row** (not off a coarse tenant row) and expose a read-side delivered/loaded status. Ship
+   this from day one — don't retrofit observability.
+
+   > **Authoring is SAM-owned (Members, spec-02).** A module's `config#*` rows are authored
+   > DIRECTLY by the module via its own typed write path (`PUT /<module>/config/*`, Change-Op for
+   > the field config), NOT projected from a MySQL source. In Members, `ProjectionSync` emits ZERO
+   > `config#*` rows — only identity GRANTS (`role#`/`scopegrant#`) still project from MySQL. A new
+   > module authors its config on the SAM plane; do not reintroduce a Flask-writes-config /
+   > SAM-reads projection path for module config.
 
 5. **One authoring surface, written by Change-Op.** A single typed editor/save path folds inputs
    into the stored shape: **one save → one re-projection**. Never grow two doors to the same rows (no

@@ -4,10 +4,15 @@ Plain-language guide to what a tenant administrator configures for the Members m
 each piece lives. For the technical shapes (tables, keys, item formats) see
 [`data-model.md`](./data-model.md).
 
-> Two places author config, and that split causes most of the confusion:
-> - **Flask Tenant Admin** authors FIELD config (the member form: fields, labels, dropdowns),
->   plus scope and mail. Saved in MySQL, then COPIED ("projected") to the module to read.
-> - **The Members module** owns the **membership-type catalog** (Lidmaatschap Beheer) directly.
+> Where config is authored (post-03b / spec-02):
+> - **Member field config** (the member form: fields, labels, dropdowns), **scope**, and **mail**
+>   are authored by the **Members module itself** and saved directly to its config
+>   (`config#fields` / `config#scope` / `config#mail`) — NOT copied from MySQL any more.
+> - **Membership types** are just a regular dropdown (enum) field now — edited inline on the
+>   `membership_type` field like any other dropdown. The old separate "membership-type catalog"
+>   (Lidmaatschap Beheer) and its lack of a UI are **gone** (03b).
+> - Only **user access** — logins, roles, and per-user scope grants — still comes from the
+>   identity system (MySQL `user_tenant_roles`), projected to the module read-only.
 
 ---
 
@@ -27,21 +32,22 @@ data they may see — not about members themselves.
 
 ---
 
-## 1. Fields and their dropdowns (Flask Tenant Admin)
+## 1. Fields and their dropdowns (Members Tenant Admin)
 
 The member form is a set of fields — some platform fixed fields (e.g. `status`), some you add
 yourself ("club detail" fields). Per field you set label, order, required/visible, and — for a
 dropdown (enum) field — its allowed values.
 
-- Dropdown values are stored **inline on the field** (each value = a code + nl/en label).
-- Your edit is saved in MySQL, then **projected** to the module. The member app reads the
-  projected copy — so if a new value doesn't appear, the projection is behind your edit, not the
-  reverse.
-- `status` is a fixed field whose values (Aanmelding / Actief / … / Overleden) you edit here.
-
-> Known bug: a newly added value on a FIXED field's dropdown (e.g. adding "Overleden"/`died` to
-> `status`) may not appear in the app — the module currently drops fixed-field override values on
-> read. Tracked in `.kiro/specs/Members/application-app/issues_found.md`.
+- Dropdown values are stored **inline on the field** (each value = a code + nl/en label). One
+  canonical list per field — there is a single way to store a field's vocabulary now.
+- Each value also carries an **"allowed"** flag. Turning a value OFF ("retire") removes it from
+  the dropdown for new/edited members, but members who already have that value keep it
+  (grandfathered). This is how you retire a type without breaking existing records.
+- `status` is a fixed field whose values (Aanmelding / Actief / … / Overleden) you edit here —
+  and a newly added fixed-field value now shows correctly in the app (the earlier "Overleden"/
+  `died`-not-appearing bug is fixed).
+- Your edit saves directly to the module's own config and takes effect on the next read — there
+  is no MySQL copy / projection delay for field config any more.
 
 ## 2. Scope — who may see which members (access control)
 
@@ -61,46 +67,58 @@ Single-list rule: the `region` member FIELD intentionally has no values of its o
 the scope dimension's values. You maintain the list in ONE place (the scope config), and the
 field's dropdown borrows it. No duplicate list to keep in sync.
 
-## 3. Membership types — the Lidmaatschap Beheer catalog (owned by the module)
+## 3. Membership types — a regular dropdown field (03b)
 
-Membership types are **not** an inline dropdown. Each type is its own managed record; a member's
-`membership_type` references one by its code.
+Membership types are now just the values of the `membership_type` dropdown field — edited inline
+in the field config exactly like any other enum (section 1), each value a code + nl/en label with
+an "allowed" flag. There is no separate "catalog" and no missing UI any more: you add, relabel,
+reorder, and retire types right on the field.
 
-- Tenant-owned, empty by default; h-dcn's types were seeded as data.
-- Retiring a type is a **soft-delete** (`active=false`): it leaves the dropdown for new/edited
-  members but existing members keep their type.
+- A member's `membership_type` stores the value's code (e.g. `erelid`), as before.
+- **Retiring** a type = turn its "allowed" flag OFF: it leaves the dropdown for new/edited
+  members, existing members keep it (grandfathered). (This replaced the old `active=false`
+  soft-delete on the separate catalog.)
 - Ordered by `order`, then code.
 
-h-dcn's live catalog (7 active types):
+h-dcn's membership_type values (now inline options on the field):
 
-| order | code | Nederlands | English |
-| --- | --- | --- | --- |
-| 10 | `gewoon_lid` | Gewoon lid | Regular member |
-| 15 | `gezins_lid` | Gezinslid | Family member |
-| 20 | `erelid` | Erelid | Honorary member |
-| 30 | `donateur` | Donateur | Donor |
-| 35 | `gezins_donateur` | Gezinsdonateur | Family donor |
-| 40 | `sponsor` | Sponsor | Sponsor |
-| 50 | `overig` | Overig | Other |
+| order | code | Nederlands | English | allowed |
+| --- | --- | --- | --- | --- |
+| 10 | `gewoon_lid` | Gewoon lid | Regular member | yes |
+| 15 | `gezins_lid` | Gezinslid | Family member | yes |
+| 20 | `erelid` | Erelid | Honorary member | **no (retired)** |
+| 30 | `donateur` | Donateur | Donor | yes |
+| 35 | `gezins_donateur` | Gezinsdonateur | Family donor | yes |
+| 40 | `sponsor` | Sponsor | Sponsor | yes |
+| 50 | `overig` | Overig | Other | yes |
 
-> Authoring gap (known): there is currently **no UI** to manage this catalog. The 7 entries were
-> seeded as data; adding/retiring a type today means editing the catalog record directly.
+> History: these were previously standalone `membershiptype#` catalog records with no management
+> UI. 03b folded them into the field's own options and retired the catalog, so they are now
+> managed like every other dropdown.
 
-## 4. Mail (Flask Tenant Admin)
+## 4. The public application form (per-field)
 
-The per-tenant mail-enabled gate and sender identity. Projected; the module reads it to decide
-whether to offer mail actions.
+For a public member-application form, each field has four extra toggles: put it **on the form**,
+make it **required on the form**, offer only a **subset** of its dropdown values publicly, and
+attach a **format check** (e.g. email). These are set per field in the application-form builder;
+an unauthored field simply isn't on the public form.
+
+## 5. Mail (Members Tenant Admin)
+
+The per-tenant mail-enabled gate and sender identity, authored in the module's typed Mail config.
+The module reads it to decide whether to offer mail actions.
 
 ---
 
-## Why "it looks like one dropdown but behaves differently"
+## Why `region` behaves differently from the other dropdowns
 
-In the member form, `status`, `region`, and `membership_type` all look like dropdowns, but each
-is stored a different way:
+In the member form, `status`, `membership_type`, and `region` all look like dropdowns. Post-03b
+`status` and `membership_type` are the SAME kind — plain inline values on the field, edited the
+same way (section 1 / section 3). Only `region` is special:
 
-- **`status`** — inline values on the field (authored in Flask, projected).
-- **`region`** — values come from the scope config (access control), reused by the field.
-- **`membership_type`** — a reference to a separate catalog record the module owns.
+- **`status` / `membership_type`** — inline values on the field (code + nl/en label + allowed).
+- **`region`** — has NO values of its own; it reuses the **scope** config's values (section 2),
+  so you maintain that list once (as access control) and the field borrows it.
 
-Three storage models behind one familiar control. That is why they aren't managed the same way —
-expected, not a bug.
+So there are only two models now: a field's own inline values, or (for `region`) the scope list it
+borrows. Expected, not a bug.

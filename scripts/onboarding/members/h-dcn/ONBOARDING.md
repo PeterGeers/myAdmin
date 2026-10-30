@@ -44,7 +44,10 @@ it's settled; anything else is still open. (Newest context first.)
 > **Data vs config vs code — the three things and how each is created:**
 > - **Member DATA** (~1152 records) → the **backfill script** (transform Ledenbestand → `sam-members`). One-time onboarding migration; NOT prod runtime.
 > - **Member CONFIG** (2 param rows) → **authored** via `set_param` (the `seed-hdcn-members-config.py` script). NOT a backfill.
-> - **Membership-type CATALOG** (7 entries) → the **catalog seed script** (`seed-hdcn-catalog.py`) into `sam-members`.
+> - **Membership types** (7) → the `membership_type` field's own inline `options` (03b). No
+>   separate catalog / no seed script: the EXPAND migration
+>   (`sam/members/migration/membership_type_catalog_to_field_options.py`) folds
+>   `HDCN_MEMBERSHIP_TYPES` onto the field. (The old `seed-hdcn-catalog.py` is retired.)
 
 ---
 
@@ -202,11 +205,14 @@ Tenant-authored fields; the option list lives inside the overlay field's `choice
 > legacy junk value on an address-only save passes. (Alternative: a one-time import cleanup mapping
 > junk brands → `eigenbouw`, but that rewrites history and still doesn't enforce new writes.)
 
-### Bucket 3 — Managed **catalog** (`membershiptype#` rows in `sam-members`)
+### Bucket 3 — `membership_type` field options (03b; was a `membershiptype#` catalog)
 
-`membership_type` (source `lidmaatschap`) references the Lidmaatschap Beheer catalog — module
-DATA, not a parameter. Seeded by `scripts/onboarding/members/h-dcn/seed-hdcn-catalog.py`. **Active-only** entries
-render in the dropdown; validated server-side (R5.8). Codes (canonical `value`s):
+`membership_type` (source `lidmaatschap`) is a normal enum field whose vocabulary is its own
+inline `options` on `config#fields` (03b — the separate `membershiptype#` catalog is retired).
+The h-dcn values come from `HDCN_MEMBERSHIP_TYPES`, folded onto the field by the EXPAND migration
+`sam/members/migration/membership_type_catalog_to_field_options.py`. An option with
+`allowed:false` is retired (dropped from the picker, existing members grandfathered); validated
+server-side (R5.8). Codes (canonical `value`s):
 
 | `type_code` | `{nl,en}` label | roles gate (R4.12) |
 | --- | --- | --- |
