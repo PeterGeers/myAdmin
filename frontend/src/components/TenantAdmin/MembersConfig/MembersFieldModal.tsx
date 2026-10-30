@@ -99,7 +99,6 @@ export interface MembersFieldModalProps {
    * fine: the reference note still renders the instructional pointer (naming the
    * "Lidmaatschapstypes" tab), so the field editor is never a dead end even without a handler.
    */
-  onManageCatalog?: () => void;
   /**
    * Optional provenance-driven action slot (task 4.7). When provided, rendered in the modal footer
    * (left side) — e.g. delete / reset / hide + move-to-group. Kept as a slot so task 4.6 owns only
@@ -163,7 +162,17 @@ function optionsToChoices(
       en: opt.label?.en ?? value,
     };
     const roles = Array.isArray(opt.roles) ? opt.roles.filter(Boolean) : [];
-    return { value, label, ...(roles.length ? { roles } : {}) };
+    // Carry the 03b retire/grandfather flag + rank so the inline editor shows the retired state
+    // and the save round-trips it (absent `allowed` === offered; only `false` is carried).
+    const allowed = (opt as { allowed?: boolean }).allowed;
+    const order = (opt as { order?: number }).order;
+    return {
+      value,
+      label,
+      ...(roles.length ? { roles } : {}),
+      ...(allowed === false ? { allowed: false } : {}),
+      ...(typeof order === 'number' ? { order } : {}),
+    };
   }) as unknown as MembersConfigValue;
 }
 
@@ -234,8 +243,8 @@ function formFromResolvedField(
 
 /**
  * Fallback seed from the raw OVERLAY field — used only when the resolved descriptor is unavailable
- * (R1.4 degrade-never-block). Mirrors the pre-remediation seed (reads the overlay's `choices` /
- * flat `label_*`), with the one deliberate change that an absent `type` is left EMPTY rather than
+ * (R1.4 degrade-never-block). Reads the overlay's ONE canonical `options` vocabulary (spec 03a /
+ * C1 — never a `choices` key) and the flat `label_*`, with an absent `type` left EMPTY rather than
  * silently defaulted to `'string'` (R2.2).
  */
 function formFromOverlayField(key: string, field: OverlayField | undefined): FieldForm {
@@ -253,7 +262,9 @@ function formFromOverlayField(key: string, field: OverlayField | undefined): Fie
     required: field.required === true,
     visible: field.visible !== false,
     read_only: field.read_only === true,
-    choices: (field.choices as MembersConfigValue) ?? [],
+    // Seed the editor's `choices` form state from the overlay's ONE canonical `options` (never a
+    // legacy `choices` key) — the single vocabulary (spec 03a / C1, F6).
+    choices: (field.options as MembersConfigValue) ?? [],
     scopeEnabled: scope.enabled === true,
     // Single-vocabulary (R3.2): no scope values here — only `required_for`. A legacy stored
     // `scope.values` is honoured server-side as a migration fallback; the modal never edits it.
@@ -312,7 +323,6 @@ export const MembersFieldModal: React.FC<MembersFieldModalProps> = ({
   availableRoles = [],
   lang,
   actionsSlot,
-  onManageCatalog,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
 
@@ -389,11 +399,25 @@ export const MembersFieldModal: React.FC<MembersFieldModalProps> = ({
       functional_group: mode === 'create' ? groupKey : undefined,
       order: form.order.trim() ? Number(form.order) : undefined,
     };
+    // CREATE authors a brand-new tenant VARIABLE field under `fields`, diffed against an EMPTY
+    // baseline — there is no prior stored `required: true` to overwrite, so `required` OFF ≡ absent
+    // (the diff emits nothing either way and the resolved field is not-required). Hence create does
+    // NOT need the explicit-`false` the edit path needs; authoring `required: false` here would only
+    // add a redundant op. Left as-is deliberately (the absent==false equivalence holds only on create
+    // against an empty baseline — on EDIT a stored `true` must be explicitly cleared, see handleSave).
     if (form.required) field.required = true;
     if (!form.visible) field.visible = false;
     if (form.read_only) field.read_only = true;
-    if (form.type === 'enum' && Array.isArray(form.choices) && form.choices.length > 0) {
-      field.choices = form.choices;
+    if (
+      (form.type === 'enum' || form.type === 'reference') &&
+      Array.isArray(form.choices) &&
+      form.choices.length > 0
+    ) {
+      // Single-vocabulary (spec 03a / C1): the enum vocabulary is authored under the ONE canonical
+      // `options` key on the working overlay — NEVER `choices` — so the Change-Op write emits only
+      // `options` (the `choices` key was dropped from DEFINITION_ATTRS). The in-memory form field is
+      // still called `choices` (it drives the shared EnumOptionsEditor), but it is stored as `options`.
+      field.options = form.choices;
     }
     // Scope-binding attribute (remediation task 3.3, R3.2/R3.3) — only when enabled. SINGLE
     // vocabulary: the stored `scope` is `{ enabled, required_for? }` ONLY; it carries NO `values`
@@ -432,10 +456,27 @@ export const MembersFieldModal: React.FC<MembersFieldModalProps> = ({
       // Explicitly clear attributes that were turned off so they do not linger.
       const patch: Partial<OverlayField> = {
         ...field,
-        required: form.required ? true : undefined,
-        visible: form.visible ? undefined : false,
+        // Send the EXPLICIT boolean for BOTH `required` and `visible` so a toggle flipped either
+        // way reaches the server as a deliberate `true`/`false`, never a dropped `undefined`. The
+        // Change-Op diff (`fieldConfigChangeOps`) treats both as DEFINITION_BOOLEAN_ATTRS and only
+        // emits an attr when it is `!== undefined`; a `? undefined : false` pattern can set a
+        // stored override to `false` but can NEVER clear it back to `true` (the attr is dropped on
+        // the ON path), so re-enabling a previously-hidden/required field silently no-ops. Sending
+        // the raw boolean makes both transitions symmetric — the exact fix the `required` toggle
+        // already uses, now applied to `visible` too (the reported visible-stuck-off bug).
+        required: form.required,
+        visible: form.visible,
+        // `read_only` is PLATFORM-OWNED, not a clearable tenant override: the resolver pins it `true`
+        // ONLY for CALCULATED fields (which are not writable here — the modal returns early for them)
+        // and `false` for every fixed/variable field. It is NOT in the backend `FIELD_DEFINITION_ATTRS`
+        // write surface nor in the client `DEFINITION_ATTRS` diff list, so it never crosses the wire
+        // via a Change-Op regardless of what we put here. There is therefore no stored `read_only: true`
+        // override a user needs to clear, so absence==false is correct and the `required` bug does NOT
+        // apply — kept as-is deliberately.
         read_only: form.read_only ? true : undefined,
-        choices: field.choices ?? undefined,
+        // Single-vocabulary (spec 03a / C1): clear/author the enum vocabulary under the ONE
+        // canonical `options` key — never `choices`.
+        options: field.options ?? undefined,
         scope: field.scope ?? undefined,
       };
       // `functional_group` single source of truth (task 5.1, R6.1/R6.2): the modal does NOT
@@ -578,59 +619,21 @@ export const MembersFieldModal: React.FC<MembersFieldModalProps> = ({
             </HStack>
 
             {/* Enum choices (only for enum type) */}
-            {form.type === 'enum' && (
+            {(form.type === 'enum' || form.type === 'reference') && (
               <FormControl>
                 <FormLabel color="gray.300">{t('Keuzes', 'Choices')}</FormLabel>
+                {/* Spec 03b unified enum model: membership_type (a `reference` field) is a NORMAL
+                    enum that owns its own `options` — edited inline here exactly like any enum, with
+                    the per-option retire/grandfather (`allowed`) toggle serving as the reference
+                    status. The retired `membershiptype#` catalog + its "managed elsewhere" pointer
+                    are gone; the field IS the single vocabulary (stored under `options`, never the
+                    retired `choices` key — the form field name is historical). */}
                 <EnumOptionsEditor
                   value={form.choices}
                   onChange={(next) => set('choices', next)}
                   availableRoles={availableRoles}
                   lang={lang}
                 />
-              </FormControl>
-            )}
-
-            {/* Reference pointer (only for reference type) — R3.1/R3.3. A `reference` field's
-                values are NOT an inline list on the field; they live in the tenant's
-                membership-type catalog (Lidmaatschap Beheer). So INSTEAD of an (empty) enum-values
-                editor we show a read-only note explaining that, plus a pointer to the catalog
-                manager. The manager is a SIBLING sub-tab ("Lidmaatschapstypes") in the same
-                TenantAdmin Members area — not a routable URL — so the pointer is an instructional
-                button that names exactly where to go. An optional `onManageCatalog` callback lets a
-                parent wire the actual tab-switch; when unwired the button is a clear, disabled-free
-                pointer so the "no dead end" requirement (R3.1) is still met. The `enum` path above
-                is untouched (R3.3). Presentation attributes (label / visibility / order / group)
-                above remain fully editable for a reference field (R3.2). */}
-            {form.type === 'reference' && (
-              <FormControl>
-                <FormLabel color="gray.300">{t('Waarden', 'Values')}</FormLabel>
-                <Box
-                  bg="gray.700"
-                  borderWidth="1px"
-                  borderColor="gray.600"
-                  borderRadius="md"
-                  p={3}
-                  data-testid="members-field-modal-reference-note"
-                >
-                  <Text fontSize="sm" color="gray.300" mb={2}>
-                    {t(
-                      'De waarden van dit veld worden beheerd in de catalogus met lidmaatschapstypes, niet hier.',
-                      'This field\u2019s values are managed in the membership-type catalog, not here.',
-                    )}
-                  </Text>
-                  <Button
-                    size="sm"
-                    variant="link"
-                    colorScheme="orange"
-                    onClick={() => onManageCatalog?.()}
-                    data-testid="members-field-modal-reference-link"
-                  >
-                    {t(
-                      'Beheer waarden onder het tabblad \u201ELidmaatschapstypes\u201D',
-                      'Manage values under the \u201CMembership types\u201D tab',
-                    )}
-                  </Button>
-                </Box>
               </FormControl>
             )}
 

@@ -1,0 +1,570 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Extend `EnumOption` with `allowed` + `order`": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301504537
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301514390
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301891304
+      }
+    ],
+    "1.2 Add option-integrity checks at the config write seam": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301504636
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301906692
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793302467004
+      }
+    ],
+    "1.3 Write-seam + option-model tests (change-with-tests)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301504747
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793302477488
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793302664181
+      }
+    ],
+    "2.1 Re-point the membership_type reference check to the field options": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301504830
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793302676407
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303191037
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303901882
+      }
+    ],
+    "2.2 Assembly seam reads the field's own options (no catalog injection)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301504906
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303973525
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793304889447
+      }
+    ],
+    "2.3 Reference-check + assembly tests (change-with-tests)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301504988
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793304957144
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793305253690
+      }
+    ],
+    "3.1 Remove the no-relax + overlay-invariant + forced-required/visible": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505097
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793302688109
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303191986
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303903206
+      }
+    ],
+    "3.2 Tests prove the admin is not overruled (change-with-tests)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505179
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303974878
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793304884355
+      }
+    ],
+    "4.1 Fix the change-op diff root cause": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505266
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793302689475
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303193385
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303904716
+      }
+    ],
+    "4.2 Round-trip-every-boolean test (change-with-tests)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505348
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303976343
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793304885335
+      }
+    ],
+    "5.1 Filter/search match the active-language label, not the stored key": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505423
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793302690851
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303194800
+      }
+    ],
+    "5.2 Filter-parity test (change-with-tests)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505495
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303977726
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793304886680
+      }
+    ],
+    "6.1 Derive config#scope from the field + two separate frontend calls": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505600
+      },
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793302692042
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303195768
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303907379
+      }
+    ],
+    "6.2 Axis-vs-value gate (atomic) + error + resync": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505668
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303978688
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793304888283
+      }
+    ],
+    "6.3 Scope-gate tests (change-with-tests)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505742
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793305258943
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793305616395
+      }
+    ],
+    "7.1 Commit the real-row fixture + the integrity-scan (the proof)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505815
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793305627046
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793306249454
+      }
+    ],
+    "7.2 EXPAND migration script (fold catalog → field options; drop forbidden `choices`)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301505892
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793306256329
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793306634582
+      },
+      {
+        "executionId": "3db4c6d4-312e-421e-a673-da0851b9f9da",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793307126586
+      },
+      {
+        "executionId": "3db4c6d4-312e-421e-a673-da0851b9f9da",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793307324009
+      },
+      {
+        "executionId": "395774d2-59c9-44e2-a041-63310eb2f7e5",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793309888797
+      },
+      {
+        "executionId": "395774d2-59c9-44e2-a041-63310eb2f7e5",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310031445
+      }
+    ],
+    "7.3 Run EXPAND + VERIFY on TEST (`test_*` tables)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301506004
+      },
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793306731953
+      },
+      {
+        "executionId": "3db4c6d4-312e-421e-a673-da0851b9f9da",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793307342525
+      },
+      {
+        "executionId": "3db4c6d4-312e-421e-a673-da0851b9f9da",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793307467537
+      }
+    ],
+    "8. Checkpoint — EXPAND verified on TEST before DEPLOY relies on it": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301506079
+      },
+      {
+        "executionId": "3db4c6d4-312e-421e-a673-da0851b9f9da",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793307475660
+      },
+      {
+        "executionId": "3db4c6d4-312e-421e-a673-da0851b9f9da",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793307605630
+      }
+    ],
+    "9.1 Deploy the SAM + frontend changes": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301506156
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310399076
+      }
+    ],
+    "10.1 Retire the `membershiptype#<code>` catalog rows (data)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301506233
+      }
+    ],
+    "10.2 Remove the membership-type management apparatus (code)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301506311
+      },
+      {
+        "executionId": "2cc512ac-c626-44ed-a88a-a4c39be8beb5",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793315197312
+      },
+      {
+        "executionId": "27f9125e-b13d-4f77-8bf9-49a948e4ab00",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793353387993
+      }
+    ],
+    "10.3 Delete the removed-binding plumbing + dead reconciliation + forbidden `choices` code": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301506388
+      }
+    ],
+    "10.4 Record the net code-decrease delta": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301506505
+      }
+    ],
+    "11.1 Update steering + data-model docs": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301506578
+      },
+      {
+        "executionId": "c7d16e2d-be0a-48d5-94ad-9aee432deeff",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793309424911
+      }
+    ],
+    "12.1 Run EXPAND + VERIFY + CONTRACT on PRODUCTION identically to TEST": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301506656
+      }
+    ],
+    "12.2 Checkpoint — promotion readiness": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793301506732
+      }
+    ],
+    "1. BU-1 — Unified option model + option-integrity write-seam (Req 3, the spine)": [
+      {
+        "executionId": "1f45325b-eec6-4a0f-a79c-b704dd7ffc55",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793302664299
+      }
+    ],
+    "5.1 Filter/search match the resolved per-language label OR the stored key": [
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793303916331
+      }
+    ],
+    "3. BU-4 — remove the hardcoded field bindings (Req 1)": [
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793304884502
+      }
+    ],
+    "4. BU-5 — config toggles persist both ways at the ROOT (Req 2)": [
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793304885425
+      }
+    ],
+    "5. BU-9 — display + filter by resolved per-language label (Req 5)": [
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793304886776
+      }
+    ],
+    "2. BU-2 + BU-3 — reference check + assembly read the field, not the catalog (Req 3)": [
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793305253833
+      }
+    ],
+    "6. BU-6 — scope derive-on-save; axis-vs-value gate; two-call orchestration (Req 4)": [
+      {
+        "executionId": "5de09c66-8451-4841-992b-38363427061f",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793305616496
+      }
+    ],
+    "7. BU-7 — data migration (EXPAND + VERIFY), TEST then PROD (Req 6)": [
+      {
+        "executionId": "3db4c6d4-312e-421e-a673-da0851b9f9da",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793307324239
+      }
+    ],
+    "9. DEPLOY — ship BU-1..BU-6 + BU-9 to TEST via CI/CD (mandatory, steering 43)": [
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310399216
+      }
+    ],
+    "9b.1 Field-config modal edits membership_type inline like any enum": [
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310407209
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310529142
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310534850
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310582673
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310589102
+      }
+    ],
+    "9b.2 Application-form editors source membership_type from the field's own options": [
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310407966
+      },
+      {
+        "executionId": "c6bbc7aa-9bf2-4d50-93bc-578b9377d2d2",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793310576890
+      },
+      {
+        "executionId": "0a5531e8-0a2a-401c-9a83-f41c856d033b",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793311114057
+      }
+    ],
+    "9b.3 Frontend parity tests (change-with-tests)": [
+      {
+        "executionId": "62f15b00-133a-498a-96b5-eb99d01d80f1",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793314007542
+      }
+    ],
+    "9b. BU-8a — FRONTEND: membership_type is a regular enum field everywhere (close the all-planes gap)": [
+      {
+        "executionId": "62f15b00-133a-498a-96b5-eb99d01d80f1",
+        "chatSessionId": "sess_59335332-ee26-48ea-98d8-2e15bfb1680a",
+        "timestamp": 1793314007690
+      }
+    ]
+  }
+}

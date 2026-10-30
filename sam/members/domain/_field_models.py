@@ -235,18 +235,40 @@ class FieldScope:
     """The SAM read shape of a field's ``scope`` attribute (Phase 3 step 9, R2.1).
 
     Expresses, as a field attribute, that a field is a scope axis — ``enabled``, with its value
-    vocabulary (``values``), an optional i18n ``label``, and the capabilities that REQUIRE a
-    grant (``required_for``). It mirrors the aspects of a :class:`ScopeDimension` that are
-    authored per field (the dimension ``key``/``field`` derive from the field's own key, so they
-    are NOT carried here). Read-only re-presentation: the authoritative scope projection the
-    resolver consumes is still the ``config#scope`` row (``ScopeConfig``), kept semantically
-    equivalent by the Flask builder (Property 2).
+    vocabulary, an optional i18n ``label``, and the capabilities that REQUIRE a grant
+    (``required_for``). It mirrors the aspects of a :class:`ScopeDimension` that are authored per
+    field (the dimension ``key``/``field`` derive from the field's own key, so they are NOT
+    carried here). Read-only re-presentation: the authoritative scope projection the resolver
+    consumes is still the ``config#scope`` row (``ScopeConfig``), kept semantically equivalent by
+    the Flask builder (Property 2).
+
+    **Single-vocabulary collapse (spec 03a, C5/F7).** A scope axis has ONE vocabulary: the
+    field's canonical ``options`` (rich ``[{value, label?, roles?}]``). This dataclass stores
+    THAT one list and NOTHING ELSE for its vocabulary — :attr:`values` is a DERIVED projection
+    ``tuple(o.value for o in options)`` computed on read, never an independently stored second
+    copy. There is therefore no way to carry ``options`` populated while ``values`` is empty: the
+    observed ``FieldScope(values=())`` divergence (bug manifestation #2) is impossible BY
+    CONSTRUCTION, because there is only one stored list. Scope RESOLUTION for access control still
+    consumes ``config#scope`` / ``ScopeConfig`` separately — that boundary is unchanged; this
+    collapse is DISPLAY vocabulary only.
     """
 
     enabled: bool = True
-    values: Sequence[str] = ()
+    #: The ONE canonical vocabulary of the scope axis — rich enum options. Bare value strings are
+    #: the DERIVED :attr:`values` projection of this list, never a stored sibling (C5/F7).
+    options: Sequence[EnumOption] = ()
     label: Mapping[str, str] = field(default_factory=dict)
     required_for: Sequence[str] = ()
+
+    @property
+    def values(self) -> tuple[str, ...]:
+        """The bare value vocabulary, DERIVED from :attr:`options` at a single point (F7).
+
+        ``values`` is not stored — it is projected from the canonical ``options`` every time, so a
+        scope field can never carry ``options`` populated while ``values`` is empty (the
+        ``FieldScope(values=())`` divergence the fix removes). Returns the option values in order.
+        """
+        return tuple(o.value for o in self.options)
 
 
 @dataclass(frozen=True)

@@ -95,6 +95,14 @@ def _field(config: dict, key: str) -> dict:
     return next(f for f in config["fields"] if f["key"] == key)
 
 
+def _rich(values) -> list[dict]:
+    """The ONE canonical `options` shape the read-assembly seam emits for a scope-backed field
+    (design C4/C5 / `_assemble_field_options`): each dimension value projected to a rich
+    `{"value": v, "label": {}}` entry (bare empty i18n label — scope dimensions carry no per-value
+    labels). The bare-string `options` shape is retired."""
+    return [{"value": v, "label": {}} for v in values]
+
+
 # ── Phase 1 (R1/R2): resolve sources choices from the scope dimension ─────────────────
 
 
@@ -109,10 +117,10 @@ class TestScopeDimensionSourcesChoices:
 
         config = svc.get_field_config(TENANT)  # was: raises OverlayError (→ 502)
 
-        # In the SERIALIZED field-config a bare `choices` list is emitted under `options`
-        # (the frontend's dropdown-source key; rich enum options use the same key).
+        # In the SERIALIZED field-config the scope dimension's values are emitted under `options`
+        # in the ONE canonical rich `{value, label}` shape the read-assembly seam populates (C4/C5).
         region = _field(config, "region")
-        assert region["options"] == list(REGION_VALUES)
+        assert region["options"] == _rich(REGION_VALUES)
 
     def test_get_field_config_dimension_field_differs_from_key_choices_land_on_field(
         self, catalog_repo
@@ -128,7 +136,7 @@ class TestScopeDimensionSourcesChoices:
         config = svc.get_field_config(TENANT)
 
         field = _field(config, "woonregio")
-        assert field["options"] == list(REGION_VALUES)
+        assert field["options"] == _rich(REGION_VALUES)
 
     def test_get_field_config_multiple_dimensions_fill_multiple_fields(self, catalog_repo):
         # Two enabled dimensions binding two different choiceless overlay enums → BOTH filled.
@@ -152,8 +160,8 @@ class TestScopeDimensionSourcesChoices:
 
         config = svc.get_field_config(TENANT)
 
-        assert _field(config, "region")["options"] == list(REGION_VALUES)
-        assert _field(config, "team")["options"] == ["A", "B", "C"]
+        assert _field(config, "region")["options"] == _rich(REGION_VALUES)
+        assert _field(config, "team")["options"] == _rich(("A", "B", "C"))
 
     def test_get_field_config_non_dimension_enum_without_choices_still_raises(self, catalog_repo):
         # CONTROL (R1.4): a choiceless enum that is NOT a scope dimension is still a config bug.
@@ -330,7 +338,7 @@ class TestAppWiresScopeConfigProviderIntoService:
         config = svc.get_field_config(TENANT)  # must NOT raise (the prod 502 case)
 
         region = next(f for f in config["fields"] if f["key"] == "region")
-        assert region["options"] == list(REGION_VALUES)
+        assert region["options"] == _rich(REGION_VALUES)
 
 
 # ── Regression: dict-shaped overlay-enum `choices` must not 502 (prod incident) ─────────

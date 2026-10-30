@@ -20,13 +20,14 @@ function overlay(): MembersConfigValue {
     functional_groups: [{ key: 'personal', order: 1 }],
     fields: {
       region: {
-        // Single-vocabulary: the overlay field carries `scope = { enabled, required_for }` ONLY
-        // (no `values` list) — the scope values ARE the enum vocabulary (served under `options`).
+        // Single-vocabulary (spec 03a / C1): the overlay field carries its enum vocabulary under
+        // the ONE canonical `options` key (never `choices`), plus `scope = { enabled, required_for }`
+        // ONLY (no `values` list) — the scope values ARE that enum vocabulary.
         type: 'enum',
         label_en: 'Region',
         functional_group: 'personal',
         order: 2,
-        choices: [
+        options: [
           { value: 'Noord', label: { nl: 'Noord', en: 'Noord' } },
           { value: 'Zuid', label: { nl: 'Zuid', en: 'Zuid' } },
         ],
@@ -142,6 +143,25 @@ describe('MembersFieldModal — create', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('authors an enum vocabulary under the ONE canonical `options` key — NEVER `choices` (spec 03a / C1)', () => {
+    const onChange = vi.fn();
+    renderModal({ mode: 'create', onChange });
+    const modal = screen.getByTestId('members-field-modal');
+    fireEvent.change(within(modal).getByLabelText('Field key'), { target: { value: 'salutation' } });
+    fireEvent.change(within(modal).getByLabelText('Type'), { target: { value: 'enum' } });
+    // Author one enum value via the single shared EnumOptionsEditor.
+    fireEvent.click(within(modal).getByLabelText('Add option'));
+    fireEvent.change(within(modal).getByLabelText('Option 1 value'), { target: { value: 'mr' } });
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as Record<string, any>;
+    const field = next.fields.salutation;
+    // The committed overlay carries the vocabulary under `options`, and NEVER under `choices`.
+    expect((field.options as Array<{ value: string }>).map((o) => o.value)).toEqual(['mr']);
+    expect(field.choices).toBeUndefined();
+  });
+
   it('shows the enum choices editor only for the enum type', () => {
     renderModal({ mode: 'create' });
     // string type → no choices editor
@@ -185,24 +205,18 @@ describe('MembersFieldModal — create', () => {
 });
 
 describe('MembersFieldModal — reference vs enum branch (Property 4, R3.1/R3.2/R3.3)', () => {
-  it('a REFERENCE field shows the catalog pointer, NOT an enum-values editor (R3.1/R3.3)', () => {
+  it('a REFERENCE field (membership_type) shows the INLINE options editor, NOT a catalog pointer (03b 9b.1, R3.1/R3.3)', () => {
     renderModal({ mode: 'create' });
     // Drive the field type to `reference` the same way the enum test does (the Type select).
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'reference' } });
     const modal = screen.getByTestId('members-field-modal');
-    // The read-only note + its pointer link to the membership-type catalog are shown (no dead end).
-    expect(within(modal).getByTestId('members-field-modal-reference-note')).toBeInTheDocument();
-    expect(within(modal).getByTestId('members-field-modal-reference-link')).toBeInTheDocument();
-    // The inline enum choices editor is ABSENT for a reference field — values live in the catalog.
-    expect(within(modal).queryByText('Choices')).not.toBeInTheDocument();
-  });
-
-  it('clicking the pointer invokes the onManageCatalog handler when wired (R3.1)', () => {
-    const onManageCatalog = vi.fn();
-    renderModal({ mode: 'create', onManageCatalog });
-    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'reference' } });
-    fireEvent.click(screen.getByTestId('members-field-modal-reference-link'));
-    expect(onManageCatalog).toHaveBeenCalledTimes(1);
+    // 03b unified enum model: a reference field is a NORMAL enum that owns its own options — the
+    // inline values editor ("Choices" + "Add option") is shown, edited exactly like any enum.
+    expect(within(modal).getByText('Choices')).toBeInTheDocument();
+    expect(within(modal).getByLabelText('Add option')).toBeInTheDocument();
+    // The retired catalog note + its pointer are GONE (the catalog is being retired, Task 10).
+    expect(within(modal).queryByTestId('members-field-modal-reference-note')).not.toBeInTheDocument();
+    expect(within(modal).queryByTestId('members-field-modal-reference-link')).not.toBeInTheDocument();
   });
 
   it('a REFERENCE field still exposes the presentation attributes (label / order) for editing (R3.2)', () => {
@@ -383,6 +397,116 @@ describe('MembersFieldModal — origin-aware write-back (remediation task 2.2, R
     expect(onClose).toHaveBeenCalled();
   });
 
+  /**
+   * A base field resolved as `required: true` (a stored tenant override, mirroring live TEST data
+   * for `personal.email` / `personal.phone`). The form seeds Required=ON; the modal config below
+   * carries `required: true` so the seed matches.
+   */
+  function requiredBaseConfig(): FieldConfig {
+    const cfg = provenanceConfig();
+    const lastName = cfg.fields.find((f) => f.key === 'last_name');
+    if (lastName) (lastName as Record<string, unknown>).required = true;
+    return cfg;
+  }
+
+  it('unticking Required on a base override currently required=true emits an EXPLICIT `required: false` (clears the override — not undefined/absent)', () => {
+    const onChange = vi.fn();
+    renderModal({
+      mode: 'edit',
+      fieldKey: 'last_name',
+      fieldConfig: requiredBaseConfig(),
+      overlay: writeOverlay(),
+      onChange,
+    });
+    // Form seeds Required=ON from the resolved field; untick it.
+    const requiredSwitch = screen.getByLabelText('Required') as HTMLInputElement;
+    expect(requiredSwitch.checked).toBe(true);
+    fireEvent.click(requiredSwitch);
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as Record<string, any>;
+    const override = next.fixed_overrides['personal.last_name'];
+    // The emitted override must carry an EXPLICIT `false` so the downstream Change-Op diff emits a
+    // `required` op that overwrites the stored `required: true`. A `required: undefined` (the old
+    // bug) would be dropped by `definitionAttrs` and the override would silently stay required.
+    expect(override).toHaveProperty('required');
+    expect(override.required).toBe(false);
+  });
+
+  it('ticking Required on a base override currently not required emits `required: true`', () => {
+    const onChange = vi.fn();
+    renderModal({
+      mode: 'edit',
+      fieldKey: 'last_name',
+      fieldConfig: provenanceConfig(), // last_name resolves not-required
+      overlay: writeOverlay(),
+      onChange,
+    });
+    const requiredSwitch = screen.getByLabelText('Required') as HTMLInputElement;
+    expect(requiredSwitch.checked).toBe(false);
+    fireEvent.click(requiredSwitch);
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    const next = onChange.mock.calls[0][0] as Record<string, any>;
+    expect(next.fixed_overrides['personal.last_name'].required).toBe(true);
+  });
+
+  it('unticking Visible still emits an EXPLICIT `visible: false` (regression guard for the explicit-off pattern `required` now shares)', () => {
+    const onChange = vi.fn();
+    renderModal({
+      mode: 'edit',
+      fieldKey: 'last_name',
+      fieldConfig: provenanceConfig(),
+      overlay: writeOverlay(),
+      onChange,
+    });
+    const visibleSwitch = screen.getByLabelText('Visible') as HTMLInputElement;
+    expect(visibleSwitch.checked).toBe(true);
+    fireEvent.click(visibleSwitch);
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    const next = onChange.mock.calls[0][0] as Record<string, any>;
+    expect(next.fixed_overrides['personal.last_name'].visible).toBe(false);
+  });
+
+  /**
+   * A base field resolved as `visible: false` (a stored tenant override hiding a platform field).
+   * The form seeds Visible=OFF; re-enabling it must emit an EXPLICIT `visible: true` to CLEAR the
+   * stored `false` — the reported bug was that re-enabling Visible silently no-op'd because the
+   * modal emitted `visible: undefined` on the ON path (dropped by the Change-Op diff).
+   */
+  function visibleFalseBaseConfig(): FieldConfig {
+    const cfg = provenanceConfig();
+    const lastName = cfg.fields.find((f) => f.key === 'last_name');
+    if (lastName) (lastName as Record<string, unknown>).visible = false;
+    return cfg;
+  }
+
+  it('re-ticking Visible on a base override currently visible=false emits an EXPLICIT `visible: true` (clears the hide — the reported visible-stuck-off bug)', () => {
+    const onChange = vi.fn();
+    renderModal({
+      mode: 'edit',
+      fieldKey: 'last_name',
+      fieldConfig: visibleFalseBaseConfig(),
+      overlay: writeOverlay(),
+      onChange,
+    });
+    // Form seeds Visible=OFF from the resolved field; tick it back ON.
+    const visibleSwitch = screen.getByLabelText('Visible') as HTMLInputElement;
+    expect(visibleSwitch.checked).toBe(false);
+    fireEvent.click(visibleSwitch);
+    fireEvent.click(screen.getByTestId('members-field-modal-save-btn'));
+
+    const next = onChange.mock.calls[0][0] as Record<string, any>;
+    const override = next.fixed_overrides['personal.last_name'];
+    // Must carry an EXPLICIT `true` so the downstream Change-Op diff emits a `visible` op that
+    // overwrites the stored `visible: false`. A `visible: undefined` (the old bug) would be dropped
+    // by `definitionAttrs` and the field would stay hidden despite the toggle being on.
+    expect(override).toHaveProperty('visible');
+    expect(override.visible).toBe(true);
+  });
+
   it('create always writes a tenant VARIABLE field under `fields` (never fixed_overrides, R1.5)', () => {
     const onChange = vi.fn();
     renderModal({
@@ -431,8 +555,9 @@ describe('MembersFieldModal — edit', () => {
   /**
    * Property P2 — Scope round-trip (R3.7), single-vocabulary. The scope values ARE the field's
    * enum values: there is ONE editor. Enabling scope, ADDING a value and REMOVING a value via the
-   * enum (Choices) editor, then saving, yields a committed overlay whose enum vocabulary (`choices`)
-   * reflects the edit AND whose `scope` is `{ enabled, required_for }` — the scope dimension's values
+   * enum (Choices) editor, then saving, yields a committed overlay whose enum vocabulary (the ONE
+   * canonical `options` key, spec 03a / C1 — never `choices`) reflects the edit AND whose `scope`
+   * is `{ enabled, required_for }` — the scope dimension's values
    * are DERIVED from that single vocabulary (server builder, task 3.2), never a divergent list.
    */
   it('round-trips a scope vocabulary edit through the ONE enum editor (P2, R3.7)', () => {
@@ -481,10 +606,12 @@ describe('MembersFieldModal — edit', () => {
     const next = onChange.mock.calls[0][0] as Record<string, any>;
     const region = next.fields.region;
 
-    // The committed overlay reflects the vocabulary edit in the ENUM OPTIONS (`choices`): Noord
-    // removed, Oost added → { Zuid, Oost }.
-    const values = (region.choices as Array<{ value: string }>).map((o) => o.value);
+    // The committed overlay reflects the vocabulary edit under the ONE canonical `options` key
+    // (spec 03a / C1 — never `choices`): Noord removed, Oost added → { Zuid, Oost }.
+    const values = (region.options as Array<{ value: string }>).map((o) => o.value);
     expect(values).toEqual(['Zuid', 'Oost']);
+    // The retired `choices` key is NEVER authored on the committed overlay.
+    expect(region.choices).toBeUndefined();
 
     // Scope remains `{ enabled, required_for }` ONLY — single-vocabulary, no separate `values` list.
     // The config#scope dimension values are DERIVED from the enum vocabulary above by the builder
@@ -518,7 +645,8 @@ describe('MembersFieldModal — edit', () => {
           label_en: 'Region',
           functional_group: 'contact',
           order: 2,
-          choices: [{ value: 'Noord', label: { nl: 'Noord', en: 'Noord' } }],
+          // Single-vocabulary (spec 03a / C1): the overlay authors the enum vocabulary under `options`.
+          options: [{ value: 'Noord', label: { nl: 'Noord', en: 'Noord' } }],
         },
       },
       fixed_overrides: {},

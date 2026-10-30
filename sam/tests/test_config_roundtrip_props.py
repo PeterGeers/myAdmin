@@ -188,18 +188,21 @@ def _overlay_field(draw, name: str):
     """A single VALID authored variable-overlay field dict.
 
     ``name`` (the map key) is guaranteed by the caller not to collide with a fixed-field key.
-    An enum field MUST declare choices (overlay-validity rule).
+    An enum field MUST declare its vocabulary. Single-vocabulary model (C5): the vocabulary is
+    the ONE canonical ``options`` (rich ``[{value}]``) — the retired separate bare-string
+    ``choices`` attribute is no longer authored (the reader surfaces one ``options``, F2).
     """
     ftype = draw(st.sampled_from([t.value for t in FieldType]))
-    choices = None
+    options = None
     if ftype == FieldType.ENUM.value:
-        choices = draw(st.lists(_TOKEN, min_size=1, max_size=4, unique=True))
+        values = draw(st.lists(_TOKEN, min_size=1, max_size=4, unique=True))
+        options = [{"value": v} for v in values]
     spec = {
         "key": name,  # authored key == map key (the common, unambiguous case)
         "type": ftype,
         "required": draw(st.booleans()),
         "label": draw(_i18n_label()),
-        "choices": choices,
+        "options": options,
         "visible": draw(st.booleans()),
         "order": draw(st.integers(min_value=-50, max_value=50)),
     }
@@ -297,13 +300,16 @@ def _expected_overlay_field(name: str, authored: dict) -> dict:
         resolved_type = FieldType(ftype)
     except (ValueError, TypeError):
         resolved_type = FieldType.STRING
-    choices = authored.get("choices")
+    # Single-vocabulary (C5/F2): the ONE canonical vocabulary is `options`; compare its value
+    # projection. The reader no longer carries a separate `choices` attribute.
+    options = authored.get("options")
+    option_values = tuple(o["value"] for o in options) if options else None
     return {
         "key": authored.get("key") or name,  # builder defaults key to the map name
         "type": resolved_type,
         "required": bool(authored.get("required", False)),
         "label": dict(authored.get("label") or {}),
-        "choices": tuple(choices) if choices is not None else None,
+        "option_values": option_values,
         "visible": bool(authored.get("visible", True)),
         "order": int(authored.get("order", 0) or 0),
     }
@@ -316,7 +322,8 @@ def _actual_overlay_field(f) -> dict:
         "type": f.type,
         "required": f.required,
         "label": dict(f.label),
-        "choices": tuple(f.choices) if f.choices is not None else None,
+        # Single-vocabulary (C5/F2): one `options`; the reader no longer carries `choices`.
+        "option_values": tuple(o.value for o in f.options) if f.options is not None else None,
         "visible": f.visible,
         "order": f.order,
     }

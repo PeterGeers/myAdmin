@@ -128,18 +128,6 @@ def dispatch_members(
             self_service=spec.self_service,
         )
 
-    # ── Group CATALOG (Lidmaatschap Beheer reads, design C8 — task 3.4) ─────────────
-    if name == "list_membership_types":
-        # Management view defaults to ALL entries (incl. retired active=false); an explicit
-        # ``?active_only=true`` narrows to the assignable ones. Tenant-scoped by the verified
-        # tenant_id (never a client-supplied tenant); the catalog is not scope-partitioned.
-        active_only = _query_flag(request.query, "active_only")
-        return service.list_membership_types(tenant_id, active_only=active_only)
-
-    if name == "get_membership_type":
-        type_code = _require_path_param(ctx, "type_code")
-        return service.get_membership_type(tenant_id, type_code)
-
     # ── Group MEMBER (writes — task 5.2) ──────────────────────────────────────────────
     if name == "create_member":
         return service.create_member(
@@ -227,22 +215,5 @@ def dispatch_members(
             requester_sub=ctx.sub,
             self_service=spec.self_service,
         )
-
-    # ── Group CATALOG (Lidmaatschap Beheer writes, design C8 — task 5.3) ─────────────
-    if name == "create_membership_type":
-        # Create a catalog entry; a duplicate type_code is a 409 (never a silent overwrite).
-        # Tenant-scoped by the verified tenant_id (never a body tenant_id — verify-before-trust).
-        return service.create_membership_type(tenant_id, _write_body(request))
-
-    if name == "update_membership_type":
-        type_code = _require_path_param(ctx, "type_code")
-        return service.update_membership_type(
-            tenant_id, type_code, _write_body(request)
-        )
-
-    if name == "deactivate_membership_type":
-        # Soft-delete (retire → active=false), NEVER a hard delete (C8 referential integrity).
-        type_code = _require_path_param(ctx, "type_code")
-        return service.deactivate_membership_type(tenant_id, type_code)
 
     return UNHANDLED

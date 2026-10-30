@@ -6,10 +6,10 @@
  * field that is ON the form. The subset is a strict subset of the field's CHOICES — but WHERE those
  * choices come from depends on the FIELD KIND (design §C1 / R1.2):
  *
- *  - **reference** field (e.g. `membership_type`) → the tenant's LIVE catalog
- *    (`GET /membership-types`, threaded as `membershipTypeCatalog`), NOT the field's static served
- *    choices. The public-safe subset is authored over the real catalog (R4.1/R4.3, carried from
- *    spec 11) — the server re-validates the reference authoritatively.
+ *  - **reference** field (e.g. `membership_type`) → the field's OWN resolved `options` (spec 03b:
+ *    membership_type is a normal enum field owning its vocabulary; the live membership-type catalog
+ *    is retired, Task 10). Offered options are allowed-filtered; the server re-validates the
+ *    reference authoritatively.
  *  - **scope** field (`scope.enabled`) → the scope DIMENSION values. Under the single-vocabulary
  *    model (R3.2/R3.3, `types/members.ts::FieldConfigField.scope`) the scope dimension values ARE
  *    the field's own enum values (`options`) — there is no separate `scope.values` list served
@@ -25,7 +25,7 @@
  * for the options + the source kind.
  */
 import type { EnumOptionConfig, FieldConfigField, MembershipType } from '../../../types/members';
-import { catalogChoices, isMembershipTypeField } from './applicationMembershipType';
+import { isMembershipTypeField } from './applicationMembershipType';
 
 /** Which SOURCE the picker's options were drawn from (drives the modal's helper copy + tests). */
 export type ChoiceSourceKind = 'reference' | 'scope' | 'enum';
@@ -46,11 +46,15 @@ export function optionsToChoices(
   options: Array<string | EnumOptionConfig> | null | undefined,
 ): ResolvedChoice[] {
   if (!Array.isArray(options)) return [];
-  return options.map((opt) => {
-    if (typeof opt === 'string') return { value: opt, label: { nl: opt, en: opt } };
-    const value = typeof opt.value === 'string' ? opt.value : String(opt.value ?? '');
-    return { value, label: { nl: opt.label?.nl ?? value, en: opt.label?.en ?? value } };
-  });
+  return options
+    // Spec 03b: a RETIRED option (`allowed:false`) is never OFFERED on the application form — it is
+    // grandfathered for existing records only. A bare string or an absent `allowed` is offered.
+    .filter((opt) => typeof opt === 'string' || (opt as EnumOptionConfig).allowed !== false)
+    .map((opt) => {
+      if (typeof opt === 'string') return { value: opt, label: { nl: opt, en: opt } };
+      const value = typeof opt.value === 'string' ? opt.value : String(opt.value ?? '');
+      return { value, label: { nl: opt.label?.nl ?? value, en: opt.label?.en ?? value } };
+    });
 }
 
 /** Is this field a scope AXIS (R3.5/R3.6)? Its subset sources from the scope dimension values. */
@@ -108,9 +112,11 @@ export function resolveChoiceSource(
   lang: 'nl' | 'en',
 ): ChoiceSource | null {
   if (!field) return null;
-  // reference → the live catalog (R4.1/R4.3).
+  // reference (membership_type) → the field's OWN options (spec 03b: membership_type is a normal
+  // enum field owning its vocabulary; the live `membershiptype#` catalog is retired, Task 10). The
+  // `catalog` param is kept in the signature for call-site compatibility but no longer read.
   if (isMembershipTypeField(field)) {
-    return { kind: 'reference', choices: catalogChoices(catalog, lang) };
+    return { kind: 'reference', choices: optionsToChoices(field.options) };
   }
   // scope axis → the scope DIMENSION values, which ARE the field's own options (R3.2/R3.3).
   if (isScopeField(field)) {

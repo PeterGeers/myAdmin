@@ -31,6 +31,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     StaticOverlayProvider,
@@ -81,7 +82,13 @@ def _overlay_public_form() -> TenantOverlay:
             "personal.name_infix": FixedFieldOverride(application_visible=True),
             "personal.birth_date": FixedFieldOverride(application_visible=True),
             "personal.email": FixedFieldOverride(application_visible=True),
-            "membership.membership_type": FixedFieldOverride(application_visible=True),
+            "membership.membership_type": FixedFieldOverride(
+                application_visible=True,
+                # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE options.
+                options=(
+                    EnumOption(value='gewoon', label={"nl": 'Gewoon', "en": 'Gewoon'}, allowed=True, order=10),
+                ),
+            ),
         },
     )
 

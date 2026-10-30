@@ -56,7 +56,6 @@ const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
 const mockCreateMember = vi.mocked(membersApiService.createMember);
-const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes);
 
 const mockMembers: Member[] = [
   {
@@ -127,8 +126,8 @@ const fillValidForm = async (dialog: HTMLElement) => {
   fillByName(dialog, 'first_name', 'Piet');
   fillByName(dialog, 'last_name', 'de Nieuwe');
   fillByName(dialog, 'email', 'piet@h-dcn.example');
-  // membership_type: async source → wait for listMembershipTypes(true) → pick "Erelid" (value erelid).
-  await pickMembershipType('Erelid', mockListMembershipTypes, dialog);
+  // membership_type: eager field-options source → pick "Erelid" (value erelid).
+  await pickMembershipType('Erelid', undefined, dialog);
   // region: eager options from the field-config dimension values → pick "Zuid".
   await pickLazySelectOption('region', 'Zuid', { container: dialog });
 };
@@ -144,14 +143,6 @@ describe('MembersAddModal (Add / application) — broadened over the resolved fi
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockMembers[0] as never);
     mockCreateMember.mockResolvedValue({ member_id: 'm-new' } as never);
-    // The page feeds the membership_type dropdown from the ACTIVE catalog via
-    // listMembershipTypes(true) (R5.8, task 4.7). Mirror the real wiring: stub the active
-    // catalog to the same keys as the field's embedded membership_type options so the dropdown
-    // offers `gewoon`/`erelid` and fillValidForm (which selects `erelid`) can set it.
-    mockListMembershipTypes.mockResolvedValue([
-      { key: 'gewoon', label: { nl: 'Gewoon lid', en: 'Ordinary' }, active: true },
-      { key: 'erelid', label: { nl: 'Erelid', en: 'Honorary' }, active: true },
-    ] as never);
   });
 
   describe('opening + sectioned rendering (R8.3, R4.9)', () => {

@@ -42,7 +42,6 @@ vi.mock('../../context/TenantContext', () => ({
 const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
-const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes);
 const mockGetColumnPreferences = vi.mocked(membersApiService.getColumnPreferences);
 const mockSaveColumnPreferences = vi.mocked(membersApiService.saveColumnPreferences);
 
@@ -108,7 +107,6 @@ describe('MembersPage — applications inbox removed (task 8.1, Req 6.1)', () =>
     );
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockMembers[0] as never);
-    mockListMembershipTypes.mockResolvedValue([] as never);
     mockGetColumnPreferences.mockResolvedValue({ sub: '', columns: [], updated_at: '' } as never);
     mockSaveColumnPreferences.mockResolvedValue({ sub: '', columns: [], updated_at: '' } as never);
   });

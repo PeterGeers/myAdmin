@@ -11,6 +11,8 @@ composed service class.
 
 from __future__ import annotations
 
+import logging
+import uuid
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -21,16 +23,60 @@ from sam.members.domain._membership_errors import (
 from sam.members.domain.applicant_locale import (
     SUPPORTED_LOCALES,
 )
-from sam.members.domain.application_choices import (
-    application_subset_choices,
-)
 from sam.members.domain.field_resolver import (
     FunctionalGroup,
     ResolvedField,
 )
-from sam.members.domain.fixed_fields import (
-    FieldType,
-)
+
+logger = logging.getLogger(__name__)
+
+
+class UnpropagatedVocabularyError(ValueError):
+    """A selectable field DECLARED a source that exists but its vocabulary did NOT propagate
+    into ``options`` — the ASYMMETRY (spec 03a, design C6 / Property 3, R2.3/R2.6).
+
+    This is the UNIFORM fail-loud boundary of the one read-assembly seam
+    (:meth:`FieldConfigSurfaceMixin._assemble_field_options`): fired when a field declares a
+    selectable vocabulary that SHOULD have populated ``options`` but did not — an un-migrated /
+    bare-``choices`` legacy row, or an enum with a declared inline vocabulary that resolved to no
+    canonical ``options`` after the C5/C7 collapse. It fires on the ASYMMETRY ONLY and is UNIFORM
+    across kinds — there is NO per-kind exemption and NO silent fallback, empty-list substitution,
+    or shape coercion (the retired F1/F3/F9/F10 fallbacks).
+
+    It does NOT fire on a source that is legitimately empty/absent-by-design (G5): a scope
+    dimension with zero values yet, a newly-created not-yet-populated field (no declared source at
+    all), or a reference whose catalog correctly populates ``options`` (or is simply empty — zero
+    active types yet). Those stay valid in-progress states that return ``None`` from the seam.
+
+    Subclasses :class:`ValueError` so the edge's generic handler maps it to a caller-safe 500 with
+    a stable code + correlation id (steering 30): the message is GENERIC and echoes NO internal
+    detail; the diagnosable specifics (tenant + field dotted key) are recorded on :attr:`detail`
+    for the SERVER-side log line, never returned to the client.
+
+    Each instance carries its OWN :attr:`correlation_id` (a uuid4 minted at raise time). On the
+    PUBLIC application path (design C6 "Blast-radius policy") the serializer CATCHES this per-field,
+    drops the one offending field, and emits an error log + metric + alert keyed by THIS id — so
+    the client-visible "field absent" and the server-side diagnostic :attr:`detail` are joined by a
+    single correlation id a platform operator can quote (steering 30). On the STAFF path the error
+    PROPAGATES unchanged (the editor is where a config bug must surface loudly).
+    """
+
+    def __init__(self, tenant_id: str, dotted_key: str, kind: str):
+        #: A SHORT, caller-free diagnostic (tenant + field key + which source) for the server-side
+        #: log line under the correlation id. NOT surfaced to the client.
+        self.detail = (
+            f"tenant={tenant_id!r} field={dotted_key!r} declared_source={kind} "
+            f"resolved to empty options (asymmetry)"
+        )
+        self.dotted_key = dotted_key
+        #: A stable per-raise correlation id. The public-path drop log/metric/alert and the
+        #: server-side :attr:`detail` are keyed by this SAME id (design C6), so one alert line
+        #: ties to the exact dropped field without echoing internals to the client.
+        self.correlation_id = uuid.uuid4().hex
+        super().__init__(
+            "a selectable field declares a vocabulary source that did not resolve to any "
+            "options (config bug — the field's declared source failed to propagate)"
+        )
 
 
 class FieldConfigSurfaceMixin:
@@ -65,26 +111,41 @@ class FieldConfigSurfaceMixin:
 
         1. :meth:`FieldResolver.resolve` — the fixed base ⊕ per-tenant overlay field config
            (design C3), keyed by the verified ``tenant_id`` (never a client-supplied tenant).
-        2. :meth:`MembersRepository.list_membership_types` with ``active_only=True`` — the
-           tenant's ACTIVE Lidmaatschap Beheer catalog entries (design C8), ordered by
-           ``(order, type_code)``. Soft-deleted (``active=false``) types are excluded, so
-           they never appear as a selectable option.
 
-        The active catalog entries are injected as the ``membership_type`` field's ``options``
-        (that fixed field is a :class:`~sam.members.domain.fixed_fields.FieldType.REFERENCE`),
-        so the frontend renders a dropdown of ONLY that tenant's active types — no free text,
-        no hardcoded vocabulary (R2.4).
+        Under the 03b unified enum model (Req 3.3) the ``membership_type`` field carries its OWN
+        resolved ``options`` like any other enum — assembled by the ONE
+        :meth:`_assemble_field_options` pass, NOT injected from a separate catalog feed. While the
+        migration (Task 7) has not yet folded the catalog into the field's options, that seam
+        FALLS BACK to the tenant's ACTIVE ``list_membership_types`` catalog (transitional, Req 6.4)
+        so a pre-fold deploy still serves a usable vocabulary; the fallback is removed in CONTRACT
+        (Task 10.2). There is no standalone ``membership_type_options`` feed — consumers read the
+        field's ``options`` from the ``fields`` list, so there is no second source to drift from.
 
         Returns a JSON-friendly dict (the edge ``json.dumps`` it): the flat ordered ``fields``
-        list, the same fields bucketed ``by_group`` (``personal`` / ``membership`` / overlay),
-        and the standalone ``membership_type_options`` catalog feed.
+        list and the same fields bucketed ``by_group`` (``personal`` / ``membership`` / overlay).
         """
-        config = self._field_resolver.resolve(
-            tenant_id, scope_vocab=self._scope_vocab(tenant_id)
-        )
-        options = self._active_membership_type_options(tenant_id)
+        scope_vocab = self._scope_vocab(tenant_id)
+        config = self._field_resolver.resolve(tenant_id, scope_vocab=scope_vocab)
 
-        fields = [self._serialize_field(f, options=options) for f in config.fields]
+        # ── The ONE selectable-vocabulary assembly seam (design C4 / F8) ──────────────
+        # For EVERY field, resolve its canonical `options` from its INJECTED source here —
+        # NOT per-kind inside each serializer. `_assemble_field_options` is the single
+        # `assembleSelectableOptions` pass the design calls for: the pure `FieldResolver`
+        # stays catalog/DB-free, and this read-assembly layer populates reference options
+        # (from the injected active-catalog map) and scope options (from the injected
+        # `scope_vocab`) uniformly alongside inline enum options. The serializers below
+        # consume the ONE `options` this computed — they do not re-branch by kind.
+        assembled = {
+            f.dotted_key(): self._assemble_field_options(
+                f, tenant_id=tenant_id, scope_vocab=scope_vocab
+            )
+            for f in config.fields
+        }
+
+        fields = [
+            self._serialize_field(f, field_options=assembled[f.dotted_key()])
+            for f in config.fields
+        ]
         by_group: dict[str, list[dict[str, Any]]] = {}
         for field_payload in fields:
             by_group.setdefault(field_payload["group"], []).append(field_payload)
@@ -107,7 +168,11 @@ class FieldConfigSurfaceMixin:
             # dropdown and the write-validator's allowed set stay in lockstep. Empty when the
             # tenant has no enabled dimension (or no provider is wired).
             "dimensions": self._serialize_scope_dimensions(tenant_id),
-            "membership_type_options": options,
+            # NOTE (03b BU-3, Req 3.3): the standalone ``membership_type_options`` feed is DROPPED.
+            # Under the unified enum model the ``membership_type`` field carries its OWN options
+            # (served via ``_assemble_field_options`` into the field's ``options`` like any other
+            # enum — no per-kind catalog injection, no separate feed). Consumers read the field's
+            # ``options`` from the ``fields`` list; there is no second source to drift from it.
             # The tenant-level default rows-per-page (Phase 2 step (a) — the former
             # `view_contexts.page_size` re-home, R2.1/R1.2). Sourced from the injected
             # DefaultPageSizeProvider (the projection reader's `config#fields`
@@ -226,18 +291,41 @@ class FieldConfigSurfaceMixin:
         and wraps this; the handler-layer HTTP shaping / slug resolution is the public edge
         (tasks 1.x). This method is the unit of work: the authoritative, filtered public schema.
         """
-        config = self._field_resolver.resolve(
-            tenant_id, scope_vocab=self._scope_vocab(tenant_id)
-        )
-        options = self._active_membership_type_options(tenant_id)
+        scope_vocab = self._scope_vocab(tenant_id)
+        config = self._field_resolver.resolve(tenant_id, scope_vocab=scope_vocab)
 
-        fields = [
-            self._serialize_public_field(f, options=options)
-            for f in config.fields
+        # ── Per-consumer blast-radius split (design C6 "Blast-radius policy", task 9) ─────
+        # The PUBLIC application path must NEVER let one misconfigured field black out a whole
+        # tenant's form. So, unlike the STAFF read (`get_field_config`, where the seam's
+        # `UnpropagatedVocabularyError` propagates and the editor surfaces the bug loudly), the
+        # public assembly is PER-FIELD: a field whose declared source did not propagate (the
+        # asymmetry) is DROPPED from the served schema and an error LOG + METRIC + ALERT is
+        # emitted (keyed by the error's correlation id), while every sibling field is still
+        # assembled and the page is still served. The catch is PER-FIELD on purpose — field A
+        # raising must not skip fields B/C.
+        fields: list[dict[str, Any]] = []
+        for f in config.fields:
             # R5.1/R5.2: expose ONLY application-selected fields — nothing the tenant did not
             # put on the public form (no staff-only / unselected field, no internal attribute).
-            if f.application_visible
-        ]
+            if not f.application_visible:
+                continue
+            try:
+                # The SAME ONE `options` the read-assembly seam (design C4 / F8) populated for the
+                # staff read — the public serializer consumes it and then applies the R3.2 subset
+                # FILTER, so both reads resolve the same vocabulary from the same assembly point.
+                field_options = self._assemble_field_options(
+                    f, tenant_id=tenant_id, scope_vocab=scope_vocab
+                )
+                fields.append(
+                    self._serialize_public_field(f, field_options=field_options)
+                )
+            except UnpropagatedVocabularyError as exc:
+                # Bounded blast radius (C6): DROP this one field, keep serving the page. Record the
+                # drop as an operator ALERT keyed by the error's correlation id so the full
+                # server-side `detail` (tenant + dotted key) is recoverable for triage WITHOUT
+                # leaking anything to the applicant (steering 30) — the field is simply absent.
+                self._alert_public_field_dropped(tenant_id, exc)
+                continue
 
         return {
             "tenant_id": config.tenant_id,
@@ -262,7 +350,7 @@ class FieldConfigSurfaceMixin:
         self,
         field: ResolvedField,
         *,
-        options: Sequence[Mapping[str, Any]],
+        field_options: Sequence[Mapping[str, Any]] | None,
     ) -> dict[str, Any]:
         """Project an application-SELECTED :class:`ResolvedField` to the PUBLIC schema (R5.3).
 
@@ -277,12 +365,13 @@ class FieldConfigSurfaceMixin:
           NOT the staff ``required`` (an applicant's required set is the tenant's form config);
         - ``show_when`` (R4.12) when present — so the form renders/validates a conditional field
           only when actually shown (mirrored authoritatively server-side);
-        - ``options`` — the dropdown source with the enum **application SUBSET applied** (R4a.2):
-          for ``membership_type`` the ACTIVE catalog entries, FILTERED to the declared subset; for
-          any other enum the subsetted ``{value, label}`` options (or the bare subsetted value
-          list); ``None`` for a non-choice field. Reuses :func:`application_subset_choices` so the
-          public read and the submit validator (:func:`validate_application_choice`) agree on the
-          exposed set (fail-loud on a subset ⊄ choices, R4a.4);
+        - ``options`` — the ONE canonical vocabulary the read-assembly seam (design C4 / F8)
+          populated (``field_options``) with the enum **application SUBSET FILTER applied**
+          (R4a.2/R3.2): the subset narrows the seam's ``options`` down to the public-safe values
+          for ANY selectable kind uniformly (``membership_type`` reference, scope, or inline
+          enum) — ``None`` for a non-choice field. The subset FILTER is the only projection left;
+          the per-kind branch and the ``field.choices`` fallback are retired (F10). Fail-loud if a
+          subset entry is not in the seam's vocabulary (R4a.4);
         - ``format`` — the declarative validator token ``{checker, params}`` (R7.1) when the field
           carries one, so the form can mirror the checker client-side (server authoritative).
         """
@@ -301,7 +390,9 @@ class FieldConfigSurfaceMixin:
         if field.show_when is not None:
             payload["show_when"] = dict(field.show_when)
 
-        payload["options"] = self._public_field_options(field, options=options)
+        payload["options"] = self._public_field_options(
+            field, field_options=field_options
+        )
 
         if field.format is not None:
             # The declarative field validator token (R7.1): a `{checker, params}` the form mirrors
@@ -317,79 +408,102 @@ class FieldConfigSurfaceMixin:
         self,
         field: ResolvedField,
         *,
-        options: Sequence[Mapping[str, Any]],
+        field_options: Sequence[Mapping[str, Any]] | None,
     ) -> list[Any] | None:
-        """The exposed option list for an enum field, with the application SUBSET applied (R4a.2).
+        """The exposed public option list — the seam's ONE ``options`` with the SUBSET FILTER (R4a.2).
 
-        Returns ``None`` for a non-choice field. For an enum:
+        Consumes ``field_options`` — the single canonical vocabulary the read-assembly seam
+        (design C4 / F8, :meth:`_assemble_field_options`) populated from the field's declared
+        source (active catalog for ``membership_type``, scope-dimension values for a scope-backed
+        field, or the inline enum's rich options). This serializer NO LONGER branches by field
+        kind and NO LONGER reads ``field.choices`` as a fallback vocabulary source (F10): it
+        applies ONLY the R3.2 public-SUBSET FILTER — a legitimately different projection that
+        narrows the seam's vocabulary down to the tenant's declared ``application_choices``.
 
-        - ``membership_type`` (D2 — the first subset consumer): the ACTIVE catalog entries
-          (``{value, label, order}``), FILTERED to the field's application subset so the public
-          form offers ONLY the public-safe membership types (R4a.5). When no subset is declared,
-          every active entry is offered (back-compatible, R4a.2).
-        - any other enum with rich :class:`EnumOption`s: the ``{value, label}`` options filtered to
-          the subset (the value-level ``roles`` gate is a STAFF concern and is deliberately dropped
-          from the public contract).
-        - any other enum with a bare choice list: the subsetted bare value list.
+        Returns ``None`` for a non-selectable field (no seam vocabulary). Otherwise returns the
+        seam options narrowed to the subset, with the staff-only ``roles`` gate dropped from the
+        public contract. When no subset is declared (``application_choices is None``) every option
+        is offered (back-compatible default, R4a.2).
 
-        The exposed set is computed by :func:`application_subset_choices` (the single subset
-        authority shared with the submit validator, R4a.3) — fail-loud if a subset entry is not a
-        valid choice of the field (R4a.4), so a broken subset surfaces here rather than exposing
-        an off-list value.
+        Fail-loud (R4a.4): a declared subset entry that is NOT in the seam's vocabulary is a config
+        bug and raises :class:`OverlayError` (caller-safe — keyed by the field's dotted key, no
+        internal detail leaked), so a broken subset surfaces here rather than exposing an off-list
+        value. This preserves the subset-⊆-vocabulary discipline uniformly for every kind.
         """
-        if field.dotted_key() == MEMBERSHIP_TYPE_FIELD_KEY:
-            # The ACTIVE catalog feed, narrowed to the declared public subset (R4a.5/D2).
-            # membership_type is a REFERENCE field whose resolved "choices" are the live catalog
-            # (not `field.choices`), so the subset is filtered against the catalog option values
-            # here — NOT via `application_subset_choices` (which guards against `field.choices`).
-            # Fail-loud (R4a.4): a declared subset entry that is not an active catalog value is a
-            # config bug and raises `OverlayError`, mirroring the subset-⊆-choices discipline. No
-            # subset → every active entry is offered (back-compatible default, R4a.2). The live
-            # catalog + R11 reference check remain the authoritative submit-time gate.
-            subset = field.application_choices
-            if subset is None:
-                return [dict(o) for o in options]
-            catalog_values = {str(o.get("value")) for o in options}
-            dangling = [v for v in subset if v not in catalog_values]
-            if dangling:
-                from sam.members.domain.field_resolver import OverlayError
+        # No selectable source populated by the seam → no option list (a non-choice field, or a
+        # field whose declared source did not propagate — the latter is the asymmetry task 9/C6
+        # strengthens into a loud error at the seam).
+        if field_options is None:
+            return None
 
-                offenders = ", ".join(repr(v) for v in dangling)
-                raise OverlayError(
-                    {
-                        field.dotted_key(): (
-                            f"application_choices subset entr"
-                            f"{'y' if len(dangling) == 1 else 'ies'} {offenders} "
-                            f"not in the tenant's active membership-type catalog (R4a.4)"
-                        )
-                    }
-                )
-            allowed = set(subset)
-            return [dict(o) for o in options if str(o.get("value")) in allowed]
+        subset = field.application_choices
+        if subset is None:
+            # No subset declared → the full seam vocabulary, roles dropped (back-compatible).
+            return [self._public_option(o) for o in field_options]
 
-        if field.type is not FieldType.ENUM:
-            # A non-enum, non-reference field carries no option list.
-            if field.options is None and field.choices is None:
-                return None
+        # Fail-loud: the subset MUST be ⊆ the seam vocabulary (R4a.4). A dangling entry is a
+        # config bug, surfaced caller-safe (dotted key only), never a silently off-list value.
+        vocabulary = {str(o.get("value")) for o in field_options}
+        dangling = [v for v in subset if v not in vocabulary]
+        if dangling:
+            from sam.members.domain.field_resolver import OverlayError
 
-        # The subset the public form exposes (full set when none declared). This re-runs the
-        # subset ⊆ choices guard, so a broken subset is a fail-loud config error (R4a.4).
-        allowed = set(application_subset_choices(field))
+            offenders = ", ".join(repr(v) for v in dangling)
+            raise OverlayError(
+                {
+                    field.dotted_key(): (
+                        f"application_choices subset entr"
+                        f"{'y' if len(dangling) == 1 else 'ies'} {offenders} "
+                        f"not in the field's resolved options (R4a.4)"
+                    )
+                }
+            )
+        allowed = set(subset)
+        return [
+            self._public_option(o)
+            for o in field_options
+            if str(o.get("value")) in allowed
+        ]
 
-        if field.options is not None:
-            # Rich enum options → public {value,label} (drop the staff-only `roles` gate),
-            # filtered to the exposed subset.
-            return [
-                {"value": o.value, "label": dict(o.label)}
-                for o in field.options
-                if str(o.value) in allowed
-            ]
+    @staticmethod
+    def _public_option(option: Mapping[str, Any]) -> dict[str, Any]:
+        """Project ONE seam option to its PUBLIC shape: drop the staff-only ``roles`` gate (R4a).
 
-        if field.choices is not None:
-            # Bare value list → the subsetted (ordered) exposed values.
-            return list(application_subset_choices(field))
+        The seam's canonical option carries ``{value, label, order?, roles?}``; the public form
+        contract never exposes the value-level ``roles`` gate (a STAFF concern). Everything else
+        (``value`` / i18n ``label`` / the reference ``order``) rides through unchanged, so the
+        public read is the SAME vocabulary the staff read serializes, minus ``roles``.
+        """
+        return {k: v for k, v in option.items() if k != "roles"}
 
-        return None
+    @staticmethod
+    def _alert_public_field_dropped(
+        tenant_id: str, error: UnpropagatedVocabularyError
+    ) -> None:
+        """Record the PUBLIC-path drop of one asymmetric field as an operator ALERT (C6, task 9).
+
+        The public application serializer caught :class:`UnpropagatedVocabularyError` for ONE field
+        (its declared vocabulary source did not propagate) and dropped that field so the page is
+        still served (bounded blast radius, design C6 "Blast-radius policy"). This emits the
+        accompanying error LOG + METRIC + ALERT.
+
+        Mechanism (matches the SAM plane's existing operator-alert channel —
+        ``MailSendWorker._operator_alert_no_recipients``): a single ``logger.error`` carrying a
+        STABLE, greppable marker (``OPERATOR_ALERT CONFIG_FIELD_UNPROPAGATED``) that a CloudWatch
+        metric filter / alarm subscribes to — no SNS client is wired on this unauthenticated public
+        plane. The line carries the error's ``correlation_id`` and its server-side ``detail``
+        (tenant + dotted field key) so the drop is triage-able under that one id. Nothing here is
+        returned to the applicant; the client only sees the field absent (steering 30)."""
+        logger.error(
+            "OPERATOR_ALERT CONFIG_FIELD_UNPROPAGATED: tenant %r public field %r dropped from the "
+            "application form — its declared vocabulary source did not propagate into options "
+            "(config bug). correlation_id=%s detail=%s. The page is still served without this "
+            "field (bounded blast radius, C6/R2.3).",
+            tenant_id,
+            error.dotted_key,
+            error.correlation_id,
+            error.detail,
+        )
 
     def _serialize_scope_dimensions(self, tenant_id: str) -> list[dict[str, Any]]:
         """Project the tenant's ENABLED scope dimensions into the frontend `dimensions` shape.
@@ -428,17 +542,93 @@ class FieldConfigSurfaceMixin:
             "order": int(group.order),
         }
 
-    def _active_membership_type_options(self, tenant_id: str) -> list[dict[str, Any]]:
-        """The tenant's ACTIVE catalog entries as JSON-friendly dropdown options (design C8).
+    def _assemble_field_options(
+        self,
+        field: ResolvedField,
+        *,
+        tenant_id: str,
+        scope_vocab: Mapping[str, Sequence[str]],
+    ) -> list[dict[str, Any]] | None:
+        """The ONE selectable-vocabulary assembly pass (design C4 / F8, R2.1/R2.6).
 
-        Asks the repository for the tenant's active membership types (``active_only=True``,
-        tenant-scoped — Property 1), already ordered by ``(order, type_code)``. Each option
-        carries the reference ``value`` (``type_code``) the member record stores plus its
-        i18n ``label`` and ``order`` for presentation. Retired (soft-deleted) types are
-        excluded by the repository, so they never render.
+        Resolves a field's canonical ``options`` from its DECLARED SOURCE at this single
+        read-assembly point — the ``assembleSelectableOptions`` the design pins — so every
+        consumer (the staff :meth:`_serialize_field` and the public
+        :meth:`_public_field_options`) reads the ONE ``options`` this computed and NONE branches
+        by field kind. The three sources are the ONLY per-kind decision, and all are INJECTED
+        (the pure :class:`FieldResolver` reads no catalog/DB):
 
-        Reuses :meth:`_serialize_catalog_option` so the dropdown feed and the catalog list
-        route (task 3.4) project each entry identically (one serializer, one shape).
+        - **membership_type** (03b BU-3, Req 3.3): the FIELD's OWN resolved rich
+          :class:`EnumOption`s (``{value, label, allowed, order?}``) — "reference" is now a feature
+          ON the field, so its vocabulary is served from the field itself via the same enum
+          serializer the inline-enum branch uses, NOT injected from a separate catalog. The
+          transitional active-catalog fallback was REMOVED in CONTRACT (Task 10.5) once the fold
+          was verified; the field's own options are the only source (a reference with zero options
+          yet is a legitimately-empty source → ``None``).
+        - **scope-backed** (an overlay enum whose key is bound to a tenant scope dimension — its
+          key is present in the injected ``scope_vocab``): the dimension's values projected to
+          rich ``{value, label}`` options. ``scope_vocab`` / ``scope_dimensions.values`` is the
+          single source of truth, so a scope dropdown needs no duplicated inline vocabulary.
+        - **inline enum**: the field's own rich :class:`EnumOption`s (``{value, label, roles?}``),
+          sourced purely by the resolver — unchanged.
+
+        Returns ``None`` for a field that declares no selectable source. There is deliberately NO
+        ``field.choices`` fallback here (F9/F10): a bare value list is not a canonical source —
+        after the C7 backfill / C5 reader collapse every live selectable row carries ``options``.
+
+        **Fail-loud on the ASYMMETRY ONLY (task 9 / C6, Property 3, R2.3/R2.6).** When a field's
+        DECLARED source EXISTS but its vocabulary did NOT propagate into ``options``, this seam
+        raises :class:`UnpropagatedVocabularyError` — the UNIFORM boundary, no per-kind exemption,
+        no silent fallback/empty-list/coercion. The only structural asymmetry reachable here is an
+        **inline enum carrying a declared bare ``choices`` vocabulary that resolved to no
+        ``options``** (an un-migrated / bare-``choices`` legacy row, or an enum with no inline
+        options after the C5/C7 collapse). It is NOT raised for a legitimately empty/absent source
+        (G5): a scope dimension with zero values yet, a newly-created not-yet-populated field (no
+        declared source at all → ``None``), or a reference whose catalog correctly populates (or
+        is simply empty — zero active types yet) — all valid in-progress states.
         """
-        entries = self._repo.list_membership_types(tenant_id, active_only=True)
-        return [self._serialize_catalog_option(entry) for entry in entries]
+        # membership_type — serve the FIELD's OWN inline options, NOT a catalog injection (03b
+        # BU-3, Req 3.3 / CONTRACT Task 10.5). Under the unified enum model "reference" is a
+        # feature ON the field: its vocabulary lives in the field's own resolved `options` (each
+        # `{value, label, allowed, order?}`), read straight off the field via the SAME enum
+        # serializer the inline-enum branch uses below — one assembly pass, no per-kind catalog
+        # injection. The `allowed`/`order` keys the migration folded in ride through unchanged.
+        # The transitional active-catalog fallback was removed with the catalog (Task 10.5); a
+        # reference with zero options yet is a legitimately-empty source (G5) → `None`.
+        if field.dotted_key() == MEMBERSHIP_TYPE_FIELD_KEY:
+            if field.options:
+                return [self._serialize_enum_option(o) for o in field.options]
+            return None
+
+        # scope-backed — project the injected scope dimension's values to rich options. The key
+        # ∈ scope_vocab is the SAME discriminator the resolver uses for a scope-dimension-backed
+        # enum, so inline-options fields (which are NOT in scope_vocab) still resolve inline. An
+        # EMPTY dimension (zero values yet) is a legitimately-empty source (G5), NOT the asymmetry
+        # — project the (possibly empty) list; do not raise.
+        if field.key in scope_vocab:
+            return [
+                {"value": str(v), "label": {}} for v in scope_vocab[field.key]
+            ]
+
+        # inline enum — the field's own rich options, sourced purely by the resolver. Reuses the
+        # catalog mixin's enum serializer (resolved at runtime on the composed service class, same
+        # as the other cross-mixin calls here) so the {value,label,roles?} shape is identical.
+        if field.options:
+            return [self._serialize_enum_option(o) for o in field.options]
+
+        # ── The ASYMMETRY (task 9 / C6, uniform fail-loud) ───────────────────────────────
+        # A field whose DECLARED inline vocabulary (`choices`) is PRESENT but did NOT propagate
+        # into `options` — the un-migrated / bare-`choices` legacy row (and the enum-with-no-
+        # inline-options-after-migration case). This is NOT a scope/reference source (handled
+        # above) and NOT a legitimately sourceless field (no `choices` either). It is the
+        # asymmetry: raise LOUD + caller-safe, never degrade to an empty list / a `choices`
+        # fallback. G5: a field with NO declared vocabulary at all falls through to `None` below.
+        if field.choices:
+            raise UnpropagatedVocabularyError(
+                tenant_id, field.dotted_key(), kind="inline-enum"
+            )
+
+        # No selectable source declared (a plain string/number field, or a not-yet-populated
+        # field with no `options` and no `choices`) → legitimately sourceless (G5), `None`.
+        return None
+

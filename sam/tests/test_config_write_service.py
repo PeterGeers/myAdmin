@@ -566,20 +566,24 @@ def test_put_config_mail_non_object_body_raises_validation_error():
 # The SAM write path is now the AUTHORITATIVE author of the four per-field application
 # attributes (the Flask `_validate_application_attrs` guard is off the authoring path, R8.4).
 # `_validate_fields_body` → `_validate_application_attributes` re-checks, over BOTH `fields`
-# (variable overlay) and `overrides` (fixed-field) specs, the three write-time invariants:
+# (variable overlay) and `overrides` (fixed-field) specs, the remaining write-time invariants:
 #   R8.1a  application_choices ⊆ the field's own resolved choices (options[].value / choices)
 #   R8.1b  format is a well-formed {checker, params?} whose checker ∈ field_formats.known_tokens()
-#   R8.1c  application_required=False may not relax a PLATFORM-required field
 # A violation raises ONE caller-safe ConfigWriteValidationError keyed to the offending field and
 # persists NOTHING; a coherent body still writes; a tenant that authors no app attrs writes the
-# back-compatible defaults unchanged (R9.2). These exhaustively cover task 1.1's product change.
+# back-compatible defaults unchanged (R9.2).
+#
+# The former R8.1c no-relax invariant (application_required=False could not relax a PLATFORM-
+# required field) was a Hardcoded_Binding that OVERRULED the admin and is REMOVED (03b Req 1.1/1.4):
+# the admin now freely sets application-requiredness for ANY field. The tests below assert the
+# removal — a relax on a platform-required field now WRITES.
 
 from sam.members.domain import field_formats
 
 # A platform-required fixed field (fixed_fields: membership.status / .membership_type /
-# .joined_date and personal.last_name are required=True). Used for the no-relax invariant.
+# .joined_date and personal.last_name are required=True). After 03b Req 1 a relax on it is allowed.
 _PLATFORM_REQUIRED_KEY = "membership.status"
-# A platform-OPTIONAL fixed field (required=False) — relaxing it on the form is allowed.
+# A platform-OPTIONAL fixed field (required=False).
 _PLATFORM_OPTIONAL_KEY = "personal.first_name"
 
 
@@ -647,9 +651,33 @@ def test_validate_application_attributes_non_list_subset_raises():
     assert repo.calls == []
 
 
-def test_validate_application_attributes_subset_from_bare_choices_list_accepted():
-    """R8.1a (happy): choices may be declared as a bare string ``choices`` list (not only rich
-    ``options``); a subset ⊆ that list writes."""
+def test_validate_application_attributes_subset_vocabulary_read_from_options_only():
+    """R8.1a / F12 (03a C2): the subset-validation vocabulary is read from the ONE canonical
+    ``options`` list ONLY — a subset ⊆ the field's ``options`` writes.
+
+    The retired bare-``choices`` fallback is covered by the companion test below; here the happy
+    path confirms ``options`` is the single source the subset validates against."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "region": _enum_field_spec(
+                ["Noord", "Zuid", "Oost"], application_choices=["Noord", "Zuid"]
+            )
+        }
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    written = repo.calls[0]["attributes"]["fields"]["region"]
+    assert written["application_choices"] == ["Noord", "Zuid"]
+
+
+def test_validate_application_attributes_bare_choices_no_longer_supplies_subset_vocabulary():
+    """F12 (03a C2, N2): the write-side subset validator reads ``options`` ONLY — the legacy
+    ``options or choices`` coalesce is RETIRED. A field declaring its vocabulary under the bare
+    ``choices`` name (no ``options``) now resolves NO usable subset vocabulary, so an
+    ``application_choices`` subset on it is a write error (you cannot subset a field that has no
+    ``options``) — exactly the "no silent fallback" behaviour 03a enforces. C7 migrates any live
+    bare-``choices`` row into ``options`` and C2 drops ``choices`` on the write, so this path is
+    dead for real data."""
     repo = FakeWriteRepository()
     body = {
         "fields": {
@@ -661,9 +689,10 @@ def test_validate_application_attributes_subset_from_bare_choices_list_accepted(
             }
         }
     }
-    _service(repo).put_config(_TENANT, "fields", body)
-    written = repo.calls[0]["attributes"]["fields"]["region"]
-    assert written["application_choices"] == ["Noord", "Zuid"]
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", body)
+    assert "overlay.region" in str(exc.value)
+    assert repo.calls == []
 
 
 # ── R8.1b: format must be a well-formed {checker, params?} with a known checker ───────────
@@ -722,12 +751,13 @@ def test_validate_application_attributes_known_checker_accepted():
         assert repo.calls[0]["attributes"]["fields"]["f"]["format"] == fmt
 
 
-# ── R8.1c: application_required=False may not relax a platform-required field ─────────────
+# ── 03b Req 1: the no-relax binding is REMOVED — a relax now WRITES ───────────────────────
 
 
-def test_validate_application_attributes_relax_platform_required_override_raises():
-    """R8.1c: application_required=False on a PLATFORM-required fixed field (via overrides) is a
-    relax of the platform floor — rejected, keyed to that field, nothing persists."""
+def test_validate_application_attributes_relax_platform_required_override_now_writes():
+    """03b Req 1.1/1.4: application_required=False on a PLATFORM-required fixed field (via
+    overrides) is NO LONGER rejected — the former no-relax Hardcoded_Binding overruled the admin
+    and is removed, so the admin freely turns it off and the write persists verbatim."""
     repo = FakeWriteRepository()
     body = {
         "overrides": {
@@ -737,22 +767,18 @@ def test_validate_application_attributes_relax_platform_required_override_raises
             }
         }
     }
-    with pytest.raises(ConfigWriteValidationError) as exc:
-        _service(repo).put_config(_TENANT, "fields", body)
-    assert _PLATFORM_REQUIRED_KEY in str(exc.value)
-    assert repo.calls == []
+    _service(repo).put_config(_TENANT, "fields", body)
+    overrides = repo.calls[0]["attributes"]["overrides"]
+    assert overrides[_PLATFORM_REQUIRED_KEY]["application_required"] is False
 
 
 def test_validate_application_attributes_tighten_platform_optional_override_accepted():
-    """R8.1c (happy): the public form may TIGHTEN — application_required=True on any field, and
-    application_required=False on a platform-OPTIONAL field, both write (only relaxing the platform
-    floor is forbidden)."""
+    """The admin may set application-requiredness either way on any field (03b Req 1):
+    application_required=True on one field and =False on another both write."""
     repo = FakeWriteRepository()
     body = {
         "overrides": {
-            # tighten a platform-optional field to required-on-the-form: allowed
             _PLATFORM_OPTIONAL_KEY: {"application_required": True},
-            # explicitly not-required on a platform-optional field: allowed (no floor to relax)
             "personal.phone": {"application_required": False},
         }
     }
@@ -763,8 +789,7 @@ def test_validate_application_attributes_tighten_platform_optional_override_acce
 
 
 def test_validate_application_attributes_variable_field_required_false_accepted():
-    """R8.1c (happy): a VARIABLE overlay field is never platform-required, so
-    application_required=False on it is always allowed."""
+    """A VARIABLE overlay field's application_required=False writes (03b Req 1 — no binding)."""
     repo = FakeWriteRepository()
     body = {
         "fields": {
@@ -782,12 +807,84 @@ def test_validate_application_attributes_variable_field_required_false_accepted(
     )
 
 
+# ── Property 3 (Task 3.2): the admin is AUTHORITATIVE at the write seam too ───────────────
+#
+# Req 1.1/1.2/1.4 + design Property 3: "For any field other than member_id, no save is rejected
+# on a cross-field binding the admin did not author." The single-field relax above
+# (`test_validate_application_attributes_relax_platform_required_override_now_writes`) is ONE
+# instance; these lock the guarantee HOLISTICALLY at the config-write seam:
+#   - application_required=False is accepted on EVERY platform-required fixed field at once;
+#   - Req 1.3: the write seam enforces NO requiredness floor of its own — the only intrinsic
+#     invariant is member_id (the system UUID, not a tenant config field, so it never reaches this
+#     seam). A tenant may relax the application-requiredness of every configurable required field.
+
+# The platform-required fixed fields (required=True in the registry) authored via overrides. Read
+# from the registry so a future base required-ness change is covered automatically.
+from sam.members.domain.fixed_fields import FIXED_FIELDS as _FIXED_FIELDS
+
+_ALL_PLATFORM_REQUIRED_DOTTED = tuple(
+    f.dotted_key() for f in _FIXED_FIELDS if f.required
+)
+
+
+def test_option_relax_application_required_on_every_platform_required_field_writes():
+    """Property 3 (Req 1.1/1.2/1.4): a SINGLE write setting application_required=False on EVERY
+    platform-required fixed field (last_name, status, membership_type, joined_date) is accepted —
+    no field retains a hardcoded no-relax binding. The write persists the explicit False for each,
+    and `membership.membership_type` (a required reference) keeps a valid option set so the
+    R3.4a well-formedness rule is satisfied while it is relaxed (that rule is orthogonal to the
+    removed no-relax binding)."""
+    assert _ALL_PLATFORM_REQUIRED_DOTTED  # guard: the registry still has required fixed fields
+    repo = FakeWriteRepository()
+    overrides = {}
+    for dotted in _ALL_PLATFORM_REQUIRED_DOTTED:
+        spec = {"application_visible": True, "application_required": False}
+        # membership_type is a required enum reference — keep ≥1 allowed option (R3.4a) so the
+        # write is rejected ONLY if a no-relax binding were (wrongly) still present, never on the
+        # orthogonal option-integrity rule.
+        if dotted == "membership.membership_type":
+            spec["options"] = [{"value": "gewoon_lid", "label": {"en": "Member"}}]
+        overrides[dotted] = spec
+    _service(repo).put_config(_TENANT, "fields", {"overrides": overrides})
+    written = repo.calls[0]["attributes"]["overrides"]
+    for dotted in _ALL_PLATFORM_REQUIRED_DOTTED:
+        assert written[dotted]["application_required"] is False, (
+            f"the write seam rejected or dropped a relax on {dotted!r} — a no-relax "
+            f"Hardcoded_Binding has been re-introduced (03b Req 1)"
+        )
+
+
+def test_option_admin_sets_application_requiredness_both_ways_in_one_write():
+    """Req 1 (both axes): in one coherent write the admin tightens one field (optional→required)
+    and relaxes another platform-required field (required→optional); both persist verbatim — the
+    write seam obeys the admin's authored requiredness, imposing none of its own (Req 1.3)."""
+    repo = FakeWriteRepository()
+    body = {
+        "overrides": {
+            _PLATFORM_OPTIONAL_KEY: {
+                "application_visible": True,
+                "application_required": True,  # tighten a platform-OPTIONAL field
+            },
+            _PLATFORM_REQUIRED_KEY: {
+                "application_visible": True,
+                "application_required": False,  # relax a platform-REQUIRED field
+            },
+        }
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    overrides = repo.calls[0]["attributes"]["overrides"]
+    assert overrides[_PLATFORM_OPTIONAL_KEY]["application_required"] is True
+    assert overrides[_PLATFORM_REQUIRED_KEY]["application_required"] is False
+
+
 # ── Collection: every offending field reported in ONE error ───────────────────────────────
 
 
 def test_validate_application_attributes_collects_all_offending_fields_in_one_error():
     """R8.3: violations across BOTH fields and overrides are collected into ONE error naming every
-    offending field (not just the first); nothing persists."""
+    offending field (not just the first); nothing persists. (The no-relax binding is gone — 03b
+    Req 1 — so the collected violations are the remaining well-formedness ones: bad subset / bad
+    checker on a variable field and a malformed format on an override.)"""
     repo = FakeWriteRepository()
     body = {
         "fields": {
@@ -801,7 +898,7 @@ def test_validate_application_attributes_collects_all_offending_fields_in_one_er
             },  # bad checker
         },
         "overrides": {
-            _PLATFORM_REQUIRED_KEY: {"application_required": False},  # relax
+            _PLATFORM_OPTIONAL_KEY: {"format": {"checker": "ALSO_NOPE"}},  # bad checker
         },
     }
     with pytest.raises(ConfigWriteValidationError) as exc:
@@ -809,7 +906,7 @@ def test_validate_application_attributes_collects_all_offending_fields_in_one_er
     message = str(exc.value)
     assert "overlay.region" in message
     assert "overlay.f" in message
-    assert _PLATFORM_REQUIRED_KEY in message
+    assert _PLATFORM_OPTIONAL_KEY in message
     assert repo.calls == []
 
 
@@ -1181,3 +1278,547 @@ def test_fields_write_carries_stored_publish_state_through_on_a_plain_save():
     attrs = repo.calls[0]["attributes"]
     assert attrs["published_at"] == "2026-10-23T12:00:00+00:00"
     assert attrs["published_version"] == 3
+
+
+# ── Option-integrity write-seam (03b Task 1.2 / Requirements 3.2a, 3.4a) ─────────────────
+#
+# The unified enum model hangs a field's vocabulary off its OWN `options`, so the config-write
+# seam is the authoritative place to keep that vocabulary well-formed. `_validate_fields_body`
+# → `_validate_option_integrity` enforces two rules over the MERGED field/override specs, BEFORE
+# the row is written, keyed to the offending field:
+#   R3.4a  a REQUIRED enum, or one OFF the application form (application_visible falsey → the form
+#          supplies a default), must keep >=1 option with `allowed:true` (an absent `allowed`
+#          reads as true). A write that would zero the allowed set is rejected.
+#   R3.2a  an option `value` present in the CURRENT stored options but ABSENT from the new set has
+#          been removed/renamed; if a member still references it the write is REJECTED with a
+#          caller-safe message naming the option (the admin may instead set it `allowed:false`).
+#          "Referenced by a member" is observed via the injected `usage_probe` (storage-agnostic);
+#          no probe wired → the leg does not block (member save BU-2 is the backstop).
+
+
+class _OptionUsageProbe:
+    """Option-level probe exposing option_in_use(tenant_id, field_key, value) -> bool.
+
+    The preferred shape for the write seam: a set of (field_key, value) pairs a member still
+    references. Mirrors the storage-agnostic probe contract shared with the delete-field guard —
+    the domain never queries the members table itself (steering 35/39).
+    """
+
+    def __init__(self, in_use=()):
+        self._in_use = set(in_use)
+
+    def option_in_use(self, tenant_id, field_key, value):
+        return (field_key, value) in self._in_use
+
+
+class _FieldUsageProbe:
+    """The richer field_usage(tenant_id, field_key) probe (delete-field guard shape) reporting the
+    per-value usage under a ``values`` collection — the write seam reads membership of it."""
+
+    def __init__(self, used_values_by_field):
+        self._by_field = {k: set(v) for k, v in used_values_by_field.items()}
+
+    def field_usage(self, tenant_id, field_key):
+        return {"member_data": True, "values": self._by_field.get(field_key, set())}
+
+
+def _service_with_reader_and_probe(repo, overlay, probe, version="2026-11-01T00:00:00+00:00"):
+    return ConfigWriteService(
+        repo,
+        version_fn=lambda: version,
+        overlay_reader=_FakeOverlayReader(overlay),
+        usage_probe=probe,
+    )
+
+
+def _membership_type_options(*specs):
+    """Build a membership.membership_type override spec carrying the given option specs.
+
+    Each spec is a dict merged onto a {value,label} base, so a test can set allowed/order per
+    option. The override is a platform-REQUIRED reference field (membership.membership_type is
+    required=True in the registry), so the R3.4a required-enum rule applies to it.
+    """
+    options = []
+    for s in specs:
+        opt = {"value": s["value"], "label": s.get("label", {"en": s["value"]})}
+        if "allowed" in s:
+            opt["allowed"] = s["allowed"]
+        if "order" in s:
+            opt["order"] = s["order"]
+        options.append(opt)
+    return {"membership.membership_type": {"options": options}}
+
+
+# ── R3.4a: a required / off-form enum must keep >=1 allowed:true option ───────────────────
+
+
+def test_option_integrity_required_enum_with_zero_allowed_options_rejected():
+    """R3.4a: a platform-required enum (membership_type) whose every option is allowed:false is
+    rejected — the form would have no default / no selectable value; nothing persists."""
+    repo = FakeWriteRepository()
+    body = {
+        "overrides": _membership_type_options(
+            {"value": "gewoon_lid", "allowed": False},
+            {"value": "erelid", "allowed": False},
+        )
+    }
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", body)
+    assert "membership.membership_type" in str(exc.value)
+    assert "allowed:true" in str(exc.value)
+    assert repo.calls == []
+
+
+def test_option_integrity_off_form_variable_enum_with_zero_allowed_options_rejected():
+    """R3.4a: a VARIABLE enum that is OFF the application form (application_visible not True) with
+    zero allowed options is rejected — the form supplies a default from the options."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "shirt_size": {
+                "key": "shirt_size",
+                "type": "enum",
+                # off the form (no application_visible) → a default is supplied from options
+                "options": [
+                    {"value": "s", "allowed": False},
+                    {"value": "m", "allowed": False},
+                ],
+            }
+        }
+    }
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service(repo).put_config(_TENANT, "fields", body)
+    assert "overlay.shirt_size" in str(exc.value)
+    assert repo.calls == []
+
+
+def test_option_integrity_at_least_one_allowed_option_writes():
+    """R3.4a (happy): a required enum keeping >=1 allowed option writes — a retired (allowed:false)
+    option ALONGSIDE allowed ones is fine (grandfathering), options persist verbatim."""
+    repo = FakeWriteRepository()
+    body = {
+        "overrides": _membership_type_options(
+            {"value": "gewoon_lid", "allowed": True, "order": 10},
+            {"value": "erelid", "allowed": False, "order": 20},  # retired but present
+        )
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    opts = repo.calls[0]["attributes"]["overrides"]["membership.membership_type"][
+        "options"
+    ]
+    assert [o["value"] for o in opts] == ["gewoon_lid", "erelid"]
+    assert opts[1]["allowed"] is False
+
+
+def test_option_integrity_absent_allowed_counts_as_allowed():
+    """R3.4a (back-compat): an option with NO `allowed` key reads as allowed:true, so an all-
+    absent-allowed required enum satisfies the rule and writes."""
+    repo = FakeWriteRepository()
+    body = {
+        "overrides": {
+            "membership.membership_type": {
+                "options": [{"value": "gewoon_lid", "label": {"en": "Member"}}]
+            }
+        }
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    assert repo.calls  # persisted
+
+
+def test_option_integrity_on_form_optional_enum_may_have_zero_allowed():
+    """R3.4a applies ONLY to required / off-form enums: a platform-OPTIONAL variable enum that is
+    ON the form (application_visible=True) and not required is NOT subject to the >=1-allowed rule
+    (the admin controls its vocabulary directly, no default is auto-supplied)."""
+    repo = FakeWriteRepository()
+    body = {
+        "fields": {
+            "nickname_style": {
+                "key": "nickname_style",
+                "type": "enum",
+                "application_visible": True,
+                "options": [{"value": "formal", "allowed": False}],
+            }
+        }
+    }
+    _service(repo).put_config(_TENANT, "fields", body)
+    assert repo.calls  # not rejected
+
+
+def test_option_integrity_non_enum_field_without_options_is_unaffected():
+    """A plain string field (no options) is never subject to the option-integrity rules."""
+    repo = FakeWriteRepository()
+    body = {"fields": {"nickname": {"key": "nickname", "type": "string"}}}
+    _service(repo).put_config(_TENANT, "fields", body)
+    assert repo.calls
+
+
+# ── R3.2a: an in-use option value cannot vanish / be renamed ──────────────────────────────
+
+
+def test_option_integrity_in_use_option_removed_is_rejected():
+    """R3.2a: dropping an option `value` a member still references is rejected with a caller-safe
+    message naming the option; the admin must set it allowed:false instead. Nothing persists."""
+    stored = {
+        "fields": {},
+        "fixed_overrides": _membership_type_options(
+            {"value": "gewoon_lid", "order": 10},
+            {"value": "erelid", "order": 20},
+        ),
+        "functional_groups": [],
+    }
+    # A member still references `erelid`.
+    probe = _OptionUsageProbe(in_use={("membership_type", "erelid")})
+    repo = FakeWriteRepository()
+    # The write drops `erelid` from the options entirely (not retire — DELETE).
+    body = {"overrides": _membership_type_options({"value": "gewoon_lid", "order": 10})}
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service_with_reader_and_probe(repo, stored, probe).put_config(
+            _TENANT, "fields", body
+        )
+    msg = str(exc.value)
+    assert "erelid" in msg
+    assert "allowed:false" in msg  # names the safe alternative
+    assert repo.calls == []
+
+
+def test_option_integrity_in_use_option_renamed_is_rejected():
+    """R3.2a: RENAMING an in-use option's value (old value gone, new value added) is a removal of
+    the old value from the member's perspective — rejected."""
+    stored = {
+        "fields": {},
+        "fixed_overrides": _membership_type_options({"value": "erelid", "order": 20}),
+        "functional_groups": [],
+    }
+    probe = _OptionUsageProbe(in_use={("membership_type", "erelid")})
+    repo = FakeWriteRepository()
+    body = {
+        "overrides": _membership_type_options(
+            {"value": "gewoon_lid", "order": 10},  # erelid renamed to gewoon_lid
+        )
+    }
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service_with_reader_and_probe(repo, stored, probe).put_config(
+            _TENANT, "fields", body
+        )
+    assert "erelid" in str(exc.value)
+    assert repo.calls == []
+
+
+def test_option_integrity_in_use_option_may_be_retired_allowed_false():
+    """R3.2a (happy): an in-use option may be RETIRED (allowed:false) — the value is still present
+    in the options, so grandfathering is preserved and the write succeeds."""
+    stored = {
+        "fields": {},
+        "fixed_overrides": _membership_type_options(
+            {"value": "gewoon_lid", "order": 10},
+            {"value": "erelid", "order": 20},
+        ),
+        "functional_groups": [],
+    }
+    probe = _OptionUsageProbe(in_use={("membership_type", "erelid")})
+    repo = FakeWriteRepository()
+    body = {
+        "overrides": _membership_type_options(
+            {"value": "gewoon_lid", "allowed": True, "order": 10},
+            {"value": "erelid", "allowed": False, "order": 20},  # retired, still present
+        )
+    }
+    _service_with_reader_and_probe(repo, stored, probe).put_config(
+        _TENANT, "fields", body
+    )
+    opts = repo.calls[0]["attributes"]["overrides"]["membership.membership_type"][
+        "options"
+    ]
+    assert {o["value"]: o.get("allowed", True) for o in opts} == {
+        "gewoon_lid": True,
+        "erelid": False,
+    }
+
+
+def test_option_integrity_in_use_option_may_be_relabelled():
+    """R3.2a (happy): relabelling an in-use option (same value, new label) is always allowed — the
+    value is unchanged, only the per-language label differs."""
+    stored = {
+        "fields": {},
+        "fixed_overrides": _membership_type_options(
+            {"value": "gewoon_lid", "order": 10},
+            {"value": "erelid", "order": 20},
+        ),
+        "functional_groups": [],
+    }
+    probe = _OptionUsageProbe(in_use={("membership_type", "erelid")})
+    repo = FakeWriteRepository()
+    body = {
+        "overrides": {
+            "membership.membership_type": {
+                "options": [
+                    {"value": "gewoon_lid", "label": {"en": "Member"}},
+                    {"value": "erelid", "label": {"en": "Honorary (renamed label)"}},
+                ]
+            }
+        }
+    }
+    _service_with_reader_and_probe(repo, stored, probe).put_config(
+        _TENANT, "fields", body
+    )
+    opts = repo.calls[0]["attributes"]["overrides"]["membership.membership_type"][
+        "options"
+    ]
+    assert opts[1]["label"] == {"en": "Honorary (renamed label)"}
+
+
+def test_option_integrity_not_in_use_option_may_be_removed():
+    """R3.2a: an option NOT referenced by any member may be deleted freely — no block."""
+    stored = {
+        "fields": {},
+        "fixed_overrides": _membership_type_options(
+            {"value": "gewoon_lid", "order": 10},
+            {"value": "sponsor", "order": 60},  # zero members (design tally)
+        ),
+        "functional_groups": [],
+    }
+    probe = _OptionUsageProbe(in_use=set())  # nobody references anything
+    repo = FakeWriteRepository()
+    body = {"overrides": _membership_type_options({"value": "gewoon_lid", "order": 10})}
+    _service_with_reader_and_probe(repo, stored, probe).put_config(
+        _TENANT, "fields", body
+    )
+    opts = repo.calls[0]["attributes"]["overrides"]["membership.membership_type"][
+        "options"
+    ]
+    assert [o["value"] for o in opts] == ["gewoon_lid"]
+
+
+def test_option_integrity_removal_without_probe_does_not_block():
+    """With no usage_probe wired the in-use leg is unobservable and does NOT block — the write
+    proceeds (production always wires a probe; member save BU-2 is the backstop)."""
+    stored = {
+        "fields": {},
+        "fixed_overrides": _membership_type_options(
+            {"value": "gewoon_lid", "order": 10},
+            {"value": "erelid", "order": 20},
+        ),
+        "functional_groups": [],
+    }
+    repo = FakeWriteRepository()
+    body = {"overrides": _membership_type_options({"value": "gewoon_lid", "order": 10})}
+    # reader wired (so current options are read) but NO probe → in-use unobservable.
+    _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
+    assert repo.calls  # not blocked
+
+
+def test_option_integrity_accepts_richer_field_usage_probe_shape():
+    """The richer field_usage(...) probe shape (delete-field guard) is honoured: an in-use value
+    reported under `values` blocks its removal just like the option-level probe."""
+    stored = {
+        "fields": {},
+        "fixed_overrides": _membership_type_options(
+            {"value": "gewoon_lid", "order": 10},
+            {"value": "erelid", "order": 20},
+        ),
+        "functional_groups": [],
+    }
+    probe = _FieldUsageProbe({"membership_type": ["erelid"]})
+    repo = FakeWriteRepository()
+    body = {"overrides": _membership_type_options({"value": "gewoon_lid", "order": 10})}
+    with pytest.raises(ConfigWriteValidationError) as exc:
+        _service_with_reader_and_probe(repo, stored, probe).put_config(
+            _TENANT, "fields", body
+        )
+    assert "erelid" in str(exc.value)
+    assert repo.calls == []
+
+
+# ── Property 1 / Property 2 — read→write→read over the REAL config#fields fixture (03b 1.3) ──
+#
+# Steering 39 (non-negotiable): prove the round-trip against REAL data, not a hand-built fixture.
+# The real stored h-dcn `config#fields` overlay is committed at
+# `sam/tests/fixtures/hdcn_config_fields_overlay.json` (captured from `test_governance_projection`);
+# its `membership.membership_type` override carries the real on-form flag but NO inline options yet
+# (the vocabulary still lives in the `membershiptype#<code>` catalog — the fold is Task 7.2). The
+# real POST-FOLD membership_type vocabulary — the 7 h-dcn Lidmaatschap-Beheer values with their
+# {nl,en} labels + role gates, `erelid` retired (allowed:false) — is committed at
+# `backend/tests/fixtures/hdcn_membership_type_options.json` (the authoritative values from
+# scripts/onboarding/members/h-dcn/ONBOARDING.md; reused/extended by the Task 7.1 real-row fixture).
+#
+# These two properties (design §Correctness Properties) exercise the ACTUAL write service seam:
+#   Property 1 — No orphaned reference: after the collapse, every stored
+#     `membership.membership_type` value a member holds resolves to a written field option.
+#   Property 2 — Grandfather preserved: a member holding `erelid` (allowed:false) round-trips —
+#     the option stays present (allowed:false) across read→write→read, so the value is retained,
+#     readable, and absent from the picker; an in-use probe on it does not block the retire write.
+
+import json as _json
+
+_REAL_OVERLAY_FIXTURE = os.path.join(
+    _REPO_ROOT, "sam", "tests", "fixtures", "hdcn_config_fields_overlay.json"
+)
+_REAL_MT_OPTIONS_FIXTURE = os.path.join(
+    _REPO_ROOT, "backend", "tests", "fixtures", "hdcn_membership_type_options.json"
+)
+
+
+def _load_real_overlay_row():
+    """The REAL stored h-dcn `config#fields` overlay (fields / overrides / functional_groups)."""
+    with open(_REAL_OVERLAY_FIXTURE, encoding="utf-8") as f:
+        return _json.load(f)
+
+
+def _load_real_membership_type_options():
+    """The REAL post-fold h-dcn membership_type options (incl. erelid=allowed:false)."""
+    with open(_REAL_MT_OPTIONS_FIXTURE, encoding="utf-8") as f:
+        return _json.load(f)["options"]
+
+
+def _real_stored_row_with_folded_membership_type():
+    """The real overlay row with the real membership_type options folded onto its override — i.e.
+    the shape the EXPAND migration (Task 7.2) produces, used as the CURRENT stored row the write
+    seam diffs against and merges onto."""
+    overlay = _load_real_overlay_row()
+    options = _load_real_membership_type_options()
+    overrides = dict(overlay["overrides"])
+    mt = dict(overrides["membership.membership_type"])
+    mt["options"] = [dict(o) for o in options]
+    overrides["membership.membership_type"] = mt
+    return {
+        "fields": overlay["fields"],
+        "overrides": overrides,
+        "functional_groups": overlay["functional_groups"],
+    }
+
+
+# The real stored member membership_type values the design migration-safety proof maps (the 6
+# values members actually hold in the live h-dcn population; `erelid` is the retired-but-held one,
+# `sponsor` has zero members in the tally so is not in this set).
+_REAL_MEMBER_MEMBERSHIP_TYPE_VALUES = [
+    "gewoon_lid",
+    "gezins_lid",
+    "donateur",
+    "gezins_donateur",
+    "erelid",
+    "overig",
+]
+
+
+def test_fixture_sanity_real_membership_type_options_include_retired_erelid():
+    """Guard the real-row fixture itself: it carries the 7 real h-dcn values and `erelid` is the
+    one retired (allowed:false) option — the shape Property 1/2 depend on (steering 39: a wrong
+    fixture once hid this exact class of bug)."""
+    options = _load_real_membership_type_options()
+    by_value = {o["value"]: o for o in options}
+    assert set(by_value) == {
+        "gewoon_lid",
+        "gezins_lid",
+        "donateur",
+        "gezins_donateur",
+        "erelid",
+        "sponsor",
+        "overig",
+    }
+    # erelid is retired; every other value is allowed (absent allowed reads true).
+    assert by_value["erelid"].get("allowed") is False
+    assert all(
+        by_value[v].get("allowed", True) is True for v in by_value if v != "erelid"
+    )
+    # Every stored member value resolves to a fixture option (no orphan at the fixture level).
+    assert set(_REAL_MEMBER_MEMBERSHIP_TYPE_VALUES).issubset(set(by_value))
+
+
+def test_property1_no_orphaned_reference_roundtrip_over_real_fixture():
+    """Property 1 (Validates: Requirements 3.1, 3.2a, 3.4a): read→write→read of the REAL
+    membership_type options preserves EVERY option, so every stored member reference still
+    resolves to a written option — no member is orphaned by the collapse.
+
+    read  — the real post-fold stored row (current options).
+    write — a config#fields PUT re-authoring the same options (an idempotent re-save, the shape
+            the authoring surface emits) through the real ConfigWriteService seam.
+    read  — the persisted attributes; assert the option set is intact and covers all member refs.
+    """
+    stored = _real_stored_row_with_folded_membership_type()
+    options = _load_real_membership_type_options()
+    repo = FakeWriteRepository()
+    # No member reference is being removed/renamed → the write succeeds even with a probe that
+    # reports every member value as in use (Property 1 is about non-orphaning, not blocking).
+    probe = _OptionUsageProbe(
+        in_use={("membership_type", v) for v in _REAL_MEMBER_MEMBERSHIP_TYPE_VALUES}
+    )
+    body = {"overrides": {"membership.membership_type": {"options": [dict(o) for o in options]}}}
+
+    _service_with_reader_and_probe(repo, stored, probe).put_config(_TENANT, "fields", body)
+
+    written = repo.calls[0]["attributes"]["overrides"]["membership.membership_type"][
+        "options"
+    ]
+    written_values = {o["value"] for o in written}
+    # read→write→read preserved the full option vocabulary verbatim (order + values).
+    assert [o["value"] for o in written] == [o["value"] for o in options]
+    # Every stored member membership_type value resolves to a written option — zero orphans.
+    orphaned = [v for v in _REAL_MEMBER_MEMBERSHIP_TYPE_VALUES if v not in written_values]
+    assert orphaned == [], f"stored member values orphaned by the collapse: {orphaned}"
+
+
+def test_property2_grandfather_preserved_roundtrip_over_real_fixture():
+    """Property 2 (Validates: Requirements 3.1, 3.2): a member holding the RETIRED `erelid`
+    (allowed:false) round-trips — the option is retained across read→write→read (readable,
+    grandfathered) and stays allowed:false (absent from the picker). The in-use probe on `erelid`
+    does NOT block the retire-in-place write (retire ≠ remove)."""
+    stored = _real_stored_row_with_folded_membership_type()
+    options = _load_real_membership_type_options()
+    # A real member still holds the retired `erelid` value.
+    probe = _OptionUsageProbe(in_use={("membership_type", "erelid")})
+    repo = FakeWriteRepository()
+    body = {"overrides": {"membership.membership_type": {"options": [dict(o) for o in options]}}}
+
+    _service_with_reader_and_probe(repo, stored, probe).put_config(_TENANT, "fields", body)
+
+    written = repo.calls[0]["attributes"]["overrides"]["membership.membership_type"][
+        "options"
+    ]
+    by_value = {o["value"]: o for o in written}
+    # The retired value is RETAINED (grandfathered), not wiped — readable on a subsequent read.
+    assert "erelid" in by_value
+    # ...and it stays retired (allowed:false) → hidden from the picker for new/changed records.
+    assert by_value["erelid"].get("allowed") is False
+    # ...while every still-active value remains selectable (allowed truthy / absent).
+    assert by_value["gewoon_lid"].get("allowed", True) is True
+
+
+def test_property2_grandfather_toggle_both_ways_over_real_fixture():
+    """Property 2 (Req 3.2): the retired/active state is freely toggleable BOTH ways. Reactivating
+    the in-use retired `erelid` (allowed:false → true) round-trips, and re-retiring it
+    (true → false) round-trips — neither is blocked (the value never leaves the option set)."""
+    options = _load_real_membership_type_options()
+
+    # (a) reactivate erelid: allowed:false → true
+    stored_retired = _real_stored_row_with_folded_membership_type()
+    reactivated = [dict(o) for o in options]
+    next(o for o in reactivated if o["value"] == "erelid")["allowed"] = True
+    repo_a = FakeWriteRepository()
+    probe = _OptionUsageProbe(in_use={("membership_type", "erelid")})
+    _service_with_reader_and_probe(repo_a, stored_retired, probe).put_config(
+        _TENANT, "fields", {"overrides": {"membership.membership_type": {"options": reactivated}}}
+    )
+    written_a = {
+        o["value"]: o
+        for o in repo_a.calls[0]["attributes"]["overrides"]["membership.membership_type"][
+            "options"
+        ]
+    }
+    assert written_a["erelid"].get("allowed") is True
+
+    # (b) re-retire erelid from an all-active stored row: allowed:true → false
+    stored_active = _real_stored_row_with_folded_membership_type()
+    for o in stored_active["overrides"]["membership.membership_type"]["options"]:
+        if o["value"] == "erelid":
+            o["allowed"] = True
+    repo_b = FakeWriteRepository()
+    _service_with_reader_and_probe(repo_b, stored_active, probe).put_config(
+        _TENANT, "fields", {"overrides": {"membership.membership_type": {"options": [dict(o) for o in options]}}}
+    )
+    written_b = {
+        o["value"]: o
+        for o in repo_b.calls[0]["attributes"]["overrides"]["membership.membership_type"][
+            "options"
+        ]
+    }
+    assert written_b["erelid"].get("allowed") is False

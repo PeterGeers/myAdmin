@@ -42,11 +42,14 @@ from sam.members.domain.error_codes import (
     MEMBERSHIP_TYPE_UNKNOWN_REFERENCE,
     VALIDATION_MUST_BE_ONE_OF,
 )
+from dataclasses import replace
+
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     StaticOverlayProvider,
     TenantOverlay,
 )
+from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.membership_service import MembershipService
 
 # Reuse the task-2.2 fake repo (member store + first-wins session claim + catalog surface) and
@@ -98,10 +101,40 @@ def _overlay_membership_type_not_exposed() -> TenantOverlay:
     )
 
 
+def _options_from_catalog(catalog):
+    """Fold the catalog vocabulary onto the field's INLINE options (03b CONTRACT, Task 10.5).
+
+    membership_type owns its vocabulary as the field's own ``EnumOption``s now; the catalog is
+    retired. The EXPAND fold maps each type to an option (``active`` → ``allowed:true``,
+    retired → ``allowed:false``). These tests author that resolved state directly so the public
+    create path reads the field's options, not a seeded catalog.
+    """
+    return tuple(
+        EnumOption(
+            value=e.type_code,
+            label=e.label,
+            allowed=e.active,
+            order=e.order,
+        )
+        for e in catalog
+    )
+
+
 def _service(overlay: TenantOverlay, *, catalog) -> MembershipService:
     repo = _ApplicationRepo()
     for entry in catalog:
         repo.add_type(TENANT, entry)
+    # Fold the catalog vocabulary onto the membership_type field's inline options so the
+    # field-options-only reader (03b CONTRACT) resolves the same values the catalog carried.
+    options = _options_from_catalog(catalog)
+    mt_key = "membership.membership_type"
+    existing = dict(overlay.overrides)
+    base = existing.get(mt_key)
+    if base is not None:
+        existing[mt_key] = replace(base, options=options)
+    else:
+        existing[mt_key] = FixedFieldOverride(options=options)
+    overlay = replace(overlay, overrides=existing)
     return MembershipService(
         repo, overlay_provider=StaticOverlayProvider({TENANT: overlay})
     )

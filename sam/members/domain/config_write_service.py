@@ -95,9 +95,21 @@ class ConfigWriteService:
         version_fn=next_write_stamp,
         overlay_reader=None,
         overlay_reader_factory=None,
+        usage_probe=None,
     ):
         self._repository = repository
         self._version_fn = version_fn
+        # OPTION-INTEGRITY member-usage probe (03b BU-1, Req 3.2a). Storage-agnostic seam shared
+        # with the delete-field guard (config_fields_crud_service): the write service cannot read
+        # member data itself (steering 35/39), so to tell whether an option ``value`` the author is
+        # removing/renaming is still referenced by a member it consults an injected probe exposing
+        # ``option_in_use(tenant_id, field_key, value) -> bool`` (or the richer
+        # ``field_usage(tenant_id, field_key) -> Mapping`` the delete-field guard uses, from which a
+        # ``values`` set is read). When no probe is wired — or a wired probe exposes neither the
+        # option-level nor the richer shape — the in-use leg cannot be observed and does NOT block
+        # (production always wires one; this keeps the unit surface exercisable, mirroring the
+        # delete-field guard's no-probe degradation).
+        self._usage_probe = usage_probe
         # MERGE-ON-WRITE of config#fields (bugfix): a config#fields PUT carries only the slice the
         # client is authoring, but the repository put REPLACES the whole row. Without merging, a
         # partial body (e.g. the Application Form Builder sending only application-attribute toggles
@@ -256,6 +268,17 @@ class ConfigWriteService:
         # re-checked too.
         self._validate_application_attributes(fields, overrides)
 
+        # OPTION-INTEGRITY hardening (03b BU-1, Req 3.2a/3.4a): the unified enum model hangs a
+        # field's vocabulary off its own `options`, so the write seam is the authoritative place to
+        # keep that vocabulary well-formed. Two checks over the MERGED result (so a preserved
+        # option list is re-checked too), BEFORE the row is written, keyed to the offending field:
+        #   - a required / off-form enum must keep ≥1 `allowed:true` option (Req 3.4a); and
+        #   - an option `value` still referenced by a member must not VANISH or be RENAMED out of
+        #     the field's options (Req 3.2a) — it MAY instead be set `allowed:false` (retired).
+        # The removal/rename check needs the CURRENT stored options to diff against, read from the
+        # same merge reader seam used for the slice merge above.
+        self._validate_option_integrity(fields, overrides, tenant_id)
+
         # Author the three reader-read overlay attributes — no default_page_size (R7.2) — PLUS the
         # application-form slug + publish-state metadata (spec 12 Task 1.1 / R4.2, design §Data
         # Models). ``slug`` comes from the body (format-validated below); ``published_at`` /
@@ -401,12 +424,12 @@ class ConfigWriteService:
     def _validate_application_attributes(
         self, fields: Mapping, overrides: Mapping
     ) -> None:
-        """Validate the four per-field application attributes over BOTH specs, fail-loud (R8).
+        """Validate the per-field application attributes over BOTH specs, fail-loud (R8).
 
         The SAM equivalent of the retired Flask ``members_config_validation
-        ._validate_application_attrs`` (R8.4) — same three write-time invariants, now enforced by
-        the authoritative author so a crafted or buggy write can never store an incoherent
-        ``config#fields`` row:
+        ._validate_application_attrs`` (R8.4) — the well-formedness write-time invariants, now
+        enforced by the authoritative author so a crafted or buggy write can never store an
+        incoherent ``config#fields`` row:
 
         1. **subset ⊆ choices (R8.1a):** a present ``application_choices`` must be a list whose
            every entry is a valid choice of the field's own resolved choices (``options[].value``
@@ -415,10 +438,10 @@ class ConfigWriteService:
         2. **known checker (R8.1b):** a present ``format`` must be a well-formed ``{checker,
            params?}`` mapping whose ``checker`` is in :func:`field_formats.known_tokens`. Anything
            else is rejected (a tenant attaches a KNOWN token, it never authors a checker).
-        3. **no relax (R8.1c):** a field the platform marks ``required`` may not carry
-           ``application_required = False`` — the public form may only TIGHTEN requiredness, never
-           relax the platform floor. The platform-required authority is the fixed-field registry
-           (:func:`fixed_fields.field_by_key`); a variable overlay field is never platform-required.
+
+        The former no-relax invariant (a platform-required field could not carry
+        ``application_required = False``) was a Hardcoded_Binding that OVERRULED the admin and is
+        REMOVED (03b Req 1.1/1.4): the admin now freely sets application-requiredness for any field.
 
         Reasons are COLLECTED across both maps (every offending field, not just the first) and, if
         any are found, raised as ONE :class:`ConfigWriteValidationError` whose message is keyed to
@@ -426,29 +449,20 @@ class ConfigWriteService:
         """
         reasons: dict[str, str] = {}
 
-        # overrides — keyed by the canonical dotted key of a fixed/calculated field. A fixed field
-        # the platform marks required cannot be relaxed on the form.
+        # overrides — keyed by the canonical dotted key of a fixed/calculated field.
         for dotted, spec in overrides.items():
             if not isinstance(spec, Mapping):
                 continue
-            fixed = field_by_key(dotted)
-            platform_required = bool(fixed is not None and fixed.required)
-            self._collect_application_attr_reasons(
-                dotted, spec, reasons, platform_required=platform_required
-            )
+            self._collect_application_attr_reasons(dotted, spec, reasons)
 
-        # fields — the added variable fields. A variable field is NEVER a platform-required field,
-        # so only the subset ⊆ choices + known-checker invariants apply (platform_required=False).
-        # The error key mirrors the Flask dotted form (`overlay.<key>`) so a rejected write names
-        # the field consistently across planes.
+        # fields — the added variable fields. The error key mirrors the Flask dotted form
+        # (`overlay.<key>`) so a rejected write names the field consistently across planes.
         for name, spec in fields.items():
             if not isinstance(spec, Mapping):
                 continue
             key = spec.get("key") if isinstance(spec.get("key"), str) else name
             dotted = f"{OVERLAY_GROUP}.{key}"
-            self._collect_application_attr_reasons(
-                dotted, spec, reasons, platform_required=False
-            )
+            self._collect_application_attr_reasons(dotted, spec, reasons)
 
         if reasons:
             detail = "; ".join(
@@ -463,14 +477,13 @@ class ConfigWriteService:
         dotted: str,
         spec: Mapping,
         reasons: dict[str, str],
-        *,
-        platform_required: bool,
     ) -> None:
         """Append a reason under ``dotted`` for any application-attribute violation on one spec.
 
-        Mirrors the three rules of the retired Flask ``_validate_application_attrs`` (R8.4);
-        batched (never raises here) so the caller collects every offending field before raising
-        one :class:`ConfigWriteValidationError`.
+        Mirrors the well-formedness rules of the retired Flask ``_validate_application_attrs``
+        (R8.4); batched (never raises here) so the caller collects every offending field before
+        raising one :class:`ConfigWriteValidationError`. The no-relax binding (03b Req 1) is gone —
+        requiredness on the form is the admin's to set.
         """
         # 1) enum application-subset ⊆ field choices (R8.1a).
         subset = spec.get("application_choices")
@@ -509,24 +522,23 @@ class ConfigWriteService:
                         f"(known: {known})"
                     )
 
-        # 3) application-required cannot relax a platform-required field (R8.1c).
-        if platform_required and spec.get("application_required") is False:
-            reasons[dotted] = (
-                "application_required cannot relax a platform-required field "
-                "(the public form may tighten requiredness, never loosen the platform floor)"
-            )
-
     @staticmethod
     def _field_choice_values(spec: Mapping) -> set | None:
         """The field's resolved CHOICE vocabulary as a set, or ``None`` when it declares none.
 
-        Mirrors the retired Flask ``_field_enum_values`` / ``_field_choice_values`` (R8.4): a
-        field's choice vocabulary is read from rich ``options`` (``{value,...}`` dicts or bare
-        strings) FIRST, then from a bare ``choices`` string list — the single ``options``/
-        ``choices`` reader the public read side already uses. Returns the non-blank string values
-        as a set for subset-membership checks, or ``None`` when the field declares no usable
-        vocabulary (not an enum / value-less) — the caller treats an ``application_choices`` subset
-        on such a field as a write error (you cannot subset a field that has no choices).
+        Reads the field's vocabulary from the ONE canonical ``options`` list (``{value,...}`` dicts
+        or bare strings). Used to validate that an ``application_choices`` subset is drawn from the
+        field's actual vocabulary (R3.2 — the public-form subset concept is PRESERVED). Returns the
+        non-blank string values as a set for subset-membership checks, or ``None`` when the field
+        declares no usable vocabulary (not an enum / value-less) — the caller treats an
+        ``application_choices`` subset on such a field as a write error (you cannot subset a field
+        that has no choices).
+
+        The legacy ``choices`` fallback was RETIRED (spec 03a, F12/N2): now that C7 backfills every
+        live row to ``options`` and C2 drops ``choices`` from the write surface, the
+        ``_collect(...) or _collect(spec.get("choices"))`` coalesce is dead — this helper reads
+        ``options`` ONLY, matching the one-vocabulary model (R2.1). Only the vocabulary SOURCE
+        tightened; the ``application_choices`` subset VALIDATION behaviour is unchanged.
         """
 
         def _collect(raw) -> list | None:
@@ -539,8 +551,210 @@ class ConfigWriteService:
                     values.append(value)
             return values or None
 
-        values = _collect(spec.get("options")) or _collect(spec.get("choices"))
+        values = _collect(spec.get("options"))
         return set(values) if values else None
+
+    # ── Option-integrity validation (Task 1.2 / Requirements 3.2a, 3.4a) ─────────────────
+
+    def _validate_option_integrity(
+        self, fields: Mapping, overrides: Mapping, tenant_id: str
+    ) -> None:
+        """Enforce the unified enum-model option-integrity rules at the write seam (R3.2a/R3.4a).
+
+        Two well-formedness checks over the MERGED field/override specs (NOT an overrule of the
+        admin — a config that violates them is simply not well-formed under the unified model):
+
+        1. **≥1 ``allowed:true`` option (R3.4a).** A REQUIRED enum, or one that is OFF the
+           application form (``application_visible`` falsey → the form supplies a default), must
+           keep at least one option with ``allowed`` truthy. An absent ``allowed`` reads as
+           ``true`` (back-compat). A write that would zero the allowed set for such a field is
+           rejected — the form would have no default / no selectable value. A field that declares
+           NO ``options`` (a plain string field, or an open enum sourcing its vocabulary elsewhere)
+           is NOT subject to this rule.
+        2. **In-use option cannot vanish/rename (R3.2a).** An option ``value`` present in the
+           CURRENT stored options of a field but ABSENT from the new (merged) option set has been
+           removed or renamed. If a member still references that value it MUST NOT disappear — the
+           admin may instead set it ``allowed:false`` (retired/grandfathered), which keeps the
+           value present. "Referenced by a member" is observed via the injected ``usage_probe``
+           (storage-agnostic, steering 35/39); with no probe wired the leg does not block.
+
+        Reasons are COLLECTED across both maps (every offending field) and, if any are found,
+        raised as ONE caller-safe :class:`ConfigWriteValidationError` naming the offending
+        field(s)/option(s) (R8.3) — no raw internals leaked.
+        """
+        current = self._current_fields_row(tenant_id)
+        current_fields = (
+            current.get("fields") if isinstance(current.get("fields"), Mapping) else {}
+        )
+        # The current override map may be stored under either the canonical ``overrides`` or the
+        # authoring wire alias ``fixed_overrides`` (the reader serves the alias) — accept either so
+        # the option diff sees the real prior vocabulary.
+        current_overrides = current.get("fixed_overrides")
+        if not isinstance(current_overrides, Mapping):
+            current_overrides = current.get("overrides")
+        if not isinstance(current_overrides, Mapping):
+            current_overrides = {}
+
+        reasons: dict[str, str] = {}
+
+        # overrides — keyed by canonical dotted key (e.g. ``membership.membership_type``). The
+        # field key the probe is asked about is the dotted key's bare field name.
+        for dotted, spec in overrides.items():
+            if not isinstance(spec, Mapping):
+                continue
+            field_key = dotted.split(".")[-1]
+            self._collect_option_integrity_reasons(
+                dotted,
+                field_key,
+                spec,
+                current_overrides.get(dotted),
+                reasons,
+                platform_required=self._is_platform_required(dotted),
+                tenant_id=tenant_id,
+            )
+
+        # fields — tenant-added variable fields. Keyed by the overlay-dotted form for a consistent,
+        # caller-safe error key across planes; the probe is asked about the bare field key.
+        for name, spec in fields.items():
+            if not isinstance(spec, Mapping):
+                continue
+            field_key = spec.get("key") if isinstance(spec.get("key"), str) else name
+            dotted = f"{OVERLAY_GROUP}.{field_key}"
+            self._collect_option_integrity_reasons(
+                dotted,
+                field_key,
+                spec,
+                current_fields.get(name),
+                reasons,
+                platform_required=False,
+                tenant_id=tenant_id,
+            )
+
+        if reasons:
+            detail = "; ".join(
+                f"{field}: {reason}" for field, reason in reasons.items()
+            )
+            raise ConfigWriteValidationError(
+                f"config#fields option-integrity validation failed: {detail}"
+            )
+
+    @staticmethod
+    def _is_platform_required(dotted: str) -> bool:
+        """True when the canonical dotted key names a platform-required fixed field (registry)."""
+        fixed = field_by_key(dotted)
+        return bool(fixed is not None and fixed.required)
+
+    def _collect_option_integrity_reasons(
+        self,
+        dotted: str,
+        field_key: str,
+        spec: Mapping,
+        current_spec,
+        reasons: dict[str, str],
+        *,
+        platform_required: bool,
+        tenant_id: str,
+    ) -> None:
+        """Append option-integrity reasons for one field spec under ``dotted`` (R3.2a/R3.4a).
+
+        Batched (never raises here) so the caller collects every offending field before raising
+        one :class:`ConfigWriteValidationError`. A field that declares no ``options`` is skipped
+        entirely — the integrity rules are about an enum's own vocabulary.
+        """
+        new_options = self._options_of(spec)
+        if new_options is None:
+            # No authored vocabulary on this spec → neither rule applies.
+            return
+
+        # R3.4a — a required enum, or one OFF the application form, must keep ≥1 allowed option.
+        required = platform_required or spec.get("required") is True
+        off_form = spec.get("application_visible") is not True
+        if (required or off_form) and not self._has_allowed_option(new_options):
+            reasons[dotted] = (
+                "a required or off-form enum must keep at least one allowed:true option "
+                "(the form has no default / no selectable value otherwise)"
+            )
+            # The zero-allowed violation is the more fundamental one; still fall through so a
+            # separate in-use-removal reason can also surface if present (both help the admin).
+
+        # R3.2a — an in-use option value must not vanish/rename out of the field's options.
+        current_options = self._options_of(current_spec)
+        if current_options:
+            new_values = {o["value"] for o in new_options}
+            for opt in current_options:
+                value = opt.get("value")
+                if not isinstance(value, str) or not value:
+                    continue
+                if value in new_values:
+                    continue  # still present (possibly only toggled allowed:false) → fine
+                if self._option_referenced_by_member(tenant_id, field_key, value):
+                    # Keep the first in-use reason per field if a zero-allowed reason already set;
+                    # otherwise this becomes the field's reason. Use a distinct key suffix so both
+                    # a zero-allowed AND an in-use reason can be surfaced for the same field.
+                    key = dotted if dotted not in reasons else f"{dotted} (option {value!r})"
+                    reasons[key] = (
+                        f"option {value!r} is still referenced by a member and cannot be "
+                        "removed or renamed; set it allowed:false to retire it instead"
+                    )
+
+    @staticmethod
+    def _options_of(spec) -> list[dict] | None:
+        """The option dicts of a field spec as a list, or ``None`` when it declares no options.
+
+        Each entry is normalized to a dict with at least a ``value`` key. A bare-string option is
+        promoted to ``{"value": <str>}`` (an unranked, allowed option by default). ``None`` /
+        absent / a non-list ``options`` → ``None`` (the field declares no authored vocabulary).
+        """
+        if not isinstance(spec, Mapping):
+            return None
+        raw = spec.get("options")
+        if not isinstance(raw, (list, tuple)):
+            return None
+        out: list[dict] = []
+        for entry in raw:
+            if isinstance(entry, Mapping):
+                out.append(dict(entry))
+            elif isinstance(entry, str) and entry.strip():
+                out.append({"value": entry})
+        return out
+
+    @staticmethod
+    def _has_allowed_option(options: list[dict]) -> bool:
+        """True when at least one option is allowed — an ABSENT ``allowed`` reads as ``True``."""
+        for opt in options:
+            if opt.get("allowed", True):
+                return True
+        return False
+
+    def _option_referenced_by_member(
+        self, tenant_id: str, field_key: str, value: str
+    ) -> bool:
+        """Ask the injected ``usage_probe`` whether a member references option ``value`` (R3.2a).
+
+        Storage-agnostic (steering 35/39) — the write service never queries the members table. The
+        probe (shared with the delete-field guard) is consulted through whichever shape it exposes:
+
+        - an option-level ``option_in_use(tenant_id, field_key, value) -> bool`` (preferred), or
+        - the richer ``field_usage(tenant_id, field_key) -> Mapping`` the delete-field guard uses,
+          from which a ``values`` collection (the per-value usage the field reports) is read and
+          membership of ``value`` checked.
+
+        With no probe wired, or a probe exposing neither shape, the leg is UNOBSERVABLE and returns
+        ``False`` (does not block) — production always wires a probe; a member still pointing at a
+        removed option is then caught on member save (BU-2).
+        """
+        probe = self._usage_probe
+        if probe is None:
+            return False
+        if hasattr(probe, "option_in_use"):
+            return bool(probe.option_in_use(tenant_id, field_key, value))
+        if hasattr(probe, "field_usage"):
+            usage = probe.field_usage(tenant_id, field_key)
+            if isinstance(usage, Mapping):
+                values = usage.get("values")
+                if isinstance(values, (list, tuple, set)):
+                    return value in values
+        return False
 
     @staticmethod
     def _validate_fields_map(raw) -> dict:

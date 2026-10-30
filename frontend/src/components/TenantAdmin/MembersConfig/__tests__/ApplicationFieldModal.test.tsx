@@ -8,7 +8,8 @@
  *  - the modal reuses `MembersFieldModal`'s ENGINE — the origin-aware `resolveWriteTarget` +
  *    `overlayModel.upsertField` — so a tenant field authors `application_visible` under
  *    `fields[key]` and a base field under `fixed_overrides[{group}.{key}]`, no network call (R1.1);
- *  - toggling OFF clears `application_visible` to the default (undefined), not false (R2.3);
+ *  - toggling OFF persists an EXPLICIT `false` (03b BU-5 / Req 2.1 — the toggle root-cause fix: a
+ *    dropped `undefined` was treated as "unchanged" and silently reverted on reload);
  *  - a calculated / read-only field is NOT offerable — a note, no toggle (R2.5);
  *  - the application-form attributes section renders ONLY when a form is in scope (R1.2).
  *
@@ -16,7 +17,7 @@
  * (NO-RELAX for a platform-required field) and `format` (KNOWN tokens only) attributes are authored
  * onto the SAME single `field_overlay` via the SAME origin-aware `upsertField` engine. The cases
  * here pair those behaviours:
- *  - `application_required` writes true / clears to the default (undefined), origin-aware;
+ *  - `application_required` writes true / persists an explicit false on OFF (03b BU-5), origin-aware;
  *  - the NO-RELAX lock holds for a platform-required field (the toggle is disabled + forced on with
  *    an explanatory note — it cannot be authored optional);
  *  - `format` writes only a KNOWN token and clears to null; an unknown token is never offerable.
@@ -49,8 +50,8 @@ const FIELD_CONFIG: FieldConfig = {
     { key: 'member_number', group: 'membership', functional_group: 'membership', order: 1, type: 'string', origin: 'fixed', provenance: 'base', label: { en: 'Member number', nl: 'Lidnummer' } },
     // calculated/read-only → NOT offerable
     { key: 'age', functional_group: 'contact', order: 2, type: 'number', origin: 'calculated', read_only: true, label: { en: 'Age', nl: 'Leeftijd' } },
-    // reference field (membership-type) → subset sources from the LIVE catalog (task 4.2 / R1.3)
-    { key: 'membership_type', group: 'membership', functional_group: 'membership', order: 2, type: 'reference', provenance: 'base', origin: 'fixed', label: { en: 'Membership type', nl: 'Lidmaatschapstype' } },
+    // reference field (membership_type) → subset sources from the field's OWN options (03b 9b.2)
+    { key: 'membership_type', group: 'membership', functional_group: 'membership', order: 2, type: 'reference', provenance: 'base', origin: 'fixed', options: [{ value: 'regular', label: { en: 'Regular', nl: 'Regulier' } }, { value: 'student', label: { en: 'Student', nl: 'Student' } }], label: { en: 'Membership type', nl: 'Lidmaatschapstype' } },
     // scope axis → subset sources from the scope DIMENSION values (= its own options)
     { key: 'region', functional_group: 'contact', order: 3, type: 'enum', provenance: 'tenant_added', scope: { enabled: true, required_for: ['Member'] }, options: [{ value: 'north', label: { en: 'North', nl: 'Noord' } }, { value: 'south', label: { en: 'South', nl: 'Zuid' } }], label: { en: 'Region', nl: 'Regio' } },
     // enum field → subset sources from its OWN options
@@ -63,16 +64,10 @@ const FIELD_CONFIG: FieldConfig = {
   ],
 };
 
-/** The tenant's LIVE membership-type catalog — the reference field's subset source (R4.1). */
-const CATALOG = [
-  { type_code: 'regular', label: { en: 'Regular', nl: 'Regulier' } },
-  { type_code: 'student', label: { en: 'Student', nl: 'Student' } },
-] as unknown as import('../../../../types/members').MembershipType[];
-
 function renderModal(
   fieldKey: string | null,
   overlay: MembersConfigValue = {},
-  opts: { formInScope?: boolean; catalog?: typeof CATALOG | null } = {},
+  opts: { formInScope?: boolean } = {},
   onChange = vi.fn(),
 ) {
   const utils = render(
@@ -84,7 +79,6 @@ function renderModal(
       overlay={overlay}
       onChange={onChange}
       formInScope={opts.formInScope ?? true}
-      membershipTypeCatalog={opts.catalog ?? CATALOG}
       lang="en"
     />,
   );
@@ -130,7 +124,7 @@ describe('ApplicationFieldModal — on-the-form toggle writes application_visibl
     expect(findField(next, 'membership.member_number')?.origin).toBe('fixed_overrides');
   });
 
-  it('toggling OFF clears application_visible to the default (undefined), not false (R2.3)', () => {
+  it('toggling OFF persists application_visible as an EXPLICIT false, not a dropped undefined (03b BU-5 / Req 2.1)', () => {
     const seeded: MembersConfigValue = {
       fields: { email: { type: 'string', application_visible: true } },
     };
@@ -139,7 +133,9 @@ describe('ApplicationFieldModal — on-the-form toggle writes application_visibl
     expect(screen.getByTestId('application-field-modal-on-form-toggle')).toBeChecked();
     fireEvent.click(screen.getByTestId('application-field-modal-on-form-toggle'));
     const next = onChange.mock.calls[0][0] as MembersConfigValue;
-    expect(findField(next, 'email')?.field.application_visible).toBeUndefined();
+    // 03b root-cause fix: OFF is an explicit `false` so the change-op diff emits it (a reload shows
+    // OFF), never a dropped `undefined` the diff would treat as "unchanged".
+    expect(findField(next, 'email')?.field.application_visible).toBe(false);
   });
 });
 
@@ -185,7 +181,7 @@ describe('ApplicationFieldModal — application_required writes onto the ONE ove
     expect(findField(next, 'email')?.origin).toBe('fields');
   });
 
-  it('toggling required OFF clears application_required to the default (undefined), not false', () => {
+  it('toggling required OFF persists application_required as an EXPLICIT false, not a dropped undefined (03b BU-5 / Req 2.1)', () => {
     const seeded: MembersConfigValue = {
       fields: { email: { type: 'string', application_visible: true, application_required: true } },
     };
@@ -195,7 +191,9 @@ describe('ApplicationFieldModal — application_required writes onto the ONE ove
     expect(toggle).toBeChecked();
     fireEvent.click(toggle);
     const next = onChange.mock.calls[0][0] as MembersConfigValue;
-    expect(findField(next, 'email')?.field.application_required).toBeUndefined();
+    // 03b root-cause fix: OFF is an explicit `false` so the change-op diff emits it (a reload shows
+    // OFF), never a dropped `undefined` the diff would treat as "unchanged".
+    expect(findField(next, 'email')?.field.application_required).toBe(false);
   });
 
   it('a BASE field writes application_required under fixed_overrides keyed {group}.{key}', () => {
@@ -281,7 +279,6 @@ describe('ApplicationFieldModal — format writes only a KNOWN token (task 4.3 /
         overlay={{}}
         onChange={vi.fn()}
         formInScope
-        membershipTypeCatalog={CATALOG}
         lang="en"
       />,
     );
@@ -295,11 +292,11 @@ describe('ApplicationFieldModal — format writes only a KNOWN token (task 4.3 /
 });
 
 describe('ApplicationFieldModal — enum-subset picker SOURCE adapts to field kind (task 4.2 / R1.3)', () => {
-  it('renders the picker for a REFERENCE field sourced from the live catalog', () => {
+  it('renders the picker for a REFERENCE field sourced from the field\u2019s own options (03b 9b.2)', () => {
     renderModal('membership_type', {}, { formInScope: true });
     const source = screen.getByTestId('application-field-modal-subset-source');
     expect(source).toHaveAttribute('data-source-kind', 'reference');
-    // The options are the LIVE catalog codes, not the field's static choices.
+    // The options are the field's OWN option values (the live catalog is retired, 03b).
     expect(screen.getByTestId('application-field-modal-subset-option-regular')).toBeInTheDocument();
     expect(screen.getByTestId('application-field-modal-subset-option-student')).toBeInTheDocument();
   });
@@ -326,9 +323,27 @@ describe('ApplicationFieldModal — enum-subset picker SOURCE adapts to field ki
     expect(screen.queryByTestId('application-field-modal-subset')).not.toBeInTheDocument();
   });
 
-  it('surfaces an empty-source note for a reference field with an EMPTY live catalog', () => {
-    renderModal('membership_type', {}, { formInScope: true, catalog: [] });
-    // The picker still renders (choice-bearing by kind) but shows "no types yet" and no options.
+  it('surfaces an empty-source note for a reference field with NO options yet (03b 9b.2)', () => {
+    // membership_type is choice-bearing by kind, but with an empty option set the picker shows
+    // the "no options yet" note and offers nothing (the field has no authored vocabulary).
+    const emptyCfg = {
+      ...FIELD_CONFIG,
+      fields: FIELD_CONFIG.fields.map((f) =>
+        f.key === 'membership_type' ? { ...f, options: [] } : f,
+      ),
+    } as typeof FIELD_CONFIG;
+    render(
+      <ApplicationFieldModal
+        isOpen
+        onClose={vi.fn()}
+        fieldKey="membership_type"
+        fieldConfig={emptyCfg}
+        overlay={{}}
+        onChange={vi.fn()}
+        formInScope
+        lang="en"
+      />,
+    );
     expect(screen.getByTestId('application-field-modal-subset')).toBeInTheDocument();
     expect(screen.getByTestId('application-field-modal-subset-empty-source')).toBeInTheDocument();
   });

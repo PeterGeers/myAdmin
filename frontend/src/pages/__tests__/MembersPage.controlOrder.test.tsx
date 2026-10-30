@@ -50,7 +50,6 @@ const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockListMembersPage = vi.mocked(membersApiService.listMembersPage);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
-const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes);
 const mockGetColumnPreferences = vi.mocked(membersApiService.getColumnPreferences);
 const mockSaveColumnPreferences = vi.mocked(membersApiService.saveColumnPreferences);
 
@@ -128,7 +127,6 @@ describe('MembersPage — controls above the table (task 1.2, Req 1.1–1.4)', (
     mockListMembers.mockResolvedValue(pageOne as never);
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(pageOne[0] as never);
-    mockListMembershipTypes.mockResolvedValue([] as never);
     mockGetColumnPreferences.mockResolvedValue({ sub: '', columns: [], updated_at: '' } as never);
     mockSaveColumnPreferences.mockResolvedValue({ sub: '', columns: [], updated_at: '' } as never);
   });

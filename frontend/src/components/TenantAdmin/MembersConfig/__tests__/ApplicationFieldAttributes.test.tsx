@@ -4,8 +4,9 @@
  *
  * This is the change-with-tests pairing for the new `ApplicationFieldAttributes` behavior (the full
  * dedicated suite is task 3.5). It asserts the R3/R4 contract the component owns:
- *  - the application-required toggle writes `application_required`, TIGHTENS an optional field, and
- *    is DISABLED/forced-on for a platform-required field (R3.1);
+ *  - the application-required toggle writes `application_required` as an EXPLICIT boolean (OFF is a
+ *    deliberate `false`, 03b Req 2.1), seeds from the platform-required default, and is NEVER
+ *    force-on/disabled — the admin freely sets requiredness for any field (03b Req 1.2/1.3);
  *  - the enum subset picker is offered ONLY on a field with choices, is constrained to the field's
  *    OWN choices, writes a proper subset to `application_choices`, and stores the full set as `null`
  *    (R3.2 / R4.1);
@@ -21,7 +22,6 @@ import React from 'react';
 import { render, screen, fireEvent } from '../../../../test-utils';
 import type { FieldConfig } from '../../../../types/members';
 import type { MembersConfigValue } from '../../../../types/membersConfig';
-import type { MembershipType } from '../../../../types/members';
 import { ApplicationFieldAttributes } from '../ApplicationFieldAttributes';
 import { findField } from '../overlayModel';
 
@@ -47,8 +47,9 @@ const FIELD_CONFIG: FieldConfig = {
         { value: 'c', label: { en: 'C', nl: 'C' } },
       ],
     },
-    // A platform-required base field (no choices) — required toggle forced on + disabled. Its
-    // storage `group` drives the origin-aware overlay key (`{group}.{key}` → `contact.email`).
+    // A platform-required base field (no choices). After 03b Req 1 the required toggle SEEDS on
+    // from the platform-required default but is NEVER forced/disabled — the admin may relax it.
+    // Its storage `group` drives the origin-aware overlay key (`{group}.{key}` → `contact.email`).
     {
       key: 'email',
       group: 'contact',
@@ -59,9 +60,10 @@ const FIELD_CONFIG: FieldConfig = {
       required: true,
       label: { en: 'Email', nl: 'E-mail' },
     },
-    // The membership-type field (R4, task 3.3). It is NOT platform-required and carries static
-    // served options, but when exposed it is forced required and its subset is the LIVE catalog
-    // (`membershipTypeCatalog`), NOT these static options.
+    // The membership-type field (03b): a NORMAL enum/reference field that owns its OWN options.
+    // NOT platform-required; after 03b Req 1.2 it is no longer forced-required when exposed. Its
+    // subset sources from these options (the live catalog is retired) — `staff` is retired
+    // (allowed:false) so it is NOT offered on the form.
     {
       key: 'membership_type',
       group: 'membership',
@@ -71,23 +73,19 @@ const FIELD_CONFIG: FieldConfig = {
       provenance: 'base',
       required: false,
       label: { en: 'Type', nl: 'Type' },
-      options: [{ value: 'stale', label: { en: 'Stale', nl: 'Verouderd' } }],
+      options: [
+        { value: 'regular', label: { en: 'Regular', nl: 'Gewoon' } },
+        { value: 'honorary', label: { en: 'Honorary', nl: 'Erelid' } },
+        { value: 'staff', label: { en: 'Staff', nl: 'Staf' }, allowed: false },
+      ],
     },
   ],
 };
-
-/** The tenant's LIVE membership-type catalog (the subset vocabulary for the membership-type field). */
-const CATALOG: MembershipType[] = [
-  { type_code: 'regular', label: { en: 'Regular', nl: 'Gewoon' }, active: true, order: 1 },
-  { type_code: 'honorary', label: { en: 'Honorary', nl: 'Erelid' }, active: true, order: 2 },
-  { type_code: 'staff', label: { en: 'Staff', nl: 'Staf' }, active: false, order: 3 },
-];
 
 function renderAttrs(
   selectedKey: string | null,
   overlay: MembersConfigValue = {},
   onChange = vi.fn(),
-  catalog: MembershipType[] | null = null,
 ) {
   const utils = render(
     <ApplicationFieldAttributes
@@ -95,7 +93,6 @@ function renderAttrs(
       selectedKey={selectedKey}
       overlay={overlay}
       onChange={onChange}
-      membershipTypeCatalog={catalog}
       lang="en"
     />,
   );
@@ -158,16 +155,21 @@ describe('ApplicationFieldAttributes — application-required (R3.1)', () => {
     expect(findField(next, 'preference')?.field.application_required).toBe(true);
   });
 
-  it('is forced ON and DISABLED for a platform-required field (no relax)', () => {
+  it('seeds ON for a platform-required field but is NOT disabled — the admin may relax it (03b Req 1)', () => {
     const { onChange } = renderAttrs('email', overrideOnFormOverlay('contact.email'));
     const toggle = screen.getByTestId('application-field-required-toggle');
-    // Forced ON — a platform-required field is always required on the form (R3.1).
+    // Seeds ON from the platform-required default (a sensible initial state, not a lock, R3.1).
     expect(toggle).toBeChecked();
-    // The platform-required provenance is surfaced so the admin understands why it cannot relax.
+    expect(toggle).not.toBeDisabled();
+    // The platform-required provenance is still surfaced as information.
     expect(screen.getByText('platform-required')).toBeInTheDocument();
-    // And the no-relax guard holds: a click can NEVER write a relax to the overlay (R3.1 / R8.1c).
+    // 03b Req 1.1/1.4: the former no-relax binding is REMOVED — clicking the toggle off now
+    // writes a relax to the overlay. 03b Req 2.1/2.4 (BU-5): the OFF is an EXPLICIT `false`, not a
+    // dropped `undefined` the change-op diff would treat as "unchanged" (the toggle root cause).
     fireEvent.click(toggle);
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as MembersConfigValue;
+    expect(findField(next, 'contact.email')?.field.application_required).toBe(false);
   });
 });
 
@@ -276,84 +278,65 @@ describe('ApplicationFieldAttributes — format dropdown (R3.3)', () => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  Membership-type coherence (R4, task 3.3): forced-required, subset  */
-/*  over the LIVE catalog, empty/unknown-subset validation.            */
+/*  membership_type (03b 9b.2): a normal enum/reference field owning    */
+/*  its OWN options; the subset sources from the field options, not a   */
+/*  live catalog. Catalog-based subset validation is removed.           */
 /* ------------------------------------------------------------------ */
 describe('ApplicationFieldAttributes — membership-type coherence (R4, task 3.3)', () => {
-  it('forces the exposed membership-type field application-required (forced ON + disabled, R4.2)', () => {
+  it('does NOT force the membership-type field application-required — the admin sets it (03b Req 1.2)', () => {
     const { onChange } = renderAttrs(
       'membership_type',
       membershipOnFormOverlay(),
-      vi.fn(),
-      CATALOG,
     );
     const toggle = screen.getByTestId('application-field-required-toggle');
-    // Forced ON even though the field is NOT platform-required — an exposed membership-type field
-    // is always application-required (spec 10 D21 / R4.2).
-    expect(toggle).toBeChecked();
+    // 03b Req 1.2: the former force-on/disable binding for the membership-type field is REMOVED.
+    // The field is NOT platform-required (`required: false`) and carries no authored value, so the
+    // toggle seeds OFF and is freely settable — no overrule.
+    expect(toggle).not.toBeChecked();
+    expect(toggle).not.toBeDisabled();
+    // The membership-type provenance is still surfaced as information.
     expect(screen.getByText('membership-type')).toBeInTheDocument();
-    // The no-relax guard holds: clicking the forced toggle never writes a relax to the overlay.
+    // Clicking it ON now writes an explicit boolean (the admin's choice), not a no-op.
     fireEvent.click(toggle);
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as MembersConfigValue;
+    expect(findField(next, 'membership.membership_type')?.field.application_required).toBe(true);
   });
 
-  it('sources the subset from the LIVE catalog, NOT the field\u2019s static served options (R4.1)', () => {
-    renderAttrs('membership_type', membershipOnFormOverlay(), vi.fn(), CATALOG);
-    // Live catalog codes are offered (incl. the retired `staff` — the server is the authority on
-    // acceptability, R4.3); the field's stale static option is NOT.
+  it('sources the subset from the field OWN options; a retired option is not offered (03b 9b.2)', () => {
+    renderAttrs('membership_type', membershipOnFormOverlay());
+    // The field's own active options are offered; `staff` is allowed:false (retired) -> omitted.
     expect(screen.getByTestId('application-field-subset-option-regular')).toBeInTheDocument();
     expect(screen.getByTestId('application-field-subset-option-honorary')).toBeInTheDocument();
-    expect(screen.getByTestId('application-field-subset-option-staff')).toBeInTheDocument();
-    expect(screen.queryByTestId('application-field-subset-option-stale')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-field-subset-option-staff')).not.toBeInTheDocument();
   });
 
-  it('writes a proper subset of LIVE catalog codes to application_choices (R4.1)', () => {
-    const { onChange } = renderAttrs(
-      'membership_type',
-      membershipOnFormOverlay(),
-      vi.fn(),
-      CATALOG,
-    );
-    // Start with the full catalog selected; unchecking `staff` leaves the proper subset. A base
-    // field authors under `fixed_overrides[{group}.{key}]`, so the overlay entry key is dotted.
-    fireEvent.click(screen.getByTestId('application-field-subset-option-staff'));
+  it('writes a proper subset of the field option codes to application_choices (03b 9b.2)', () => {
+    const { onChange } = renderAttrs('membership_type', membershipOnFormOverlay());
+    // Offered set = {regular, honorary} (staff retired). Unchecking honorary leaves [regular].
+    fireEvent.click(screen.getByTestId('application-field-subset-option-honorary'));
     const next = onChange.mock.calls[0][0] as MembersConfigValue;
     expect(findField(next, 'membership.membership_type')?.field.application_choices).toEqual([
       'regular',
-      'honorary',
     ]);
   });
 
-  it('flags an EMPTY authored subset on the exposed-required membership-type field (R4.2)', () => {
-    renderAttrs(
-      'membership_type',
-      membershipOnFormOverlay({ application_choices: [] }),
-      vi.fn(),
-      CATALOG,
+  it('shows the "no options yet" note when the field has no options (03b 9b.2)', () => {
+    const emptyCfg = {
+      ...FIELD_CONFIG,
+      fields: FIELD_CONFIG.fields.map((f) =>
+        f.key === 'membership_type' ? { ...f, options: [] } : f,
+      ),
+    } as typeof FIELD_CONFIG;
+    render(
+      <ApplicationFieldAttributes
+        fieldConfig={emptyCfg}
+        selectedKey="membership_type"
+        overlay={membershipOnFormOverlay()}
+        onChange={vi.fn()}
+        lang="en"
+      />,
     );
-    expect(screen.getByTestId('application-field-subset-empty-error')).toBeInTheDocument();
-  });
-
-  it('flags a subset value NOT in the live catalog (R4.3)', () => {
-    renderAttrs(
-      'membership_type',
-      membershipOnFormOverlay({ application_choices: ['regular', 'ghost'] }),
-      vi.fn(),
-      CATALOG,
-    );
-    const err = screen.getByTestId('application-field-subset-unknown-error');
-    expect(err).toBeInTheDocument();
-    expect(err).toHaveTextContent('ghost');
-  });
-
-  it('does NOT flag a null/absent subset (the coherent full-catalog default)', () => {
-    renderAttrs('membership_type', membershipOnFormOverlay(), vi.fn(), CATALOG);
-    expect(screen.queryByTestId('application-field-subset-empty-error')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('application-field-subset-unknown-error')).not.toBeInTheDocument();
-  });
-
-  it('shows "no types yet" when the live catalog is empty (R4.1)', () => {
-    renderAttrs('membership_type', membershipOnFormOverlay(), vi.fn(), []);
     expect(screen.getByTestId('application-field-subset-empty-catalog')).toBeInTheDocument();
   });
 });
