@@ -333,13 +333,30 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 40-spec-workflow, 11-tech-stack_
     - _Requirements: 7.7, 8.3_
 
-- [ ] 11. BU-10 — governance: steering + docs (Req 8)
-  - [ ] 11.1 Update steering + data-model docs
-    - Update `.kiro/steering/38-sam-module-field-config.md` where it documents the removed no-relax/forced
-      rules; update `sam/members/docs/data-model.md` + `config-guide.md`: the unified enum model
-      (reference as a field feature with `allowed`), `config#fields`/`config#scope` are SAM-authored
-      (not MySQL-projected), document the `application_*` field attributes (close the doc gap), the
-      forbidden-`choices` removal, the membership-type catalog retirement
+- [x] 11. BU-10 — governance: steering + docs (Req 8)
+  - [x] 11.1 Update steering + data-model docs
+    - DONE.
+    - `.kiro/steering/38-sam-module-field-config.md`: the no-relax/forced-required rules were never
+      in THIS (thin, cross-module) steering file — they lived in the phase-1 spec/design and were
+      deleted there — so nothing stale to strike. Updated Rule 4 to record that module `config#*`
+      rows are **SAM-authored** (`PUT /<module>/config/*`, Change-Op), NOT projected from MySQL
+      (Members `ProjectionSync` emits zero `config#*`), with a guardrail against reintroducing the
+      Flask-writes-config path. (The "Related" section already carried the SAM-owned note.)
+    - `sam/members/docs/data-model.md`: corrected the `governance_projection` writer model to SPLIT
+      ownership (grants projected from MySQL; `config#*` SAM-authored); rewrote the enum section to
+      the unified `options` model (`{value,label,allowed,order}`, `choices` forbidden/removed, three
+      SOURCES one shape, the `allowed` retire/grandfather flag); fixed the `status` example to
+      `options` and noted the `died`-on-read bug is resolved; documented `membership_type` as a
+      normal inline-options field + the `membershiptype#` catalog RETIREMENT (folded by the EXPAND
+      migration, rows deleted on TEST); added the four `application_*` attributes; collapsed the
+      "three dropdown models" table to two; refreshed the verification/honesty note.
+    - `sam/members/docs/config-guide.md` (plain-language): rewrote the intro split note (field
+      config/scope/mail are module-authored, not MySQL-copied; membership types are a normal
+      dropdown; only user access still projects from MySQL); section 1 (one canonical vocabulary +
+      the "allowed"/retire flag; `died` bug fixed); section 3 (membership types = a regular
+      dropdown field, no separate catalog, no missing UI); added a public-application-form section
+      (the four per-field toggles); retitled Mail to module-authored; reduced the closing
+      "looks-different" section to two models (own inline values vs the borrowed `region` scope list).
     - _Steering: 40-spec-workflow, 38-sam-module-field-config_
     - _Requirements: 3.5, 8.1, 8.2_
 
