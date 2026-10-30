@@ -94,9 +94,13 @@ def test_api_contract_covers_the_hdcn_behaviour_groups(report):
     assert {"manage_delegates", "send_delegate_invitation"} <= covered
     # Payments
     assert {"get_member_payments"} <= covered
-    # Catalog (Lidmaatschap Beheer)
-    assert {"list_membership_types", "get_membership_type", "create_membership_type",
-            "update_membership_type", "deactivate_membership_type"} <= covered
+    # Catalog (Lidmaatschap Beheer) — RETIRED in the 03b CONTRACT (Task 10.5): the five
+    # /membership-types routes are gone (membership_type owns its vocabulary as inline field
+    # options), so they are neither declared nor covered.
+    assert not (
+        {"list_membership_types", "get_membership_type", "create_membership_type",
+         "update_membership_type", "deactivate_membership_type"} & covered
+    )
 
 
 # ── Focused per-dimension assertions (each dimension is truly exercised) ───────────────
@@ -117,7 +121,9 @@ def test_data_dimension_covers_config_dropdown_and_backfill(report):
     data_checks = report.by_dimension(Dimension.DATA)
     behaviours = {c.hdcn_behaviour for c in data_checks}
     assert any("field config" in b for b in behaviours)
-    assert any("only ACTIVE" in b for b in behaviours)
+    # 03b CONTRACT (Task 10.5): the membership_type dropdown is served from the field's OWN inline
+    # options (the catalog is retired), not an active-catalog list.
+    assert any("membership_type dropdown lists the field's own inline options" in b for b in behaviours)
     assert any("backfilled member" in b for b in behaviours)
     # S5d D1: scope is a plain `overlay.region` field now (no `scope_values` bucket).
     assert any("overlay.region" in b for b in behaviours)

@@ -113,10 +113,25 @@ def _overlay_from_fixture() -> TenantOverlay:
         )
 
         if group == "membership" and key == "membership_type":
+            # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as the field's OWN
+            # inline options (the catalog is retired). The fixture's resolved membership_type
+            # field carries those rich options directly — fold them onto the override so the
+            # server's public read resolves the vocabulary from the field, then narrows it by the
+            # application subset. Each option's `allowed` rides through (oudlid → allowed:false).
+            mt_opts = tuple(
+                EnumOption(
+                    value=o["value"],
+                    label=dict(o["label"]),
+                    allowed=o.get("allowed", True),
+                    order=o.get("order"),
+                )
+                for o in (rf.get("options") or ())
+            )
             overrides[f"{group}.{key}"] = FixedFieldOverride(
                 application_visible=rf.get("application_visible"),
                 application_required=rf.get("application_required"),
                 application_choices=app_choices,
+                options=mt_opts or None,
                 format=fmt,
             )
             continue
