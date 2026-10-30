@@ -218,10 +218,26 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 33-frontend-testing, 11-tech-stack_
     - _Requirements: 3.1, 3.2, 3.3, 3.4a_
 
-- [ ] 10. BU-8 — CONTRACT: retire catalog rows then remove dead code (Req 7), AFTER verify
-  - [ ] 10.1 Retire the `membershiptype#<code>` catalog rows (data)
-    - After the TEST post-fold scan passes and the re-pointed reader is confirmed live: delete the
-      catalog rows in `test_sam-members` (then PROD in Task 12); member references untouched (grandfathered)
+- [x] 10. BU-8 — CONTRACT: retire catalog rows then remove dead code (Req 7), AFTER verify
+  - All children done: 10.1 (TEST catalog rows retired), 10.2 (frontend apparatus), 10.3 (dead
+    binding/reconciliation/choices), 10.4 (net −2900 LOC recorded), 10.5 (SAM apparatus). PROD
+    catalog-row retirement is Task 12.1.
+  - [x] 10.1 Retire the `membershiptype#<code>` catalog rows (data) — TEST
+    - DONE on TEST (`test_sam-members`, account `nonprofit-deploy` 506221081911, verified
+      `aws sts get-caller-identity` = 506221081911 NonprofitDeployRole, NOT personal).
+    - GATE verified against real data BEFORE deleting: the EXPAND fold (Task 7.3) already landed —
+      h-dcn's `config#fields` row (in `test_governance_projection`) carries all 7 membership_type
+      codes as INLINE field options (gewoon_lid/gezins_lid/erelid[allowed:false]/donateur/
+      gezins_donateur/sponsor/overig), and the re-pointed field-options-only reader is live in TEST
+      (Task 9.1). Deleting the catalog therefore strands nothing.
+    - BACKUP FIRST (reversible): full content of all 7 rows saved to
+      `.agent-output/BACKUP_test_sam-members_membershiptype_20261030-185441.json` (restorable by
+      put-item).
+    - DELETED exactly the 7 `h-dcn membershiptype#<code>` rows by exact PK+SK (no scan-delete).
+      Post-delete verify: `begins_with(sk,"membershiptype#")` scan → Count 0 (table 1260→1253,
+      −7); `config#fields` membership_type options → still 7 (untouched). Member references
+      grandfathered (not touched).
+    - PROD retirement is Task 12.1 (same procedure on `sam-members`) — NOT done here.
     - _Steering: 39-backend-data-access-sam-dynamodb, 23-aws-accounts, 41-shell-environment_
     - _Requirements: 6.4_ 
 
@@ -283,8 +299,37 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 39-backend-data-access-sam-dynamodb, 38-sam-module-field-config, 34-backend-testing, 11-tech-stack_
     - _Requirements: 7.3, 7.4, 7.5, 7.6_
 
-  - [ ] 10.4 Record the net code-decrease delta
-    - Record the net lines-of-code + file-count delta (the simplification evidence) in the spec DoD
+  - [x] 10.4 Record the net code-decrease delta
+    - DONE. The 03b simplification is a net code DECREASE across every touched Members plane
+      (Req 7.7 evidence), measured with `git diff --shortstat`:
+    - **CONTRACT branch `spec/03b-contract-sam-catalog-removal`** (base `69657c4f` → HEAD, Tasks
+      10.5 + 10.3): 33 files changed, **693 insertions / 1898 deletions = net −1205 LOC**; 2 files
+      deleted (`test_membership_type_catalog_read_routes.py`,
+      `test_membership_type_catalog_write_routes.py`), 1 added (this backlog doc). By area:
+      - SAM product code (`sam/members/`): 7 files, 24 ins / 457 del = **net −433 LOC** (catalog
+        routes, dispatch arms, `_membership_catalog.py`, repo WRITE methods, transitional fallback).
+      - SAM tests (`sam/tests/`): 22 files, 543 ins / 1109 del = **net −566 LOC** (+2 test files
+        deleted) — migrated off the catalog onto inline options.
+      - Backend Flask (`backend/`): 2 files, **net −326 LOC** (10.3 dead scope-reconciliation).
+    - **Frontend removal (Task 10.2, earlier branch `e4ca04a09`):** already recorded there — **net
+      −1696 LOC** (MembershipTypesManager / MembershipTypeModal + their test, catalog client
+      wrappers, dashboard tab, prop plumbing).
+    - **Before/after of the 03b CONTRACT simplification** (total file length `wc -l` of touched
+      code files, branch base `69657c4f` → HEAD for SAM/Flask; Task 10.2's recorded figures for
+      frontend):
+
+      | Scope | Files before | Files after | Δ files | LOC before | LOC after | Δ LOC |
+      | --- | --- | --- | --- | --- | --- | --- |
+      | SAM + Flask (this branch, Tasks 10.5 + 10.3) | 31 | 29 | −2 | 18,581 | 17,256 | −1,325 |
+      | Frontend (Task 10.2, branch e4ca04a09) | — | — | −3 | — | — | −1,696 |
+      | **03b CONTRACT total** | | | **≈ −5** | | | **≈ −3,021** |
+
+    - The earlier 03b phases (BU-1..BU-9, merged to `test` in separate PRs) were net-ADDITIVE
+      feature work (the unified option model, write-seam, scope trigger, EXPAND migration) — the
+      CONTRACT phase is where the simplification lands, removing ~3k LOC of retired
+      catalog/binding/reconciliation apparatus. Net decrease confirmed (Req 7.7 / Req 8.3 DoD).
+      (The `git diff --shortstat` line-change view of the same branch is 693 ins / 1898 del =
+      −1205; it counts changed lines, the table counts total file length — same direction.)
     - _Steering: 40-spec-workflow, 11-tech-stack_
     - _Requirements: 7.7, 8.3_
 
