@@ -36,6 +36,8 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 
+import pytest  # noqa: E402
+
 from check_sam_config_crud import (  # noqa: E402
     RAW_WRITE_METHODS,
     RAW_SHAPE_KEYS,
@@ -43,10 +45,29 @@ from check_sam_config_crud import (  # noqa: E402
     RESPONSE_SHAPE_ALLOWED_FILES,
     SCAN_DIRS,
     EXCLUDED_DIRS,
+    VOCAB_KEY,
+    WRITE_PATH_FILES,
+    VOCAB_CONSUMER_DIRS,
     check_file,
+    check_file_report_only,
     scan_directory,
+    scan_directory_report_only,
+    main,
     _is_dotted_group_key,
 )
+
+
+def run_main(file_paths) -> int:
+    """Run the guard's ``main`` over ``file_paths`` (single-file mode) and return its exit code.
+
+    ``main`` calls ``sys.exit`` (so the shell sees the code); we capture the ``SystemExit`` and
+    return its integer code. This is how the planted-violation tests prove the guard actually
+    BLOCKS (exit 1) rather than merely reporting — the post-task-12 blocking contract.
+    """
+    with pytest.raises(SystemExit) as exc:
+        main([str(p) for p in file_paths])
+    code = exc.value.code
+    return 0 if code is None else int(code)
 
 
 def _write(root: Path, rel: str, body: str) -> Path:
@@ -157,6 +178,26 @@ class TestRawGovernanceWrites:
                 """\
                 def migrate(table, item):
                     table.put_item(Item=item)
+                """
+            ),
+        )
+        assert check_file(f) == []
+
+    def test_sanctioned_membership_type_expand_migration_is_allowed(self, tmp_path):
+        """The one-time C6 membership_type EXPAND migration may whole-row put_item (spec 03b 7.2).
+
+        Same sanctioned whole-row ``put_item`` primitive as the LIST->MAP backfill — a legitimate
+        one-time EXPAND fold of the catalog into the field's ``options``. It is allow-listed, so
+        its gated ``put_item`` does not trip the guard.
+        """
+        f = _write(
+            tmp_path,
+            "sam/members/migration/membership_type_catalog_to_field_options.py",
+            _gov(
+                """\
+                def run(table, item):
+                    new_item = dict(item)
+                    table.put_item(Item=new_item)
                 """
             ),
         )
@@ -368,6 +409,27 @@ class TestScanDirectory:
         )
         assert scan_directory(tmp_path / "sam") == []
 
+    def test_current_sam_tree_is_clean(self):
+        """The guard over the ACTUAL ``sam/`` tree returns clean (exit 0 / no violations).
+
+        Regression guard for spec 03b Task 7.2: the membership_type EXPAND migration issues a
+        sanctioned whole-row ``put_item`` on the projection table; once allow-listed it must NOT
+        redden the suite. Running the real check_file over every ``sam/**`` module — including the
+        two 03a rule families — asserts the live tree has no raw-write / raw-shape / retired-vocab
+        violation, i.e. the guard's OK path (GUARD_RC=0 in CI). This is the test-level mirror of
+        ``python scripts/check_sam_config_crud.py`` printing ``[OK]``.
+        """
+        sam_root = _REPO_ROOT / "sam"
+        assert sam_root.is_dir(), f"expected SAM tree at {sam_root}"
+        violations = scan_directory(sam_root)
+        assert violations == [], "guard found violations in the live sam/ tree:\n" + "\n".join(
+            violations
+        )
+        report_only = scan_directory_report_only(sam_root)
+        assert report_only == [], "03a rules found violations in the live sam/ tree:\n" + "\n".join(
+            report_only
+        )
+
 
 class TestDottedGroupKeyHeuristic:
     """The dotted ``{group}.{key}`` matcher is precise (no i18n / error-code false positives)."""
@@ -406,6 +468,13 @@ class TestGuardConfig:
             "sam/members/migration/functional_groups_list_to_map.py"
             in RAW_WRITE_ALLOWED_FILES
         )
+        # spec 03b Task 7.2 — the one-time C6 membership_type EXPAND migration is the SAME
+        # sanctioned whole-row put_item primitive as the LIST->MAP backfill, so it is
+        # allow-listed by a reviewed addition (steering 39), never by a guard suppression.
+        assert (
+            "sam/members/migration/membership_type_catalog_to_field_options.py"
+            in RAW_WRITE_ALLOWED_FILES
+        )
 
     def test_response_shape_allow_list_uses_posix_paths(self):
         for path in RESPONSE_SHAPE_ALLOWED_FILES:
@@ -419,3 +488,389 @@ class TestGuardConfig:
         assert ".aws-sam" in EXCLUDED_DIRS
         assert "__pycache__" in EXCLUDED_DIRS
         assert ".venv" in EXCLUDED_DIRS
+
+
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# 03a anti-reintroduction rules (a)(b)(d) — now BLOCKING (design C8, R2.7; 03a task 12).
+#
+# Each rule gets a PLANTED-VIOLATION proof: plant the retired pattern → the guard DETECTS it (via
+# ``check_file_report_only``) AND ``main`` exits NON-ZERO on it (the guard FAILS the build); the
+# clean/current shape → no finding and ``main`` exits ZERO. The two detection helpers remain
+# SEPARATE entry points so each rule family can be exercised in isolation, but after the task-12
+# flip a finding from either family fails the build — asserted here through ``main`` /
+# :func:`run_main` so the proof is "plant → FAILS, revert → passes", not merely "reported".
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+
+# A write-surface module path rule (a) scans (one of WRITE_PATH_FILES), and a vocabulary-consumer
+# module path rules (b)/(d) scan (under VOCAB_CONSUMER_DIRS). Both are the real repo-relative
+# layout so the scope predicates match exactly as a full scan would.
+_WRITE_PATH_REL = "sam/members/domain/config_fields_crud_service.py"
+_CONSUMER_REL = "sam/members/repository/_fields_overlay_reader.py"
+_SERIALIZER_REL = "sam/members/domain/_membership_catalog.py"
+_WRITE_VALIDATOR_REL = "sam/members/domain/config_write_service.py"
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# (a) a ``choices`` vocabulary key on the config#fields WRITE path
+# ─────────────────────────────────────────────────────────────────────────────────────────
+
+
+class TestRuleAChoicesOnWritePath:
+    """Rule (a): ``choices`` re-added to the config#fields WRITE surface (03a C2, retired)."""
+
+    def test_planted_choices_in_definition_attrs_set_is_reported(self, tmp_path):
+        """A PLANTED ``"choices"`` element in a FIELD_DEFINITION_ATTRS frozenset is REPORTED."""
+        f = _write(
+            tmp_path,
+            _WRITE_PATH_REL,
+            """\
+            FIELD_DEFINITION_ATTRS = frozenset(
+                {"type", "label", "options", "choices", "scope"}
+            )
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "choices" in findings[0]
+        assert "rule (a)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
+
+    def test_planted_choices_dict_key_in_write_payload_is_reported(self, tmp_path):
+        """A PLANTED ``choices`` dict-literal key in a write payload is REPORTED."""
+        f = _write(
+            tmp_path,
+            _WRITE_PATH_REL,
+            """\
+            def build_write(values):
+                return {"options": values, "choices": values}
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "choices" in findings[0]
+        assert "rule (a)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
+
+    def test_clean_options_only_write_surface_has_no_finding(self, tmp_path):
+        """The current ``options``-only write definition-attr set yields NO rule-(a) finding."""
+        f = _write(
+            tmp_path,
+            _WRITE_PATH_REL,
+            """\
+            FIELD_DEFINITION_ATTRS = frozenset(
+                {"type", "label", "order", "required", "visible", "options", "scope"}
+            )
+            """,
+        )
+        assert check_file_report_only(f) == []
+        # BLOCKING (task 12): revert → the guard PASSES (exit 0).
+        assert run_main([f]) == 0
+
+    def test_sanctioned_remove_legacy_choices_op_is_not_reported(self, tmp_path):
+        """``remove_legacy_choices`` naming ``"choices"`` as a REMOVE path SEGMENT is clean.
+
+        It appears as a LIST element (an op path segment) and in a ``"choices" not in stored``
+        membership Compare — neither a set element nor a dict key — so rule (a) does not flag the
+        one sanctioned migration op.
+        """
+        f = _write(
+            tmp_path,
+            _WRITE_PATH_REL,
+            """\
+            def remove_legacy_choices(placement, stored):
+                if "choices" not in stored:
+                    return {"no_op": True}
+                return {"action": "REMOVE", "path": [placement["map"], placement["key"], "choices"]}
+            """,
+        )
+        assert check_file_report_only(f) == []
+
+    def test_choices_key_outside_write_path_is_not_reported(self, tmp_path):
+        """A ``choices`` definition-attr set in a NON-write-surface module is out of scope for (a)."""
+        f = _write(
+            tmp_path,
+            "sam/members/domain/some_other_module.py",
+            """\
+            ATTRS = frozenset({"options", "choices"})
+            """,
+        )
+        # Not in WRITE_PATH_FILES → rule (a) does not apply (rule (b)/(d) shapes are also absent).
+        assert check_file_report_only(f) == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# (b) an ``options or choices`` / ``choices or options`` fallback, or a get("choices") source read
+# ─────────────────────────────────────────────────────────────────────────────────────────
+
+
+class TestRuleBVocabularyFallback:
+    """Rule (b): the retired two-names vocabulary fallback shapes (F1/F9/F10/F12)."""
+
+    def test_planted_options_or_choices_coalesce_is_reported(self, tmp_path):
+        """A PLANTED ``field.options or field.choices`` coalesce in a reader is REPORTED."""
+        f = _write(
+            tmp_path,
+            _CONSUMER_REL,
+            """\
+            def resolve(field):
+                return field.options or field.choices
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "rule (b)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
+
+    def test_planted_choices_or_options_coalesce_is_reported(self, tmp_path):
+        """The reversed ``field.choices or field.options`` coalesce is REPORTED too."""
+        f = _write(
+            tmp_path,
+            _CONSUMER_REL,
+            """\
+            def resolve(field):
+                return field.choices or field.options
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "rule (b)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
+
+    def test_planted_get_choices_source_read_in_validator_is_reported(self, tmp_path):
+        """A PLANTED ``spec.get("choices")`` vocabulary-source read (F12 shape) is REPORTED."""
+        f = _write(
+            tmp_path,
+            _WRITE_VALIDATOR_REL,
+            """\
+            def field_choice_values(spec):
+                return _collect(spec.get("options")) or _collect(spec.get("choices"))
+            """,
+        )
+        findings = check_file_report_only(f)
+        # The coalesce (b1) AND the get("choices") source read (b2) both match — dedup by lineno
+        # collapses them to ONE finding on that line.
+        assert len(findings) == 1
+        assert "rule (b)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
+
+    def test_fail_loud_choices_read_is_not_reported(self, tmp_path):
+        """A C6 fail-loud ``if field.choices: raise …`` (NOT a coalesce) yields NO finding.
+
+        The retired SHAPE is the ``X or Y`` coalesce; a bare ``field.choices`` read that feeds a
+        loud raise (the asymmetry boundary) is legitimate and must not be flagged.
+        """
+        f = _write(
+            tmp_path,
+            "sam/members/domain/_membership_writes_fieldconfig.py",
+            """\
+            def public_field_options(field, tenant_id):
+                if field.options:
+                    return [dict(o) for o in field.options]
+                if field.choices:
+                    raise UnpropagatedVocabularyError(tenant_id, field.key, kind="inline-enum")
+                return None
+            """,
+        )
+        assert check_file_report_only(f) == []
+        # BLOCKING (task 12): a legitimate fail-loud read does NOT fail the build (exit 0).
+        assert run_main([f]) == 0
+
+    def test_clean_options_only_serializer_has_no_finding(self, tmp_path):
+        """A serializer reading only ``field_options`` (the seam's one options) is clean for (b)."""
+        f = _write(
+            tmp_path,
+            _SERIALIZER_REL,
+            """\
+            def serialize_field(field, field_options):
+                payload = {}
+                payload["options"] = (
+                    [dict(o) for o in field_options] if field_options is not None else None
+                )
+                return payload
+            """,
+        )
+        assert check_file_report_only(f) == []
+        # BLOCKING (task 12): revert → the guard PASSES (exit 0).
+        assert run_main([f]) == 0
+
+    def test_coalesce_outside_consumer_layer_is_not_reported(self, tmp_path):
+        """An ``options or choices`` coalesce in a non-consumer module is out of scope for (b)."""
+        f = _write(
+            tmp_path,
+            "sam/tests/helpers/vocab.py",
+            """\
+            def resolve(field):
+                return field.options or field.choices
+            """,
+        )
+        assert check_file_report_only(f) == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# (d) FieldScope.values populated independently of options
+# ─────────────────────────────────────────────────────────────────────────────────────────
+
+
+class TestRuleDScopeValuesIndependence:
+    """Rule (d): scope ``values`` re-split from ``options`` (the FieldScope(values=()) divergence)."""
+
+    def test_planted_fieldscope_values_kwarg_is_reported(self, tmp_path):
+        """A PLANTED ``FieldScope(values=…)`` construction is REPORTED."""
+        f = _write(
+            tmp_path,
+            _CONSUMER_REL,
+            """\
+            def build_scope(spec, values):
+                return FieldScope(enabled=True, values=values)
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "rule (d)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
+
+    def test_planted_scope_values_assignment_is_reported(self, tmp_path):
+        """A PLANTED assignment to a scope ``.values`` attribute is REPORTED."""
+        f = _write(
+            tmp_path,
+            _CONSUMER_REL,
+            """\
+            def build_scope(field, values):
+                field.scope.values = values
+                return field
+            """,
+        )
+        findings = check_file_report_only(f)
+        assert len(findings) == 1
+        assert "rule (d)" in findings[0]
+        # BLOCKING (task 12): the guard FAILS the build on this plant.
+        assert run_main([f]) == 1
+
+    def test_clean_options_only_fieldscope_has_no_finding(self, tmp_path):
+        """The current ``FieldScope(options=options)`` construction (values DERIVED) is clean."""
+        f = _write(
+            tmp_path,
+            _CONSUMER_REL,
+            """\
+            def build_scope(spec, options):
+                return FieldScope(enabled=True, options=options)
+            """,
+        )
+        assert check_file_report_only(f) == []
+        # BLOCKING (task 12): revert → the guard PASSES (exit 0).
+        assert run_main([f]) == 0
+
+    def test_fieldscope_values_outside_consumer_layer_is_not_reported(self, tmp_path):
+        """A ``FieldScope(values=…)`` in a non-consumer module is out of scope for (d)."""
+        f = _write(
+            tmp_path,
+            "sam/tests/fixtures/scopes.py",
+            """\
+            FIXTURE = FieldScope(values=("a", "b"))
+            """,
+        )
+        assert check_file_report_only(f) == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────
+# Blocking semantics: the 03a rules (a)(b)(d) now FAIL the build (task-12 flip, G6)
+# ─────────────────────────────────────────────────────────────────────────────────────────
+
+
+class TestBlockingSemantics:
+    """The 03a rules (a)(b)(d) are now BLOCKING: a finding fails the build (exit 1) via ``main``.
+
+    The two detection helpers stay SEPARATE entry points: ``check_file`` returns ONLY the two
+    original spec-03 findings and ``check_file_report_only`` returns ONLY the 03a rule (a/b/d)
+    findings — so a rule-(a) plant is still absent from ``check_file`` at the function level. The
+    BLOCKING contract lives in ``main``, which folds BOTH families into the exit code; these tests
+    assert that contract directly (plant → exit 1, revert → exit 0).
+    """
+
+    def test_planted_rule_a_violation_fails_the_build(self, tmp_path):
+        """A planted rule-(a) violation makes the guard EXIT NON-ZERO (the task-12 blocking flip).
+
+        ``check_file`` (the spec-03 family) is still empty for a rule-(a) plant — the families are
+        reported by separate entry points — but ``main`` now FAILS the build on the rule-(a)
+        finding.
+        """
+        f = _write(
+            tmp_path,
+            _WRITE_PATH_REL,
+            """\
+            FIELD_DEFINITION_ATTRS = frozenset({"options", "choices"})
+            """,
+        )
+        assert check_file_report_only(f)      # detected by the 03a family
+        assert check_file(f) == []            # not a spec-03-family finding (separate entry point)
+        assert run_main([f]) == 1             # BLOCKING: the guard fails the build
+
+    def test_scan_directory_report_only_aggregates_findings(self, tmp_path):
+        """``scan_directory_report_only`` aggregates rule findings across the tree."""
+        _write(
+            tmp_path,
+            _CONSUMER_REL,
+            "def resolve(field):\n    return field.options or field.choices\n",
+        )
+        _write(
+            tmp_path,
+            "sam/members/domain/clean.py",
+            "def serialize(field, field_options):\n    return {'options': field_options}\n",
+        )
+        findings = scan_directory_report_only(tmp_path / "sam")
+        assert len(findings) == 1
+        assert "rule (b)" in findings[0]
+
+    def test_scan_directory_report_only_skips_excluded_dirs(self, tmp_path):
+        """A planted coalesce under an excluded build dir (.aws-sam) is not scanned."""
+        _write(
+            tmp_path,
+            "sam/members/.aws-sam/build/copy/_fields_overlay_reader.py",
+            "def resolve(field):\n    return field.options or field.choices\n",
+        )
+        assert scan_directory_report_only(tmp_path / "sam") == []
+
+    def test_spec03_blocking_check_still_fails_the_build(self, tmp_path):
+        """A planted spec-03 raw-write violation also fails the build via ``main`` (unchanged)."""
+        f = _write(
+            tmp_path,
+            "sam/members/repository/rogue_config_writer.py",
+            _gov("def w(table, i):\n    table.put_item(Item=i)\n"),
+        )
+        assert check_file(f)                  # spec-03 blocking finding present
+        assert run_main([f]) == 1             # still BLOCKING
+
+    def test_clean_file_passes_the_build(self, tmp_path):
+        """A clean options-only file makes the guard EXIT ZERO (no finding in either family)."""
+        f = _write(
+            tmp_path,
+            _SERIALIZER_REL,
+            "def serialize(field, field_options):\n    return {'options': field_options}\n",
+        )
+        assert check_file(f) == []
+        assert check_file_report_only(f) == []
+        assert run_main([f]) == 0             # BLOCKING contract: clean tree passes
+
+
+class TestRule03aConfig:
+    """Module-level configuration sanity checks for the 03a rules."""
+
+    def test_vocab_key_is_choices(self):
+        assert VOCAB_KEY == "choices"
+
+    def test_write_path_files_use_posix_paths(self):
+        for path in WRITE_PATH_FILES:
+            assert "\\" not in path, f"{path} uses backslashes"
+            assert path.startswith("sam/"), path
+        assert "sam/members/domain/config_fields_crud_service.py" in WRITE_PATH_FILES
+        assert "sam/members/domain/config_write_service.py" in WRITE_PATH_FILES
+
+    def test_vocab_consumer_dirs_target_members_domain_and_repository(self):
+        assert "sam/members/domain/" in VOCAB_CONSUMER_DIRS
+        assert "sam/members/repository/" in VOCAB_CONSUMER_DIRS

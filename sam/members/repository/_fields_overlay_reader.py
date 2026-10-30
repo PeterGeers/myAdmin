@@ -38,6 +38,52 @@ from sam.members.repository._config_reader_base import (
 )
 
 
+def _coerce_option_order(raw) -> int | None:
+    """Coerce a projected enum-option ``order`` to ``int | None`` (03b, Req 3.1).
+
+    The ``order`` is render / default-selection rank config data (not user input), so a stray
+    value degrades to ``None`` (unranked) rather than raising — consistent with the reader's
+    tolerant coercion of other projected numerics. An absent key, ``None``, or a non-numeric
+    value all read as ``None``; a bool is rejected (``True``/``False`` are not a rank).
+    """
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+class MalformedOptionsError(ValueError):
+    """A projected field's ``options`` vocabulary is present but not a canonical shape (C5/F3).
+
+    The single-vocabulary model (spec 03a) surfaces ONE ``options`` of canonical entries
+    ``{value, label?, roles?}``. A present-but-unexpected shape — a bare string, a scalar, a
+    non-list, or a dict with no ``value`` — is NO LONGER silently coerced or degraded to ``None``
+    (the retired F1/F2/F3 fallbacks); it is a LOUD, diagnosable failure raised here at the read
+    build.
+
+    Subclasses :class:`ValueError` so an edge can map it to a caller-safe 400/500 (steering 30):
+    the message is GENERIC and does not echo the offending data; the actual malformed shape is
+    recorded on :attr:`shape_repr` for server-side logging under a correlation id (never returned
+    to the client).
+
+    NOTE (task 9 / C6): the uniform fail-loud error TYPE across the whole read-assembly seam is
+    standardized by a later task. This dedicated, clearly-named raise is the reasonable interim
+    boundary error for the reader; C6 will fold it into the uniform taxonomy.
+    """
+
+    def __init__(self, shape):
+        #: A SHORT, bounded repr of the offending shape for server-side diagnosis (NOT the raw
+        #: value — bounded so a large/garbage payload cannot bloat a log line). Never surfaced to
+        #: the client.
+        self.shape_repr = f"{type(shape).__name__}: {repr(shape)[:120]}"
+        super().__init__(
+            "config#fields field carries a malformed `options` vocabulary "
+            "(expected a list of {value, label?, roles?} entries)"
+        )
+
+
 class _FieldOverlayReadMixin:
     """The ``TenantOverlayProvider`` + authoring-wire + page-size/slug/version reads."""
 
@@ -177,45 +223,62 @@ class _FieldOverlayReadMixin:
 
     @staticmethod
     def _build_options(specs) -> tuple[EnumOption, ...] | None:
-        """Map projected enum-option specs onto :class:`EnumOption`s (ENUM fallback, R5.1).
+        """Map projected enum-option specs onto :class:`EnumOption`s — ONE canonical shape (C5/F3).
 
-        Accepts BOTH authored shapes a tenant enum value can arrive in, so an authored value is
-        never dropped on read (the ``_build_override`` ``options or choices`` fallback is only as
-        strong as what this coerces):
+        A selectable field has ONE vocabulary: ``options``, a list of RICH canonical entries
+        ``{value, label{nl,en}?, roles?, allowed?, order?}`` (the authoring UI / Flask builder
+        shape). This reader surfaces exactly that — there is no longer a second ``choices`` shape
+        to coalesce (F1/F2) and no bare-string coercion / degrade-to-``None`` branch (F3).
 
-        - a RICH entry ``{value, label{nl,en}?, roles?}`` (the authoring UI / Flask builder shape);
-        - a BARE string ``"man"`` — a plain ``choices`` value list, coerced to
-          ``EnumOption(value="man")`` with no label/roles. Without this a tenant-authored override
-          carrying bare-string ``choices`` (e.g. ``["man", "vrouw"]``) produced NO options, so the
-          resolver fell back to the fixed field's BASE choices and the tenant's values were silently
-          dropped (the config#fields enum-choices data-loss on read; R5.1 "a bare ``choices`` value
-          SHALL round-trip").
+        **Unified enum model (03b, BU-1, Req 3.1).** Each spec MAY carry two per-option
+        attributes beyond ``{value, label, roles}``: ``allowed`` (the retired/grandfather flag)
+        and ``order`` (render / default rank). An **absent** ``allowed`` reads as ``True`` —
+        every option authored before the flag existed must keep being offered (back-compat); an
+        absent/non-integer ``order`` reads as ``None`` (unranked). The retired behaviours:
 
-        A missing/empty list → ``None`` (no rich options); malformed entries (a dict with no
-        ``value``, an empty/whitespace bare string, a non-str/non-dict entry) are skipped
-        (empty-is-valid — projected config data degrades gracefully rather than raising).
+        - the bare-string ``"man"`` coercion (a legacy ``choices`` value) is GONE — legacy
+          bare-``choices`` rows are migrated to value-only ``options`` by C7, so a bare string here
+          is now an UNEXPECTED shape, not something to silently coerce;
+        - silently SKIPPING a malformed entry (a dict with no ``value``, a non-dict entry) is GONE
+          — a malformed entry no longer degrades to ``None``; it is a LOUD, diagnosable error.
+
+        Returns:
+            A tuple of :class:`EnumOption` when ``specs`` carries canonical entries; ``None`` when
+            ``specs`` is absent/empty (a legitimately empty vocabulary — the "declared source
+            present but empty" ASYMMETRY is the seam's fail-loud concern, C6/task 9, not here).
+
+        Raises:
+            MalformedOptionsError: when ``specs`` is present but not a list/tuple of canonical
+                ``{value, ...}`` entries (an unexpected shape — e.g. a bare string, a dict without
+                a ``value``, a scalar). Caller-safe + diagnosable (a generic message; the offending
+                shape is logged, not echoed). (NOTE: task 9/C6 will standardize the uniform
+                fail-loud error TYPE across the seam; this is a reasonable, clearly-named raise
+                until then.)
         """
-        if not specs or not isinstance(specs, (list, tuple)):
+        if specs is None:
+            return None
+        if not isinstance(specs, (list, tuple)):
+            raise MalformedOptionsError(specs)
+        if not specs:
             return None
         options = []
         for o in specs:
-            if isinstance(o, str):
-                value = o.strip()
-                if not value:
-                    continue
-                options.append(EnumOption(value=value))
-                continue
             if not isinstance(o, dict) or "value" not in o:
-                continue
+                raise MalformedOptionsError(o)
             roles = o.get("roles")
             options.append(
                 EnumOption(
                     value=str(o["value"]),
                     label=dict(o.get("label") or {}),
                     roles=tuple(roles) if roles else None,
+                    # Unified enum model (03b, Req 3.1/3.2): an absent `allowed` reads as True
+                    # (back-compat — options predate the retired flag and stay offered); a
+                    # non-integer/absent `order` reads as None (unranked).
+                    allowed=bool(o.get("allowed", True)),
+                    order=_coerce_option_order(o.get("order")),
                 )
             )
-        return tuple(options) if options else None
+        return tuple(options)
 
     @staticmethod
     def _build_member_number_format(spec) -> MemberNumberFormat | None:
@@ -250,22 +313,31 @@ class _FieldOverlayReadMixin:
         The SAM READ representation of scope-binding as a field attribute: a projected
         ``config#fields`` field (added variable field or a fixed-field override) may carry a
         ``scope`` object ``{enabled, values, label?, required_for?}``. A missing/non-dict spec →
-        ``None`` (the field is not a scope axis). Degrades gracefully (projected config data, not
-        user input): non-string values are dropped. Read-only re-presentation only — scope
+        ``None`` (the field is not a scope axis). Read-only re-presentation only — scope
         RESOLUTION continues to consume the ``config#scope`` row (``ScopeConfig``) UNCHANGED
         (R2.3); this attribute is carried verbatim and the resolver never reads it.
+
+        **Single-vocabulary collapse (C5/F7).** A scope axis has ONE vocabulary, so this builds
+        the scope's canonical ``options`` from the stored value list and lets
+        :class:`FieldScope` DERIVE ``.values`` from it (``tuple(o.value for o in options)``) — the
+        values are NOT stored as an independent second copy. This removes the
+        ``FieldScope(values=())`` divergence by construction: there is only one stored list, so
+        ``options`` and ``values`` can never disagree. Non-string stored values are dropped
+        (projected config data; the vocabulary list stays well-formed).
         """
         if not isinstance(spec, dict):
             return None
-        values = tuple(
-            v for v in (spec.get("values") or ()) if isinstance(v, str) and v
+        options = tuple(
+            EnumOption(value=v)
+            for v in (spec.get("values") or ())
+            if isinstance(v, str) and v
         )
         required_for = tuple(
             r for r in (spec.get("required_for") or ()) if isinstance(r, str) and r
         )
         return FieldScope(
             enabled=bool(spec.get("enabled", True)),
-            values=values,
+            options=options,
             label=dict(spec.get("label") or {}),
             required_for=required_for,
         )
@@ -327,8 +399,13 @@ class _FieldOverlayReadMixin:
         default ``False`` → field off the public form), ``application_choices`` (the enum
         application SUBSET, ``None`` = full set), and ``format`` (the declarative validator,
         degraded to ``None`` on an unknown/malformed token by :meth:`_build_format`).
+
+        **Single-vocabulary collapse (C5/F2).** A selectable field has ONE vocabulary — the
+        canonical ``options``. This reader NO LONGER reads a separate ``choices`` attribute off the
+        spec nor carries it onto the overlay field; the dead ``choices`` shape is retired (migrated
+        to ``options`` by C7). An unexpected ``options`` shape raises loudly (:meth:`_build_options`
+        → :class:`MalformedOptionsError`) rather than silently degrading.
         """
-        choices = spec.get("choices")
         options = cls._build_options(spec.get("options"))
         application_choices = spec.get("application_choices")
         return OverlayField(
@@ -336,7 +413,6 @@ class _FieldOverlayReadMixin:
             type=cls._to_field_type(spec.get("type")),
             required=bool(spec.get("required", False)),
             label=dict(spec.get("label") or {}),
-            choices=tuple(choices) if choices is not None else None,
             options=options,
             functional_group=spec.get("functional_group") or None,
             show_when=spec.get("show_when") or None,
@@ -377,17 +453,13 @@ class _FieldOverlayReadMixin:
         application_visible = spec.get("application_visible")
         application_required = spec.get("application_required")
         application_choices = spec.get("application_choices")
-        # Enum values on an OVERRIDE of a fixed enum (e.g. membership.status): the authoring UI
-        # (field_overlay) and the legacy Flask builder write the rich value list under `choices`
-        # (a list of {value,label[,roles]}), while a few producers use `options`. Accept EITHER,
-        # preferring `options` when present, else sourcing from `choices` — both map onto the
-        # override's `options` (EnumOption tuple) the resolver applies. Without the `choices`
-        # fallback a tenant-authored status value (e.g. `died`) was silently dropped: `_build_options`
-        # only saw `options`, so the override carried no values and the resolver fell back to the
-        # fixed field's base choices (the config#fields enum-choices data-loss on read).
-        override_options = cls._build_options(
-            spec.get("options")
-        ) or cls._build_options(spec.get("choices"))
+        # Enum values on an OVERRIDE of a fixed enum (e.g. membership.status): ONE canonical
+        # vocabulary — the override's `options`. The legacy `options or choices` coalesce (F1) and
+        # the separate `choices` source (F2) are RETIRED: a selectable field resolves through its
+        # single `options`, legacy bare-`choices` rows are migrated to `options` by C7, and an
+        # unexpected `options` shape raises loudly (`_build_options` → MalformedOptionsError)
+        # rather than silently coercing or dropping to the fixed field's base choices.
+        override_options = cls._build_options(spec.get("options"))
         return FixedFieldOverride(
             label=dict(label) if isinstance(label, dict) else None,
             visible=bool(visible) if visible is not None else None,

@@ -38,11 +38,14 @@ if _REPO_ROOT not in sys.path:
 
 from sam.members.domain.field_resolver import (
     FieldOrigin,
+    FieldResolver,
+    FieldScope,
+    FixedFieldOverride,
     OverlayField,
     StaticOverlayProvider,
     TenantOverlay,
 )
-from sam.members.domain.fixed_fields import FieldFormat, FieldType
+from sam.members.domain.fixed_fields import EnumOption, FieldFormat, FieldType
 from sam.members.domain.membership_service import (
     MEMBERSHIP_TYPE_FIELD_KEY,
     MembershipService,
@@ -119,6 +122,35 @@ def _entry(tenant, code, *, label=None, active=True, order=0):
     )
 
 
+def _mt_options_provider(repo: "FakeCatalogRepository") -> StaticOverlayProvider:
+    """Author each tenant's membership_type vocabulary as INLINE field options (03b CONTRACT).
+
+    Task 10.5 retired the `membershiptype#` catalog: membership_type owns its vocabulary as the
+    field's own `EnumOption`s. `get_field_config` reads the field's resolved options, not the
+    catalog. This helper folds the (now test-only) seeded catalog of ``repo`` onto a
+    ``membership.membership_type`` override per tenant — the resolved state the EXPAND fold
+    produces — so the field-config read serves the same values the catalog used to inject.
+    Every catalog entry becomes an option ordered by ``(order, type_code)``; a soft-deleted
+    entry maps to ``allowed:false`` (retired, excluded from the picker but grandfathered).
+    """
+    overlays: dict[str, TenantOverlay] = {}
+    for tenant, entries in repo.catalog.items():
+        ordered = sorted(entries, key=lambda e: e.sort_order_key())
+        options = tuple(
+            EnumOption(
+                value=e.type_code,
+                label=e.label,
+                allowed=e.active,
+                order=e.order,
+            )
+            for e in ordered
+        )
+        overlays[tenant] = TenantOverlay(
+            overrides={"membership.membership_type": FixedFieldOverride(options=options)},
+        )
+    return StaticOverlayProvider(overlays)
+
+
 @pytest.fixture()
 def repo() -> FakeCatalogRepository:
     r = FakeCatalogRepository()
@@ -166,8 +198,12 @@ class TestGetFieldConfigDomain:
         assert ("membership", "member_number") in keys
         assert ("membership", "membership_type") in keys
 
-    def test_membership_type_options_are_active_catalog_entries_ordered(self, repo):
-        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+    def test_membership_type_options_are_the_fields_inline_options_ordered(self, repo):
+        # 03b CONTRACT (Task 10.5): membership_type is a normal enum field that owns its
+        # vocabulary as INLINE options. The staff read serves the field's own options ordered by
+        # `(order, type_code)`; a retired entry is NOT excluded — it rides along as `allowed:false`
+        # (the admin needs to see it to un-retire / grandfather an existing stored value).
+        service = MembershipService(repo, overlay_provider=_mt_options_provider(repo))
         config = service.get_field_config("h-dcn")
 
         mt = next(
@@ -175,38 +211,67 @@ class TestGetFieldConfigDomain:
             for f in config["fields"]
             if f["group"] == "membership" and f["key"] == "membership_type"
         )
-        # It is a REFERENCE field carrying the active catalog entries as its options.
+        # It is a REFERENCE field carrying its inline options (retired(5) < erelid(10) <
+        # donateur(20) < sponsor(30)).
         assert mt["type"] == FieldType.REFERENCE.value
-        assert [o["value"] for o in mt["options"]] == ["erelid", "donateur", "sponsor"]
+        assert [o["value"] for o in mt["options"]] == [
+            "retired",
+            "erelid",
+            "donateur",
+            "sponsor",
+        ]
         # i18n labels ride along for presentation.
-        assert mt["options"][0]["label"] == {"nl": "Erelid", "en": "Honorary"}
+        erelid = next(o for o in mt["options"] if o["value"] == "erelid")
+        assert erelid["label"] == {"nl": "Erelid", "en": "Honorary"}
 
-    def test_soft_deleted_types_are_excluded_from_options(self, repo):
-        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
-        config = service.get_field_config("h-dcn")
-        values = {o["value"] for o in config["membership_type_options"]}
-        assert "retired" not in values
-
-    def test_standalone_membership_type_options_match_the_field_options(self, repo):
-        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+    def test_soft_deleted_types_are_served_as_allowed_false_not_excluded(self, repo):
+        # 03b CONTRACT (Task 10.5): under the unified enum model a retired type is NOT dropped —
+        # it is carried with `allowed:false` so the admin can see/grandfather it. (The old catalog
+        # model excluded soft-deleted entries from the active list; that distinction is gone.)
+        service = MembershipService(repo, overlay_provider=_mt_options_provider(repo))
         config = service.get_field_config("h-dcn")
         mt = next(f for f in config["fields"] if f["key"] == "membership_type")
-        assert config["membership_type_options"] == mt["options"]
+        by_value = {o["value"]: o for o in mt["options"]}
+        assert "retired" in by_value
+        assert by_value["retired"]["allowed"] is False
+        # The active ones remain allowed:true.
+        assert by_value["erelid"]["allowed"] is True
+
+    def test_standalone_membership_type_options_feed_is_removed(self, repo):
+        # 03b BU-3 (Req 3.3): the standalone `membership_type_options` payload feed is DROPPED —
+        # the field carries its own options like any other enum, no second source to drift from.
+        service = MembershipService(repo, overlay_provider=_mt_options_provider(repo))
+        config = service.get_field_config("h-dcn")
+        assert "membership_type_options" not in config
+        # The vocabulary is on the field (03b CONTRACT: the field's own inline options).
+        mt = next(f for f in config["fields"] if f["key"] == "membership_type")
+        assert [o["value"] for o in mt["options"]] == [
+            "retired",
+            "erelid",
+            "donateur",
+            "sponsor",
+        ]
 
     def test_membership_type_field_key_constant_matches(self):
         assert MEMBERSHIP_TYPE_FIELD_KEY == "membership.membership_type"
 
     def test_config_is_tenant_scoped(self, repo):
-        # 'other' tenant's types never leak into h-dcn's config, and vice-versa.
-        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        # 'other' tenant's types never leak into h-dcn's config, and vice-versa. 03b CONTRACT:
+        # read the vocabulary off each tenant's membership_type field's inline options.
+        service = MembershipService(repo, overlay_provider=_mt_options_provider(repo))
         h = service.get_field_config("h-dcn")
         other = service.get_field_config("other")
-        assert {o["value"] for o in h["membership_type_options"]} == {
+        h_mt = next(f for f in h["fields"] if f["key"] == "membership_type")
+        other_mt = next(f for f in other["fields"] if f["key"] == "membership_type")
+        # h-dcn carries all four of its own inline options (incl. retired as allowed:false);
+        # 'other' carries only its own single type — no cross-tenant leak either way.
+        assert {o["value"] for o in h_mt["options"]} == {
+            "retired",
             "erelid",
             "donateur",
             "sponsor",
         }
-        assert {o["value"] for o in other["membership_type_options"]} == {"member"}
+        assert {o["value"] for o in other_mt["options"]} == {"member"}
 
     def test_overlay_variable_fields_appear_in_config(self, repo):
         # A tenant overlay (design C3) adds a variable "club detail" field → origin=variable.
@@ -260,11 +325,14 @@ class TestGetFieldConfigDomain:
         assert active["label"] == {"nl": "Actief", "en": "Active"}
 
     def test_tenant_with_no_catalog_has_empty_options(self, repo):
-        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        service = MembershipService(repo, overlay_provider=_mt_options_provider(repo))
         config = service.get_field_config("unknown-tenant")
-        assert config["membership_type_options"] == []
-        # ...but the fixed base fields are still resolved.
-        assert any(f["key"] == "membership_type" for f in config["fields"])
+        # 03b CONTRACT (Task 10.5): no standalone feed and no catalog fallback. A tenant that
+        # authored NO inline membership_type options has a legitimately-empty source → the
+        # assembly seam returns None (not a catalog-derived empty list).
+        assert "membership_type_options" not in config
+        mt = next(f for f in config["fields"] if f["key"] == "membership_type")
+        assert mt["options"] is None
 
 
 class TestGetFieldConfigServesApplicationAttributes:
@@ -279,13 +347,20 @@ class TestGetFieldConfigServesApplicationAttributes:
     """
 
     def test_overlay_application_attributes_round_trip_on_the_staff_read(self, repo):
+        # The enum carries canonical `options` (the post-C5/C7 shape every live selectable row has)
+        # — not bare `choices`, which would now be the asymmetry the C6 seam fails loud on. This
+        # test's concern is the four application attributes, orthogonal to the vocabulary shape.
         overlay = TenantOverlay(
             fields={
                 "magazine_pref": OverlayField(
                     key="magazine_pref",
                     type=FieldType.ENUM,
                     label={"nl": "Clubblad", "en": "Magazine"},
-                    choices=("Geen", "Papier", "Digitaal"),
+                    options=(
+                        EnumOption(value="Geen", label={"nl": "Geen", "en": "None"}),
+                        EnumOption(value="Papier", label={"nl": "Papier", "en": "Paper"}),
+                        EnumOption(value="Digitaal", label={"nl": "Digitaal", "en": "Digital"}),
+                    ),
                     order=20,
                     application_visible=True,
                     application_required=True,
@@ -342,12 +417,16 @@ class TestGetFieldConfigServesApplicationAttributes:
 
 @pytest.fixture()
 def inject_service(monkeypatch, repo):
+    # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE field options, so
+    # the route overlay carries the folded catalog vocabulary on `membership.membership_type`
+    # (alongside the overlay's own `motor_type` variable field).
     overlay = TenantOverlay(
+        overrides=dict(_mt_options_provider(repo).get_overlay("h-dcn").overrides),
         fields={
             "motor_type": OverlayField(
                 key="motor_type", type=FieldType.STRING, label={"nl": "Motor"}, order=10
             )
-        }
+        },
     )
     service = MembershipService(
         repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
@@ -398,12 +477,18 @@ def test_field_config_route_returns_200_not_501(inject_service):
     assert data["tenant_id"] == "h-dcn"
 
 
-def test_field_config_route_carries_active_membership_type_options(inject_service):
+def test_field_config_route_carries_membership_type_options_on_the_field(inject_service):
+    # 03b CONTRACT (Task 10.5): the membership_type vocabulary rides on the field's OWN inline
+    # `options` (no standalone feed, no catalog fallback). The route serves the field's options
+    # ordered by (order, code); a retired entry is carried with allowed:false, not excluded.
     resp = app.handler(_event("GET", "/members/field-config"))
     data = _data(resp)
-    values = [o["value"] for o in data["membership_type_options"]]
-    assert values == ["erelid", "donateur", "sponsor"]
-    assert "retired" not in values
+    assert "membership_type_options" not in data
+    mt = next(f for f in data["fields"] if f["key"] == "membership_type")
+    values = [o["value"] for o in mt["options"]]
+    assert values == ["retired", "erelid", "donateur", "sponsor"]
+    by_value = {o["value"]: o for o in mt["options"]}
+    assert by_value["retired"]["allowed"] is False
 
 
 def test_field_config_route_reflects_the_tenant_overlay(inject_service):
@@ -685,3 +770,151 @@ class TestGetFieldConfigDoesNotSurfaceRawOverlay:
             ),
         )
         json.dumps(service.get_field_config("h-dcn"))  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# 03a task 4 (C4 / F8 / F9) — the read-assembly seam populates ONE canonical `options`
+# uniformly; the staff `_serialize_field` serializer consumes that single `options` with NO
+# per-kind branch and NO `field.choices` fallback, and the pure resolver stays catalog-free.
+#
+# Validates: Requirements 2.1, 2.6 · Components: C4, F8, F9
+# ---------------------------------------------------------------------------
+
+
+def _scope_service(repo, *, dim_values=("noord", "zuid")):
+    """A service whose `region` overlay enum is backed by a tenant scope dimension (no inline
+    options) — so its `options` can ONLY come from the injected scope_vocab at the seam."""
+    from sam.members.domain.scope_dimensions import (
+        ScopeDimension,
+        StaticScopeConfigProvider,
+    )
+
+    overlay = TenantOverlay(
+        fields={
+            "region": OverlayField(
+                key="region",
+                type=FieldType.ENUM,
+                label={"nl": "Regio", "en": "Region"},
+                order=70,
+            )
+        }
+    )
+    scope = StaticScopeConfigProvider(
+        {
+            "h-dcn": [
+                ScopeDimension(
+                    key="region",
+                    field="region",
+                    enabled=True,
+                    values=dim_values,
+                )
+            ]
+        }
+    )
+    return MembershipService(
+        repo,
+        overlay_provider=StaticOverlayProvider({"h-dcn": overlay}),
+        scope_config_provider=scope,
+    )
+
+
+class TestReadAssemblySeamPopulatesOptionsUniformly:
+    def test_reference_options_come_from_the_fields_inline_options_at_the_seam(self, repo):
+        # reference (membership_type): 03b CONTRACT (Task 10.5) — the ONE `options` is the field's
+        # OWN inline vocabulary (no catalog injection, no fallback). The uniform seam pass serves
+        # the field's options, retired entries included as allowed:false, ordered by (order, code).
+        service = MembershipService(repo, overlay_provider=_mt_options_provider(repo))
+        config = service.get_field_config("h-dcn")
+        mt = next(f for f in config["fields"] if f["key"] == "membership_type")
+        assert [o["value"] for o in mt["options"]] == [
+            "retired",
+            "erelid",
+            "donateur",
+            "sponsor",
+        ]
+
+    def test_inline_enum_options_are_the_rich_resolved_options(self, repo):
+        # inline enum (status): the ONE `options` is the field's own rich {value,label} options.
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+        status = next(f for f in config["fields"] if f["key"] == "status")
+        active = next(o for o in status["options"] if o["value"] == "active")
+        assert active["label"] == {"nl": "Actief", "en": "Active"}
+
+    def test_scope_backed_options_come_from_the_injected_scope_vocab(self, repo):
+        # scope-backed (region): the field declares NO inline options — its `options` can only be
+        # the scope dimension's values, projected to rich options AT THE SEAM (not from the pure
+        # resolver, not from `field.choices`). This is the uniform scope population.
+        service = _scope_service(repo, dim_values=("noord", "zuid", "oost"))
+        config = service.get_field_config("h-dcn")
+        region = next(f for f in config["fields"] if f["key"] == "region")
+        assert [o["value"] for o in region["options"]] == ["noord", "zuid", "oost"]
+        # Rich option shape (value + label), uniform with every other kind.
+        assert all("value" in o and "label" in o for o in region["options"])
+
+    def test_bare_choices_enum_fails_loud_on_the_asymmetry(self, repo):
+        # F9 + C6 (task 9): the staff serializer dropped the `field.choices` fallback (C4), and the
+        # read-assembly seam now FAILS LOUD on the asymmetry instead of degrading to None. A bare-
+        # `choices` overlay enum (built directly through the resolver, bypassing the C5/C7
+        # canonicalisation) has NO inline `options` and is NOT scope-backed: it DECLARES an inline
+        # vocabulary (`choices`) that did NOT propagate into `options` — the un-migrated / bare-
+        # `choices` legacy row. That is the asymmetry (declared source present, options empty), so
+        # the seam raises a loud, caller-safe `UnpropagatedVocabularyError` rather than serving
+        # `options=None` or falling back to `list(field.choices)`.
+        from sam.members.domain._membership_writes_fieldconfig import (
+            UnpropagatedVocabularyError,
+        )
+
+        overlay = TenantOverlay(
+            fields={
+                "magazine_pref": OverlayField(
+                    key="magazine_pref",
+                    type=FieldType.ENUM,
+                    label={"nl": "Clubblad", "en": "Magazine"},
+                    choices=("Geen", "Papier", "Digitaal"),
+                    order=20,
+                )
+            }
+        )
+        service = MembershipService(
+            repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
+        )
+        with pytest.raises(UnpropagatedVocabularyError) as exc:
+            service.get_field_config("h-dcn")
+        # Caller-safe: a GENERIC message (no offending data echoed); the diagnosable specifics
+        # (tenant + field dotted key) live on `detail` for the server-side log line only.
+        assert "did not resolve to any" in str(exc.value)
+        assert "magazine_pref" not in str(exc.value)
+        assert "overlay.magazine_pref" in exc.value.detail
+        assert exc.value.dotted_key == "overlay.magazine_pref"
+
+    def test_non_selectable_field_has_no_options(self, repo):
+        # A plain string field declares no selectable source → options is None (unchanged).
+        service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+        config = service.get_field_config("h-dcn")
+        first_name = next(f for f in config["fields"] if f["key"] == "first_name")
+        assert first_name["options"] is None
+
+
+class TestResolverStaysCatalogFree:
+    """C4: the uniform population lives at the read-assembly seam — the pure FieldResolver is
+    NOT given catalog/DB access and does not read the catalog. Asserted, not modified."""
+
+    def test_resolver_is_constructed_with_only_the_overlay_provider(self):
+        resolver = FieldResolver(StaticOverlayProvider({}))
+        # No catalog / repository / scope-config attribute is attached to the resolver — its sole
+        # dependency is the overlay provider (scope arrives as an injected `scope_vocab` arg).
+        assert resolver._provider is not None
+        assert not hasattr(resolver, "_repo")
+        assert not hasattr(resolver, "_catalog")
+        assert not hasattr(resolver, "_active_membership_type_options")
+
+    def test_resolver_resolve_takes_no_catalog_and_leaves_membership_type_options_empty(self):
+        # Resolving WITHOUT any catalog yields a membership_type field whose inline resolved
+        # options are empty — the active catalog is attached LATER, at the seam, not here. This
+        # pins that reference options are a seam concern, never a resolver catalog read.
+        resolver = FieldResolver(StaticOverlayProvider({}))
+        config = resolver.resolve("h-dcn")
+        mt = config.field(MEMBERSHIP_TYPE_FIELD_KEY)
+        assert mt is not None
+        assert not mt.options  # resolver attaches no catalog vocabulary

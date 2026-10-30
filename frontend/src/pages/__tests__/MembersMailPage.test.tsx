@@ -38,7 +38,6 @@ vi.mock('../../services/membersApiService');
 const mockListMembersPage = vi.mocked(membersApiService.listMembersPage);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
-const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes);
 const mockGetColumnPreferences = vi.mocked(membersApiService.getColumnPreferences);
 const mockSaveColumnPreferences = vi.mocked(membersApiService.saveColumnPreferences);
 
@@ -102,7 +101,6 @@ describe('MembersMailPage — relocated applications inbox (task 8.5, Req 6.2)',
     mockListMembersPage.mockResolvedValue({ items: applicationRows, cursor: null } as never);
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(applicationRows[0] as never);
-    mockListMembershipTypes.mockResolvedValue([] as never);
     mockGetColumnPreferences.mockResolvedValue({ sub: '', columns: [], updated_at: '' } as never);
     mockSaveColumnPreferences.mockResolvedValue({ sub: '', columns: [], updated_at: '' } as never);
   });

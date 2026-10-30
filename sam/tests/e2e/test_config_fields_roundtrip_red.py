@@ -53,6 +53,7 @@ changed (everything else byte-identical). Isolation is asserted through the gene
 
 from __future__ import annotations
 
+import importlib.util
 import os
 import sys
 
@@ -68,6 +69,8 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
+from services import projection_schema as schema  # noqa: E402
+
 from sam.members.domain.config_fields_crud_service import ConfigFieldsCrudService  # noqa: E402
 from sam.members.domain.field_resolver import FieldResolver  # noqa: E402
 from sam.members.repository.projection_config_reader import MembersProjectionReader  # noqa: E402
@@ -75,6 +78,24 @@ from sam.members.repository.projection_config_write_repository import (  # noqa:
     MembersConfigWriteRepository,
 )
 from sam.tests.e2e.invariant import ChangeOp, assert_change_op_isolated  # noqa: E402
+
+
+# ── The C7 choices->options backfill, loaded from scripts/ (not an importable package) ──────
+# Reused VERBATIM (not hand-rolled) so a legacy bare-`choices` row is migrated exactly the way
+# the committed migration does — see `sam/tests/test_migrate_config_fields_choices_to_options.py`
+# and the 03a enum-vocab symmetry gate (`test_enum_vocab_roundtrip_e2e.py`).
+def _load_migration_module():
+    path = os.path.join(_REPO_ROOT, "scripts", "migrate_config_fields_choices_to_options.py")
+    spec = importlib.util.spec_from_file_location(
+        "migrate_config_fields_choices_to_options", path
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_mig = _load_migration_module()
 
 # The whole module is container-gated e2e; it SKIPS cleanly without the local-DynamoDB container
 # (via the seeded_config_fields_table fixture chain, task 1.1) so unit runs are unaffected.
@@ -249,13 +270,17 @@ class _ChangeOpWriter:
         )
 
     def _set_enum_choices(self, op: ChangeOp) -> None:
-        # Rewrite only the field's choice data (a DEFINITION attr) → SET overrides.<dotted>.choices
-        # (or the whole entry on CREATE). label/order/type survive.
+        # Rewrite only the field's VOCABULARY (a DEFINITION attr) → SET overrides.<dotted>.options
+        # (or the whole entry on CREATE). label/order/type survive. Post-03a C2 the write surface
+        # accepts the ONE canonical `options`; `choices` is retired (rejected by set_field). The
+        # resolver keeps `choices` coherent as the DERIVED projection of `options`, so this single
+        # vocabulary write surfaces on BOTH the resolved `options` and its derived `choices` — the
+        # op's allowed_paths names both (they are one vocabulary, not two independent attrs).
         self._service().set_field(
             self._tenant_id,
             op.target,
             {
-                "choices": [
+                "options": [
                     {"value": "man", "label": {"nl": "Man", "en": "Man"}},
                     {"value": "vrouw", "label": {"nl": "Vrouw", "en": "Female"}},
                     {"value": "anders", "label": {"nl": "Anders", "en": "Other"}},
@@ -361,6 +386,64 @@ def _run(roundtrip, op: ChangeOp) -> dict:
     return {"before": before, "after": after}
 
 
+def _editor_read_options(roundtrip, field_key: str) -> list[str]:
+    """The vocabulary the CONFIG EDITOR would show for ``field_key``: the resolved field's
+    ``options`` VALUES (the shape ``MembersFieldModal.optionsToChoices`` consumes). Uses a FRESH
+    reader (no stale cache) so it is the real production editor read path — mirroring the 03a
+    symmetry gate (``test_enum_vocab_roundtrip_e2e``). Empty list when the field or its options
+    are absent (which is the very bug: a choices-only row resolves to empty editor options)."""
+    table = roundtrip["reader"]._table
+    config = FieldResolver(MembersProjectionReader(table=table)).resolve(
+        roundtrip["record_id"]
+    )
+    field = next((f for f in config.fields if f.key == field_key), None)
+    if field is None:
+        return []
+    return [o.value for o in (field.options or [])]
+
+
+def _seed_bare_choices_variable_field(roundtrip, field_key: str, vocab):
+    """Seed a tenant VARIABLE field carrying bare `choices` (`options` ABSENT) DIRECTLY onto the
+    live `config#fields` row — the real h-dcn UN-MIGRATED legacy shape.
+
+    This mirrors the C7 migration test's `_seed_variable_field_row` rather than going through
+    `set_field`: the write surface (03a C2) RETIRED `choices`, so `set_field` correctly REJECTS a
+    `choices` payload. A legacy row can only arrive by direct seeding (it was written before the
+    invariant existed) — the exact state the C7 backfill exists to migrate. Added into the `fields`
+    map keyed by its bare key (the real shape for a tenant-added selectable field), preserving the
+    seeded h-dcn row's other entries.
+    """
+    table = roundtrip["reader"]._table
+    tenant_id = roundtrip["record_id"]
+    key = schema.build_key(
+        tenant_id, schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS)
+    )
+    item = dict(table.get_item(Key=key)["Item"])
+    fields = dict(item.get("fields") or {})
+    fields[field_key] = {
+        "type": "enum",
+        "label": {"nl": "Bron", "en": "Source"},
+        "functional_group": "membership",
+        "order": 71,
+        "choices": list(vocab),  # bare `choices`, no `options` — the un-migrated legacy shape
+    }
+    item["fields"] = fields
+    table.put_item(Item=item)
+
+
+def _run_c7_backfill(roundtrip):
+    """Run the committed C7 `choices`->`options` backfill over the live row, reusing the real
+    migration driver — the sanctioned path from an un-migrated legacy row to the one-vocab model."""
+    table = roundtrip["reader"]._table
+    tenant_id = roundtrip["record_id"]
+    reader = MembersProjectionReader(table=table)
+    service = ConfigFieldsCrudService(
+        MembersConfigWriteRepository(table=table, version_fn=_monotonic_version),
+        reader=reader,
+    )
+    return _mig.migrate_tenant(tenant_id, service=service, reader=reader)
+
+
 # ─────────────────────────────────────────────────────────────────────────────────────
 # The seven round-trip cases — all GREEN under the Phase-2 Change-Op path (acceptance gate)
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -439,12 +522,85 @@ def test_set_enum_choices_on_field_is_isolated(roundtrip):
     #    Use the `set_enum_choices` op KIND (dispatches to the choices-writer handler) with the
     #    choices path as the sole allowed target — NOT `ChangeOp.set_field_attr`, whose kind
     #    `set_field_attr` dispatches to the LABEL writer and would (correctly) be flagged as a leak.
+    #
+    # ── R2.5 STRENGTHENING (spec 03a) ───────────────────────────────────────────────────────
+    # This case was ISOLATION-ONLY (a choices write did not clobber siblings) and PASSED while the
+    # real enum-vocabulary ROUND-TRIP was broken — exactly the false-confidence gap that let the
+    # 03a bug slip past 48 green E2E cases. Per R2.5 it is strengthened to ALSO assert:
+    #   (2) round-trip SYMMETRY — the authored vocabulary, read back through the config editor's
+    #       own read path (resolved `field.options`, the shape MembersFieldModal.optionsToChoices
+    #       consumes), EQUALS what was PUT; AND
+    #   (3) the REAL stored shapes, including the bare-`choices` / `options`-absent LEGACY row (the
+    #       real h-dcn shape) — whose isolation-only coverage is precisely why this bug hid.
+    # Legs (2) and (3) are EXPECTED to FAIL on UNFIXED code (harness-first) — the variable-field
+    # resolve does not promote choices->options, so the editor read path yields empty options. The
+    # 03a fix (one canonical `options`, no silent fallback) turns them GREEN. Leg (1) stays green.
+
+    # (1) ISOLATION (unchanged intent): a vocabulary write touches ONLY the field's vocabulary.
+    #     Post-03a C2 the one canonical vocabulary is `options` (`choices` is retired from the
+    #     write surface); the resolver keeps `choices` coherent as the DERIVED projection of
+    #     `options`, so writing `options` surfaces on BOTH `fields.gender.options` and its derived
+    #     `fields.gender.choices`. Both are the SAME one vocabulary, so both are allowed — label /
+    #     order / type / group must still be untouched (the isolation guarantee the case asserts).
     op = ChangeOp(
         kind="set_enum_choices",
         target="gender",
-        allowed_paths=frozenset({"fields.gender.choices"}),
+        allowed_paths=frozenset({"fields.gender.options", "fields.gender.choices"}),
     )
     _run(roundtrip, op)
+
+    # (2) + (3) ROUND-TRIP SYMMETRY via the EDITOR READ PATH, over the REAL stored shapes.
+    writer = roundtrip["writer"]
+    record_id = roundtrip["record_id"]
+
+    # (2) rich `options`-authored shape: PUT the vocabulary under the canonical `options`
+    #     attribute and read it back through the editor path — input == output.
+    options_vocab = ["bigtwin", "internet", "family"]
+    writer._service().set_field(
+        record_id,
+        "referral_source",
+        {
+            "type": "enum",
+            "label": {"nl": "Bron", "en": "Source"},
+            "functional_group": "membership",
+            "order": 70,
+            "options": [{"value": v, "label": {"nl": v, "en": v}} for v in options_vocab],
+        },
+    )
+    assert _editor_read_options(roundtrip, "referral_source") == options_vocab, (
+        "ROUND-TRIP BROKEN (bug): an `options`-authored enum field must read back identically "
+        "through the config editor read path (PUT == GET)."
+    )
+
+    # (3) REAL legacy shape: bare `choices`, `options` absent (the real h-dcn `referral_source`
+    #     row), reached via the C7 backfill (migrate-then-resolve). A SEPARATE field so this leg
+    #     is a clean, unambiguous demonstration of the choices-only row (not entangled with leg
+    #     (2)'s stored `options`).
+    #
+    #     POST-FIX reality (design C6/C7): the write surface RETIRED `choices` (C2), so a
+    #     bare-`choices` row can no longer be AUTHORED through `set_field` — it exists only as an
+    #     UN-MIGRATED legacy row, seeded directly here. The design's realization of this leg's
+    #     original intent — "a choices-only row must still surface in the editor, not vanish" — is
+    #     MIGRATE-THEN-RESOLVE: the C6 `choices`-present sentinel is the migration-window encoding
+    #     of the P3 asymmetry, RETIRED once C7 backfills. An un-migrated row fails loud precisely
+    #     because it SHOULD have been migrated; migrating it is how the legacy vocabulary
+    #     round-trips as the canonical `options` (same decision as the symmetry gate's
+    #     `test_roundtrip_symmetry_choices_only_legacy_row`).
+    legacy_vocab = ["internet", "facebook", "bigtwin", "family", "other", "young-ones"]
+    # Seed the legacy bare-`choices` row DIRECTLY (not via set_field, which post-C2 rejects
+    # `choices`) — the un-migrated shape the C7 backfill targets.
+    _seed_bare_choices_variable_field(roundtrip, "referral_source_legacy", legacy_vocab)
+    # The C7 `choices`->`options` backfill — the sanctioned path onto the one-vocabulary model.
+    plans = _run_c7_backfill(roundtrip)
+    assert "referral_source_legacy" in {p.entry_key for p in plans}, (
+        "the C7 backfill must plan the un-migrated referral_source_legacy legacy row"
+    )
+    assert _editor_read_options(roundtrip, "referral_source_legacy") == legacy_vocab, (
+        "ROUND-TRIP BROKEN: a bare-`choices` / `options`-absent legacy row (the real h-dcn shape) "
+        "must migrate (C7) to the canonical `options` and round-trip through the editor read path "
+        "— the choices must NOT vanish from the config editor. This isolation-only case previously "
+        "hid exactly this failure."
+    )
 
 
 def test_set_application_attrs_on_field_is_isolated(roundtrip):

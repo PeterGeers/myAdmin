@@ -51,7 +51,6 @@ function renderBody(
           t={t}
           dimensionKey="region"
           regionValues={opts.regionValues ?? []}
-          membershipTypes={null}
         />
       </Form>
     </Formik>,

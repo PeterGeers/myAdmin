@@ -386,6 +386,154 @@ def test_delete_field_refuses_base_field(service):
     assert "reset_field" in str(exc.value)
 
 
+# ---------------------------------------------------------------------------
+# remove_legacy_choices — the C7 backfill's legacy-cleanup companion (03a C2↔C7)
+# ---------------------------------------------------------------------------
+#
+# C2 retired `choices` from FIELD_DEFINITION_ATTRS, so `set_field` rejects any payload
+# mentioning `choices` (even `choices: None`) before it could become a scoped REMOVE. The
+# migration therefore needs a dedicated, narrow op to retire the legacy attribute — modelled on
+# reset_field/delete_field (derive a placement, emit a scoped REMOVE directly, bypassing the
+# attr-surface guard). It emits a SINGLE scoped `REMOVE <map>.<key>.choices` (never a whole-row
+# put_item) and is a safe no-op when the field carries no `choices`.
+
+
+def _reader_row_with(container_key, entry_key, spec):
+    """A FakeReader row whose stored entry carries the given spec (so a test can observe a
+    `choices` attribute on the snapshot the service reads for placement)."""
+    row = {"fields": {}, "fixed_overrides": {}, "functional_groups": {}, "version": "v-1"}
+    row[container_key][entry_key] = dict(spec)
+    return FakeReader(row)
+
+
+def test_remove_legacy_choices_emits_scoped_remove_on_choices_path(repo):
+    """remove_legacy_choices emits a SINGLE scoped REMOVE on the field's `choices` path — modelled
+    on reset_field, bypassing the attr-surface guard (which now forbids `choices`)."""
+    reader = _reader_row_with(
+        "fixed_overrides", "personal.gender", {"type": "enum", "choices": ["man", "vrouw"]}
+    )
+    svc = ConfigFieldsCrudService(repo, reader=reader)
+
+    svc.remove_legacy_choices(_TENANT, "gender")
+
+    ops = repo.last["ops"]
+    assert ops == [{"action": REMOVE, "path": ["overrides", "personal.gender", "choices"]}]
+    # It targets config#fields via the Change-Op path (not a whole-row replace).
+    assert repo.last["config_id"] == "fields"
+
+
+def test_remove_legacy_choices_on_variable_field_targets_fields_map(repo):
+    """For a tenant VARIABLE field the scoped REMOVE addresses fields.<key>.choices."""
+    reader = _reader_row_with(
+        "fields", "referral_source", {"type": "enum", "choices": ["internet", "facebook"]}
+    )
+    svc = ConfigFieldsCrudService(repo, reader=reader)
+
+    svc.remove_legacy_choices(_TENANT, "referral_source")
+
+    assert repo.last["ops"] == [
+        {"action": REMOVE, "path": ["fields", "referral_source", "choices"]}
+    ]
+
+
+def test_remove_legacy_choices_is_noop_when_no_choices_attribute(repo):
+    """When the stored entry carries NO `choices` (already migrated / never legacy) nothing is
+    written — apply_ops is never called with an empty op set (it requires a non-empty sequence)."""
+    reader = _reader_row_with(
+        "fixed_overrides",
+        "personal.gender",
+        {"type": "enum", "options": [{"value": "man"}]},
+    )
+    svc = ConfigFieldsCrudService(repo, reader=reader)
+
+    result = svc.remove_legacy_choices(_TENANT, "gender")
+
+    assert result.get("no_op") is True
+    assert repo.calls == [], "a no-op must not reach apply_ops (never a whole-row replace either)"
+
+
+def test_remove_legacy_choices_is_noop_when_field_entry_absent(repo):
+    """A field with no stored entry at all carries no `choices` → safe no-op, no write."""
+    svc = ConfigFieldsCrudService(repo, reader=FakeReader({}))
+
+    result = svc.remove_legacy_choices(_TENANT, "gender")
+
+    assert result.get("no_op") is True
+    assert repo.calls == []
+
+
+# ---------------------------------------------------------------------------
+# remove_inline_options — the C7 companion for SCOPE-BACKED (W2) / REFERENCE (W1) fields
+# ---------------------------------------------------------------------------
+#
+# A scope-backed / reference field sources its vocabulary from the config#scope dimension / the
+# live catalog, NEVER inline. `set_field` REJECTS an inline `options` payload on such a field
+# (W1/W2), so — exactly like `remove_legacy_choices` for the retired `choices` — the migration
+# needs a dedicated narrow op to DROP a stale inline `options`. It emits a SINGLE scoped
+# `REMOVE <map>.<key>.options` (never a whole-row put_item) and is a safe no-op when the field
+# carries no inline `options`.
+
+
+def test_remove_inline_options_emits_scoped_remove_on_options_path(repo):
+    """remove_inline_options emits a SINGLE scoped REMOVE on the field's `options` path — modelled
+    on remove_legacy_choices, bypassing the W1/W2 source-integrity guard."""
+    reader = _reader_row_with(
+        "fields",
+        "region",
+        {"scope": {"enabled": True}, "options": [{"value": "stale"}]},
+    )
+    svc = ConfigFieldsCrudService(repo, reader=reader)
+
+    svc.remove_inline_options(_TENANT, "region")
+
+    ops = repo.last["ops"]
+    assert ops == [{"action": REMOVE, "path": ["fields", "region", "options"]}]
+    # It targets config#fields via the Change-Op path (not a whole-row replace).
+    assert repo.last["config_id"] == "fields"
+
+
+def test_remove_inline_options_on_override_targets_overrides_map(repo):
+    """For a base/calculated override the scoped REMOVE addresses overrides.<dotted>.options."""
+    reader = _reader_row_with(
+        "fixed_overrides",
+        "personal.gender",
+        {"scope": {"enabled": True}, "options": [{"value": "stale"}]},
+    )
+    svc = ConfigFieldsCrudService(repo, reader=reader)
+
+    svc.remove_inline_options(_TENANT, "gender")
+
+    assert repo.last["ops"] == [
+        {"action": REMOVE, "path": ["overrides", "personal.gender", "options"]}
+    ]
+
+
+def test_remove_inline_options_is_noop_when_no_options_attribute(repo):
+    """When the stored entry carries NO inline `options` nothing is written — apply_ops is never
+    called with an empty op set."""
+    reader = _reader_row_with(
+        "fields",
+        "region",
+        {"scope": {"enabled": True}},
+    )
+    svc = ConfigFieldsCrudService(repo, reader=reader)
+
+    result = svc.remove_inline_options(_TENANT, "region")
+
+    assert result.get("no_op") is True
+    assert repo.calls == [], "a no-op must not reach apply_ops (never a whole-row replace either)"
+
+
+def test_remove_inline_options_is_noop_when_field_entry_absent(repo):
+    """A field with no stored entry at all carries no inline `options` → safe no-op, no write."""
+    svc = ConfigFieldsCrudService(repo, reader=FakeReader({}))
+
+    result = svc.remove_inline_options(_TENANT, "region")
+
+    assert result.get("no_op") is True
+    assert repo.calls == []
+
+
 def test_delete_group_removes_whole_group_entry(service, repo):
     """delete_group removes the whole functional_groups.<gkey> entry."""
     service.delete_group(_TENANT, "custom_group")
@@ -1484,21 +1632,21 @@ def test_choiceless_scope_enum_without_vocab_is_still_a_config_bug():
 #
 # What this block PROVES (the two R5.1/R5.5 clauses, each an INVARIANT case):
 #
-#   1. A tenant-authored ENUM value never DROPS on read (R5.1): the `_build_override`
-#      `options or choices` fallback is strong enough that an override authoring its value list
-#      under EITHER the rich `options` ([{value,label,roles?}]) OR a bare `choices` (rich
-#      [{value,label}] OR plain ["man","vrouw"]) reaches the resolved field's `choices`. Proven at
-#      the RESOLVER level (the single source of the base ⊕ overlay enum-value rule) so a value a
-#      tenant added (e.g. the reported `died` / a bare `anders`) survives resolution rather than
-#      falling back to the fixed field's BASE choices (the config#fields enum-choices data-loss).
+#   1. A tenant-authored ENUM value never DROPS on read (R5.1): with the single-vocabulary model
+#      (C5) an override authoring its value list under the ONE canonical `options`
+#      ([{value,label,roles?}]) reaches the resolved field's `choices` (derived from `options`).
+#      Proven at the RESOLVER level (the single source of the base ⊕ overlay enum-value rule) so a
+#      value a tenant added (e.g. the reported `died`) survives resolution rather than falling back
+#      to the fixed field's BASE choices (the config#fields enum-choices data-loss). The retired
+#      `options or choices` coalesce (F1) is gone; C7 migrates legacy bare-`choices` rows.
 #
-#   2. A `set_field` CHOICES change rewrites ONLY the choice data (R5.5 / R1): editing a field's
-#      enum choices through the Change-Op path leaves the field's OTHER attributes (label, order,
-#      functional_group, type) byte-identical. Proven END-TO-END through the real `apply_ops` over
-#      a seeded row (service → real repo → condition-evaluating `_CatalogFakeTable`) AND reinforced
-#      by the always-running invariant harness (`assert_change_op_isolated`) over the resolved
-#      record, so a choices-only edit is isolated: under the per-aspect SET model a choices change
-#      addresses only `overrides.<dotted>.choices`, never a sibling attr. This is the ENUM facet of
+#   2. A `set_field` OPTIONS change rewrites ONLY the vocabulary data (R5.5 / R1): editing a
+#      field's enum options through the Change-Op path leaves the field's OTHER attributes (label,
+#      order, functional_group, type) byte-identical. Proven END-TO-END through the real `apply_ops`
+#      over a seeded row (service → real repo → condition-evaluating `_CatalogFakeTable`) AND
+#      reinforced by the always-running invariant harness (`assert_change_op_isolated`) over the
+#      resolved record, so an options-only edit is isolated: under the per-aspect SET model an
+#      options change addresses only `overrides.<dotted>.options`, never a sibling attr. This is the ENUM facet of
 #      the root-cause guarantee — the `overrides` whole-entry REPLACE that stripped the stored label
 #      when choices were edited (root-cause-analysis) is structurally gone.
 #
@@ -1545,11 +1693,12 @@ def test_override_enum_value_from_rich_options_reaches_resolved_choices():
     )
 
 
-def test_override_enum_value_from_bare_string_choices_reaches_resolved_choices():
-    """R5.1 (the strengthened fallback): a fixed-enum override authoring BARE-STRING `choices`
-    (`["man","vrouw","anders"]`, no rich options) still reaches the resolved field's choices — the
-    `options or choices` fallback now coerces bare strings, so a tenant value is not silently
-    dropped and the resolver does NOT fall back to the base choices."""
+def test_override_enum_value_from_options_reaches_resolved_choices_value_only():
+    """R5.1 (single-vocabulary, C5): a fixed-enum override authoring value-only `options`
+    (`[{value:"man"},...]`, the canonical shape a migrated bare-`choices` list becomes) resolves
+    those values into the field's `choices`, so a tenant value is not dropped and the resolver does
+    NOT fall back to the base choices. The retired `options or choices` coalesce is gone — there is
+    ONE vocabulary (`options`); C7 migrates legacy bare-`choices` rows into it."""
     overlay = TenantOverlay(
         overrides={"personal.gender": FixedFieldOverride(options=(
             EnumOption(value="man"),
@@ -1585,11 +1734,13 @@ def test_resolved_choices_stay_coherent_with_options():
 # ---------------------------------------------------------------------------
 
 
-def _seed_enum_override_row(table, *, choices):
-    """Seed a row whose `membership.status` override is an enum carrying label/order/group + choices.
+def _seed_enum_override_row(table, *, options):
+    """Seed a row whose `membership.status` override is an enum carrying label/order/group + options.
 
-    The sibling attributes (label/order/functional_group/type) are what a choices-only edit must
-    leave untouched — the ENUM facet of the root-cause 'whole-entry replace stripped the label'.
+    Single-vocabulary (C5): the enum vocabulary is stored under the ONE canonical `options`
+    attribute ([{value, label?}]). The sibling attributes (label/order/functional_group/type) are
+    what a vocabulary-only edit must leave untouched — the ENUM facet of the root-cause
+    'whole-entry replace stripped the label'.
     """
     _seed_catalog_row(
         table,
@@ -1601,73 +1752,76 @@ def _seed_enum_override_row(table, *, choices):
                 "label": {"en": "Status", "nl": "Status"},
                 "order": 35,
                 "functional_group": "membership",
-                "choices": list(choices),
+                "options": list(options),
             }
         },
     )
 
 
-def test_set_field_choices_change_rewrites_only_choice_data_end_to_end():
-    """END-TO-END (R5.5 / R1): editing ONLY the enum choices of a field through the Change-Op path
-    rewrites the stored `choices` and leaves every OTHER stored aspect (label/order/
-    functional_group/type) byte-identical — the ENUM facet of the no-strip guarantee."""
+def test_set_field_options_change_rewrites_only_vocab_data_end_to_end():
+    """END-TO-END (R5.5 / R1): editing ONLY the enum `options` of a field through the Change-Op
+    path rewrites the stored `options` and leaves every OTHER stored aspect (label/order/
+    functional_group/type) byte-identical — the ENUM facet of the no-strip guarantee. Single
+    vocabulary (C5): the edit targets the ONE canonical `options` attribute."""
     table = _CatalogFakeTable()
-    _seed_enum_override_row(table, choices=["active", "lapsed"])
+    _seed_enum_override_row(table, options=[{"value": "active"}, {"value": "lapsed"}])
     before_entry = copy.deepcopy(
         table.store[(_TENANT, _FIELDS_SK)]["overrides"]["membership.status"]
     )
 
     svc = _e2e_service(table, version_fn=lambda: "v2")
-    # A realistic choices-only edit: the admin added `died` to the status enum.
-    new_choices = [
+    # A realistic vocabulary-only edit: the admin added `died` to the status enum.
+    new_options = [
         {"value": "active", "label": {"en": "Active"}},
         {"value": "lapsed", "label": {"en": "Lapsed"}},
         {"value": "died", "label": {"nl": "Overleden", "en": "Passed Away"}},
     ]
-    svc.set_field(_TENANT, "membership.status", {"choices": new_choices})
+    svc.set_field(_TENANT, "membership.status", {"options": new_options})
 
     entry = table.store[(_TENANT, _FIELDS_SK)]["overrides"]["membership.status"]
-    # The choice data was rewritten...
-    assert entry["choices"] == new_choices
+    # The vocabulary data was rewritten...
+    assert entry["options"] == new_options
     # ...and EVERY other stored aspect is byte-identical (the whole-entry-replace strip is gone).
     for aspect in ("type", "label", "order", "functional_group"):
         assert entry[aspect] == before_entry[aspect], (
-            f"a choices-only edit must preserve the field's {aspect!r} (R5.5 / R1) — got "
+            f"an options-only edit must preserve the field's {aspect!r} (R5.5 / R1) — got "
             f"{entry.get(aspect)!r}, expected {before_entry[aspect]!r}"
         )
 
 
-def test_set_field_choices_change_emits_only_the_choices_path(repo):
-    """The Change-Op for a choices-only edit addresses ONLY `overrides.<dotted>.choices` — never a
-    sibling attr (per-aspect SET). This is WHY the end-to-end strip cannot happen (R5.5)."""
+def test_set_field_options_change_emits_only_the_options_path(repo):
+    """The Change-Op for a vocabulary-only edit addresses ONLY `overrides.<dotted>.options` — never
+    a sibling attr (per-aspect SET). This is WHY the end-to-end strip cannot happen (R5.5). Single
+    vocabulary (C5): the one canonical attribute is `options`."""
     svc = _existing_service(repo, ("fixed_overrides", "membership.status"))
-    svc.set_field(_TENANT, "status", {"choices": [{"value": "died"}]})
+    svc.set_field(_TENANT, "status", {"options": [{"value": "died"}]})
     ops = repo.last["ops"]
     assert ops == [
         {
             "action": SET,
-            "path": ["overrides", "membership.status", "choices"],
+            "path": ["overrides", "membership.status", "options"],
             "value": [{"value": "died"}],
         }
-    ], "a choices-only edit must emit exactly one SET on the choices aspect, nothing else"
+    ], "an options-only edit must emit exactly one SET on the options aspect, nothing else"
 
 
-def test_set_field_choices_change_is_isolated_on_the_resolved_record():
-    """INVARIANT (R5.5 / R9): read-resolve → apply a choices-only `set_field` → read-resolve, and
-    assert via the generic engine that ONLY `fields.status.choices` changed on the RESOLVED record
+def test_set_field_options_change_is_isolated_on_the_resolved_record():
+    """INVARIANT (R5.5 / R9): read-resolve → apply an options-only `set_field` → read-resolve, and
+    assert via the generic engine that ONLY `fields.status.options` changed on the RESOLVED record
     (the enum value survives AND nothing else — label/order/group — moved).
 
     Drives the real resolver (reader over the stored row) + the real `apply_ops`, so this is the
     end-to-end isolation proof the Change-Op path delivers — the GREEN counterpart to the xfail RED
-    whole-row case in `sam/tests/e2e/test_config_fields_roundtrip_red.py`."""
+    whole-row case in `sam/tests/e2e/test_config_fields_roundtrip_red.py`. Single vocabulary (C5):
+    the edit targets the ONE canonical `options` attribute; the derived `choices` stays coherent."""
     table = _CatalogFakeTable()
-    _seed_enum_override_row(table, choices=["active", "lapsed"])
+    _seed_enum_override_row(table, options=[{"value": "active"}, {"value": "lapsed"}])
 
     def read_resolved() -> dict:
         """Resolve the stored row through the real reader mapping + resolver into the keyed shape
         the invariant engine diffs (mirrors the e2e `_serialize_resolved`)."""
         # Resolve base ⊕ overlay via a StaticOverlayProvider built from the stored override shape,
-        # routed through the REAL reader `_build_override` (the options⊕choices fallback under proof).
+        # routed through the REAL reader `_build_override` (single-vocabulary `options`, C5).
         reader_overlay = _overlay_from_stored(table)
         resolver = FieldResolver(StaticOverlayProvider({_TENANT: reader_overlay}))
         config = resolver.resolve(_TENANT)
@@ -1678,7 +1832,9 @@ def test_set_field_choices_change_is_isolated_on_the_resolved_record():
                     "label": dict(f.label or {}),
                     "order": f.order,
                     "functional_group": f.functional_group,
-                    "choices": list(f.choices) if f.choices is not None else None,
+                    "options": (
+                        [o.value for o in f.options] if f.options is not None else None
+                    ),
                 }
                 for f in config.fields
             }
@@ -1689,14 +1845,14 @@ def test_set_field_choices_change_is_isolated_on_the_resolved_record():
     svc.set_field(
         _TENANT,
         "membership.status",
-        {"choices": [{"value": "active"}, {"value": "lapsed"}, {"value": "died"}]},
+        {"options": [{"value": "active"}, {"value": "lapsed"}, {"value": "died"}]},
     )
     after = read_resolved()
 
-    # The enum value SURVIVED the write (it is now present in the resolved choices)...
-    assert "died" in (after["fields"]["status"]["choices"] or [])
-    # ...and the choices-only edit is ISOLATED: only fields.status.choices changed.
-    op = ChangeOp.set_field_attr("status", "choices")
+    # The enum value SURVIVED the write (it is now present in the resolved options)...
+    assert "died" in (after["fields"]["status"]["options"] or [])
+    # ...and the options-only edit is ISOLATED: only fields.status.options changed.
+    op = ChangeOp.set_field_attr("status", "options")
     assert_change_op_isolated(before, op, after)
 
 
@@ -1704,8 +1860,8 @@ def _overlay_from_stored(table) -> TenantOverlay:
     """Build a TenantOverlay from the stored config#fields row via the real reader mapping.
 
     Routes the stored `overrides` map through `MembersProjectionReader._build_override` (the unit
-    under proof for the options⊕choices fallback) so the resolved record reflects the REAL read
-    path — not a hand-built overlay."""
+    under proof for the single-vocabulary `options` read, C5) so the resolved record reflects the
+    REAL read path — not a hand-built overlay."""
     from sam.members.repository.projection_config_reader import MembersProjectionReader
 
     stored = table.store[(_TENANT, _FIELDS_SK)]
@@ -2097,3 +2253,344 @@ def test_validation_error_in_derive_is_not_retried():
         svc.set_field(_TENANT, "gender", {"application_visible": True})
 
     assert table.update_calls == 0, "a validation error must never reach (or retry) a write"
+
+
+# ===========================================================================
+# 03a TASK 7 (C2) + TASK 8 (C3) — write surface accepts `options` ONLY; the
+# Change-Op + one-key (`overrides`→`fixed_overrides`) contract is preserved; a
+# duplicate-`value` `options` list is rejected caller-safe BEFORE any repo call.
+# ===========================================================================
+#
+# What this block PROVES:
+#   C2 — `choices` is RETIRED from the write surface: `set_field` now rejects a `choices`
+#        definition attr out-of-surface (ConfigFieldsCrudError), accepting ONLY the one canonical
+#        `options` vocabulary. The storage key stays `overrides`, served under the wire key
+#        `fixed_overrides` (the one-key contract), and the write remains a Change-Op on a single
+#        path (no whole-row replace) — asserted here on a base-field `options` write.
+#   C3 — an `options` list carrying a DUPLICATE `value` is rejected with a caller-safe
+#        ConfigFieldsCrudError (subclasses ValueError → 400) BEFORE any repository call, so a
+#        duplicate never reaches storage (P4 / R2.4, steering 30).
+#
+# Validates: Requirements 2.1, 2.4, 3.2, 3.3 · Components: C2, C3 (P4), F12
+
+
+# ---------------------------------------------------------------------------
+# C2 — `choices` is no longer an accepted definition attribute
+# ---------------------------------------------------------------------------
+
+
+def test_choices_is_retired_from_the_definition_surface():
+    """C2 (R2.1): `choices` is NOT in the definition surface — the write accepts ONLY `options`."""
+    assert "choices" not in FIELD_DEFINITION_ATTRS
+    assert "options" in FIELD_DEFINITION_ATTRS
+
+
+def test_set_field_rejects_choices_definition_attribute(service):
+    """C2: a `set_field` carrying the retired `choices` attr is rejected out-of-surface — the one
+    canonical vocabulary is `options` (R2.1/R3.3). Rejected BEFORE any repository call."""
+    with pytest.raises(ConfigFieldsCrudError) as exc:
+        service.set_field(
+            _TENANT, "gender", {"choices": [{"value": "man"}, {"value": "vrouw"}]}
+        )
+    assert "choices" in str(exc.value)
+
+
+def test_set_field_options_write_preserves_change_op_and_one_key_contract(service, repo):
+    """C2 (R3.3): an `options` write to a base field places under the STORAGE map `overrides`
+    (served under the wire key `fixed_overrides` — the one-key contract) and remains a Change-Op on
+    a SINGLE path — a whole-entry SET on CREATE, never a whole-row replace.
+
+    `service` has no reader → CREATE verb (one whole-entry SET under `overrides.<dotted>`)."""
+    service.set_field(
+        _TENANT, "gender", {"options": [{"value": "man"}, {"value": "vrouw"}]}
+    )
+    ops = repo.last["ops"]
+    assert ops == [
+        {
+            "action": SET,
+            "path": ["overrides", "personal.gender"],
+            "value": {"options": [{"value": "man"}, {"value": "vrouw"}]},
+        }
+    ], "the write is ONE whole-entry SET addressing the single `overrides.<dotted>` storage path"
+    # The storage map name is `overrides` (NOT the wire key `fixed_overrides`) — the service writes
+    # to storage; the reader serves that same map under `fixed_overrides` (the one-key contract).
+    assert ops[0]["path"][0] == "overrides"
+    assert _CONFIG_ID_FIELDS == "fields"
+
+
+def test_set_field_update_options_emits_single_options_path(repo):
+    """C2 (R3.3): on an EXISTING entry an `options` edit emits exactly ONE per-aspect SET on the
+    `options` path — a single-path Change-Op, no sibling attr and no whole-row replace."""
+    svc = _existing_service(repo, ("fixed_overrides", "membership.status"))
+    svc.set_field(_TENANT, "status", {"options": [{"value": "active"}, {"value": "died"}]})
+    assert repo.last["ops"] == [
+        {
+            "action": SET,
+            "path": ["overrides", "membership.status", "options"],
+            "value": [{"value": "active"}, {"value": "died"}],
+        }
+    ]
+
+
+# ---------------------------------------------------------------------------
+# C3 (P4) — duplicate-`value` `options` list rejected caller-safe before any repo call
+# ---------------------------------------------------------------------------
+
+
+def test_set_field_rejects_duplicate_option_values_before_repo_call(service, repo):
+    """C3 (R2.4): an `options` list with a duplicate `value` is rejected via ConfigFieldsCrudError
+    (→ caller-safe 400) BEFORE any repository call — the duplicate never reaches storage."""
+    with pytest.raises(ConfigFieldsCrudError) as exc:
+        service.set_field(
+            _TENANT,
+            "gender",
+            {"options": [{"value": "man"}, {"value": "vrouw"}, {"value": "man"}]},
+        )
+    # The rejection is a ValueError subclass (the edge maps it to a 400).
+    assert isinstance(exc.value, ValueError)
+    # The server-side-logged detail names the duplicated value; the client sees only a generic msg.
+    assert "man" in str(exc.value)
+    # No write was attempted — the guard fired before any repository call.
+    assert not repo.calls
+
+
+def test_set_field_rejects_duplicate_bare_string_option_values(service, repo):
+    """C3 (R2.4): the duplicate guard also catches bare-string `options` entries (shorthand for
+    `{"value": <string>}`) — rejected before any repository call."""
+    with pytest.raises(ConfigFieldsCrudError):
+        service.set_field(_TENANT, "gender", {"options": ["man", "vrouw", "man"]})
+    assert not repo.calls
+
+
+def test_set_field_accepts_unique_option_values_duplicate_guard_passes(service, repo):
+    """C3: a well-formed `options` list with all-unique values passes the duplicate guard and is
+    written (the guard rejects ONLY genuine duplicates, never a valid vocabulary)."""
+    service.set_field(
+        _TENANT, "gender", {"options": [{"value": "man"}, {"value": "vrouw"}, {"value": "anders"}]}
+    )
+    assert repo.calls, "a unique-valued options list must still be written"
+
+
+# ===========================================================================
+# 03a TASK 7 (C2) — WRITE-SIDE SOURCE-INTEGRITY GUARDS W1 / W3  (W2 REMOVED — Option A)
+# (design "Write-side vocabulary invariants" W1/W3; Property 5)
+# ===========================================================================
+#
+# Because C1 now seeds the editor from `options` IDENTICALLY for every kind, the write edge must
+# stop a stale catalog snapshot being re-frozen inline, and stop an inline-source enum being made
+# selectable with no vocabulary. Two caller-safe rejections (ConfigFieldsCrudError → 400), each
+# BEFORE any repository call (no `str(e)` leak — the reason is server-side-logged):
+#
+#   W1 — a REFERENCE field (the `membership_type` reference key, or a field whose declared `type`
+#        is `reference`) may NOT carry an inline `options` payload. Its options are a snapshot of
+#        the LIVE catalog populated at the read seam (C4); persisting them inline would re-freeze a
+#        stale copy — the two-copies disease on the WRITE side.
+#   W2 — REMOVED (Option A). A scope-backed field is a NORMAL enum for authoring: the write surface
+#        ACCEPTS its inline `options` (the editor round-trips the config#scope dimension's options
+#        back on save — the only authoring path). Its dropdown may ALSO be sourced from the scope
+#        dimension at the C4 read seam (the S5j read path, UNCHANGED). An earlier revision wrongly
+#        added W2, rejecting that only authoring path; it is removed here. A scope-backed field
+#        falls through to W3 like any enum.
+#   W3 — an INLINE-SOURCE enum may NOT be saved selectable with an EXPLICIT empty `options` list
+#        (the write-edge invariant). Scoped to an EXPLICIT `options: []` — staging a field WITHOUT
+#        an `options` key stays legitimate (an absent key never trips W3), which is what makes the
+#        read-time fail-loud discriminator unambiguous.
+#
+# Kind is classified from the payload UNIONED with the field's stored spec in the snapshot (an
+# UPDATE may carry only `options`, so the kind is read from what is already stored when the payload
+# is silent) — mirroring how the read seam classifies reference (MEMBERSHIP_TYPE_FIELD_KEY) and how
+# the resolver carries `scope`.
+#
+# Validates: Requirements 2.1, 2.4, 2.6, 3.2, 3.3 · Components: C2, P5 (W1/W2/W3)
+
+
+from sam.members.domain._membership_errors import MEMBERSHIP_TYPE_FIELD_KEY
+
+
+# ---------------------------------------------------------------------------
+# W1 — reference field rejects an inline `options` payload (→ caller-safe 400)
+# ---------------------------------------------------------------------------
+
+
+def test_w1_reference_field_by_membership_type_key_rejects_inline_options(repo):
+    """W1: the `membership_type` reference field (classified by its reference key, mirroring the
+    read seam's MEMBERSHIP_TYPE_FIELD_KEY check) rejects an inline `options` payload — its
+    vocabulary is the live catalog, never inline. Rejected BEFORE any repository call."""
+    # An existing override entry so the field is observable; the payload carries inline options.
+    svc = _existing_service(repo, ("fixed_overrides", MEMBERSHIP_TYPE_FIELD_KEY))
+    with pytest.raises(ConfigFieldsCrudError) as exc:
+        svc.set_field(
+            _TENANT,
+            "membership_type",
+            {"options": [{"value": "gold"}, {"value": "silver"}]},
+        )
+    assert "reference" in str(exc.value).lower()
+    assert not repo.calls, "W1 must reject BEFORE any repository call"
+
+
+def test_w1_reference_field_by_declared_type_rejects_inline_options(repo):
+    """W1: a field whose declared `type` is `reference` (in the payload) rejects inline options,
+    even for a non-`membership_type` identity."""
+    svc = ConfigFieldsCrudService(repo)
+    with pytest.raises(ConfigFieldsCrudError) as exc:
+        svc.set_field(
+            _TENANT,
+            "some_ref",
+            {"type": "reference", "options": [{"value": "x"}]},
+        )
+    assert "reference" in str(exc.value).lower()
+    assert not repo.calls
+
+
+def test_w1_reference_field_kind_read_from_stored_spec_when_payload_silent(repo):
+    """W1: on an UPDATE whose payload carries ONLY `options` (no `type`), the reference kind is read
+    from the field's STORED spec in the snapshot (`type: reference`) — still rejected."""
+    svc = _service_with_snapshot(
+        repo, fields={"some_ref": {"type": "reference", "label": {"en": "Ref"}}}
+    )
+    with pytest.raises(ConfigFieldsCrudError) as exc:
+        svc.set_field(_TENANT, "some_ref", {"options": [{"value": "x"}]})
+    assert "reference" in str(exc.value).lower()
+    assert not repo.calls
+
+
+def test_w1_reference_field_without_options_is_accepted(repo):
+    """W1 is scoped to an INLINE OPTIONS payload: editing a NON-vocabulary attr (order/label) of a
+    reference field is still allowed — the guard only rejects re-freezing inline options."""
+    svc = _existing_service(repo, ("fixed_overrides", MEMBERSHIP_TYPE_FIELD_KEY))
+    svc.set_field(_TENANT, "membership_type", {"order": 31})
+    assert repo.calls, "a reference field edit that carries no `options` must still be written"
+    assert repo.last["ops"] == [
+        {"action": SET, "path": ["overrides", MEMBERSHIP_TYPE_FIELD_KEY, "order"], "value": 31}
+    ]
+
+
+# ---------------------------------------------------------------------------
+# W2 REMOVED (03a Option A) — scope-backed field ACCEPTS an inline `options` payload
+# ---------------------------------------------------------------------------
+#
+# A scope-backed field is a NORMAL enum for authoring: the editor round-trips the config#scope
+# dimension's options back on save, so `set_field` MUST ACCEPT its inline `options`. (Its dropdown
+# may ALSO be sourced from the config#scope dimension at the C4 read seam — the S5j read path,
+# UNCHANGED.) The former W2 rejection wrongly blocked the only authoring path and is removed; these
+# tests now assert the save is accepted and emits the Change-Op.
+
+
+def test_w2_scope_backed_field_with_inline_options_is_accepted(repo):
+    """Option A: a `set_field` carrying BOTH an enabled `scope` sub-object AND inline `options` is
+    ACCEPTED (W2 removed) — the editor round-trips the scope dimension's options back on save."""
+    svc = ConfigFieldsCrudService(repo)
+    scope_value = copy.deepcopy(_SCOPE_SUBOBJECT)  # enabled=True
+    svc.set_field(
+        _TENANT,
+        "region",
+        {"scope": scope_value, "options": [{"value": "North"}]},
+    )
+    assert repo.calls, "a scope-backed field saved with inline `options` must be written (no W2)"
+    assert repo.last["ops"] == [
+        {
+            "action": SET,
+            "path": ["fields", "region"],
+            "value": {"scope": scope_value, "options": [{"value": "North"}]},
+        }
+    ]
+
+
+def test_w2_scope_backed_field_with_inline_options_accepted_when_payload_silent_on_scope(repo):
+    """Option A: on an UPDATE whose payload carries ONLY `options` (no `scope`), a stored
+    scope-backed field ACCEPTS the inline `options` — W2 removed, no rejection by stored kind."""
+    svc = _service_with_snapshot(
+        repo, fields={"region": {"scope": copy.deepcopy(_SCOPE_SUBOBJECT)}}
+    )
+    svc.set_field(_TENANT, "region", {"options": [{"value": "North"}]})
+    assert repo.calls, "a scope-backed field updated with inline `options` must be written (no W2)"
+    assert repo.last["ops"] == [
+        {
+            "action": SET,
+            "path": ["fields", "region", "options"],
+            "value": [{"value": "North"}],
+        }
+    ]
+
+
+def test_w2_scope_backed_field_without_options_is_accepted(repo):
+    """W2 is scoped to an INLINE OPTIONS payload: carrying `scope` alone (no `options`) is the
+    legitimate way to author a scope axis — accepted and written verbatim."""
+    svc = ConfigFieldsCrudService(repo)
+    scope_value = copy.deepcopy(_SCOPE_SUBOBJECT)
+    svc.set_field(_TENANT, "region", {"scope": scope_value})
+    assert repo.calls, "authoring a scope axis without inline `options` must be accepted"
+    assert repo.last["ops"] == [
+        {"action": SET, "path": ["fields", "region"], "value": {"scope": scope_value}}
+    ]
+
+
+def test_w2_disabled_scope_is_not_scope_backed(repo):
+    """W2: a `scope` sub-object with `enabled: False` is NOT an enabled scope axis, so it does not
+    make the field scope-backed — an inline enum with that disabled scope is handled by W3, not W2
+    (here with non-empty options it is a clean inline-enum write)."""
+    svc = ConfigFieldsCrudService(repo)
+    svc.set_field(
+        _TENANT,
+        "maybe_scope",
+        {"type": "enum", "scope": {"enabled": False}, "options": [{"value": "a"}]},
+    )
+    assert repo.calls, "a disabled-scope inline enum with non-empty options is a clean write"
+
+
+# ---------------------------------------------------------------------------
+# W3 — inline-source enum rejects an EXPLICIT empty `options` payload (→ 400)
+# ---------------------------------------------------------------------------
+
+
+def test_w3_inline_enum_with_explicit_empty_options_is_rejected(repo):
+    """W3: an inline-source enum (declared `type: enum`) saved selectable with an EXPLICIT empty
+    `options` list is rejected — the write-edge invariant (an inline enum cannot read back empty
+    unless the vocabulary failed to propagate). Rejected BEFORE any repository call."""
+    svc = ConfigFieldsCrudService(repo)
+    with pytest.raises(ConfigFieldsCrudError) as exc:
+        svc.set_field(_TENANT, "shirt_size", {"type": "enum", "options": []})
+    msg = str(exc.value).lower()
+    assert "enum" in msg and "options" in msg
+    assert not repo.calls, "W3 must reject BEFORE any repository call"
+
+
+def test_w3_inline_enum_kind_read_from_stored_spec_when_payload_silent(repo):
+    """W3: on an UPDATE whose payload carries ONLY an explicit empty `options` (no `type`), the
+    inline-enum kind is read from the STORED spec (`type: enum`) — still rejected."""
+    svc = _service_with_snapshot(repo, fields={"shirt_size": {"type": "enum"}})
+    with pytest.raises(ConfigFieldsCrudError):
+        svc.set_field(_TENANT, "shirt_size", {"options": []})
+    assert not repo.calls
+
+
+def test_w3_legitimate_staging_without_options_key_does_not_reject(repo):
+    """W3 is scoped to an EXPLICIT empty `options`: staging an inline enum WITHOUT an `options` key
+    (authoring its label/order first, adding the vocabulary later) is legitimate and NOT rejected —
+    an ABSENT `options` key never trips W3."""
+    svc = ConfigFieldsCrudService(repo)
+    svc.set_field(_TENANT, "shirt_size", {"type": "enum", "label": {"en": "Shirt size"}})
+    assert repo.calls, "staging an enum without an `options` key must be accepted (W3 scope)"
+
+
+def test_w3_inline_enum_with_non_empty_options_is_accepted(repo):
+    """W3: an inline enum saved with a NON-EMPTY `options` list satisfies the write-edge invariant
+    and is written — the guard rejects ONLY an explicitly-empty vocabulary."""
+    svc = ConfigFieldsCrudService(repo)
+    svc.set_field(
+        _TENANT,
+        "shirt_size",
+        {"type": "enum", "options": [{"value": "s"}, {"value": "m"}]},
+    )
+    assert repo.calls, "an inline enum with a non-empty options list must be written"
+
+
+def test_w3_unknown_kind_explicit_empty_options_not_rejected(repo):
+    """W3 fires only when the field is KNOWN to be an inline enum (payload/stored `type: enum`): an
+    explicit empty `options` on a field of UNKNOWN kind (no `type` anywhere, not reference, not
+    scope) is NOT rejected by W3 — the guard does not guess a kind it cannot observe. (This is the
+    conservative create-vs-update scoping: W3 targets an enum being made selectable, which implies
+    a known enum type.)"""
+    svc = ConfigFieldsCrudService(repo)
+    svc.set_field(_TENANT, "mystery", {"options": []})
+    assert repo.calls, "an explicit empty options on an unknown-kind field is not a W3 violation"

@@ -1,26 +1,25 @@
 """
-S5 Task 4.2 — the h-dcn **Lidmaatschap Beheer** catalog seed DATA + a pure planner (R2.4,
-R4.1 Rung 1 — config/data; design C8; "generic core stays tenant-agnostic", Property 5).
+S5 Task 4.2 — the h-dcn **Lidmaatschap Beheer** membership-type seed DATA (R2.4, R4.1 Rung 1 —
+config/data; design C8; "generic core stays tenant-agnostic", Property 5).
 
-The Lidmaatschap Beheer catalog is a tenant-scoped, empty-by-default managed catalog of
-membership types (design C8). The generic module core ships it EMPTY and tenant-agnostic —
-there is **no** ``if tenant == "h-dcn"`` anywhere in the core. h-dcn's own membership types
-(Erelid / Donateur / Sponsor / Gewoon lid) are **tenant DATA**, seeded here exactly like the
-field overlay (task 1.2), the scope config (task 1.3), and the member backfill (task 4.1).
-This module is the one legitimate place the pilot literal ``"h-dcn"`` and h-dcn's type values
-live — it is seed data, not engine logic.
+h-dcn's own membership types (Erelid / Donateur / Sponsor / Gewoon lid / …) are **tenant
+DATA** — the canonical, importable vocabulary. The generic module core ships tenant-agnostic:
+there is **no** ``if tenant == "h-dcn"`` anywhere in the core. This module is the one
+legitimate place the pilot literal ``"h-dcn"`` and h-dcn's type values live — it is seed data,
+not engine logic.
 
-Two concerns are split so the seed set is unit-testable without any live system:
+> **03b note.** Membership types are no longer a separate `membershiptype#` CATALOG seeded via
+> a repository write path. Under the unified enum model they are the `membership_type` field's
+> own inline `options` (the EXPAND migration `membership_type_catalog_to_field_options.py` folds
+> this seed data onto the field). So this module now carries ONLY the importable seed DATA +
+> its import-time coverage guard — the old pure planner (`build_seed_plan` / `CatalogSeedPlan`)
+> and the `seed-hdcn-catalog.py` runner that wrote via the retired `save_membership_type` were
+> removed with the catalog apparatus (Task 10.5). :data:`HDCN_MEMBERSHIP_TYPES` is still
+> consumed by the parity harness and the EXPAND migration as the source vocabulary.
 
-1. **The seed DATA** — :data:`HDCN_MEMBERSHIP_TYPES`, an importable tuple of
-   :class:`MembershipTypeEntry` (``tenant_id="h-dcn"``, ``active=True``, real nl/en labels,
-   sensible ``order``). Reusable + assertable; lives in the migration module, NOT the domain
-   core.
-
-2. **A pure planner** — :func:`build_seed_plan` diffs the seed set against what a repository
-   already holds (via ``list_membership_types``) and returns a :class:`CatalogSeedPlan`
-   classifying each entry as *create* / *update* / *unchanged*. It performs NO writes; the
-   runner renders it (dry-run) or applies it via ``save_membership_type``.
+**The seed DATA** — :data:`HDCN_MEMBERSHIP_TYPES`, an importable tuple of
+:class:`MembershipTypeEntry` (``tenant_id="h-dcn"``, ``active=True``, real nl/en labels,
+sensible ``order``). Reusable + assertable; lives in the migration module, NOT the domain core.
 
 **Single source of truth for the ``type_code`` set.** The member backfill (task 4.1) maps
 h-dcn's free-text type labels to catalog codes via
@@ -37,9 +36,6 @@ deactivates or deletes; a re-seed is an idempotent upsert.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, replace
-
 from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.migration.hdcn_backfill import HDCN_TENANT_ID, MembershipTypeMapper
 
@@ -47,9 +43,6 @@ __all__ = [
     "BACKFILL_EMITTABLE_CODES",
     "HDCN_MEMBERSHIP_TYPES",
     "HDCN_TENANT_ID",
-    "CatalogSeedPlan",
-    "SeedItem",
-    "build_seed_plan",
 ]
 
 
@@ -111,9 +104,13 @@ def _validate_seed_set() -> None:
                 f"seed entry {entry.type_code!r} is not owned by {HDCN_TENANT_ID!r}"
             )
         if not entry.active:
-            raise AssertionError(f"seed entry {entry.type_code!r} must be active when seeded")
+            raise AssertionError(
+                f"seed entry {entry.type_code!r} must be active when seeded"
+            )
         if entry.type_code in seen:
-            raise AssertionError(f"duplicate type_code in seed set: {entry.type_code!r}")
+            raise AssertionError(
+                f"duplicate type_code in seed set: {entry.type_code!r}"
+            )
         seen.add(entry.type_code)
 
     missing = BACKFILL_EMITTABLE_CODES - seen
@@ -127,90 +124,3 @@ def _validate_seed_set() -> None:
 # Enforce the invariants at import time — the seed is DATA, so a drift is a hard error here
 # rather than a surprise at apply-time or a dangling member reference in production.
 _validate_seed_set()
-
-
-# ── The seed plan (what the runner renders / applies) ─────────────────────────────────
-
-
-@dataclass(frozen=True)
-class SeedItem:
-    """One seed entry paired with what would happen to it: create / update / unchanged."""
-
-    entry: MembershipTypeEntry
-    action: str  # "create" | "update" | "unchanged"
-
-
-@dataclass
-class CatalogSeedPlan:
-    """The result of diffing the seed set against a repository's current catalog.
-
-    A pure, in-memory plan: in dry-run the runner renders it and writes NOTHING; only with
-    ``--apply`` does it upsert the ``create``/``update`` items via ``save_membership_type``.
-    Idempotent: a re-seed after a full apply yields all ``unchanged`` (nothing to write).
-    """
-
-    tenant_id: str
-    items: list[SeedItem] = field(default_factory=list)
-
-    @property
-    def to_create(self) -> list[MembershipTypeEntry]:
-        return [i.entry for i in self.items if i.action == "create"]
-
-    @property
-    def to_update(self) -> list[MembershipTypeEntry]:
-        return [i.entry for i in self.items if i.action == "update"]
-
-    @property
-    def unchanged(self) -> list[MembershipTypeEntry]:
-        return [i.entry for i in self.items if i.action == "unchanged"]
-
-    @property
-    def to_write(self) -> list[MembershipTypeEntry]:
-        """Every entry that would be persisted (create + update) — nothing in dry-run."""
-        return [i.entry for i in self.items if i.action in ("create", "update")]
-
-
-def _same_entry(a: MembershipTypeEntry, b: MembershipTypeEntry) -> bool:
-    """True if two entries carry the same seedable content (code / label / active / order)."""
-    return (
-        a.type_code == b.type_code
-        and dict(a.label) == dict(b.label)
-        and bool(a.active) == bool(b.active)
-        and int(a.order) == int(b.order)
-    )
-
-
-def build_seed_plan(
-    existing: Sequence[MembershipTypeEntry],
-    *,
-    seed: Sequence[MembershipTypeEntry] = HDCN_MEMBERSHIP_TYPES,
-    tenant_id: str = HDCN_TENANT_ID,
-) -> CatalogSeedPlan:
-    """Diff the seed set against a tenant's current catalog into a :class:`CatalogSeedPlan`.
-
-    Pure + non-destructive — it reads ``existing`` (what ``list_membership_types`` returned)
-    and classifies each seed entry:
-
-    - **create** — no catalog entry with this ``type_code`` exists yet;
-    - **update** — an entry exists but differs (label/active/order changed);
-    - **unchanged** — an identical entry already exists (a re-seed writes nothing).
-
-    Existing catalog entries NOT in the seed are left untouched (never reported for delete —
-    soft-delete/retire is a separate management action, C8).
-    """
-    by_code: Mapping[str, MembershipTypeEntry] = {e.type_code: e for e in existing}
-    plan = CatalogSeedPlan(tenant_id=tenant_id)
-    for entry in seed:
-        # Stamp every seed entry with the PLAN's tenant so the seed set can be applied to any
-        # administration (no hardcoded tenant on the runner) and the repository's no-cross-
-        # tenant-write guard (Property 1) is satisfied — the entry and the caller agree.
-        entry = replace(entry, tenant_id=tenant_id)
-        current = by_code.get(entry.type_code)
-        if current is None:
-            action = "create"
-        elif _same_entry(current, entry):
-            action = "unchanged"
-        else:
-            action = "update"
-        plan.items.append(SeedItem(entry=entry, action=action))
-    return plan

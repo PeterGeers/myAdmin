@@ -347,9 +347,20 @@ def test_field_config_surface_unaffected(codes):
     not here; this facet pins everything ELSE stays identical.)
     """
     repo = FakeCatalogRepository()
-    for i, code in enumerate(codes):
-        repo.add_type(TENANT, _entry(TENANT, code, order=(i + 1) * 10))
-    service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+    # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as the field's OWN inline
+    # options (the catalog is retired). Author the generated codes as inline options on the
+    # `membership.membership_type` field for the tenant under test only — a different tenant
+    # authors none, so the surface stays tenant-scoped.
+    mt_options = tuple(
+        EnumOption(value=code, label={"nl": code, "en": code}, allowed=True, order=(i + 1) * 10)
+        for i, code in enumerate(codes)
+    )
+    overlay = TenantOverlay(
+        overrides={"membership.membership_type": FixedFieldOverride(options=mt_options)}
+    )
+    service = MembershipService(
+        repo, overlay_provider=StaticOverlayProvider({TENANT: overlay})
+    )
 
     config = service.get_field_config(TENANT)
 
@@ -360,13 +371,18 @@ def test_field_config_surface_unaffected(codes):
     assert ("membership", "membership_type") in keys
     assert ("personal", "gender") in keys  # the open-enum precedent is still surfaced
 
-    # membership_type options == the active catalog, presentation-ordered (design C8, unchanged)
-    option_values = [o["value"] for o in config["membership_type_options"]]
+    # membership_type options ride ON the field (03b CONTRACT — the field's own inline options,
+    # no standalone feed, no catalog), presentation-ordered.
+    mt = next(f for f in config["fields"] if f["key"] == "membership_type")
+    option_values = [o["value"] for o in mt["options"]]
     assert set(option_values) == set(codes)
 
-    # structural tenant isolation at the config surface: another tenant sees none of these types
+    # structural tenant isolation at the config surface: a tenant that authored NO inline
+    # membership_type options sees an empty source → the assembly seam returns None (not a
+    # catalog-derived list — the catalog is retired).
     other = service.get_field_config("other-tenant")
-    assert other["membership_type_options"] == []
+    other_mt = next(f for f in other["fields"] if f["key"] == "membership_type")
+    assert other_mt["options"] is None
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -394,17 +410,19 @@ def test_invariant_variable_field_cannot_collide_with_a_fixed_key():
         _resolve(overlay)
 
 
-def test_invariant_cannot_loosen_a_platform_required_fixed_field():
-    """3.5: an override that makes a platform-required fixed field optional still fails fast.
+def test_overlay_may_loosen_a_platform_required_fixed_field():
+    """03b Req 1.1/1.4: an override that makes a platform-required fixed field optional is NO
+    LONGER rejected — the no-relax Hardcoded_Binding overruled the admin and is removed.
 
-    ``personal.last_name`` is platform-required; an override setting ``required=False`` must be
-    rejected. EXPECTED (unfixed AND fixed): PASS (raises :class:`OverlayError`).
+    ``personal.last_name`` is platform-required; an override setting ``required=False`` now
+    resolves WITHOUT :class:`OverlayError`, and the resolved field is optional.
     """
     overlay = TenantOverlay(
         overrides={"personal.last_name": FixedFieldOverride(required=False)}
     )
-    with pytest.raises(OverlayError):
-        _resolve(overlay)
+    resolved = _resolve(overlay).field("personal.last_name")
+    assert resolved is not None
+    assert resolved.required is False
 
 
 @settings(max_examples=25)

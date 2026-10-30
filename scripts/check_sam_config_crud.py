@@ -11,10 +11,12 @@ partial-overlay-overwrites-full-record defect (root-cause-analysis.md):
 
   (a) A RAW GOVERNANCE-TABLE WRITE OUTSIDE THE CHANGE-OP WRITE REPOSITORY — a
       ``.put_item(`` / ``.update_item(`` / ``.delete_item(`` call in a ``sam/**`` PRODUCT
-      module that writes the GOVERNANCE PROJECTION table, other than the two sanctioned
+      module that writes the GOVERNANCE PROJECTION table, other than the sanctioned
       sites (the Change-Op write repository
-      ``sam/members/repository/projection_config_write_repository.py`` and the one-time C6
-      LIST->MAP migration ``sam/members/migration/functional_groups_list_to_map.py``). The
+      ``sam/members/repository/projection_config_write_repository.py``, the one-time C6
+      LIST->MAP migration ``sam/members/migration/functional_groups_list_to_map.py``, and the
+      one-time C6 membership_type EXPAND migration
+      ``sam/members/migration/membership_type_catalog_to_field_options.py`` — spec 03b Task 7.2). The
       whole-record ``put_item`` replace must stay an INTERNAL primitive only those sites
       build the item with — a new raw write anywhere else is exactly how a whole-record
       replace would sneak back onto the client-reachable path (R1.5 / R11.1 / R11.2a).
@@ -35,9 +37,50 @@ partial-overlay-overwrites-full-record defect (root-cause-analysis.md):
       two-map/dotted-key layout must never cross the repository boundary into a response or
       the frontend (steering 39 resolved-view contract; R2.3 / R11.2b).
 
+On top of those two ORIGINAL (blocking) spec-03 checks, this guard carries THREE
+ANTI-REINTRODUCTION rules from spec ``03a - enum-vocab-roundtrip-and-no-silent-fallbacks``
+(design C8; requirement R2.7). They prevent the retired two-names (``choices`` vs ``options``)
+vocabulary paths and the scope ``values``-vs-``options`` divergence from creeping back:
+
+  (a) A ``choices`` VOCABULARY KEY ON THE config#fields WRITE PATH — ``"choices"`` appearing as
+      an element of a definition-attribute set/frozenset (the ``FIELD_DEFINITION_ATTRS`` shape)
+      or as a dict-literal KEY in a write payload, in a write-surface module
+      (``config_fields_crud_service.py`` / ``config_write_service.py``). ``choices`` was retired
+      (03a C2) — the write surface accepts only the one canonical ``options`` vocabulary. (The
+      one-time ``remove_legacy_choices`` migration op naming ``"choices"`` as a REMOVE PATH
+      SEGMENT — a list element — or in a ``"choices" not in stored`` membership check is NOT a
+      set element / dict key, so it does not trip this rule.)
+
+  (b) AN ``options or choices`` / ``choices or options`` FALLBACK EXPRESSION in a reader /
+      resolver / serializer, OR a read of the stored ``choices`` key as a FALLBACK VOCABULARY
+      SOURCE (``spec.get("choices")`` / ``…get("choices")``) in the write-side subset validator.
+      This covers the retired ``_serialize_field`` fallback (F9), the ``_public_field_options``
+      fallback (F10), and the write-side ``_field_choice_values`` coalesce (F12 — migrated to
+      ``options``-only, not allow-listed). NOTE: a ``field.choices`` read that FAILS LOUD (feeds
+      an ``UnpropagatedVocabularyError`` raise, the C6 asymmetry boundary) or a legitimate
+      bare-value helper is NOT a ``X or Y`` coalesce and is NOT flagged — only the coalesce
+      shape and the write-side ``get("choices")`` source read are.
+
+  (d) ``FieldScope.values`` POPULATED INDEPENDENTLY OF ``options`` — a ``FieldScope(values=…)``
+      construction (or an assignment to a ``.values`` attribute of a scope object), rather than
+      ``values`` being the DERIVED read-only projection ``[o.value for o in options]`` (F7/G2).
+      Re-splitting the scope vocabulary into two stored copies is exactly the
+      ``FieldScope(values=())`` divergence (bug manifestation #2) the fix removed by construction.
+
+  (Rule (c) — a per-field-KIND AST branch check — was DROPPED by the 03a design: it needed two
+  carve-outs → false-positive risk; its invariant is covered by a behavioral test (task 9b),
+  not a blocking AST rule.)
+
+**ROLLOUT — rules (a)(b)(d) are now BLOCKING (03a task 12).** They were introduced REPORT-ONLY
+in 03a task 10 (emit findings, do not change the exit code), and have now been FLIPPED to
+BLOCKING — only AFTER the fix (C7 + C1–C6) landed and the tree was confirmed clean (design G6 —
+never redden a valid in-flight state on day one). A finding on rule (a), (b), or (d) now fails
+the build (exit 1) exactly like the two ORIGINAL spec-03 checks (a=raw governance write,
+b=raw-shape response key), via the same exit-code mechanism.
+
 Detection is AST-based (``ast``), so a comment or docstring that merely MENTIONS
-``put_item`` or ``field_overlay`` does not trip the guard — only real code does. This
-mirrors ``sam/tests/test_handler_repository_boundary.py``.
+``put_item`` / ``field_overlay`` / ``choices`` does not trip the guard — only real code does.
+This mirrors ``sam/tests/test_handler_repository_boundary.py``.
 
 Allow-list discipline (steering 39): a NEW sanctioned site is added to ``ALLOWED_*`` in a
 REVIEWED change — NEVER by suppressing the guard (``--no-verify`` is not the path).
@@ -47,7 +90,8 @@ Usage::
     python scripts/check_sam_config_crud.py            # full scan of SCAN_DIRS (CI)
     python scripts/check_sam_config_crud.py [path ...]  # check only the given files (hook)
 
-Exit code 0 = clean, 1 = violations found.
+Exit code 0 = clean, 1 = violations found. ALL rules are now blocking: the two original
+spec-03 checks AND the three 03a anti-reintroduction rules (a/b/d) each cause a non-zero exit.
 """
 
 from __future__ import annotations
@@ -63,8 +107,14 @@ __all__ = [
     "RESPONSE_SHAPE_ALLOWED_FILES",
     "SCAN_DIRS",
     "EXCLUDED_DIRS",
+    # 03a anti-reintroduction rules (a)(b)(d) — report-only this increment.
+    "VOCAB_KEY",
+    "WRITE_PATH_FILES",
+    "VOCAB_CONSUMER_DIRS",
     "check_file",
+    "check_file_report_only",
     "scan_directory",
+    "scan_directory_report_only",
     "main",
 ]
 
@@ -85,13 +135,19 @@ RAW_WRITE_METHODS = frozenset({"put_item", "update_item", "delete_item"})
 #:     C6 create/migration primitive (``put_config`` / ``ensure_skeleton``) and ``update_item``
 #:     is the runtime Change-Op path (``apply_ops``); and
 #:   * the one-time C6 LIST->MAP migration backfill (design C6 / task 2.0), which is the OTHER
-#:     sanctioned whole-row ``put_item`` (R1.5 explicitly keeps the migration as a primitive).
+#:     sanctioned whole-row ``put_item`` (R1.5 explicitly keeps the migration as a primitive); and
+#:   * the one-time C6 membership_type EXPAND migration (spec 03b Task 7.2 — fold each tenant's
+#:     ``membershiptype#<code>`` catalog into the ``membership_type`` field's enum ``options`` and
+#:     drop the forbidden ``choices`` residue), the SAME sanctioned whole-row ``put_item`` migration
+#:     primitive as the LIST->MAP backfill — a legitimate one-time EXPAND fold, gated behind the
+#:     runbook's ``--apply --i-have-a-restore-point`` affirmations.
 #: No other product module may write the governance table directly. A new sanctioned writer is
 #: a REVIEWED addition here — never a guard suppression (steering 39).
 RAW_WRITE_ALLOWED_FILES = frozenset(
     {
         "sam/members/repository/projection_config_write_repository.py",
         "sam/members/migration/functional_groups_list_to_map.py",
+        "sam/members/migration/membership_type_catalog_to_field_options.py",
     }
 )
 
@@ -156,6 +212,45 @@ EXCLUDED_DIRS = frozenset(
 #: The tree this guard scans in full-scan (CI) mode — the SAM plane only (R11.2 is a
 #: SAM-plane rule; the Flask DB-access guards cover ``backend/``).
 SCAN_DIRS = ("sam",)
+
+# ──────────────────────────────────────────────────────────────────────────────────
+# 03a — anti-reintroduction rules (a)(b)(d). Now BLOCKING (design C8, R2.7; 03a task 12):
+# a finding on any of the three fails the build (exit 1), via the same exit-code mechanism as
+# the two original spec-03 checks. They were introduced report-only (task 10) and flipped here
+# once the fix (C7 + C1-C6) landed and the tree was confirmed clean (G6). The dedicated
+# check_file_report_only / scan_directory_report_only entry points are RETAINED (kept separate
+# from the spec-03 check_file so each rule family can be exercised independently in tests).
+# ──────────────────────────────────────────────────────────────────────────────────
+
+#: The retired legacy vocabulary attribute name. ``choices`` was the bare value list; the one
+#: canonical vocabulary is now ``options`` (rich ``[{value, label?, roles?}]``). Every 03a rule
+#: keys off this single token so the three rules stay in lockstep on what "the old name" is.
+VOCAB_KEY = "choices"
+
+#: Rule (a) scope — the config#fields WRITE-SURFACE modules. A ``choices`` vocabulary KEY (a
+#: definition-attr set element or a write-payload dict key) in one of these is the reintroduction
+#: of ``choices`` onto the write path (03a C2, retired). Repo-root-relative POSIX suffixes.
+#: NOTE: ``config_fields_crud_service.py`` legitimately contains ``remove_legacy_choices`` (the
+#: one-time migration op) which names ``"choices"`` only as a REMOVE PATH SEGMENT (a list element)
+#: and in a ``"choices" not in stored`` membership Compare — neither is a Set element or a Dict
+#: key, so rule (a) does not flag the sanctioned migration op.
+WRITE_PATH_FILES = frozenset(
+    {
+        "sam/members/domain/config_fields_crud_service.py",
+        "sam/members/domain/config_write_service.py",
+    }
+)
+
+#: Rule (b) scope — the vocabulary CONSUMER layer (readers, resolvers, serializers, and the
+#: write-side subset validator) where an ``options or choices`` / ``choices or options`` coalesce
+#: or a ``get("choices")`` fallback-source read would reintroduce the two-names fallback
+#: (F9/F10/F12). Anchored on the Members domain + repository packages. A ``field.choices`` read
+#: that is NOT a coalesce (e.g. the C6 fail-loud ``if field.choices: raise …``, or a bare-value
+#: helper) is left alone — rule (b) detects only the two retired SHAPES.
+VOCAB_CONSUMER_DIRS = (
+    "sam/members/domain/",
+    "sam/members/repository/",
+)
 
 
 def _rel_posix(filepath: Path) -> str:
@@ -320,11 +415,219 @@ def _is_dotted_group_key(value: str) -> bool:
     return left.isidentifier() and right.isidentifier()
 
 
+# ──────────────────────────────────────────────────────────────────────────────────
+# 03a rule (a) — a ``choices`` vocabulary key on the config#fields WRITE path.
+# ──────────────────────────────────────────────────────────────────────────────────
+
+
+def _is_in_write_path_file(rel: str) -> bool:
+    """True if ``rel`` is one of the config#fields WRITE-SURFACE modules rule (a) scans."""
+    return _matches_rel(rel, WRITE_PATH_FILES)
+
+
+def _set_literal_string_elements(tree: ast.AST):
+    """Yield (string element, lineno) for every ``{...}`` set / ``frozenset({...})`` element.
+
+    Covers the ``FIELD_DEFINITION_ATTRS = frozenset({...})`` write-definition-attr shape: a
+    ``choices`` token re-added as a definition attr is a set element of such a literal. A list or
+    tuple is deliberately NOT inspected here — a ``["<map>", "<key>", "choices"]`` REMOVE PATH
+    (the sanctioned ``remove_legacy_choices`` op) is a list, so it never trips rule (a).
+    """
+    for node in ast.walk(tree):
+        # Bare set display: {"a", "b"}
+        if isinstance(node, ast.Set):
+            for elt in node.elts:
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                    yield elt.value, elt.lineno
+        # frozenset({...}) / set({...}) — the set display rides as the call arg (handled above
+        # when ast.walk reaches the inner ast.Set), so no extra handling is needed here.
+
+
+def _check_write_path_choices(tree: ast.AST, rel: str) -> list[str]:
+    """Rule (a): a ``choices`` vocabulary key on the config#fields WRITE path (03a C2).
+
+    Flags ``"choices"`` as (1) an element of a definition-attr SET/frozenset literal (the
+    ``FIELD_DEFINITION_ATTRS`` shape) or (2) a dict-literal KEY in a write payload, in a
+    write-surface module. A path-segment list element or a membership ``Compare`` is NOT flagged
+    (so the sanctioned ``remove_legacy_choices`` migration op is clean).
+    """
+    if not _is_in_write_path_file(rel):
+        return []
+    violations: list[str] = []
+    seen: set = set()  # (lineno) dedupe so a key present in both a set and a dict is one finding
+    for value, lineno in _set_literal_string_elements(tree):
+        if value == VOCAB_KEY and lineno not in seen:
+            seen.add(lineno)
+            violations.append(
+                f"{rel}:{lineno}: retired vocabulary key {VOCAB_KEY!r} re-added as a "
+                f"definition attribute on the config#fields WRITE path — the write surface "
+                f"accepts ONLY the one canonical 'options' vocabulary ('choices' was retired, "
+                f"03a C2 / R2.1). [03a rule (a)]"
+            )
+    for value, lineno in _dict_key_strings(tree):
+        if value == VOCAB_KEY and lineno not in seen:
+            seen.add(lineno)
+            violations.append(
+                f"{rel}:{lineno}: retired vocabulary key {VOCAB_KEY!r} as a dict key in a "
+                f"config#fields WRITE payload — the write surface persists ONLY 'options' "
+                f"('choices' was retired, 03a C2 / R2.1). [03a rule (a)]"
+            )
+    return violations
+
+
+# ──────────────────────────────────────────────────────────────────────────────────
+# 03a rule (b) — an ``options or choices`` / ``choices or options`` fallback coalesce, or a
+# ``get("choices")`` fallback-source read, in the vocabulary consumer layer.
+# ──────────────────────────────────────────────────────────────────────────────────
+
+
+def _is_vocab_consumer_file(rel: str) -> bool:
+    """True if ``rel`` is in the reader/resolver/serializer/validator layer rule (b) scans."""
+    return any(seg in rel for seg in VOCAB_CONSUMER_DIRS)
+
+
+def _names_vocab_attr(node: ast.AST, attr: str) -> bool:
+    """True if ``node`` reads a ``…choices`` / ``…options`` vocabulary.
+
+    Matches two shapes that denote a vocabulary of name ``attr`` (``choices`` or ``options``):
+      * attribute access ``X.<attr>`` (e.g. ``field.choices``, ``field.options``), or
+      * a ``.get("<attr>")`` call (e.g. ``spec.get("choices")``, ``spec.get("options")``).
+    A bare ``Name`` (local variable ``choices``) is deliberately NOT matched — the retired shapes
+    are always a vocabulary READ off a field/spec object, and matching bare names would flag a
+    legitimately-named local.
+    """
+    if isinstance(node, ast.Attribute) and node.attr == attr:
+        return True
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "get"
+        and len(node.args) >= 1
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == attr
+    ):
+        return True
+    return False
+
+
+def _check_vocab_fallback(tree: ast.AST, rel: str) -> list[str]:
+    """Rule (b): the retired ``options``/``choices`` fallback shapes (F9/F10/F12).
+
+    Two detections, both in the consumer layer only:
+      (b1) a ``BoolOp(Or)`` whose operands read BOTH an ``options`` vocabulary AND a ``choices``
+           vocabulary — the ``options or choices`` / ``choices or options`` coalesce; and
+      (b2) a ``…get("choices")`` read as a vocabulary SOURCE — the F12 write-side
+           ``spec.get("choices")`` coalesce shape (migrated to ``options``-only).
+    A ``field.choices`` attribute read that is NOT part of an ``or`` coalesce (e.g. the C6
+    ``if field.choices: raise UnpropagatedVocabularyError(...)`` fail-loud) is NOT flagged — only
+    the coalesce and the ``get("choices")`` source read are.
+    """
+    if not _is_vocab_consumer_file(rel):
+        return []
+    violations: list[str] = []
+    seen: set = set()
+    for node in ast.walk(tree):
+        # (b1) options-or-choices / choices-or-options coalesce.
+        if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or):
+            has_choices = any(_names_vocab_attr(v, VOCAB_KEY) for v in node.values)
+            has_options = any(_names_vocab_attr(v, "options") for v in node.values)
+            if has_choices and has_options and node.lineno not in seen:
+                seen.add(node.lineno)
+                violations.append(
+                    f"{rel}:{node.lineno}: retired 'options or choices' / 'choices or options' "
+                    f"vocabulary fallback coalesce — read the ONE canonical 'options' the "
+                    f"read-assembly seam populates; the legacy 'choices' coalesce is retired "
+                    f"(03a F1/F9/F10/F12 / R2.3). [03a rule (b)]"
+                )
+        # (b2) get("choices") read as a vocabulary SOURCE (the F12 write-side coalesce shape).
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "get"
+            and len(node.args) >= 1
+            and isinstance(node.args[0], ast.Constant)
+            and node.args[0].value == VOCAB_KEY
+            and node.lineno not in seen
+        ):
+            seen.add(node.lineno)
+            violations.append(
+                f"{rel}:{node.lineno}: read of the retired stored {VOCAB_KEY!r} key as a "
+                f"vocabulary source — the subset validator / serializer must read the ONE "
+                f"canonical 'options' (F12 migrated to 'options'-only, 03a R2.1). [03a rule (b)]"
+            )
+    return violations
+
+
+# ──────────────────────────────────────────────────────────────────────────────────
+# 03a rule (d) — ``FieldScope.values`` populated independently of ``options``.
+# ──────────────────────────────────────────────────────────────────────────────────
+
+
+def _check_scope_values_independence(tree: ast.AST, rel: str) -> list[str]:
+    """Rule (d): ``FieldScope.values`` populated independently of ``options`` (F7/G2).
+
+    ``FieldScope.values`` must be the DERIVED read-only projection ``[o.value for o in options]``
+    — never a stored second copy. Two reintroduction shapes are flagged (consumer layer only):
+      * a ``FieldScope(values=…)`` construction (passing ``values`` as its own stored value), and
+      * an assignment to a ``.values`` attribute of a scope object (``field.scope.values = …`` /
+        ``scope.values = …``), re-splitting the vocabulary into two copies.
+    Both are exactly the ``FieldScope(values=())`` divergence the fix removed by construction. The
+    read-only ``@property values`` on ``FieldScope`` (its single derivation point) is a function
+    def, not a call keyword or an assignment target, so it is NOT flagged.
+    """
+    if not _is_vocab_consumer_file(rel):
+        return []
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        # FieldScope(values=...) — an independent stored vocabulary copy on construction.
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "FieldScope"
+        ):
+            for kw in node.keywords:
+                if kw.arg == "values":
+                    violations.append(
+                        f"{rel}:{node.lineno}: FieldScope(values=…) populates scope 'values' "
+                        f"INDEPENDENTLY of 'options' — 'values' must be the DERIVED projection "
+                        f"[o.value for o in options], never a stored second copy (the "
+                        f"FieldScope(values=()) divergence, 03a F7/G2 / R2.6). [03a rule (d)]"
+                    )
+        # <scope>.values = ... — assigning the vocabulary as a stored sibling of options.
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Attribute) and target.attr == "values":
+                    violations.append(
+                        f"{rel}:{node.lineno}: assignment to scope '.values' populates it "
+                        f"INDEPENDENTLY of 'options' — 'values' must be the DERIVED projection "
+                        f"[o.value for o in options], never a stored second copy "
+                        f"(03a F7/G2 / R2.6). [03a rule (d)]"
+                    )
+    return violations
+
+
+def _report_only_findings(tree: ast.AST, rel: str) -> list[str]:
+    """Aggregate the 03a rules (a)(b)(d) for one parsed file.
+
+    Kept as a SEPARATE entry point from :func:`check_file` so the three 03a rules can be
+    exercised independently in tests. Both families are now BLOCKING in ``main`` (03a task 12
+    flipped these from report-only); the function name is retained for API stability.
+    """
+    findings: list[str] = []
+    findings.extend(_check_write_path_choices(tree, rel))       # (a)
+    findings.extend(_check_vocab_fallback(tree, rel))           # (b)
+    findings.extend(_check_scope_values_independence(tree, rel))  # (d)
+    return findings
+
+
 def check_file(filepath: Path) -> list[str]:
-    """Return the list of violation messages for a single ``.py`` file (both checks).
+    """Return the BLOCKING violation messages for a single ``.py`` file (the two spec-03 checks).
 
     A file that cannot be parsed (syntax error, permission, encoding) yields no violations —
     the guard is a lint, not a compiler, and a genuinely broken file surfaces elsewhere.
+
+    This returns ONLY the blocking spec-03 findings (raw governance write / raw-shape response
+    key). The 03a report-only rules (a)(b)(d) are returned by :func:`check_file_report_only`.
     """
     rel = _rel_posix(filepath)
     try:
@@ -339,6 +642,23 @@ def check_file(filepath: Path) -> list[str]:
     return violations
 
 
+def check_file_report_only(filepath: Path) -> list[str]:
+    """Return the 03a rule (a/b/d) findings for a single ``.py`` file.
+
+    A SEPARATE entry point from :func:`check_file` so the three 03a rules can be exercised
+    independently; both families are now BLOCKING in ``main`` (03a task 12). The name is
+    retained for API stability. A file that cannot be parsed yields no findings (same
+    lint-not-compiler contract as check_file).
+    """
+    rel = _rel_posix(filepath)
+    try:
+        source = filepath.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=rel)
+    except (SyntaxError, PermissionError, UnicodeDecodeError, OSError):
+        return []
+    return _report_only_findings(tree, rel)
+
+
 def _iter_py_files(root: Path, excluded_dirs=EXCLUDED_DIRS):
     """Yield ``.py`` files under ``root``, skipping ``excluded_dirs`` (recursively)."""
     for entry in sorted(root.iterdir()):
@@ -351,11 +671,19 @@ def _iter_py_files(root: Path, excluded_dirs=EXCLUDED_DIRS):
 
 
 def scan_directory(root: Path) -> list[str]:
-    """Scan every ``.py`` file under ``root`` and return all violation messages."""
+    """Scan every ``.py`` file under ``root`` and return all BLOCKING violation messages."""
     all_violations: list[str] = []
     for py_file in _iter_py_files(root):
         all_violations.extend(check_file(py_file))
     return all_violations
+
+
+def scan_directory_report_only(root: Path) -> list[str]:
+    """Scan every ``.py`` file under ``root`` and return all 03a rule (a/b/d) findings (blocking)."""
+    all_findings: list[str] = []
+    for py_file in _iter_py_files(root):
+        all_findings.extend(check_file_report_only(py_file))
+    return all_findings
 
 
 def main(argv=None) -> int:
@@ -372,6 +700,7 @@ def main(argv=None) -> int:
     """
     paths = sys.argv[1:] if argv is None else argv
     all_violations: list[str] = []
+    report_only: list[str] = []
 
     if paths:
         for arg in paths:
@@ -379,6 +708,7 @@ def main(argv=None) -> int:
             if not py_file.is_file() or py_file.suffix != ".py":
                 continue
             all_violations.extend(check_file(py_file))
+            report_only.extend(check_file_report_only(py_file))
     else:
         root = Path(".")
         for scan_dir in SCAN_DIRS:
@@ -386,6 +716,25 @@ def main(argv=None) -> int:
             if not dir_path.is_dir():
                 continue
             all_violations.extend(scan_directory(dir_path))
+            report_only.extend(scan_directory_report_only(dir_path))
+
+    # 03a rules (a)(b)(d) are now BLOCKING (design C8 rollout increment 2, task 12 — flipped
+    # only AFTER the fix C7 + C1-C6 landed and the tree is clean, G6). A finding on any of the
+    # three fails the build exactly like the two original spec-03 checks, via the SAME exit-code
+    # mechanism: print the findings and fold their count into the non-zero-exit decision below.
+    if report_only:
+        print(
+            f"Found {len(report_only)} anti-reintroduction guard violation(s) "
+            f"(03a rules a/b/d — BLOCKING):\n"
+        )
+        for f in report_only:
+            print(f"  [FAIL] {f}")
+        print(
+            "\nThe one canonical vocabulary is 'options'; the retired 'choices' two-names paths "
+            "and the scope values-vs-options divergence must not be reintroduced. Fix the call "
+            "site — do NOT suppress the guard; a new sanctioned site is a reviewed allow-list "
+            "addition (steering 39).\n"
+        )
 
     if all_violations:
         print(f"Found {len(all_violations)} config#fields CRUD guard violation(s):\n")
@@ -398,11 +747,16 @@ def main(argv=None) -> int:
             "in an API response. Fix the call site / response shape — do NOT suppress the "
             "guard. A new sanctioned site is a reviewed allow-list addition (steering 39)."
         )
+
+    # Non-zero exit if EITHER the two original spec-03 checks OR the three 03a rules (a/b/d,
+    # now blocking) found anything.
+    if all_violations or report_only:
         sys.exit(1)
 
     print(
-        "[OK] No raw governance-table writes outside the Change-Op write repository, and no "
-        "raw storage-shape key in an API response."
+        "[OK] No raw governance-table writes outside the Change-Op write repository, no "
+        "raw storage-shape key in an API response, and no 03a anti-reintroduction findings "
+        "(rules a/b/d clean)."
     )
     sys.exit(0)
 

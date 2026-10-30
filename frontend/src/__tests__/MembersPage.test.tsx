@@ -50,7 +50,6 @@ const mockListMembers = vi.mocked(membersApiService.listMembers);
 const mockListMembersPage = vi.mocked(membersApiService.listMembersPage);
 const mockGetFieldConfig = vi.mocked(membersApiService.getFieldConfig);
 const mockGetMember = vi.mocked(membersApiService.getMember);
-const mockListMembershipTypes = vi.mocked(membersApiService.listMembershipTypes);
 const mockGetColumnPreferences = vi.mocked(membersApiService.getColumnPreferences);
 const mockSaveColumnPreferences = vi.mocked(membersApiService.saveColumnPreferences);
 
@@ -171,9 +170,6 @@ describe('MembersPage (Leden Overzicht)', () => {
     mockListMembersPage.mockResolvedValue({ items: mockMembers, cursor: null } as never);
     mockGetFieldConfig.mockResolvedValue(mockFieldConfig as never);
     mockGetMember.mockResolvedValue(mockMembers[0] as never);
-    // The membership-type catalog feed (R5.8) — the page fetches it for the modals'
-    // dropdown; an empty active list keeps these table-focused tests unaffected.
-    mockListMembershipTypes.mockResolvedValue([] as never);
     // Column preferences (session-columns C8): a first-time user with no saved
     // columns → empty set, so these table-focused tests see the default columns.
     // Deterministic mocks avoid the C8 load effect hanging on an auto-mocked

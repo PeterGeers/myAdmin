@@ -280,27 +280,22 @@ def test_get_members_no_grant_for_gating_dimension_is_empty_deny_by_default():
     _assert_cors(resp)
 
 
-# ── 3. GET /membership-types — catalog (200 + envelope + CORS) ─────────────────────────
+# ── 3. GET /membership-types — RETIRED (03b CONTRACT, Task 10.5): the route is gone ────────
 
 
-def test_get_membership_types_returns_catalog_with_envelope_and_cors():
+def test_get_membership_types_route_is_retired_returns_404():
+    # 03b CONTRACT (Task 10.5): the five Lidmaatschap Beheer catalog routes were removed —
+    # membership_type owns its vocabulary as inline field options, served through the
+    # field-config surface, not a standalone catalog endpoint. The old route no longer resolves.
     resp = app.handler(_event("GET", "/membership-types", email=_EMAIL_ALL))
-    assert resp["statusCode"] == 200
-    data = _assert_data_envelope(resp)
-    codes = [e["type_code"] for e in data]
-    # Management default: ALL entries incl. the retired one, ordered by (order, type_code).
-    assert codes == ["regulier", "erelid", "oud"]
+    assert resp["statusCode"] == 404
     _assert_cors(resp)
 
-
-def test_get_membership_types_active_only_narrows_to_assignable():
+    # The active_only variant is likewise gone.
     resp = app.handler(
         _event("GET", "/membership-types", email=_EMAIL_ALL, query={"active_only": "true"})
     )
-    assert resp["statusCode"] == 200
-    codes = [e["type_code"] for e in _assert_data_envelope(resp)]
-    assert codes == ["regulier", "erelid"]
-    assert "oud" not in codes
+    assert resp["statusCode"] == 404
 
 
 # ── 4. POST /members/search — filtered list route (list_members_filtered) ──────────────

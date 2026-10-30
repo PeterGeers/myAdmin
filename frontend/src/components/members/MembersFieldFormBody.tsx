@@ -32,12 +32,11 @@ import {
 } from '@chakra-ui/react';
 import { Field, type FieldProps } from 'formik';
 import type {
-  EnumOptionConfig, FieldConfig, FieldConfigField, MembershipType,
+  EnumOptionConfig, FieldConfig, FieldConfigField,
 } from '../../types/members';
 import { LazySelect } from '../common/LazySelect';
 import type { LazyOption } from '../common/lazySelect.types';
 import { resolveOptionLabel } from '../common/lazySelect.types';
-import { listMembershipTypes } from '../../services/membersApiService';
 import {
   type FieldSection,
   resolveLabel,
@@ -47,8 +46,6 @@ import {
   optionsForCaller,
   memberNumberError,
   isEditableField,
-  isMembershipTypeField,
-  membershipTypeOptions,
 } from './fieldForm';
 
 interface MembersFieldFormBodyProps {
@@ -68,13 +65,6 @@ interface MembersFieldFormBodyProps {
   dimensionKey: string;
   regionValues: string[];
   dimensionLabel?: string;
-  /**
-   * The tenant's ACTIVE **Lidmaatschap Beheer** catalog entries (R5.8), fetched by the parent via
-   * `listMembershipTypes(true)`. These feed the `membership_type` dropdown so it lists ONLY active
-   * types — the domain re-validates the chosen type authoritatively. `null`/omitted falls back to
-   * the field-config's embedded catalog options.
-   */
-  membershipTypes?: MembershipType[] | null;
 }
 
 /** Keys the parent renders as first-class controls elsewhere (not as generic overlay inputs). */
@@ -85,7 +75,7 @@ export const MembersFieldFormBody: React.FC<MembersFieldFormBodyProps> = ({
   // longer read here: labels come from each field's own config and the LazySelect trigger carries
   // its accessible name via `label` (the old `data-dimension` hook on the native <select> is gone).
   sections, values, callerRoles, lang, t,
-  regionValues, dimensionLabel, membershipTypes,
+  regionValues, dimensionLabel,
 }) => {
   return (
     // Field SECTIONS laid out responsively (members-overview-tweaks R4.1/R4.3): two columns on a
@@ -120,7 +110,6 @@ export const MembersFieldFormBody: React.FC<MembersFieldFormBodyProps> = ({
                   isScope={SCOPE_KEYS.has(f.key)}
                   regionValues={regionValues}
                   dimensionLabel={dimensionLabel}
-                  membershipTypes={membershipTypes}
                 />
               ))}
             </VStack>
@@ -139,24 +128,21 @@ interface FieldRowProps {
   isScope: boolean;
   regionValues: string[];
   dimensionLabel?: string;
-  membershipTypes?: MembershipType[] | null;
 }
 
 /** One field control: dispatches on the field's type/role to the right input. */
 const FieldRow: React.FC<FieldRowProps> = ({
-  field, callerRoles, lang, t, isScope, regionValues, dimensionLabel, membershipTypes,
+  field, callerRoles, lang, t, isScope, regionValues, dimensionLabel,
 }) => {
   const editable = isEditableField(field);
   const label = isScope
     ? (dimensionLabel || resolveLabel(field.label, lang, field.key))
     : resolveLabel(field.label, lang, field.key);
 
-  // membership_type (R5.8): the dropdown is fed by the ACTIVE catalog (listMembershipTypes(true))
-  // when the parent injected it; otherwise fall back to the field-config's embedded options.
-  const isMembershipType = isMembershipTypeField(field);
-  const catalogOptions =
-    isMembershipType && membershipTypes != null ? membershipTypeOptions(membershipTypes) : null;
-  const rich = catalogOptions ?? richEnumOptions(field);
+  // Spec 03b: membership_type is a normal enum field that owns its resolved `options` (the
+  // `membershiptype#` catalog is retired). It renders through the SAME eager rich-enum path as
+  // every other reference/enum field — no special async catalog feed.
+  const rich = richEnumOptions(field);
 
   // The Formik field name: the scope dimension binds to `region`; every other field to its key.
   const name = isScope ? 'region' : field.key;
@@ -183,21 +169,11 @@ const FieldRow: React.FC<FieldRowProps> = ({
         // See .kiro/specs/Common/Frameworks/lazy-select/ (Requirements 8.1, 8.4, 8.5).
         if (isScope || field.type === 'reference' || rich) {
           // Options by source shape (all fit LazyOptionsSource):
-          //  - membership_type → ASYNC source: fetch the ACTIVE catalog on open (R8.1 async feed);
           //  - scope (region)  → EAGER array from the field config's dimension values;
           //  - rich enum       → EAGER array from the rich `{ value, label, roles }` options;
           //  - bare string[]   → EAGER array mapped to `{ value }` (matches the old else-branch).
-          const optionsSource = isMembershipType
-            ? async (): Promise<LazyOption[]> => {
-              // `membershipTypeOptions` yields `EnumOptionConfig[]` (its `label` is a
-              // `LocalizedLabel`, wider than `LazyOption.label`); MAP each through
-              // `enumOptionToLazyOption` rather than returning it raw, so the async feed
-              // satisfies `LazyOption[]` the same way the eager rich-enum branch does.
-              const types = await listMembershipTypes<MembershipType[]>(true);
-              return membershipTypeOptions(types).map(enumOptionToLazyOption);
-            }
-            : isScope
-              ? regionValues.map((v): LazyOption => ({ value: v }))
+          const optionsSource = isScope
+            ? regionValues.map((v): LazyOption => ({ value: v }))
               : rich
                 ? rich.map(enumOptionToLazyOption)
                 : (field.options ?? [])
@@ -226,7 +202,6 @@ const FieldRow: React.FC<FieldRowProps> = ({
                   form.setFieldTouched(name, true);
                 }}
                 options={optionsSource}
-                optionsDepKey={isMembershipType ? 'membership_type' : undefined}
                 filterOption={filterOption}
                 // Resolve option labels against the FORM's `lang` (same as every other label here
                 // via `resolveLabel`), not LazySelect's own `i18n.language` — otherwise a localized

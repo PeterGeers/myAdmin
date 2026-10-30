@@ -40,8 +40,13 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
+from sam.members.domain.field_resolver import (
+    FixedFieldOverride,
+    StaticOverlayProvider,
+    TenantOverlay,
+)
+from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.membership_service import MembershipService
-from sam.members.domain.membership_type_catalog import MembershipTypeEntry
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.handler import app
 from sam.members.repository.members_repository import DynamoDbMembersRepository
@@ -68,25 +73,21 @@ def hooks() -> TenantHookRegistry:
     return register_hdcn_hooks(TenantHookRegistry())
 
 
-def _seed_hdcn_catalog(repo) -> None:
-    """Seed the h-dcn Lidmaatschap Beheer catalog with the types these write tests reference.
-
-    Task 5.3 made the ``membership_type`` reference check authoritative on create/update: a
-    member's type must point at a LIVE catalog entry. These write tests build members with
-    ``membership_type="erelid"``, so the catalog must carry an active ``erelid`` entry for the
-    create to succeed (the same coupling h-dcn seeds as data in task 4.2). Seed a small live
-    set + one retired type so the reference-integrity tests below have both to exercise.
-    """
-    for code, active in (("erelid", True), ("donateur", True), ("retired_type", False)):
-        repo.save_membership_type(
-            "h-dcn",
-            MembershipTypeEntry(
-                tenant_id="h-dcn",
-                type_code=code,
-                label={"nl": code, "en": code},
-                active=active,
-            ),
-        )
+# 03b CONTRACT (Task 10.5): membership_type is a normal enum field that owns its vocabulary as
+# INLINE options — the ``membershiptype#`` catalog is retired. The write-path reference check reads
+# these field options (active→allowed:true, retired→allowed:false); author the fixed field with the
+# same live set + one retired type these write tests reference.
+_HDCN_MT_OVERLAY = TenantOverlay(
+    overrides={
+        "membership.membership_type": FixedFieldOverride(
+            options=(
+                EnumOption(value="erelid", label={"nl": "erelid", "en": "erelid"}, allowed=True),
+                EnumOption(value="donateur", label={"nl": "donateur", "en": "donateur"}, allowed=True),
+                EnumOption(value="retired_type", label={"nl": "retired_type", "en": "retired_type"}, allowed=False),
+            )
+        ),
+    }
+)
 
 
 # ── Projected scope grants (S5b task 8.3, design C5) ──────────────────────────────────
@@ -112,9 +113,9 @@ def inject_service(monkeypatch, repo, hooks):
     """Wire a MembershipService exactly as _get_membership_service does (lifecycle + hooks)."""
     from sam.tests.conftest import FakeScopeGrantsReader
 
-    _seed_hdcn_catalog(repo)
     service = MembershipService(
         repo,
+        overlay_provider=StaticOverlayProvider({"h-dcn": _HDCN_MT_OVERLAY}),
         # Lifecycle engine retired (retire-members-status-lifecycle-engine): no lifecycle_provider.
         tenant_hooks=hooks,
     )
@@ -441,8 +442,11 @@ def test_duplicate_member_number_across_members_is_allowed(table):
     hooks = register_hdcn_hooks(TenantHookRegistry())
     repo_a = DynamoDbMembersRepository(table=table, client=table.meta.client)
     repo_b = DynamoDbMembersRepository(table=table, client=table.meta.client)
-    svc_a = MembershipService(repo_a, tenant_hooks=hooks)
-    svc_b = MembershipService(repo_b, tenant_hooks=hooks)
+    # 03b CONTRACT (Task 10.5): membership_type owns its `erelid` vocabulary as INLINE field
+    # options (the catalog is retired), so the reference check needs the overlay to resolve it.
+    overlay = StaticOverlayProvider({"h-dcn": _HDCN_MT_OVERLAY})
+    svc_a = MembershipService(repo_a, overlay_provider=overlay, tenant_hooks=hooks)
+    svc_b = MembershipService(repo_b, overlay_provider=overlay, tenant_hooks=hooks)
 
     b1 = _valid_member_body(member_number="12345")
     created_a = svc_a.create_member("h-dcn", b1, {"region": ["*"]})
@@ -481,13 +485,8 @@ def _overlay_service_over(table) -> MembershipService:
     show_when keys off.
     """
     repo = DynamoDbMembersRepository(table=table, client=table.meta.client)
-    for code in ("gewoon", "motor"):
-        repo.save_membership_type(
-            "h-dcn",
-            MembershipTypeEntry(
-                tenant_id="h-dcn", type_code=code, label={"nl": code, "en": code}, active=True
-            ),
-        )
+    # 03b CONTRACT (Task 10.5): membership_type's `gewoon`/`motor` vocabulary is INLINE on the
+    # field via `_overlay_with_groups_and_options()` (shared overlay), not a seeded catalog.
     return MembershipService(
         repo,
         overlay_provider=StaticOverlayProvider({"h-dcn": _overlay_with_groups_and_options()}),
