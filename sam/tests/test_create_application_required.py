@@ -34,6 +34,7 @@ from sam.members.domain.error_codes import (
     VALIDATION_INVALID_IBAN,
     VALIDATION_REQUIRED,
 )
+from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.field_resolver import (
     FieldFormat,
     FixedFieldOverride,
@@ -83,7 +84,14 @@ def _overlay() -> TenantOverlay:
             "personal.email": FixedFieldOverride(
                 application_visible=True, format=FieldFormat(checker="EMAIL")
             ),
-            "membership.membership_type": FixedFieldOverride(application_visible=True),
+            "membership.membership_type": FixedFieldOverride(
+                application_visible=True,
+                # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE options.
+                options=(
+                    EnumOption(value='gewoon', label={"nl": 'Gewoon', "en": 'Gewoon'}, allowed=True, order=10),
+                    EnumOption(value='erelid', label={"nl": 'Erelid', "en": 'Erelid'}, allowed=True, order=20),
+                ),
+            ),
         },
         fields={
             "payment_method": OverlayField(

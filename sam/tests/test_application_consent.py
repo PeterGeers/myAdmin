@@ -40,6 +40,7 @@ if _REPO_ROOT not in sys.path:
 from sam.members.domain._membership_errors import MemberValidationError
 from sam.members.domain.consent_notice import StaticConsentNoticeProvider
 from sam.members.domain.error_codes import CONSENT_REQUIRED
+from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     StaticOverlayProvider,
@@ -66,7 +67,13 @@ def _overlay_public_form() -> TenantOverlay:
             # satisfied on the success path (consent stamp runs before validation, but the create
             # still 422s on a missing DOB before returning a record).
             "personal.birth_date": FixedFieldOverride(application_visible=True),
-            "membership.membership_type": FixedFieldOverride(application_visible=True),
+            "membership.membership_type": FixedFieldOverride(
+                application_visible=True,
+                # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE options.
+                options=(
+                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Regular"}, allowed=True, order=10),
+                ),
+            ),
         },
     )
 

@@ -158,10 +158,9 @@ class ApplicationWritesMixin:
         then lets the reference check surface the normal unknown-reference 422 rather than
         persisting a dangling type (R11.4).
 
-        **Transitional fallback (03b migration safety, Req 6.4).** While the field carries NO
-        inline options yet (pre-fold, Task 7) it falls back to the FIRST active catalog entry in
-        presentation order — the pre-03b behaviour — so a deploy landing before the fold still
-        stamps a valid default. Removed in CONTRACT (Task 10.2) with the catalog.
+        The transitional active-catalog fallback was REMOVED in CONTRACT (Task 10.5); the
+        field's own options are the only source — a field with no assignable option returns
+        ``None`` and the reference check surfaces the normal unknown-reference 422.
         """
         options = self._resolved_membership_type_options(tenant_id)
         if options:
@@ -180,10 +179,8 @@ class ApplicationWritesMixin:
             )
             return str(ranked[0][1].value)
 
-        # Transitional fallback (Req 6.4): no inline options yet → first active catalog entry.
-        entries = self._repo.list_membership_types(tenant_id, active_only=True)
-        for entry in entries:
-            return str(entry.type_code)
+        # No inline options → no assignable default; the reference check surfaces the normal
+        # unknown-reference 422 rather than stamping a dangling type (CONTRACT, Task 10.5).
         return None
 
     # ── Public-application create (application-app task 2.2; R3, R3a, R4.7/R4.8, R3.5) ──

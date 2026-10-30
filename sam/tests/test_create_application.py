@@ -41,6 +41,7 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__f
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     OverlayField,
@@ -121,7 +122,15 @@ def _overlay_public_form() -> TenantOverlay:
             # birth_date is on the form so the public-path identity requirement (R6.1a, enforced
             # by task 2.4) can be satisfied — a tenant form must expose email/name/DOB.
             "personal.birth_date": FixedFieldOverride(application_visible=True),
-            "membership.membership_type": FixedFieldOverride(application_visible=True),
+            "membership.membership_type": FixedFieldOverride(
+                application_visible=True,
+                # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE field
+                # options (the `membershiptype#` catalog is retired). The reference check reads these.
+                options=(
+                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Regular"}, allowed=True, order=10),
+                    EnumOption(value="erelid", label={"nl": "Erelid", "en": "Honorary"}, allowed=True, order=20),
+                ),
+            ),
         },
         fields={
             "nickname": OverlayField(
