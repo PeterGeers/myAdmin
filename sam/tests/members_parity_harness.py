@@ -64,7 +64,12 @@ from typing import Any
 
 from sam.members.domain.application_publish import ApplicationPublishService
 from sam.members.domain.config_write_service import ConfigWriteService
-from sam.members.domain.field_resolver import StaticOverlayProvider
+from sam.members.domain.field_resolver import (
+    FixedFieldOverride,
+    StaticOverlayProvider,
+    TenantOverlay,
+)
+from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.membership_service import MembershipService
 from sam.members.domain.scope_dimensions import StaticScopeConfigProvider
 from sam.tests._scope_fixtures import SAMPLE_SCOPE_CONFIG
@@ -419,17 +424,25 @@ class MembersParityHarness:
             table=self.table, client=self.table.meta.client
         )
         self.hooks: TenantHookRegistry = register_hdcn_hooks(TenantHookRegistry())
+        # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as the field's OWN INLINE
+        # options — the `membershiptype#` catalog is retired. The harness authors the h-dcn types
+        # as inline `EnumOption`s on the `membership.membership_type` field (the resolved state the
+        # EXPAND fold produces) so every `membership_type` reference resolves, instead of seeding a
+        # catalog via the removed `save_membership_type` write method.
+        self._mt_overlay_provider = StaticOverlayProvider(
+            {self.tenant_id: self._membership_type_overlay()}
+        )
         # Lifecycle engine retired (retire-members-status-lifecycle-engine): the service no
         # longer takes a `lifecycle_provider`; status is a plain tenant-driven open enum.
         self.service = MembershipService(
             self.repo,
+            overlay_provider=self._mt_overlay_provider,
             tenant_hooks=self.hooks,
         )
         # The standalone template service (R2) over the SAME repo (its *_template methods are
         # the metadata store) + an in-memory body store (no S3) — mirrors how production wires
         # TemplateService(DynamoDbMembersRepository(), S3TemplateBodyStore()) but with no AWS.
         self.template_service = TemplateService(self.repo, InMemoryTemplateBodyStore())
-        self._seed_catalog()
         # The execute-and-deliver service (R4, task 4.2) over the SAME repo + a FAKE mail queue
         # that CAPTURES enqueued jobs — mirrors how production wires
         # ExecuteAndDeliverService(DynamoDbMembersRepository(), <pivot>, SqsMailSendQueue()) but
@@ -480,10 +493,29 @@ class MembersParityHarness:
         self._original_grants: Any = None
 
     # -- lifecycle --------------------------------------------------------------------
-    def _seed_catalog(self) -> None:
-        """Seed the h-dcn catalog as DATA (task 4.2) so member type references resolve."""
-        for entry in HDCN_MEMBERSHIP_TYPES:
-            self.repo.save_membership_type(self.tenant_id, entry)
+    def _membership_type_overlay(self) -> TenantOverlay:
+        """Author the h-dcn membership types as the field's OWN inline options (03b CONTRACT).
+
+        Task 10.5 retired the `membershiptype#` catalog: membership_type is a normal enum field
+        that owns its vocabulary. The EXPAND fold maps each type to an `EnumOption`
+        (``active`` → ``allowed:true``). The harness builds that resolved state directly on the
+        `membership.membership_type` fixed field so the field-config read + the write-path
+        reference check resolve the h-dcn types without a seeded catalog.
+        """
+        options = tuple(
+            EnumOption(
+                value=e.type_code,
+                label=dict(e.label),
+                allowed=e.active,
+                order=e.order,
+            )
+            for e in HDCN_MEMBERSHIP_TYPES
+        )
+        return TenantOverlay(
+            overrides={
+                "membership.membership_type": FixedFieldOverride(options=options),
+            },
+        )
 
     def install(self) -> MembersParityHarness:
         """Point the module edge at this harness's wired service (like the dispatch tests).
@@ -550,7 +582,10 @@ class MembersParityHarness:
         app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
             {self.tenant_id: SAMPLE_SCOPE_CONFIG}
         )
-        app._OVERLAY_PROVIDER_OVERRIDE = StaticOverlayProvider({})
+        # 03b CONTRACT (Task 10.5): the overlay override carries the membership_type field's inline
+        # options so any edge path resolving the overlay via the override sees the folded vocabulary
+        # (the service getter is overridden to self.service, which uses the same provider).
+        app._OVERLAY_PROVIDER_OVERRIDE = self._mt_overlay_provider
         app._SCOPE_GRANTS_READER_OVERRIDE = FakeScopeGrantsReader(_HARNESS_GRANTS)
         return self
 
@@ -845,25 +880,12 @@ class MembersParityHarness:
             f"{len(field_names)} fields, groups={sorted(cfg.get('by_group', {}))}",
         )
 
-        # The Lidmaatschap Beheer dropdown lists ONLY active types. Retire one, confirm it
-        # drops out of the options while remaining visible in the management list.
-        self.call(
-            "POST",
-            "/membership-types",
-            body={
-                "type_code": "temp_retired",
-                "label": {"nl": "Tijdelijk", "en": "Temp"},
-                "active": True,
-                "order": 99,
-            },
-        )
-        self.call(
-            "DELETE", "/membership-types/temp_retired"
-        )  # soft-delete (active=false)
-        resp = self.call("GET", "/members/field-config")
-        # 03b BU-3: the membership_type vocabulary rides on the field's own `options` (no
-        # standalone `membership_type_options` feed). Pre-fold the assembly seam falls back to
-        # the active catalog, so the dropdown still lists only ACTIVE types.
+        # 03b CONTRACT (Task 10.5): membership_type is a normal enum field that owns its vocabulary
+        # as the field's OWN inline `options` (the `membershiptype#` catalog + its routes are
+        # retired). The field-config dropdown lists the field's options directly — there is no
+        # separate catalog CRUD surface and no `GET /membership-types` route any more. A retired
+        # type is an option carrying `allowed:false` (excluded from the picker, grandfathered).
+        # Reuse the field-config `resp` fetched just above.
         options = []
         if resp["statusCode"] == 200:
             fields = self.data(resp).get("fields", [])
@@ -871,29 +893,15 @@ class MembersParityHarness:
             if mt is not None:
                 options = mt.get("options") or []
         option_codes = {o.get("value") for o in options}
+        assignable = {o.get("value") for o in options if o.get("allowed", True)}
         report.record(
             d,
-            "dropdown lists only ACTIVE membership types",
+            "membership_type dropdown lists the field's own inline options",
             "get_field_config",
             Outcome.PASS
-            if "temp_retired" not in option_codes and "erelid" in option_codes
+            if {"erelid", "donateur"} <= assignable
             else Outcome.FAIL,
-            f"active options={sorted(option_codes)} (retired 'temp_retired' excluded)",
-        )
-
-        # The management catalog list DOES show the retired entry (soft-delete, not gone).
-        resp = self.call("GET", "/membership-types")
-        all_codes = (
-            {e.get("type_code") for e in self.data(resp)}
-            if resp["statusCode"] == 200
-            else set()
-        )
-        report.record(
-            d,
-            "management catalog shows retired (soft-deleted) types",
-            "list_membership_types",
-            Outcome.PASS if "temp_retired" in all_codes else Outcome.FAIL,
-            f"GET /membership-types (all) codes include retired: {'temp_retired' in all_codes}",
+            f"field options={sorted(option_codes)} assignable(allowed)={sorted(assignable)}",
         )
 
         # A backfilled member (4.1 transform on a REAL-shaped export row) round-trips create →
@@ -974,9 +982,11 @@ class MembersParityHarness:
     def walk_api_contract(self, report: ParityReport) -> None:
         """Walk EVERY declared route group and confirm the migrated module answers.
 
-        The route map is the union of h-dcn's ~18 handler behaviours + the new catalog group
-        (design C8), MINUS the two retired membership-transition routes
-        (retire-members-status-lifecycle-engine). For each route the harness sends a
+        The route map is h-dcn's ~18 handler behaviours, MINUS the two retired
+        membership-transition routes (retire-members-status-lifecycle-engine) and MINUS the five
+        Lidmaatschap Beheer catalog routes (03b CONTRACT, Task 10.5 — membership_type owns its
+        vocabulary as inline field options, no standalone catalog surface). For each route the
+        harness sends a
         representative request and records whether the module answered with an expected status
         (never 404 "no such route" and never 501 "not built"). Some behaviours (invitation
         delivery UX) are asserted at the "route answers" level and flagged MANUAL for the
@@ -1241,61 +1251,11 @@ class MembersParityHarness:
                 {},
                 "get member payments",
             ),
-            # ── Lidmaatschap Beheer catalog (new, design C8) ──
-            (
-                "list_membership_types",
-                "GET",
-                "/membership-types",
-                None,
-                None,
-                {200},
-                {},
-                "list catalog (management)",
-            ),
-            (
-                "get_membership_type",
-                "GET",
-                "/membership-types/erelid",
-                None,
-                None,
-                {200},
-                {},
-                "get one catalog entry",
-            ),
-            (
-                "create_membership_type",
-                "POST",
-                "/membership-types",
-                {
-                    "type_code": "new_type",
-                    "label": {"nl": "Nieuw", "en": "New"},
-                    "order": 50,
-                },
-                None,
-                {200},
-                {},
-                "create catalog entry",
-            ),
-            (
-                "update_membership_type",
-                "PUT",
-                "/membership-types/new_type",
-                {"label": {"nl": "Nieuw2", "en": "New2"}, "order": 51},
-                None,
-                {200},
-                {},
-                "update catalog entry",
-            ),
-            (
-                "deactivate_membership_type",
-                "DELETE",
-                "/membership-types/new_type",
-                None,
-                None,
-                {200},
-                {},
-                "soft-delete (retire) catalog entry",
-            ),
+            # ── Lidmaatschap Beheer catalog routes — RETIRED (03b CONTRACT, Task 10.5) ──
+            # The five /membership-types catalog routes (list/get/create/update/deactivate) were
+            # removed: membership_type owns its vocabulary as inline field options, authored and
+            # read through the field-config surface (exercised in the data dimension), so there is
+            # no standalone catalog route group to walk any more.
             # ── Member analytics-sets (new, F-012) ──
             # create first so the subsequent get/update/delete have an addressable id; the id
             # is server-generated, so those three target it via a mutable closure (see below).

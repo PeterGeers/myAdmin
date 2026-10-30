@@ -347,9 +347,20 @@ def test_field_config_surface_unaffected(codes):
     not here; this facet pins everything ELSE stays identical.)
     """
     repo = FakeCatalogRepository()
-    for i, code in enumerate(codes):
-        repo.add_type(TENANT, _entry(TENANT, code, order=(i + 1) * 10))
-    service = MembershipService(repo, overlay_provider=StaticOverlayProvider({}))
+    # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as the field's OWN inline
+    # options (the catalog is retired). Author the generated codes as inline options on the
+    # `membership.membership_type` field for the tenant under test only — a different tenant
+    # authors none, so the surface stays tenant-scoped.
+    mt_options = tuple(
+        EnumOption(value=code, label={"nl": code, "en": code}, allowed=True, order=(i + 1) * 10)
+        for i, code in enumerate(codes)
+    )
+    overlay = TenantOverlay(
+        overrides={"membership.membership_type": FixedFieldOverride(options=mt_options)}
+    )
+    service = MembershipService(
+        repo, overlay_provider=StaticOverlayProvider({TENANT: overlay})
+    )
 
     config = service.get_field_config(TENANT)
 
@@ -360,16 +371,18 @@ def test_field_config_surface_unaffected(codes):
     assert ("membership", "membership_type") in keys
     assert ("personal", "gender") in keys  # the open-enum precedent is still surfaced
 
-    # membership_type options ride ON the field (03b BU-3 — no standalone feed). Pre-fold the
-    # assembly seam falls back to the active catalog, presentation-ordered (design C8).
+    # membership_type options ride ON the field (03b CONTRACT — the field's own inline options,
+    # no standalone feed, no catalog), presentation-ordered.
     mt = next(f for f in config["fields"] if f["key"] == "membership_type")
     option_values = [o["value"] for o in mt["options"]]
     assert set(option_values) == set(codes)
 
-    # structural tenant isolation at the config surface: another tenant sees none of these types
+    # structural tenant isolation at the config surface: a tenant that authored NO inline
+    # membership_type options sees an empty source → the assembly seam returns None (not a
+    # catalog-derived list — the catalog is retired).
     other = service.get_field_config("other-tenant")
     other_mt = next(f for f in other["fields"] if f["key"] == "membership_type")
-    assert other_mt["options"] == []
+    assert other_mt["options"] is None
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────

@@ -52,6 +52,7 @@ if _REPO_ROOT not in sys.path:
 
 from sam.members.domain.field_resolver import (
     FieldScope,
+    FixedFieldOverride,
     FunctionalGroup,
     OverlayField,
     StaticOverlayProvider,
@@ -87,6 +88,16 @@ def _options_authored_overlay() -> TenantOverlay:
         functional_groups={
             "membership": FunctionalGroup(
                 key="membership", label={"nl": "Lid", "en": "Membership"}, order=4
+            ),
+        },
+        # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE field options
+        # (the catalog is retired). Author the two active types as the field's own options.
+        overrides={
+            "membership.membership_type": FixedFieldOverride(
+                options=(
+                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Ordinary"}, allowed=True, order=10),
+                    EnumOption(value="erelid", label={"nl": "Erelid", "en": "Honorary"}, allowed=True, order=20),
+                ),
             ),
         },
         fields={
@@ -276,16 +287,17 @@ class TestApplicationChoicesSubsetUnchanged:
 # ── R3.2 (reference) — membership_type resolves from the live active catalog ──────────
 
 
-class TestReferenceCatalogReadUnchanged:
-    def test_membership_type_editor_options_are_the_active_catalog(self, service):
-        # OBSERVED: membership_type (a REFERENCE field) resolves `options` from the active
-        # catalog, ordered by (order, type_code), each entry {value,label,order}. This is the
-        # non-bug reference path (design "not a bug (3)") and must be preserved.
+class TestReferenceReadsFieldInlineOptions:
+    def test_membership_type_editor_options_are_the_fields_inline_options(self, service):
+        # 03b CONTRACT (Task 10.5): membership_type (a REFERENCE field) resolves `options` from the
+        # field's OWN inline vocabulary — NOT a catalog read (the catalog is retired). The options
+        # are served through the SAME enum serializer as any other enum, each carrying the unified
+        # `allowed` flag (Req 3.1), ordered by `order`.
         editor = service.get_field_config(_TENANT)
         opts = _field(editor, "membership_type")["options"]
         assert opts == [
-            {"value": "gewoon", "label": {"nl": "Gewoon", "en": "Ordinary"}, "order": 10},
-            {"value": "erelid", "label": {"nl": "Erelid", "en": "Honorary"}, "order": 20},
+            {"value": "gewoon", "label": {"nl": "Gewoon", "en": "Ordinary"}, "allowed": True, "order": 10},
+            {"value": "erelid", "label": {"nl": "Erelid", "en": "Honorary"}, "allowed": True, "order": 20},
         ]
 
 
@@ -560,16 +572,24 @@ class TestFailLoudOnAsymmetry:
         with pytest.raises(UnpropagatedVocabularyError):
             svc.get_field_config(_TENANT)
 
-    def test_reference_fetch_error_raises_on_staff_read(self, catalog_repo):
-        # Reference FETCH ERROR (source unreachable) is in the P3-set and raises on the STAFF read —
-        # distinct from an empty RESULT (zero active types), which does NOT raise (G5, below). The
-        # catalog repo's active-type listing is made to fail (source unreachable), so the seam's
-        # reference population cannot attach — the asymmetry surfaces loudly on the staff path.
+    def test_membership_type_read_never_touches_the_catalog(self, catalog_repo):
+        # 03b CONTRACT (Task 10.5): the reference read no longer consults the catalog at all — the
+        # vocabulary is the field's OWN inline options. A catalog whose list method would RAISE is
+        # therefore never called on the staff read: the field resolves from its inline options and
+        # the broken catalog is irrelevant. (Pre-CONTRACT this raised; now it must NOT, because the
+        # catalog is not a read source — proving the fallback is gone.)
         class _FetchErrorCatalog:
             def list_membership_types(self, tenant_id, active_only=False):
-                raise RuntimeError("catalog source unreachable")
+                raise AssertionError("catalog must NOT be read for membership_type (03b CONTRACT)")
 
         overlay = TenantOverlay(
+            overrides={
+                "membership.membership_type": FixedFieldOverride(
+                    options=(
+                        EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Ordinary"}, allowed=True, order=10),
+                    ),
+                ),
+            },
             fields={
                 "referral_source": OverlayField(
                     key="referral_source",
@@ -580,14 +600,15 @@ class TestFailLoudOnAsymmetry:
                     ),
                     order=50,
                 )
-            }
+            },
         )
         svc = MembershipService(
             _FetchErrorCatalog(), overlay_provider=StaticOverlayProvider({_TENANT: overlay})
         )
-        # A reference-catalog fetch error propagates loudly on the staff read (fail-loud boundary).
-        with pytest.raises(Exception):
-            svc.get_field_config(_TENANT)
+        # No raise: the staff read resolves membership_type from its inline options, never the
+        # (deliberately broken) catalog.
+        editor = svc.get_field_config(_TENANT)
+        assert [o["value"] for o in _field(editor, "membership_type")["options"]] == ["gewoon"]
 
     def test_error_is_caller_safe_generic_message_no_data_leak(self, catalog_repo):
         # steering 30: the client-visible message is GENERIC — it echoes NO offending data (not the
@@ -653,20 +674,21 @@ class TestFailLoudDoesNotFireOnLegitimatelyEmptySources:
         )
         # scope_vocab declares `region` as a scope source, but with ZERO values yet.
         out = svc._assemble_field_options(
-            resolved, tenant_id=_TENANT, options=[], scope_vocab={"region": ()}
+            resolved, tenant_id=_TENANT, scope_vocab={"region": ()}
         )
         assert out == []  # projected empty list, no raise (G5)
 
-    def test_reference_with_empty_active_catalog_does_not_raise(self):
-        # G5: a reference (membership_type) whose active catalog has ZERO entries yet (a brand-new
-        # tenant). The declared source (the catalog) is simply empty — a valid in-progress state,
-        # NOT a "non-empty catalog failed to attach". The seam returns the empty list, no raise.
-        empty_catalog = FakeCatalogRepository()  # no add_type → zero active types
+    def test_reference_with_no_inline_options_does_not_raise(self):
+        # G5 under 03b CONTRACT (Task 10.5): a reference (membership_type) field that authors NO
+        # inline options (a brand-new tenant, pre-authoring) is a legitimately-empty source — NOT
+        # the asymmetry. There is no catalog fallback any more, so the seam returns None (no
+        # declared inline vocabulary), and the read must NOT raise.
+        empty_catalog = FakeCatalogRepository()  # catalog is irrelevant now (not read)
         svc = MembershipService(
             empty_catalog, overlay_provider=StaticOverlayProvider({})
         )
         editor = svc.get_field_config(_TENANT)  # must NOT raise
-        assert _field(editor, "membership_type")["options"] == []
+        assert _field(editor, "membership_type")["options"] is None
 
     def test_newly_created_field_with_no_declared_source_does_not_raise(self, catalog_repo):
         # G5: a newly-created not-yet-populated field with NO declared vocabulary at all (a plain
@@ -688,13 +710,11 @@ class TestFailLoudDoesNotFireOnLegitimatelyEmptySources:
         editor = svc.get_field_config(_TENANT)  # must NOT raise
         assert _field(editor, "club_note")["options"] is None
 
-    def test_reference_that_correctly_populates_does_not_raise(self, catalog_repo):
-        # G5: a reference whose catalog CORRECTLY populates `options` (the catalog_repo fixture has
-        # two active types) is the non-bug reference path — populated, not the asymmetry, no raise.
-        svc = MembershipService(
-            catalog_repo, overlay_provider=StaticOverlayProvider({})
-        )
-        editor = svc.get_field_config(_TENANT)  # must NOT raise
+    def test_reference_that_correctly_populates_does_not_raise(self, service):
+        # G5 under 03b CONTRACT (Task 10.5): a reference whose field authors inline options (the
+        # `service` fixture's membership_type override carries gewoon + erelid) is the non-bug
+        # reference path — populated from the field's own options, not the asymmetry, no raise.
+        editor = service.get_field_config(_TENANT)  # must NOT raise
         assert [o["value"] for o in _field(editor, "membership_type")["options"]] == [
             "gewoon",
             "erelid",
@@ -993,7 +1013,13 @@ def _three_kind_overlay() -> TenantOverlay:
             "membership.membership_type": FixedFieldOverride(
                 application_visible=True,
                 application_required=False,
-                application_choices=("gewoon",),  # R3.2 subset of the active catalog
+                application_choices=("gewoon",),  # R3.2 subset of the field's inline options
+                # 03b CONTRACT (Task 10.5): the reference vocabulary is the field's OWN inline
+                # options (the catalog is retired), folded from the two active h-dcn types.
+                options=(
+                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Ordinary"}, allowed=True, order=10),
+                    EnumOption(value="erelid", label={"nl": "Erelid", "en": "Honorary"}, allowed=True, order=20),
+                ),
             ),
         },
         fields={

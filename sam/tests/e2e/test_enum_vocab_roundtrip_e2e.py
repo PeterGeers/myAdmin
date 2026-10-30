@@ -54,7 +54,6 @@ from services import projection_schema as schema  # noqa: E402
 from sam.members.domain.config_fields_crud_service import ConfigFieldsCrudService  # noqa: E402
 from sam.members.domain.field_resolver import FieldResolver  # noqa: E402
 from sam.members.domain.membership_service import MembershipService  # noqa: E402
-from sam.members.domain.membership_type_catalog import MembershipTypeEntry  # noqa: E402
 from sam.members.repository.members_repository import DynamoDbMembersRepository  # noqa: E402
 from sam.members.repository.projection_config_reader import MembersProjectionReader  # noqa: E402
 from sam.members.repository.projection_config_write_repository import (  # noqa: E402
@@ -324,16 +323,36 @@ def test_roundtrip_symmetry_scope_backed_field(table):
 _CATALOG = [("erelid", 10), ("donateur", 20), ("sponsor", 30)]
 
 
-def _seed_catalog(table):
-    repo = DynamoDbMembersRepository(table=table)
-    for code, order in _CATALOG:
-        repo.save_membership_type(
-            _TENANT,
-            MembershipTypeEntry(
-                tenant_id=_TENANT, type_code=code, label={"nl": code, "en": code},
-                active=True, order=order,
+def _seed_membership_type_options(table):
+    """Author the membership_type field's OWN inline options on `config#fields` (03b CONTRACT).
+
+    Task 10.5 retired the `membershiptype#` catalog: membership_type is a normal enum field that
+    owns its vocabulary as the field's resolved `options`. membership_type is a FIXED field, so
+    its per-tenant overlay rides in the `overrides` map keyed by the dotted `membership.
+    membership_type` — the resolved state the EXPAND fold produces. Seeded directly (mirroring the
+    bare-`choices` legacy seeder below) so the read-assembly seam resolves the field's options.
+    """
+    item = table.get_item(Key=_key()).get("Item")
+    if item is None:
+        item = {
+            schema.PARTITION_KEY_ATTR: _TENANT,
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS
             ),
-        )
+            "fields": {},
+            "overrides": {},
+            "functional_groups": {},
+            schema.VERSION_ATTR: "v-seed",
+        }
+    overrides = dict(item.get("overrides") or {})
+    overrides["membership.membership_type"] = {
+        "options": [
+            {"value": code, "label": {"nl": code, "en": code}, "allowed": True, "order": order}
+            for code, order in _CATALOG
+        ],
+    }
+    item["overrides"] = overrides
+    table.put_item(Item=item)
     return [code for code, _ in _CATALOG]
 
 
@@ -342,18 +361,18 @@ def _option_values(options) -> list[str]:
 
 
 def test_roundtrip_symmetry_reference_membership_type(table):
-    """A `membership_type` REFERENCE field: its `options` are the LIVE catalog (NOT inline), and
-    BOTH reads (staff editor + member form) MUST agree with EACH OTHER and with the CURRENT active
-    catalog (design G3 carve-out — NOT `options == what was PUT`, because the catalog lives
-    elsewhere and changes independently of the field config).
+    """A `membership_type` REFERENCE field: 03b CONTRACT (Task 10.5) — its `options` are the
+    field's OWN inline vocabulary (the `membershiptype#` catalog is retired), and BOTH reads
+    (staff editor + member form) MUST agree with EACH OTHER and with the field's authored options.
 
-    This is the generalized symmetry invariant for a kind whose source is external. The fix
-    populates `options` from the injected active catalog at the ONE read-assembly seam, uniformly,
-    so the staff editor read and the member-form read never disagree and both equal the catalog.
+    Under the unified enum model "reference" is a feature ON the field: its vocabulary lives in
+    the field's own resolved `options`, read by the ONE read-assembly seam, so the staff editor
+    read and the member-form read never disagree and both equal the field's authored options
+    (NOT a separately-stored catalog, which no longer exists).
     """
     MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(_TENANT)
     svc = _service(table)
-    catalog_codes = _seed_catalog(table)
+    option_codes = _seed_membership_type_options(table)
     # Put membership_type ON the public form so the member-form read includes it (that read
     # filters to application_visible fields) — making the two reads an apples-to-apples compare.
     svc.set_field_application(_TENANT, "membership_type", {"application_visible": True})
@@ -373,14 +392,15 @@ def test_roundtrip_symmetry_reference_membership_type(table):
     staff_values = _option_values(staff_mt.get("options"))
     public_values = _option_values(public_mt.get("options"))
 
-    # Both reads agree with the CURRENT active catalog (NOT with what was PUT — G3).
-    assert staff_values == catalog_codes, (
-        f"staff editor read must resolve membership_type options to the CURRENT active catalog "
-        f"{catalog_codes}; got {staff_values}"
+    # Both reads agree with the field's AUTHORED inline options (03b CONTRACT — the field owns its
+    # vocabulary; there is no catalog). No application subset is declared, so the full set shows.
+    assert staff_values == option_codes, (
+        f"staff editor read must resolve membership_type options to the field's own inline "
+        f"options {option_codes}; got {staff_values}"
     )
-    assert public_values == catalog_codes, (
-        f"member-form read must resolve membership_type options to the CURRENT active catalog "
-        f"{catalog_codes}; got {public_values}"
+    assert public_values == option_codes, (
+        f"member-form read must resolve membership_type options to the field's own inline "
+        f"options {option_codes}; got {public_values}"
     )
     # ... AND with EACH OTHER (the asymmetry this spec kills: the two reads must never disagree).
     assert staff_values == public_values, (
