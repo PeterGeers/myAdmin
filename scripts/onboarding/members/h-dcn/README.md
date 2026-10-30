@@ -24,7 +24,7 @@ Full runbook: **`ONBOARDING.md`** (ordered, runnable protocol + decisions log).
 | --- | --- | --- | --- |
 | `backfill-hdcn-members.py` | **gsheet → sam-members sync.** Reads the live Google Sheet (or an export), transforms via the h-dcn mapping, writes members to `sam-members`. `--reconcile` does a match-by-member_number upsert + absence sweep. Dry-run first. | DynamoDB `sam-members` | **LIVE flow #1.** The recurring member sync. |
 | `seed-hdcn-members-config.py` | Author h-dcn's `members.scope_dimensions` + `members.field_overlay` params in MySQL from `members_config.json`. Idempotent upsert. | MySQL `parameters` | **LIVE flow #2 (seed step).** Driven by `../_generic/project-config-to-prod.py`; re-run when the config changes. |
-| `seed-hdcn-catalog.py` | Seed the h-dcn Lidmaatschap Beheer membership-type catalog (the hardcoded `HDCN_MEMBERSHIP_TYPES`) into `sam-members`. | DynamoDB `sam-members` | **Occasional** — when the catalog changes. |
+| ~~`seed-hdcn-catalog.py`~~ | **RETIRED (03b).** Membership types are no longer a separate `membershiptype#` catalog; they are the `membership_type` field's own inline `options`, folded from `HDCN_MEMBERSHIP_TYPES` by the EXPAND migration (`sam/members/migration/membership_type_catalog_to_field_options.py`). The seeder + its `save_membership_type` write path were removed. | — | — |
 | `cognito-users.sample.json` | h-dcn-shaped sample input for `../_generic/load-cognito-users.py` (regions, `h-dcn-test`). Editable template, not run directly. | — | Reference / input to the Cognito load. |
 
 ## The two live onboarding flows
