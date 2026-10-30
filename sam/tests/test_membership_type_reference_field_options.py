@@ -5,9 +5,10 @@ Under the 03b unified enum model (Req 3.1) ``membership_type`` is no longer vali
 separate ``membershiptype#<code>`` catalog: its vocabulary lives on the ``membership_type`` FIELD
 as rich ``EnumOption``s, each with an ``allowed`` (retired/grandfather) flag. These tests pin the
 re-pointed :meth:`MembershipService._validate_membership_type_reference` + the re-pointed
-:meth:`_default_membership_type` against FIELD OPTIONS (the post-fold resolved state), and assert
-the transitional catalog fallback still governs while a field carries NO inline options (the
-EXPAND-before-reader safety gate, Req 6.4).
+:meth:`_default_membership_type` against FIELD OPTIONS (the post-fold resolved state). The 03b
+CONTRACT (Task 10.5) removed the transitional catalog fallback: the reader is now
+field-options-ONLY, so a field carrying NO inline options has an EMPTY vocabulary — it does not
+read the catalog (the ``membershiptype#`` rows are retired).
 
 Covered behaviours:
 - unknown value (not one of the field's option values) → ``MEMBERSHIP_TYPE_UNKNOWN_REFERENCE``;
@@ -15,7 +16,8 @@ Covered behaviours:
 - grandfathered existing member: a stored ``allowed:false`` value stays valid on an update that
   does NOT change the value (the value-changed-only guard, design C8);
 - default when OFF the form = first ``allowed:true`` option by ``order`` (NOT a catalog read);
-- transitional fallback: a field with no inline options still validates / defaults via the catalog.
+- NO fallback: a field with no inline options has an empty vocabulary — every value is unknown
+  and the default is ``None``; the catalog is NOT consulted even when present.
 
 Validates: Requirements 3.2, 3.2a, 3.4a
 """
@@ -194,38 +196,46 @@ class TestDefaultFromFieldOptions:
         assert service._default_membership_type(TENANT) is None
 
 
-# ── 4. transitional fallback: a field with NO inline options still uses the catalog (Req 6.4) ──
+# ── 4. NO fallback (03b CONTRACT, Task 10.5): a field with NO inline options is EMPTY ──────
+#
+# The transitional catalog fallback (Task 2.1) was REMOVED in CONTRACT: the reader reads the
+# field's own options ONLY. A field carrying no inline options therefore has an empty vocabulary
+# — every value is unknown and the default is None — and the retired `membershiptype#` catalog is
+# NOT consulted, even when (stale) rows are still present.
 
 
-class TestTransitionalCatalogFallback:
-    def test_reference_check_falls_back_to_catalog_when_no_inline_options(self):
-        # No override options → the membership_type field carries no inline vocabulary (pre-fold).
-        # The reference check must fall back to the legacy catalog so a pre-migration deploy is
-        # non-fatal: an unknown code is still rejected.
+class TestNoCatalogFallback:
+    def test_no_inline_options_means_every_value_is_unknown_even_a_catalog_value(self):
+        # A catalog row is present but MUST NOT be consulted (the fallback is gone): a value that
+        # only exists in the catalog is unknown because it is not one of the field's options.
         service = _service(
             TenantOverlay(overrides={}, fields={}),
             catalog=[_entry(TENANT, "gewoon_lid", order=10)],
         )
-        # live catalog value accepted...
-        service._validate_membership_type_reference(TENANT, _record("gewoon_lid"))
-        # ...unknown catalog value rejected
         with pytest.raises(MemberValidationError) as exc:
-            service._validate_membership_type_reference(TENANT, _record("ghost"))
+            service._validate_membership_type_reference(TENANT, _record("gewoon_lid"))
         assert (
             exc.value.errors[MEMBERSHIP_TYPE_FIELD_KEY].code
             == MEMBERSHIP_TYPE_UNKNOWN_REFERENCE
         )
 
-    def test_retired_catalog_entry_rejected_via_fallback(self):
+    def test_retired_catalog_entry_is_unknown_not_retired_without_inline_options(self):
+        # With no inline options the field has no notion of a "retired" option: a catalog-only
+        # value is simply UNKNOWN (there is no option to carry allowed:false). Proves the retired
+        # verdict now comes from the FIELD's options, not the catalog's `active` flag.
         service = _service(
             TenantOverlay(overrides={}, fields={}),
             catalog=[_entry(TENANT, "erelid", order=10, active=False)],
         )
         with pytest.raises(MemberValidationError) as exc:
             service._validate_membership_type_reference(TENANT, _record("erelid"))
-        assert exc.value.errors[MEMBERSHIP_TYPE_FIELD_KEY].code == MEMBERSHIP_TYPE_RETIRED
+        assert (
+            exc.value.errors[MEMBERSHIP_TYPE_FIELD_KEY].code
+            == MEMBERSHIP_TYPE_UNKNOWN_REFERENCE
+        )
 
-    def test_default_falls_back_to_first_active_catalog_entry_when_no_inline_options(self):
+    def test_default_is_none_when_no_inline_options_even_with_a_catalog(self):
+        # No inline options → no default, regardless of catalog rows (the catalog is not read).
         service = _service(
             TenantOverlay(overrides={}, fields={}),
             catalog=[
@@ -233,5 +243,4 @@ class TestTransitionalCatalogFallback:
                 _entry(TENANT, "basis", order=5),
             ],
         )
-        # First active catalog entry in presentation order → basis (order 5).
-        assert service._default_membership_type(TENANT) == "basis"
+        assert service._default_membership_type(TENANT) is None

@@ -529,9 +529,21 @@ def _mtype(
     )
 
 
+def _seed_mtype(repo, entry) -> None:
+    """Seed a ``membershiptype#`` catalog row DIRECTLY via put_item (03b CONTRACT, Task 10.5).
+
+    The repository WRITE methods were removed when the catalog management apparatus was retired;
+    the READ methods (``list``/``get``) are kept because the EXPAND migration reads them. These
+    READ tests seed the row through the kept ``table_design.build_membership_type_item`` +
+    ``put_item`` to exercise the read path.
+    """
+    item = td.build_membership_type_item(entry.tenant_id, entry.type_code, entry.to_item())
+    repo.table.put_item(Item=item)
+
+
 class TestMembershipTypeCatalog:
-    def test_save_then_get_round_trips_the_entry(self, repo):
-        repo.save_membership_type("h-dcn", _mtype("erelid", nl="Erelid", order=10))
+    def test_seed_then_get_round_trips_the_entry(self, repo):
+        _seed_mtype(repo, _mtype("erelid", nl="Erelid", order=10))
         got = repo.get_membership_type("h-dcn", "erelid")
         assert got is not None
         assert got.type_code == "erelid"
@@ -542,44 +554,24 @@ class TestMembershipTypeCatalog:
     def test_get_missing_entry_returns_none(self, repo):
         assert repo.get_membership_type("h-dcn", "nope") is None
 
-    def test_save_binds_entry_to_the_caller_tenant_when_unset(self, repo):
-        # An entry with a blank tenant_id is bound to the caller's tenant on save.
-        entry = MembershipTypeEntry(
-            tenant_id="", type_code="donateur", label={"nl": "Donateur"}
-        )
-        saved = repo.save_membership_type("h-dcn", entry)
-        assert saved.tenant_id == "h-dcn"
-        assert repo.get_membership_type("h-dcn", "donateur") is not None
-
-    def test_save_refuses_a_cross_tenant_entry(self, repo):
-        # An entry that names a DIFFERENT tenant may not be written under this tenant.
-        with pytest.raises(ValueError):
-            repo.save_membership_type("h-dcn", _mtype("erelid", tenant_id="other"))
-
-    def test_save_refuses_a_blank_tenant(self, repo):
-        with pytest.raises(ValueError):
-            repo.save_membership_type("", _mtype("erelid"))
-
     def test_catalog_is_isolated_per_tenant(self, repo):
-        repo.save_membership_type("tenant-a", _mtype("erelid", tenant_id="tenant-a"))
-        # Another tenant's catalog is a different partition → not visible.
+        _seed_mtype(repo, _mtype("erelid", tenant_id="tenant-a"))
         assert repo.get_membership_type("tenant-b", "erelid") is None
         assert repo.list_membership_types("tenant-b") == []
 
     def test_list_returns_entries_ordered_by_order_then_code(self, repo):
-        repo.save_membership_type("h-dcn", _mtype("sponsor", order=30))
-        repo.save_membership_type("h-dcn", _mtype("erelid", order=10))
-        repo.save_membership_type("h-dcn", _mtype("donateur", order=10))
+        _seed_mtype(repo, _mtype("sponsor", order=30))
+        _seed_mtype(repo, _mtype("erelid", order=10))
+        _seed_mtype(repo, _mtype("donateur", order=10))
         listed = repo.list_membership_types("h-dcn")
-        # order asc, ties broken by type_code asc.
         assert [e.type_code for e in listed] == ["donateur", "erelid", "sponsor"]
 
     def test_empty_catalog_lists_empty(self, repo):
         assert repo.list_membership_types("h-dcn") == []
 
     def test_list_active_only_drops_soft_deleted(self, repo):
-        repo.save_membership_type("h-dcn", _mtype("erelid", order=10))
-        repo.save_membership_type("h-dcn", _mtype("sponsor", order=20, active=False))
+        _seed_mtype(repo, _mtype("erelid", order=10))
+        _seed_mtype(repo, _mtype("sponsor", order=20, active=False))
         assert [e.type_code for e in repo.list_membership_types("h-dcn")] == [
             "erelid",
             "sponsor",
@@ -588,28 +580,12 @@ class TestMembershipTypeCatalog:
             e.type_code for e in repo.list_membership_types("h-dcn", active_only=True)
         ] == ["erelid"]
 
-    def test_deactivate_soft_deletes_without_hard_delete(self, repo):
-        repo.save_membership_type("h-dcn", _mtype("erelid"))
-        result = repo.deactivate_membership_type("h-dcn", "erelid")
-        assert result is not None and result.active is False
-        # The entry is still stored (no hard delete → historical references stay valid).
-        still_there = repo.get_membership_type("h-dcn", "erelid")
-        assert still_there is not None and still_there.active is False
-
-    def test_deactivate_missing_entry_returns_none(self, repo):
-        assert repo.deactivate_membership_type("h-dcn", "nope") is None
-
-    def test_deactivate_is_idempotent(self, repo):
-        repo.save_membership_type("h-dcn", _mtype("erelid"))
-        repo.deactivate_membership_type("h-dcn", "erelid")
-        again = repo.deactivate_membership_type("h-dcn", "erelid")
-        assert again is not None and again.active is False
-
     def test_catalog_entries_do_not_leak_into_member_listing(self, repo):
-        # A catalog entry shares the tenant partition but must not surface as a member.
         repo.save_member("h-dcn", _member("M-1", "1001"))
-        repo.save_membership_type("h-dcn", _mtype("erelid"))
+        _seed_mtype(repo, _mtype("erelid"))
         assert [m["member_id"] for m in repo.list_members("h-dcn")] == ["M-1"]
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -757,23 +733,6 @@ class TestFloatToDecimalCoercion:
         got = repo.get_member("h-dcn", "M-1")
         assert got["overlay"]["Bedrag"] == Decimal("22.6")
         assert isinstance(got["overlay"]["Bedrag"], Decimal)
-
-    def test_save_membership_type_coerces_float(self, repo):
-        from decimal import Decimal
-
-        entry = _mtype("gewoon_lid")
-        saved = repo.save_membership_type("h-dcn", entry)
-        assert saved is not None
-        # Build the item directly to assert the stored shape carries Decimal, not float.
-        item = td.build_membership_type_item("h-dcn", "gewoon_lid", {"fee": 12.5})
-        assert item["fee"] == Decimal("12.5")
-        assert isinstance(item["fee"], Decimal)
-
-
-# ---------------------------------------------------------------------------
-# Delivery block (R3) threads through the item builder as DynamoDB-safe Decimals
-# ---------------------------------------------------------------------------
-
 
 class TestAnalyticsSetDeliveryItemBuilder:
     """The optional ``delivery`` block (R3) survives the repository item builder.

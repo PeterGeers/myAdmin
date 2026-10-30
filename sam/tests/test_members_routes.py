@@ -71,15 +71,19 @@ def test_route_map_covers_eighteen_behaviours_total():
     # ...plus the config#fields CHANGE-OP write route (spec 03 Task 2.7, design-review Q7a —
     # PUT /members/config/fields, members:admin; a Change-Op list body, declared BEFORE the
     # generic /members/config/{configId} so the literal wins) = 51.
-    assert len(ROUTES) == 51
+    # MINUS the five Lidmaatschap Beheer catalog routes (03b CONTRACT, Task 10.5:
+    # list/get/create/update/deactivate membership-types retired — membership_type now owns its
+    # vocabulary as inline field options) = 46.
+    assert len(ROUTES) == 46
 
 
 def test_route_map_groups_match_the_design_c1_counts():
     # Member CRUD 8 + field-config 1 + config-write 1 (members-config-sam-owned-write-path
     # Task 1.6 — PUT /members/config/{configId}) = 10 · membership
     # lifecycle 7 · delegates 2 ·
-    # payments 1 · catalog reads 2 (list + get, task 3.4) + catalog writes 3 (create + update +
-    # delete, task 5.3) = 5 · analytics 14 (sets: create+list+get+update+delete, F-012; preferred
+    # payments 1 · catalog 0 (03b CONTRACT, Task 10.5: the five membership-type catalog routes
+    # are retired — membership_type owns its vocabulary as inline field options) ·
+    # analytics 14 (sets: create+list+get+update+delete, F-012; preferred
     # list: get+save, R11.2; column preferences: get+save, session-columns R6; stored mail
     # templates: create+list+get+update+delete, pivot-output-actions R2 task 2.3).
     # (application-preview retired — spec 12 task 5.2.) PLUS the explicit application-form publish
@@ -94,7 +98,8 @@ def test_route_map_groups_match_the_design_c1_counts():
     assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 5
     assert len(routes_by_group(RouteGroup.DELEGATE)) == 2
     assert len(routes_by_group(RouteGroup.PAYMENT)) == 1
-    assert len(routes_by_group(RouteGroup.CATALOG)) == 5
+    # 03b CONTRACT (Task 10.5): the Lidmaatschap Beheer catalog routes are retired.
+    assert len(routes_by_group(RouteGroup.CATALOG)) == 0
     # analytics 22: sets 5 (create+list+get+update+delete, F-012); preferred list 2
     # (get+save, R11.2); column preferences 2 (get+save, session-columns R6); stored mail
     # templates 5 (create+list+get+update+delete, pivot-output-actions R2 task 2.3); the two
@@ -144,13 +149,9 @@ def test_route_map_includes_each_named_behaviour():
         "send_delegate_invitation",
         # payments
         "get_member_payments",
-        # Lidmaatschap Beheer catalog reads (task 3.4)
-        "list_membership_types",
-        "get_membership_type",
-        # Lidmaatschap Beheer catalog writes (task 5.3)
-        "create_membership_type",
-        "update_membership_type",
-        "deactivate_membership_type",
+        # (The five Lidmaatschap Beheer catalog routes — list/get/create/update/deactivate
+        #  membership-types — were RETIRED in the 03b CONTRACT, Task 10.5: membership_type owns
+        #  its vocabulary as inline field options, so there is no catalog CRUD surface.)
         # Member analytics-sets CRUD (F-012)
         "create_analytics_set",
         "list_analytics_sets",
