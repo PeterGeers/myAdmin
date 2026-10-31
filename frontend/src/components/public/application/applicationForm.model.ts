@@ -22,7 +22,7 @@
  */
 
 import type { LocalizedLabel } from '../../../types/members';
-import type { PublicField, PublicFieldOption } from './applicationFieldConfig';
+import type { PublicField, PublicFieldOption, PublicFunctionalGroup } from './applicationFieldConfig';
 import { applicationChoiceValues } from './applicationFieldConfig';
 import { resolveLabel as sharedResolveLabel } from '../../members/labelResolver';
 
@@ -99,39 +99,77 @@ function lookupValue(values: Record<string, unknown>, key: string): unknown {
 export interface FieldGroup {
   /** The `functional_group` value (the section key). */
   key: string;
+  /** The authored bilingual group label from the catalog (spec 13 R2), when the config carries one. */
+  label?: LocalizedLabel;
   /** The fields in this group, in `(order, key)` order. */
   fields: PublicField[];
 }
 
 /**
- * Group the public fields by `functional_group` then order them, deterministically (R4.1/R4.6).
+ * Group the public fields by `functional_group` then order them, deterministically (R2.1/R2.2).
  *
- * Group order follows the order of FIRST appearance of each group across the input, with fields
- * inside a group ordered by `(field.order, field.key)` — the `key` tiebreak keeps equal-`order`
- * ties stable and permutation-invariant rather than leaking the input order. A field with no
- * `functional_group` falls into a single trailing default group so it is surfaced, never dropped.
+ * GROUP order follows the AUTHORED functional-group catalog (spec 13 R2): when a `catalog` is
+ * supplied (the server-resolved `functional_groups` on the public field-config), groups appear in
+ * the admin-authored `order` (the `#10/#20/...` sequence used everywhere else in the product), with
+ * a stable tiebreak on the group KEY. A group that has fields but is ABSENT from the catalog sorts
+ * AFTER every catalog group (by key), and the synthesized default bucket (fields with no
+ * `functional_group`) is pinned LAST (surfaced-never-dropped, R2.2). The group's authored `label`
+ * is carried onto the returned `FieldGroup` for the renderer's heading.
+ *
+ * When NO catalog is supplied (back-compat / a tenant with no authored catalog), group order falls
+ * back to the previous heuristic — the MINIMUM `field.order` per group, tiebreak on group key — so
+ * behavior is unchanged for that case.
+ *
+ * FIELDS inside a group are ordered by `(field.order, field.key)` — the `key` tiebreak keeps
+ * equal-`order` ties stable and permutation-invariant rather than leaking the input order (R2.1).
+ *
+ * The function stays PURE (R2.3): no mutation of the input, deterministic for a given input.
  */
-export function groupFieldsByFunctionalGroup(fields: PublicField[]): FieldGroup[] {
+export function groupFieldsByFunctionalGroup(
+  fields: PublicField[],
+  catalog?: readonly PublicFunctionalGroup[],
+): FieldGroup[] {
   const DEFAULT_GROUP = '__default__';
   const buckets = new Map<string, PublicField[]>();
-  // Preserve first-appearance group order; the default bucket sorts last regardless.
-  const groupOrder: string[] = [];
 
   for (const f of fields) {
     const key = f.functional_group || DEFAULT_GROUP;
-    if (!buckets.has(key)) {
-      buckets.set(key, []);
-      if (key !== DEFAULT_GROUP) groupOrder.push(key);
-    }
+    if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key)!.push(f);
   }
-  if (buckets.has(DEFAULT_GROUP)) groupOrder.push(DEFAULT_GROUP);
 
   const byOrderThenKey = (a: PublicField, b: PublicField): number =>
     (a.order ?? 0) - (b.order ?? 0) || a.key.localeCompare(b.key);
 
+  // The authored catalog, indexed by key → {order, label}. A catalog entry with no fields on the
+  // form simply never appears (we only emit groups that have visible fields).
+  const catalogByKey = new Map<string, PublicFunctionalGroup>();
+  (catalog ?? []).forEach((g) => catalogByKey.set(g.key, g));
+  const hasCatalog = catalogByKey.size > 0;
+
+  // Fallback-only heuristic: min(field.order) per group (used when no catalog is supplied).
+  const minOrder = (key: string): number =>
+    buckets.get(key)!.reduce((lo, f) => Math.min(lo, f.order ?? 0), Infinity);
+
+  // Authored rank: a catalog group ranks by its authored `order`; a group absent from the catalog
+  // ranks AFTER all catalog groups (Infinity), so it trails but is never dropped.
+  const authoredRank = (key: string): number => {
+    const g = catalogByKey.get(key);
+    return g ? g.order : Number.POSITIVE_INFINITY;
+  };
+
+  const groupOrder = [...buckets.keys()].sort((a, b) => {
+    if (a === DEFAULT_GROUP) return 1;
+    if (b === DEFAULT_GROUP) return -1;
+    if (hasCatalog) {
+      return authoredRank(a) - authoredRank(b) || a.localeCompare(b);
+    }
+    return minOrder(a) - minOrder(b) || a.localeCompare(b);
+  });
+
   return groupOrder.map((key) => ({
     key,
+    label: catalogByKey.get(key)?.label,
     fields: buckets.get(key)!.slice().sort(byOrderThenKey),
   }));
 }
@@ -161,6 +199,19 @@ export function isSelectField(field: PublicField): boolean {
     (field.type === 'enum' || field.type === 'reference') &&
     applicationChoiceValues(field).length > 0
   );
+}
+
+/** Field `type` tokens whose control is intrinsically WIDE and should span the full grid row. */
+const WIDE_FIELD_TYPES = new Set(['textarea', 'text_area', 'long_text', 'multiline']);
+
+/**
+ * Whether a field's control is intrinsically WIDE (R4.3) — a long free-text / notes field whose
+ * control reads better across the full width of the group rather than squeezed into one of the
+ * responsive columns. Identified by the field `type` (generic over the config — HC1, no per-field
+ * hard-coding), so the renderer can give it a full-row `gridColumn` span in the multi-column grid.
+ */
+export function isWideField(field: PublicField): boolean {
+  return WIDE_FIELD_TYPES.has(field.type);
 }
 
 /**

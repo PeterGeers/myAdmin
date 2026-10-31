@@ -42,6 +42,7 @@ export type {
 } from '../components/public/application/applicationFieldConfig';
 
 import type { PublicFieldConfig } from '../components/public/application/applicationFieldConfig';
+import { API_BASE_URL } from '../config/api';
 
 /**
  * Result of loading a tenant's public field-config — a discriminated union so the page
@@ -143,6 +144,69 @@ export async function fetchPublicFieldConfig(
       return { status: 'error', message: 'aborted' };
     }
     return { status: 'error', message: 'Failed to load form' };
+  }
+}
+
+// ============================================================================
+// Branding-logo READ — spec 13 R5 (option 1: public CloudFront logo URL)
+//
+// `GET {API_BASE_URL}/api/public/landing/<slug>/logo` returns
+// `{ success, data: { logo: <https-url> | null } }` where `logo` is the tenant's
+// PUBLIC `landing_page.logo_url` — the public-pages CloudFront URL of the uploaded
+// logo (a plain, world-reachable image the form just `<img src>`s). It is NOT
+// gated on a PUBLISHED landing page (the URL is set on upload), so the form shows
+// the logo whether or not a landing page exists (spec 13 R5.2).
+//
+// This Flask read is reached via `API_BASE_URL` — the SAME origin the public
+// landing page's contact form posts to, so it is reachable from the public page.
+// (Round-1 returned an inline base64 data URI from the PROTECTED branding bucket;
+// that source was not public and could not render — retired.)
+//
+// A missing logo (null, 404, or ANY transport/parse failure) is a graceful
+// "no logo" — never an error that blocks the form (R5.3).
+// ============================================================================
+
+/**
+ * Fetch the tenant's branding logo for the public application form (R5.2/R5.3).
+ *
+ * Returns the logo as an inline data URI when the tenant has one configured, or `null`
+ * when it is absent/unconfigured OR when the read fails for any reason — a missing logo
+ * must NEVER block or error the form (R5.3). The slug is carried in the path and resolved
+ * server-side; no auth, no `X-Tenant`.
+ *
+ * @param tenantSlug - The tenant slug segment from the public route.
+ * @param options - Optional overrides: a pre-resolved Flask `baseUrl` (tests inject it;
+ *   production uses the app's `API_BASE_URL`) and an `AbortSignal` for unmount cancel.
+ * @returns The logo data URI, or `null` for "no logo".
+ */
+export async function fetchPublicLogo(
+  tenantSlug: string,
+  options: { baseUrl?: string; signal?: AbortSignal } = {},
+): Promise<string | null> {
+  // Reached on the Flask plane via `API_BASE_URL` (the same origin the landing contact form
+  // posts to); `options.baseUrl` overrides it in tests. The endpoint returns the tenant's
+  // public `logo_url` (a CloudFront image URL) or null.
+  const rawBase = options.baseUrl ?? API_BASE_URL;
+  const baseUrl = (rawBase ?? '').replace(/\/+$/, '');
+  const url = `${baseUrl}/api/public/landing/${encodeURIComponent(tenantSlug)}/logo`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: options.signal,
+    });
+
+    // Any non-2xx (404 unknown slug, 5xx, etc.) is simply "no logo" — never a blocker (R5.3).
+    if (!response.ok) return null;
+
+    const payload = unwrapData<{ logo?: unknown }>(await response.json());
+    const logo = payload?.logo;
+    // A plain https CloudFront URL string; blank/absent → "no logo".
+    return typeof logo === 'string' && logo.trim().length > 0 ? logo.trim() : null;
+  } catch {
+    // Aborted fetch, network error, or parse failure — all degrade to "no logo" (R5.3).
+    return null;
   }
 }
 
