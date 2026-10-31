@@ -151,7 +151,11 @@ resource "aws_iam_policy" "ses_email_sending" {
           "ses:SendRawEmail"
         ]
         Resource = [
-          "arn:aws:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/${var.ses_domain}",
+          # Widened from identity/${var.ses_domain} to identity/* so the backend can send
+          # from any VERIFIED per-address tenant sender (e.g. kim@thecategorystudio.nl),
+          # not only the jabaki.nl domain identity. Scoped to THIS account+region only.
+          # (bugfix: ses-sender-identity-pollution-cleanup - SendRawEmail AccessDenied.)
+          "arn:aws:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:identity/*",
           "arn:aws:ses:${var.aws_region}:${data.aws_caller_identity.current.account_id}:configuration-set/${aws_ses_configuration_set.myadmin_emails.name}"
         ]
       },
