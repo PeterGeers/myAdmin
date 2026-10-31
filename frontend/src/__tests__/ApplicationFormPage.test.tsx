@@ -65,6 +65,10 @@ const CONFIG: PublicFieldConfig = {
 
 const BASE = 'https://public-api.test';
 const SUBMIT_URL = `${BASE}/public/members/:slug/applications`;
+// The branding-logo read (spec 13, R5) is a Flask-plane GET fired on mount. These submit-focused
+// tests don't exercise the logo, so stub it as "no logo" (`logo: null`) to keep the mount quiet —
+// the dedicated logo render test (task 5.3) asserts the configured/absent branding behaviour.
+const LOGO_URL = `*/api/public/landing/:slug/logo`;
 
 /** The last body the submit endpoint received (asserted per test). */
 let lastBody: Record<string, unknown> | null = null;
@@ -74,6 +78,9 @@ const server = setupServer(
     lastBody = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({ success: true, data: { received: true } }, { status: 202 });
   }),
+  http.get(LOGO_URL, () =>
+    HttpResponse.json({ success: true, data: { logo: null } }, { status: 200 }),
+  ),
 );
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));

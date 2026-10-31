@@ -330,6 +330,24 @@ class FieldConfigSurfaceMixin:
         return {
             "tenant_id": config.tenant_id,
             "fields": fields,
+            # The tenant's functional-group DISPLAY CATALOG (spec 13 R2): the resolved
+            # `{key, label, order}` for every authored group, so the public renderer orders
+            # SECTIONS by the admin-authored group `order` (the `#10/#20/...` sequence used
+            # everywhere else in the product) and shows the authored group LABEL — NOT a
+            # heading derived from the group key and NOT an order guessed from `min(field.order)`.
+            # This is a RESOLVED view (steering 39): the already-ordered `FunctionalGroup`
+            # value objects the resolver produced (sorted by `(order, key)`), projected to the
+            # minimal wire shape the form needs. Empty list when the tenant authored no catalog
+            # (empty-is-valid) — the renderer then falls back to key-derived headings + its
+            # deterministic default ordering.
+            "functional_groups": [
+                {
+                    "key": g.key,
+                    "label": dict(g.label) if g.label else {},
+                    "order": int(g.order),
+                }
+                for g in config.functional_groups
+            ],
             # The applicant locale selector's options (R6b). The renderer selects each field's
             # label language from the applicant's chosen locale, defaulting to `nl` (R5.3/R6b.1).
             "locales": list(SUPPORTED_LOCALES),
@@ -606,9 +624,7 @@ class FieldConfigSurfaceMixin:
         # EMPTY dimension (zero values yet) is a legitimately-empty source (G5), NOT the asymmetry
         # — project the (possibly empty) list; do not raise.
         if field.key in scope_vocab:
-            return [
-                {"value": str(v), "label": {}} for v in scope_vocab[field.key]
-            ]
+            return [{"value": str(v), "label": {}} for v in scope_vocab[field.key]]
 
         # inline enum — the field's own rich options, sourced purely by the resolver. Reuses the
         # catalog mixin's enum serializer (resolved at runtime on the composed service class, same
@@ -631,4 +647,3 @@ class FieldConfigSurfaceMixin:
         # No selectable source declared (a plain string/number field, or a not-yet-populated
         # field with no `options` and no `choices`) → legitimately sourceless (G5), `None`.
         return None
-

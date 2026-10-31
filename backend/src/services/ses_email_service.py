@@ -136,7 +136,17 @@ class SESEmailService:
                 except Exception as log_err:
                     logger.warning(f"Email failed and logging also failed: {log_err}")
 
-            return {"success": False, "error": f"{error_code}: {error_msg}"}
+            # Caller-safe response: generic message only. The raw AWS detail
+            # (code + message, including any ARN / identity/<addr> text) is logged
+            # above and persisted via log_failed server-side, never echoed to the
+            # client (steering 30-backend-api-flask-mysql; py/stack-trace-exposure).
+            # The SES error CODE is a non-sensitive classifier retained internally
+            # (not raw message/ARN) so fallback logic keeps req 3.4 intact.
+            return {
+                "success": False,
+                "error": "Email sending failed. Please try again later.",
+                "error_code": error_code,
+            }
 
         except Exception:
             logger.exception("Unexpected error sending email to %s", to_email)
@@ -298,7 +308,17 @@ class SESEmailService:
                 except Exception as log_err:
                     logger.warning(f"Email failed and logging also failed: {log_err}")
 
-            return {"success": False, "error": f"{error_code}: {error_msg}"}
+            # Caller-safe response: generic message only. The raw AWS detail
+            # (code + message, including any ARN / identity/<addr> text) is logged
+            # above and persisted via log_failed server-side, never echoed to the
+            # client (steering 30-backend-api-flask-mysql; py/stack-trace-exposure).
+            # The SES error CODE is a non-sensitive classifier retained internally
+            # (not raw message/ARN) so fallback logic keeps req 3.4 intact.
+            return {
+                "success": False,
+                "error": "Email sending failed. Please try again later.",
+                "error_code": error_code,
+            }
 
         except Exception:
             logger.exception(

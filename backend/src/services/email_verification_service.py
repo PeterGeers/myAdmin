@@ -30,31 +30,72 @@ class EmailVerificationService:
         self,
         db_manager: DatabaseManager | None = None,
         region: str | None = None,
+        ses_client=None,
     ):
         """Initialize the service with database manager and SES client.
+
+        The SES client is injectable and resolved lazily (mirrors the SAM
+        ``SesBotoSender`` seam): a real ``boto3.client("ses", ...)`` is built ONLY
+        when no client is injected AND the lazy ``ses_client`` property is first
+        accessed on an explicitly production-wired path. Tests / scripts / fuzz
+        harnesses pass a fake (or never touch SES), so a non-production-wired
+        construction never resolves a real client — closing the identity-burst seam.
 
         Args:
             db_manager: DatabaseManager instance. If None, creates one.
             region: AWS region for SES. Defaults to AWS_REGION env var or 'eu-west-1'.
+            ses_client: Optional injected boto3 SES client (or compatible fake).
+                Resolved lazily otherwise.
         """
         self.db = db_manager or DatabaseManager()
         self.region = region or os.getenv("AWS_REGION", "eu-west-1")
-        self.ses_client = boto3.client("ses", region_name=self.region)
+        self._ses_client = ses_client
+
+    @property
+    def ses_client(self):
+        """The boto3 SES client, resolved lazily on first use.
+
+        Resolves a real ``boto3.client("ses", region_name=self.region)`` ONLY when
+        no client was injected (``self._ses_client is None``) — the explicitly
+        production-wired path. Returns the injected/fake client otherwise. Internal
+        callers use ``self.ses_client`` unchanged, so no call-site churn.
+        """
+        if self._ses_client is None:
+            self._ses_client = boto3.client("ses", region_name=self.region)
+        return self._ses_client
 
     def _validate_email(self, email: str) -> bool:
-        """RFC 5322 basic email format validation.
+        """Deliverable-sender email validation (defense-in-depth, Concern B).
 
-        Checks:
-        - Contains exactly one '@'
-        - Non-empty local part
-        - Non-empty domain part with at least one dot
-        - No spaces
+        This is deliberately NARROWER than the full RFC 5322 grammar. SES
+        ``verify_email_identity`` creates a permanent, billable identity for
+        whatever it is handed, so the one app path that legitimately reaches it
+        must only accept plausible, deliverable sender addresses — never
+        prototype-pollution keys, exploit special characters, or oversized /
+        implausible domains that the broad RFC class would wave through.
+
+        Rejected (returns False, never raises):
+        - prototype-pollution keys anywhere in the local part
+          (``__proto__``, ``constructor``, ``prototype``)
+        - exploit / unsafe special characters in the local part
+          (anything outside ``A-Z a-z 0-9 . + _ -``), which excludes
+          ``| ^ # { } = ! ~ % & ' * / = ? $`` and friends
+        - a domain without a sane dotted structure / plausible alpha TLD
+        - oversized input: overall > 254, local part > 64, any domain label > 63
+
+        Accepted: genuine deliverable addresses such as ``user@example.com``,
+        ``first.last@example.com``, ``user+tag@example.com``,
+        ``user@mail.example.co.uk``, ``info@h-dcn.nl`` — so
+        ``initiate_verification`` / ``update_email`` still reach SES for real
+        senders, preserving the existing success path and the
+        ``{'success': False, 'status': 'failed', 'error': 'Invalid email format'}``
+        shape for anything rejected here.
 
         Args:
             email: Email address string to validate.
 
         Returns:
-            True if valid, False otherwise.
+            True if the address is a plausible deliverable sender, False otherwise.
         """
         if not email or not isinstance(email, str):
             return False
@@ -64,9 +105,40 @@ class EmailVerificationService:
         if " " in email:
             return False
 
-        # Basic RFC 5322 pattern: local@domain.tld
-        pattern = r"^[a-zA-Z0-9.!#$%&\'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$"
-        return bool(re.match(pattern, email))
+        # Exactly one '@', both sides non-empty.
+        if email.count("@") != 1:
+            return False
+        local, domain = email.split("@")
+        if not local or not domain:
+            return False
+
+        # Overall / per-part length caps (RFC 5321 limits) — reject oversized.
+        if len(email) > 254 or len(local) > 64:
+            return False
+
+        # Reject prototype-pollution keys anywhere in the local part.
+        local_lower = local.lower()
+        if any(key in local_lower for key in ("__proto__", "constructor", "prototype")):
+            return False
+
+        # Local part: narrow, deliverable-safe class only. Letters/digits plus the
+        # common non-exploit separators (dot / plus / underscore / hyphen), with an
+        # alphanumeric anchor at each end and no consecutive dots. This excludes the
+        # exploit special characters (| ^ # { } = ! ~ % & ' * / = ? $ ...) that the
+        # full RFC 5322 class accepts.
+        local_pattern = r"^[a-zA-Z0-9]([a-zA-Z0-9._+-]*[a-zA-Z0-9])?$"
+        if not re.match(local_pattern, local) or ".." in local:
+            return False
+
+        # Domain: one or more alphanumeric/hyphen labels (not starting/ending with a
+        # hyphen, each <= 63 chars) separated by dots, ending in a plausible alpha TLD
+        # of at least two letters. Guarantees a sane dotted domain.
+        domain_pattern = (
+            r"^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"
+            r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*"
+            r"\.[a-zA-Z]{2,}$"
+        )
+        return bool(re.match(domain_pattern, domain))
 
     def initiate_verification(self, administration: str, email: str) -> dict:
         """Call SES VerifyEmailIdentity and store pending record.

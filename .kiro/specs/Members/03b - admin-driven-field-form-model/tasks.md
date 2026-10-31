@@ -360,17 +360,31 @@ disabled; Python venv `backend/.venv`; scratch under repo-root `.agent-output/`;
     - _Steering: 40-spec-workflow, 38-sam-module-field-config_
     - _Requirements: 3.5, 8.1, 8.2_
 
-- [ ] 12. PROD migration + promotion gate (Req 6, analysis D5)
-  - [ ] 12.1 Run EXPAND + VERIFY + CONTRACT on PRODUCTION identically to TEST
-    - Back up → dry-run → apply the fold on `governance_projection` / `sam-members`; run the all-tenant
-      integrity scan; retire the catalog rows; account `nonprofit-deploy` (506221081911). Only after the
-      PROD scan passes is `test → main` unblocked
+- [x] 12. PROD migration + promotion gate (Req 6, analysis D5)
+  - [x] 12.1 Run EXPAND + VERIFY + CONTRACT on PRODUCTION identically to TEST
+    - DONE on PROD (account `nonprofit-deploy` 506221081911, identity-checked = 506221081911).
+    - Restore point: PITR confirmed ENABLED on `governance_projection` (per-row `BACKUP` lines also
+      captured in the apply log). For `sam-members` (PITR DISABLED) a full-row JSON backup of the 7
+      `membershiptype#` rows was taken before the CONTRACT delete.
+    - EXPAND: dry-run first (planned=1 h-dcn, 7 others SKIP idempotent), then
+      `--apply --i-have-a-restore-point` on `governance_projection`/`sam-members` → h-dcn folded
+      (7 options, `erelid` → `allowed:false`), written=1.
+    - VERIFY: `scan_membership_type_integrity.py` → PASS (8 tenants, zero un-folded, zero orphans).
+    - CONTRACT: deleted the 7 `h-dcn membershiptype#` rows from `sam-members` (by exact key,
+      backup-first); re-scan → PASS (catalog count 0, field options intact, member refs
+      grandfathered). PROD scan green → `test → main` unblocked.
     - _Steering: 43-cicd-deploys, 23-aws-accounts, 41-shell-environment_
     - _Requirements: 6.4, 6.5, 8.4_
 
-  - [ ] 12.2 Checkpoint — promotion readiness
-    - Confirm 03b landed, PROD migration + all-tenant scan passed, CI gates green. The `test → main`
-      promotion gate (seed) is satisfied only now. Ask the user before merging to `main`.
+  - [x] 12.2 Checkpoint — promotion readiness
+    - DONE. 03b landed; PROD migration + all-tenant integrity scan passed (12.1); FTS on `test`
+      GREEN; manual tests fine; CI gates (CodeQL + GitGuardian) green on the promotion PR. With the
+      user's go-ahead, opened PR #188 (`test → main`, 54-commit delta — 03b + accumulated test
+      work). Safety review: NO SAM template / samconfig / Terraform / Cognito / CloudFront /
+      infrastructure changes in the delta (→ no CloudFormation resource replacement; in-place
+      Lambda code deploy), and the stateful tables are managed outside the stack (Retain, by name).
+      Merged with a MERGE COMMIT; the merge fired the prod deploy workflows (Deploy SAM Members +
+      Deploy Frontend; no PreTokenGen — no `sam/pretokengen` change).
 
 ## Task Dependency Graph
 

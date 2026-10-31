@@ -23,6 +23,7 @@ If you add a new route:
 Reference: .kiro/specs/multi-tenant/s2-jwt-verification (requirements.md R1.1,
 design.md "Audit every authenticated route").
 """
+
 import pytest
 
 # --- Legitimately public endpoints (no identity required) ----------------
@@ -63,6 +64,7 @@ PUBLIC_ENDPOINTS = {
     # Public landing-page CMS endpoints (anonymous visitors).
     "landing_page.submit_contact": "public landing contact form",
     "landing_page.resolve_slug": "public landing slug resolution",
+    "landing_page.get_branding_logo": "public tenant branding logo (data URI)",
     # Webhook with its own auth (SNS signature); SNS cannot send a JWT.
     "email_log.ses_notification_webhook": "SES/SNS webhook — SNS signature auth",
     # OAuth redirect target for Google; only relays code to opener. The token
