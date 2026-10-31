@@ -15,6 +15,7 @@ from flask.typing import ResponseReturnValue
 
 from database import DatabaseManager
 from routes import landing_page_routes as pkg
+from routes.error_responses import error_response
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +258,57 @@ def resolve_slug(slug: str) -> ResponseReturnValue:
     except Exception as e:
         logger.error(f"Error resolving slug '{slug}': {e}")
         return jsonify({"success": False, "error": "Internal server error"}), 500
+
+
+@landing_page_bp.route("/api/public/landing/<slug>/logo", methods=["GET"])
+def get_branding_logo(slug: str) -> ResponseReturnValue:
+    """Resolve a tenant's PUBLIC logo URL for the public application form (spec 13 R5).
+
+    Public (no auth), tenant-addressed by the same ``slug`` the public
+    application form already resolves. Returns the tenant's ``landing_page.logo_url``
+    parameter — the PUBLIC CloudFront URL of the logo that was uploaded into the
+    public-pages bucket (the SAME ``logo_url`` the landing page and invoices use).
+    It is a plain, world-reachable image URL, so the form simply ``<img src>``s it
+    (option 1): no inline base64, no protected-bucket read, no CDN barrier the
+    browser cannot cross.
+
+    This is deliberately NOT gated on a PUBLISHED landing page: ``logo_url`` is set
+    the moment a logo is uploaded (``image_endpoints``), so the application form shows
+    the logo whether or not a landing page is published (spec 13 R5.2). The round-1
+    behaviour (an inline base64 data URI from the PROTECTED ``branding.company_logo_s3_key``)
+    is retired — that read the non-public source and could not render the logo.
+
+    A tenant with no uploaded logo (or any resolution failure) yields a graceful
+    ``logo: null`` — never an error or a broken image (R5.3).
+
+    Returns:
+        200 ``{"success": True, "data": {"logo": "<https-url>" | None}}``.
+        404 ``{"success": False, "error": "Page not found"}`` for an unknown slug.
+    """
+    try:
+        slug_service = pkg._get_slug_service()
+        administration = slug_service.resolve_slug(slug)
+
+        if not administration:
+            return jsonify({"success": False, "error": "Page not found"}), 404
+
+        # The tenant's PUBLIC logo URL (the public-pages CloudFront asset), stored as
+        # `landing_page.logo_url` on upload — independent of landing-page publication.
+        # Blank/absent → graceful "no logo" (R5.3).
+        parameter_service = pkg._get_parameter_service()
+        logo_url = parameter_service.get_param(
+            "landing_page", "logo_url", tenant=administration
+        )
+        logo = (
+            logo_url.strip() if isinstance(logo_url, str) and logo_url.strip() else None
+        )
+
+        return jsonify({"success": True, "data": {"logo": logo}})
+
+    except Exception as e:
+        return error_response(
+            e, "Failed to resolve logo", status=500, log_context="get_branding_logo"
+        )
 
 
 @landing_page_bp.route("/api/public/landing/<slug>/contact", methods=["POST"])

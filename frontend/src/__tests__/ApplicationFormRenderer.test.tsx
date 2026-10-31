@@ -160,6 +160,181 @@ describe('ApplicationFormRenderer — config-driven (task 9.1)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Readable group headings + group ORDER in the DOM (R1.1/R1.2/R1.3, spec 13 task 2.2)
+//
+// A config that exercises all three heading/order facts in one DOM:
+//  - two NAMED groups whose keys need humanizing (`contact_details`, `membership`);
+//  - a `__default__` bucket (a field with NO functional_group) that must render WITHOUT an
+//    empty-legend artifact;
+//  - min-field-order chosen so group order is unambiguous and NOT the input order:
+//    membership min order = 5, contact_details min order = 10, default pinned LAST.
+// ---------------------------------------------------------------------------
+const HEADING_CONFIG: PublicFieldConfig = {
+  fields: [
+    // default bucket (no functional_group) — listed FIRST in input but must sort LAST.
+    {
+      key: 'notes',
+      type: 'string',
+      label: { nl: 'Opmerkingen', en: 'Notes' },
+      order: 1,
+    },
+    // contact_details — min order 10 (its only field).
+    {
+      key: 'contact.email',
+      type: 'string',
+      label: { nl: 'E-mail', en: 'Email' },
+      functional_group: 'contact_details',
+      order: 10,
+    },
+    // membership — min order 5, so this group sorts FIRST despite appearing after contact.
+    {
+      key: 'membership.membership_type',
+      type: 'string',
+      label: { nl: 'Type', en: 'Type' },
+      functional_group: 'membership',
+      order: 5,
+    },
+  ],
+  locales: ['nl', 'en'],
+};
+
+function HeadingHarness() {
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    buildInitialValues(HEADING_CONFIG.fields),
+  );
+  return (
+    <ApplicationFormRenderer
+      config={HEADING_CONFIG}
+      values={values}
+      onChange={(k, v) => setValues((prev) => ({ ...prev, [k]: v }))}
+    />
+  );
+}
+
+describe('ApplicationFormRenderer — group headings + order (spec 13 task 2.2, R1.1/R1.2/R1.3)', () => {
+  it('shows a readable, humanized heading for every NON-default group (R1.2)', () => {
+    render(<HeadingHarness />);
+
+    // Each named group renders its heading via the stable `group-heading-{key}` testid,
+    // Title-Cased from the key (contact_details → "Contact Details", membership → "Membership").
+    const contactHeading = screen.getByTestId('group-heading-contact_details');
+    expect(contactHeading).toBeInTheDocument();
+    expect(contactHeading).toHaveTextContent('Contact Details');
+
+    const membershipHeading = screen.getByTestId('group-heading-membership');
+    expect(membershipHeading).toBeInTheDocument();
+    expect(membershipHeading).toHaveTextContent('Membership');
+  });
+
+  it('renders the __default__ bucket WITHOUT an empty-legend artifact (R1.2)', () => {
+    render(<HeadingHarness />);
+
+    // The default bucket still renders its field (the group section exists)...
+    const defaultGroup = document.querySelector('[data-group="__default__"]');
+    expect(defaultGroup).toBeTruthy();
+    expect(within(defaultGroup as HTMLElement).getByLabelText('Opmerkingen')).toBeInTheDocument();
+
+    // ...but it carries NO heading testid and NO <legend> element (no empty-legend artifact).
+    expect(screen.queryByTestId('group-heading-__default__')).not.toBeInTheDocument();
+    expect((defaultGroup as HTMLElement).querySelector('legend')).toBeNull();
+  });
+
+  it('orders groups by min(field.order) with __default__ LAST (R2 order in the DOM)', () => {
+    render(<HeadingHarness />);
+
+    // DOM order of the rendered group sections, read off their data-group attribute.
+    const groupOrder = Array.from(document.querySelectorAll('[data-group]')).map((el) =>
+      el.getAttribute('data-group'),
+    );
+    // membership (min order 5) → contact_details (min order 10) → __default__ (pinned last),
+    // which is NOT the input order (default field was listed first).
+    expect(groupOrder).toEqual(['membership', 'contact_details', '__default__']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Responsive multi-column group layout (spec 13 task 4.2, R4.2/R4.3/R4.4)
+//
+// The per-group fields render inside a responsive `SimpleGrid` (1 col on `base`, ≥2 on `md`)
+// that REPLACED the old single-column `VStack`. The responsive `columns`/`gridColumn` values are
+// style props Chakra consumes (not asserted here — task 4.3 covers the viewport behavior); what
+// this block pins is the STRUCTURE + DOM order the grid must preserve: each group's fields live in
+// a `group-grid-{key}` container, in the config-resolved `(order, key)` sequence (a single logical
+// reading/tab order, R4.4), and an intrinsically-wide field renders full-width inside that grid.
+// ---------------------------------------------------------------------------
+const WIDE_CONFIG: PublicFieldConfig = {
+  fields: [
+    {
+      key: 'personal.first_name',
+      type: 'string',
+      label: { nl: 'Voornaam', en: 'First name' },
+      functional_group: 'personal',
+      order: 10,
+    },
+    {
+      key: 'personal.last_name',
+      type: 'string',
+      label: { nl: 'Achternaam', en: 'Last name' },
+      functional_group: 'personal',
+      order: 20,
+    },
+    {
+      // An intrinsically-wide field — spans the full grid row (R4.3).
+      key: 'personal.notes',
+      type: 'textarea',
+      label: { nl: 'Opmerkingen', en: 'Notes' },
+      functional_group: 'personal',
+      order: 30,
+    },
+  ],
+  locales: ['nl', 'en'],
+};
+
+function WideHarness() {
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    buildInitialValues(WIDE_CONFIG.fields),
+  );
+  return (
+    <ApplicationFormRenderer
+      config={WIDE_CONFIG}
+      values={values}
+      onChange={(k, v) => setValues((prev) => ({ ...prev, [k]: v }))}
+    />
+  );
+}
+
+describe('ApplicationFormRenderer — multi-column grid layout (spec 13 task 4.2, R4.2/R4.3/R4.4)', () => {
+  it('renders each group`s fields inside a SimpleGrid container, not a bare stack (R4.2)', () => {
+    render(<WideHarness />);
+
+    const grid = screen.getByTestId('group-grid-personal');
+    expect(grid).toBeInTheDocument();
+    // Every field in the group lives inside the grid container.
+    expect(within(grid).getByLabelText('Voornaam')).toBeInTheDocument();
+    expect(within(grid).getByLabelText('Achternaam')).toBeInTheDocument();
+    expect(within(grid).getByLabelText('Opmerkingen')).toBeInTheDocument();
+  });
+
+  it('preserves a single logical reading/tab order = the resolved (order, key) sequence (R4.4)', () => {
+    render(<WideHarness />);
+    const grid = screen.getByTestId('group-grid-personal');
+    const labels = within(grid)
+      .getAllByText(/Voornaam|Achternaam|Opmerkingen/)
+      .map((n) => n.textContent);
+    // DOM order of the SimpleGrid children = field order 10 → 20 → 30.
+    expect(labels).toEqual(['Voornaam', 'Achternaam', 'Opmerkingen']);
+  });
+
+  it('renders an intrinsically-wide field as an ordinary control inside the grid (R4.3)', () => {
+    render(<WideHarness />);
+    const grid = screen.getByTestId('group-grid-personal');
+    // The wide field is still a labelled control (association preserved, HC2) within the grid.
+    const notes = within(grid).getByLabelText('Opmerkingen');
+    expect(notes).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // flatten ↔ un-flatten round-trip (R10a.4)
 // ---------------------------------------------------------------------------
 describe('flatten ↔ un-flatten (R10a.4)', () => {
