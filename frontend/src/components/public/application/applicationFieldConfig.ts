@@ -133,12 +133,34 @@ export interface PublicConsentNotice {
 }
 
 /**
+ * One entry of the tenant's functional-group DISPLAY CATALOG (spec 13 R2). The server resolves
+ * these from the authored `functional_groups` catalog and sends them on the public field-config so
+ * the renderer can SECTION the form in the admin-authored order and show the authored group LABEL —
+ * not an order guessed from field order, and not a heading derived from the raw group key.
+ */
+export interface PublicFunctionalGroup {
+  /** The group key — matches each field's `functional_group`. */
+  key: string;
+  /** Bilingual group heading; the renderer selects by applicant locale (nl fallback, R6b). */
+  label?: LocalizedLabel;
+  /** The admin-authored display order (the `#10/#20/...` sequence). Lower sorts first. */
+  order: number;
+}
+
+/**
  * The 200 field-config body (design §3.1 `data`): the schema the renderer is driven by, the
  * locales the form offers, and the tenant's versioned consent notice.
  */
 export interface PublicFieldConfig {
   /** The applicant-selected fields, each already application-subset / format-applied. */
   fields: PublicField[];
+  /**
+   * The tenant's functional-group display catalog (spec 13 R2) — the authored `{key,label,order}`
+   * per group. Drives group SECTION order (by `order`) and headings (by `label`). Optional/empty
+   * when the tenant authored no catalog; the renderer then falls back to key-derived headings and
+   * its deterministic default ordering.
+   */
+  functional_groups?: PublicFunctionalGroup[];
   /** Supported applicant locales (e.g. `["nl","en"]`), default-first (R6b). */
   locales?: string[];
   /** The tenant's versioned consent/privacy notice (consumed by the consent step, task 9.3). */

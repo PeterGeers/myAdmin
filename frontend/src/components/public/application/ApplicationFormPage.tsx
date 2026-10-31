@@ -30,7 +30,7 @@
  * _Requirements: R1a, R2.3, R6b, R6.6, R10a.3, R10a.5, R10a.6, R12.1_
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useFormik } from 'formik';
 import {
   Box,
@@ -39,6 +39,7 @@ import {
   FormControl,
   FormLabel,
   Heading,
+  Image,
   Select,
   Text,
   VStack,
@@ -60,6 +61,7 @@ import {
 import type { PublicFieldConfig } from './applicationFieldConfig';
 import {
   submitApplication,
+  fetchPublicLogo,
   type ApplicationFieldError,
   type SubmitApplicationResult,
 } from '../../../services/applicationApi';
@@ -128,6 +130,15 @@ export interface ApplicationFormPageProps {
   initialLocale?: string;
   /** Optional pre-resolved API base URL (tests inject the MSW origin). */
   apiBaseUrl?: string;
+  /**
+   * Optional pre-resolved base URL for the Flask-plane branding-logo read (R5). Distinct from
+   * `apiBaseUrl` (the public SAM API): the logo endpoint lives on the Flask backend
+   * (`/api/public/landing/<slug>/logo`). Defaults to the app's `API_BASE_URL` when omitted;
+   * tests inject an explicit origin.
+   */
+  logoBaseUrl?: string;
+  /** Optional tenant display name used as the logo's accessible `alt` (falls back to "logo"). */
+  tenantName?: string;
   /** Optional callback after a neutral 202 so a host page can swap to a thank-you view. */
   onAccepted?: () => void;
 }
@@ -137,15 +148,38 @@ export const ApplicationFormPage: React.FC<ApplicationFormPageProps> = ({
   config,
   initialLocale,
   apiBaseUrl,
+  logoBaseUrl,
+  tenantName,
   onAccepted,
 }) => {
   const [locale, setLocale] = useState<SupportedLocale>(() => resolveLocale(initialLocale));
+  // The tenant's ONE branding logo (R5): resolved from the Flask-plane branding read. `null`
+  // means "no logo / not yet loaded" — the form renders NOTHING in its place (no broken image,
+  // R5.3). A failed/absent read never blocks the form.
+  const [logo, setLogo] = useState<string | null>(null);
   const [consent, setConsent] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
   const [accepted, setAccepted] = useState(false);
   const [submitFailed, setSubmitFailed] = useState(false);
   // A stable session key for the life of this mounted form (R3a de-dup).
   const [sessionKey] = useState(newSessionKey);
+
+  // Resolve the tenant branding logo once per slug (R5). Abortable so a slug change / unmount
+  // never writes stale state; a missing logo is a graceful "no logo" (the client fn never throws).
+  const logoActiveRef = useRef(true);
+  useEffect(() => {
+    logoActiveRef.current = true;
+    const controller = new AbortController();
+    fetchPublicLogo(tenantSlug, { baseUrl: logoBaseUrl, signal: controller.signal }).then(
+      (resolved) => {
+        if (logoActiveRef.current) setLogo(resolved);
+      },
+    );
+    return () => {
+      logoActiveRef.current = false;
+      controller.abort();
+    };
+  }, [tenantSlug, logoBaseUrl]);
 
   const ui = UI_TEXT[locale];
   const fields = config.fields ?? [];
@@ -221,6 +255,21 @@ export const ApplicationFormPage: React.FC<ApplicationFormPageProps> = ({
 
   return (
     <Box as="main" lang={locale} data-testid="application-form-page">
+      {/* Tenant branding logo (R5): constrained + centered ABOVE the heading when resolved;
+          render NOTHING when absent so there is no broken-image placeholder (R5.3). Works
+          whether or not the tenant has a published landing page. */}
+      {logo && (
+        <Image
+          src={logo}
+          alt={tenantName ?? 'logo'}
+          data-testid="application-logo"
+          maxH={{ base: '48px', md: '72px' }}
+          width="auto"
+          mx="auto"
+          mb={4}
+        />
+      )}
+
       <Heading as="h1">{ui.heading}</Heading>
 
       {/* Locale selector — drives labels + submitted locale + page lang (R6b/R10a.6). */}
