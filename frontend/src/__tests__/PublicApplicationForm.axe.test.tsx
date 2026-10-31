@@ -93,9 +93,16 @@ const CONFIG: PublicFieldConfig = {
 const BASE = 'https://public-api.test';
 const FIELD_CONFIG_URL = `${BASE}/public/members/:slug/field-config`;
 const SUBMIT_URL = `${BASE}/public/members/:slug/applications`;
+// The branding-logo read (spec 13 R5) is a Flask-plane GET fired on mount. The axe harness does
+// not exercise the logo, so stub it as "no logo" to keep the mount quiet (no unhandled-request
+// noise); the logo render behaviour is covered by ApplicationFormPage.logo.test.tsx.
+const LOGO_URL = `*/api/public/landing/:slug/logo`;
 
 const server = setupServer(
   http.get(FIELD_CONFIG_URL, () => HttpResponse.json({ data: CONFIG })),
+  http.get(LOGO_URL, () =>
+    HttpResponse.json({ success: true, data: { logo: null } }, { status: 200 }),
+  ),
   http.post(SUBMIT_URL, () =>
     HttpResponse.json({ success: true, data: { received: true } }, { status: 202 }),
   ),

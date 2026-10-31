@@ -24,6 +24,8 @@ const CHAKRA_PROPS = new Set<string>([
   'colorScheme', 'variant', 'size',
   'borderRadius', 'boxShadow', 'border', 'borderColor', 'borderWidth',
   'borderTop', 'borderBottom',
+  // Input/Select focus + error border props (Chakra consumes these; strip from DOM)
+  'focusBorderColor', 'errorBorderColor',
   'textAlign', 'fontSize', 'fontWeight', 'fontFamily',
   'color', 'lineHeight', 'letterSpacing', 'textTransform', 'textDecoration',
   'opacity', 'cursor', 'transition', 'transform',

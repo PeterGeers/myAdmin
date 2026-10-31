@@ -36,7 +36,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -45,6 +47,7 @@ from sam.members.domain.application_service import ApplicationService
 from sam.members.domain.consent_notice import StaticConsentNoticeProvider
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
+    FunctionalGroup,
     OverlayError,
     OverlayField,
     StaticOverlayProvider,
@@ -94,8 +97,18 @@ def _overlay_public_form() -> TenantOverlay:
                 # options (the catalog is retired). The full set is gewoon + erelid (both active);
                 # the application SUBSET then narrows the public read to ``gewoon`` only.
                 options=(
-                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Regular"}, allowed=True, order=10),
-                    EnumOption(value="erelid", label={"nl": "Erelid", "en": "Honorary"}, allowed=True, order=20),
+                    EnumOption(
+                        value="gewoon",
+                        label={"nl": "Gewoon", "en": "Regular"},
+                        allowed=True,
+                        order=10,
+                    ),
+                    EnumOption(
+                        value="erelid",
+                        label={"nl": "Erelid", "en": "Honorary"},
+                        allowed=True,
+                        order=20,
+                    ),
                 ),
             ),
             # last_name intentionally NOT application_visible → never exposed.
@@ -156,7 +169,13 @@ class TestOnlySelectedFieldsExposed:
     def test_every_exposed_field_is_application_visible(self, service):
         schema = service.get_public_field_config(TENANT)
         exposed = {f["key"] for f in schema["fields"]}
-        assert exposed == {"first_name", "email", "membership_type", "shirt_size", "nickname"}
+        assert exposed == {
+            "first_name",
+            "email",
+            "membership_type",
+            "shirt_size",
+            "nickname",
+        }
 
     def test_full_resolved_config_has_more_fields_than_the_public_schema(self, service):
         # The public schema is a strict narrowing of the staff field config (R5.2).
@@ -169,7 +188,9 @@ class TestOnlySelectedFieldsExposed:
 
 
 class TestFieldContract:
-    def test_required_is_the_application_required_flag_not_staff_required(self, service):
+    def test_required_is_the_application_required_flag_not_staff_required(
+        self, service
+    ):
         fields = _by_key(service.get_public_field_config(TENANT)["fields"])
         # first_name is application-required on the form (R4b.6) even though the platform
         # fixed field is optional — the public `required` reflects the FORM flag.
@@ -188,7 +209,9 @@ class TestFieldContract:
 
     def test_show_when_is_carried_when_present_and_absent_otherwise(self, service):
         fields = _by_key(service.get_public_field_config(TENANT)["fields"])
-        assert fields["shirt_size"]["show_when"] == {"membership.membership_type": "gewoon"}
+        assert fields["shirt_size"]["show_when"] == {
+            "membership.membership_type": "gewoon"
+        }
         assert "show_when" not in fields["nickname"]
 
     def test_format_token_is_carried(self, service):
@@ -200,7 +223,13 @@ class TestFieldContract:
     def test_staff_only_attributes_are_not_exposed(self, service):
         # The public contract must not leak internal field state (R5.2).
         for f in service.get_public_field_config(TENANT)["fields"]:
-            for leaked in ("visible", "origin", "provenance", "scope", "member_number_format"):
+            for leaked in (
+                "visible",
+                "origin",
+                "provenance",
+                "scope",
+                "member_number_format",
+            ):
                 assert leaked not in f
 
 
@@ -252,7 +281,11 @@ class TestApplicationSubset:
             repo, overlay_provider=StaticOverlayProvider({TENANT: overlay})
         )
         fields = _by_key(svc.get_public_field_config(TENANT)["fields"])
-        assert [o["value"] for o in fields["colour"]["options"]] == ["red", "green", "blue"]
+        assert [o["value"] for o in fields["colour"]["options"]] == [
+            "red",
+            "green",
+            "blue",
+        ]
 
     def test_subset_with_an_entry_not_in_choices_fails_loud(self):
         # A subset entry not in the field's canonical options is a config bug (R4a.4) — fail-fast.
@@ -296,7 +329,8 @@ class TestBodyShape:
         repo = _ApplicationRepo()
         repo.add_type(TENANT, _entry(TENANT, "gewoon", order=10))
         svc = MembershipService(
-            repo, overlay_provider=StaticOverlayProvider({TENANT: _overlay_public_form()})
+            repo,
+            overlay_provider=StaticOverlayProvider({TENANT: _overlay_public_form()}),
         )
         schema = svc.get_public_field_config(TENANT)
         assert schema["notice"] == {"version": None}
@@ -348,7 +382,9 @@ def _overlay_membership_type_subset(
     )
 
 
-def _service_with_catalog(overlay: TenantOverlay, *active_codes: str) -> MembershipService:
+def _service_with_catalog(
+    overlay: TenantOverlay, *active_codes: str
+) -> MembershipService:
     # `active_codes` name the field's inline membership_type vocabulary (03b CONTRACT: the field
     # owns its options; the catalog is retired). They are seeded into the overlay's inline options
     # by the caller via `_overlay_membership_type_subset(options=...)`; a repo catalog is NOT the
@@ -462,7 +498,10 @@ class TestMembershipTypeReferenceSubsetAgainstLiveCatalog:
         # value through (the read's loud failure and the submit's refusal agree on one authority).
         submit_svc = _service(
             _overlay_membership_type_exposed(subset=("ghost",)),
-            catalog=[_entry(TENANT, "gewoon", order=10), _entry(TENANT, "erelid", order=20)],
+            catalog=[
+                _entry(TENANT, "gewoon", order=10),
+                _entry(TENANT, "erelid", order=20),
+            ],
         )
         with pytest.raises(MemberValidationError) as submit_exc:
             _create(
@@ -489,4 +528,70 @@ class TestApplicationServiceFacade:
                 {TENANT: (True, "h-dcn.nl")}
             ),
         )
-        assert facade.get_public_field_config(TENANT) == service.get_public_field_config(TENANT)
+        assert facade.get_public_field_config(
+            TENANT
+        ) == service.get_public_field_config(TENANT)
+
+
+# -- 6. the functional-group DISPLAY CATALOG is on the public payload (spec 13 R2) --------
+class TestFunctionalGroupsCatalogOnPublicPayload:
+    """The public field-config carries the authored `functional_groups` catalog so the renderer
+    sections the form by the admin-authored group `order` (spec 13 R2), not by field order."""
+
+    def _service_with_catalog(self) -> MembershipService:
+        # An overlay whose authored group ORDER deliberately differs from the fields' order, so a
+        # min(field.order) heuristic would reorder the groups — the authored catalog must win.
+        overlay = TenantOverlay(
+            overrides={
+                "personal.first_name": FixedFieldOverride(
+                    application_visible=True, functional_group="personal"
+                ),
+            },
+            fields={
+                "club_note": OverlayField(
+                    key="club_note",
+                    type=FieldType.STRING,
+                    label={"nl": "Notitie", "en": "Note"},
+                    application_visible=True,
+                    functional_group="administrative",
+                ),
+            },
+            functional_groups={
+                "personal": FunctionalGroup(
+                    key="personal",
+                    label={"nl": "Persoonlijk", "en": "Personal"},
+                    order=10,
+                ),
+                "administrative": FunctionalGroup(
+                    key="administrative",
+                    label={"nl": "Administratief", "en": "Administrative"},
+                    order=60,
+                ),
+            },
+        )
+        return MembershipService(
+            _ApplicationRepo(),
+            overlay_provider=StaticOverlayProvider({TENANT: overlay}),
+            consent_notice_provider=StaticConsentNoticeProvider({TENANT: "v3"}),
+        )
+
+    def test_payload_carries_functional_groups_catalog(self):
+        schema = self._service_with_catalog().get_public_field_config(TENANT)
+        assert "functional_groups" in schema
+        cat = {g["key"]: g for g in schema["functional_groups"]}
+        # personal + administrative are present with their authored label + order.
+        assert cat["personal"]["order"] == 10
+        assert cat["personal"]["label"] == {"nl": "Persoonlijk", "en": "Personal"}
+        assert cat["administrative"]["order"] == 60
+
+    def test_catalog_is_in_authored_order(self):
+        schema = self._service_with_catalog().get_public_field_config(TENANT)
+        keys = [g["key"] for g in schema["functional_groups"]]
+        # personal (#10) BEFORE administrative (#60) — the authored order.
+        assert keys.index("personal") < keys.index("administrative")
+
+    def test_catalog_shape_is_minimal_resolved_view(self):
+        # Only the wire shape the renderer needs — no raw storage keys (steering 39 / HC5).
+        schema = self._service_with_catalog().get_public_field_config(TENANT)
+        for g in schema["functional_groups"]:
+            assert set(g.keys()) == {"key", "label", "order"}
