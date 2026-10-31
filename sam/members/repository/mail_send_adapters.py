@@ -156,14 +156,29 @@ class SesBotoSender:
         try:
             if attachments:
                 return self._send_raw(
-                    sender, reply, recipients, subject, body_html, attachments, message_tags
+                    sender,
+                    reply,
+                    recipients,
+                    subject,
+                    body_html,
+                    attachments,
+                    message_tags,
                 )
             return self._send_simple(
                 sender, reply, recipients, subject, body_html, message_tags
             )
-        except ClientError as exc:  # SES business error → report, let the service classify it
-            error = _client_error_string(exc)
-            logger.warning("SES send failed: %s", error)
+        except (
+            ClientError
+        ) as exc:  # SES business error → report, let the service classify it
+            # Log the FULL AWS detail (code + raw message, which may carry the IAM ARN /
+            # `identity/<addr>`) server-side for triage — CloudWatch only, never outward.
+            logger.warning("SES send failed: %s", _client_error_string(exc))
+            # Carry ONLY the structured SES error CODE + a generic phrase outward (no raw AWS
+            # Message, no ARN, no `identity/`). The code prefix is what the worker's
+            # `is_ses_rate_limited` matches (e.g. `Throttling`, `LimitExceeded`), so the
+            # retryable-vs-permanent classification is preserved (Concern C / Property 3).
+            code = _client_error_code(exc)
+            error = f"{code}: SES send failed" if code else "SES send failed"
             return SesSendOutcome(ok=False, error=error)
 
     def _send_simple(
@@ -232,7 +247,9 @@ class SesBotoSender:
                 content = bytes(content)
             part = MIMEApplication(content)
             part.add_header(
-                "Content-Disposition", "attachment", filename=att.get("filename", "attachment")
+                "Content-Disposition",
+                "attachment",
+                filename=att.get("filename", "attachment"),
             )
             if att.get("content_type"):
                 part.set_type(str(att["content_type"]))
@@ -282,7 +299,9 @@ class DynamoDbMailSentMarkerStore:
     ) -> bool:
         """Create the ``mailsent#<job_id>`` marker iff absent; return True iff THIS call created it."""
         if not tenant_id or not job_id:
-            raise ValueError("mail-sent marker requires a non-empty tenant_id and job_id")
+            raise ValueError(
+                "mail-sent marker requires a non-empty tenant_id and job_id"
+            )
 
         now = datetime.now(timezone.utc)
         item: dict[str, Any] = {
@@ -301,9 +320,7 @@ class DynamoDbMailSentMarkerStore:
         try:
             self.table.put_item(
                 Item=td.floats_to_decimal(item),
-                ConditionExpression=(
-                    f"attribute_not_exists({td.SORT_KEY_ATTR})"
-                ),
+                ConditionExpression=(f"attribute_not_exists({td.SORT_KEY_ATTR})"),
             )
             return True
         except ClientError as exc:

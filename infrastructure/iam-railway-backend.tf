@@ -160,6 +160,13 @@ resource "aws_iam_policy" "ses_email_sending" {
         ]
       },
       {
+        # ses:VerifyEmailIdentity does NOT support resource-level permissions (the identity
+        # does not exist yet at verify time), so Resource must stay "*". Instead of leaving the
+        # grant ungated, we GATE it with a region condition so these broad verify actions can
+        # only run in the app's own SES region (aws:RequestedRegion) — closing the
+        # "verify any identity in any region" hole while the genuine app-path verify (which runs
+        # in ${var.aws_region}) keeps working.
+        # (bugfix: ses-sender-identity-pollution-cleanup - scope the verify grant; Concern B SECONDARY.)
         Sid    = "AllowSESIdentityVerification"
         Effect = "Allow"
         Action = [
@@ -167,6 +174,11 @@ resource "aws_iam_policy" "ses_email_sending" {
           "ses:GetIdentityVerificationAttributes"
         ]
         Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+          }
+        }
       }
     ]
   })
