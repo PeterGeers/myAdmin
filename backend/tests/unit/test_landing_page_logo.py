@@ -64,25 +64,64 @@ def mock_parameter_service():
 class TestBrandingLogoRead:
     """GET /api/public/landing/<slug>/logo — public, tenant-addressed logo read."""
 
-    def test_configured_logo_returns_public_url(
-        self, client, mock_slug_service, mock_parameter_service
+    def test_configured_logo_relative_key_resolves_to_cdn_url(
+        self, client, mock_slug_service, mock_parameter_service, monkeypatch
     ):
-        """A tenant with a configured logo returns its PUBLIC `landing_page.logo_url`."""
-        logo_url = (
-            "https://d3afn46os9e9nc.cloudfront.net/"
+        """A relative `landing_page.logo_url` S3 KEY resolves to a full CloudFront URL.
+
+        By convention `logo_url` stores the RELATIVE public-pages key (the same value the
+        landing page stores); the endpoint prepends `CLOUDFRONT_PUBLIC_PAGES_DOMAIN` so the
+        form receives a browser-loadable URL (R5.2).
+        """
+        monkeypatch.setenv(
+            "CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "d3afn46os9e9nc.cloudfront.net"
+        )
+        mock_parameter_service.get_param.return_value = (
             "TestTenant/landing-pages/ast_01ABC_logo.jpg"
         )
-        mock_parameter_service.get_param.return_value = logo_url
 
         response = client.get("/api/public/landing/test-slug/logo")
 
         assert response.status_code == 200
         body = response.get_json()
-        assert body == {"success": True, "data": {"logo": logo_url}}
+        assert body == {
+            "success": True,
+            "data": {
+                "logo": "https://d3afn46os9e9nc.cloudfront.net/"
+                "TestTenant/landing-pages/ast_01ABC_logo.jpg"
+            },
+        }
         # Read from the PUBLIC `landing_page.logo_url` param for the resolved tenant (R5.2).
         mock_parameter_service.get_param.assert_called_once_with(
             "landing_page", "logo_url", tenant="TestTenant"
         )
+
+    def test_configured_logo_absolute_url_passed_through(
+        self, client, mock_slug_service, mock_parameter_service, monkeypatch
+    ):
+        """An already-absolute http(s) `logo_url` is returned unchanged (no double-prefix)."""
+        monkeypatch.setenv(
+            "CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "d3afn46os9e9nc.cloudfront.net"
+        )
+        abs_url = "https://cdn.example.com/x/logo.png"
+        mock_parameter_service.get_param.return_value = abs_url
+
+        response = client.get("/api/public/landing/test-slug/logo")
+
+        assert response.status_code == 200
+        assert response.get_json() == {"success": True, "data": {"logo": abs_url}}
+
+    def test_relative_key_without_cdn_domain_degrades_to_none(
+        self, client, mock_slug_service, mock_parameter_service, monkeypatch
+    ):
+        """A relative key with no CDN domain configured is not browser-loadable → no logo (R5.3)."""
+        monkeypatch.delenv("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", raising=False)
+        mock_parameter_service.get_param.return_value = "TestTenant/landing-pages/x.jpg"
+
+        response = client.get("/api/public/landing/test-slug/logo")
+
+        assert response.status_code == 200
+        assert response.get_json() == {"success": True, "data": {"logo": None}}
 
     def test_unconfigured_logo_returns_none_gracefully(
         self, client, mock_slug_service, mock_parameter_service
