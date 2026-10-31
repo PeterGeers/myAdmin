@@ -225,3 +225,40 @@ describe('buildPreviewConfig — envelope', () => {
     expect(buildPreviewConfig(null, {}).fields).toEqual([]);
   });
 });
+
+
+describe('buildPreviewConfig — functional_groups catalog pass-through (spec 13 R2)', () => {
+  it('carries the authored functional_groups catalog so the renderer sections by authored order', () => {
+    const config = {
+      fields: [field('first_name', 'personal', { application_visible: true })],
+      functional_groups: [
+        { key: 'personal', label: { nl: 'Persoonlijk', en: 'Personal' }, order: 10 },
+        { key: 'address', label: { nl: 'Adres', en: 'Address' }, order: 20 },
+        { key: 'administrative', label: { nl: 'Administratief', en: 'Administrative' }, order: 60 },
+      ],
+    } as unknown as FieldConfig;
+
+    const out = buildPreviewConfig(config, {});
+
+    expect(out.functional_groups).toEqual([
+      { key: 'personal', label: { nl: 'Persoonlijk', en: 'Personal' }, order: 10 },
+      { key: 'address', label: { nl: 'Adres', en: 'Address' }, order: 20 },
+      { key: 'administrative', label: { nl: 'Administratief', en: 'Administrative' }, order: 60 },
+    ]);
+  });
+
+  it('omits the catalog (undefined) when the config has no functional_groups', () => {
+    const config = cfg([field('first_name', 'personal', { application_visible: true })]);
+    expect(buildPreviewConfig(config, {}).functional_groups).toBeUndefined();
+  });
+
+  it('defaults a missing group order to 0 rather than dropping the entry', () => {
+    const config = {
+      fields: [field('x', 'personal', { application_visible: true })],
+      functional_groups: [{ key: 'personal', label: { en: 'Personal' } }],
+    } as unknown as FieldConfig;
+    expect(buildPreviewConfig(config, {}).functional_groups).toEqual([
+      { key: 'personal', label: { en: 'Personal' }, order: 0 },
+    ]);
+  });
+});
