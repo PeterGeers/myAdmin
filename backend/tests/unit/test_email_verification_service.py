@@ -16,6 +16,7 @@ from botocore.exceptions import ClientError
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 from services.email_verification_service import (
+    RESEND_COOLDOWN_SECONDS,
     EmailVerificationService,
 )
 
@@ -45,11 +46,18 @@ def mock_ses_client():
 
 @pytest.fixture
 def service(mock_db, mock_ses_client):
-    """Create EmailVerificationService with mocked dependencies."""
-    with patch("services.email_verification_service.boto3") as mock_boto3:
-        mock_boto3.client.return_value = mock_ses_client
-        svc = EmailVerificationService(db_manager=mock_db, region="eu-west-1")
-    return svc
+    """Create EmailVerificationService with mocked dependencies.
+
+    Injects the fake SES client directly via the `ses_client=` kwarg (task 3.1's
+    injectable/lazy seam) rather than patching `boto3` only during construction. The
+    old patch-on-construct fixture exited before the test body ran, so the lazy
+    `ses_client` property would resolve a fresh real client at first use — breaking
+    every fixture-dependent test. Constructor injection keeps the fake wired for the
+    whole test and resolves no real client.
+    """
+    return EmailVerificationService(
+        db_manager=mock_db, region="eu-west-1", ses_client=mock_ses_client
+    )
 
 
 # ============================================================================
@@ -614,3 +622,378 @@ class TestMarkExpired:
         call_args = mock_db.execute_query.call_args
         query = call_args[0][0]
         assert "administration = %s" in query
+
+
+# ============================================================================
+# EXPECTED-BEHAVIOR TESTS — Concern B injectable/lazy SES seam
+# (ses-sender-identity-pollution-cleanup, Property 1; reworked from task 1's
+#  B-client exploration test now that task 3.1's fix has landed)
+#
+# Property 1 (Bug Condition B-client, PRIMARY): for any construction NOT explicitly
+# production-wired (isBugCondition_B_seam(ctx) — NOT explicitlyProductionWired(ctx)),
+# the fixed service resolves NO real boto3 SES client and calls NO real
+# `verify_email_identity`. The task-1 exploration assertion (`boto3.client` never
+# called at construction) now PASSES against the lazy seam and is KEPT as the
+# expected-behavior assertion, extended to cover first use of the seam.
+#
+# The B-email exploration cases below are left as-is for task 4.x (validation
+# tightening) to own — they still assert the FIXED `_validate_email` return values.
+#
+# Validates: Requirements 2.3 (injectable/lazy seam), 1.3 (B-email, task 4.x owns)
+# ============================================================================
+
+
+@pytest.mark.unit
+class TestBugConditionB_UninjectableClient:
+    """B-client (PRIMARY) — the fixed seam never resolves a real client off a non-wired path.
+
+    Bug Condition isBugCondition_B_seam(ctx): a construction path NOT explicitly
+    production-wired must NOT resolve a real boto3 SES client. Task 3.1 made the SES
+    client injectable + lazy (mirroring the SAM `SesBotoSender`): `__init__` stores
+    `ses_client` without touching boto3, and the lazy `ses_client` property resolves a
+    real `boto3.client("ses", ...)` ONLY when nothing was injected.
+
+    EXPECTED OUTCOME on FIXED code: no real `boto3.client("ses", ...)` is resolved at
+    construction (the task-1 exploration assertion now PASSES), and when a fake IS
+    injected the seam returns it and never reaches boto3 — closing the identity-burst
+    seam.
+    """
+
+    def test_init_resolves_no_real_ses_client_without_injection(self):
+        """Non-production-wired construction resolves NO real boto3 SES client.
+
+        Spy on `boto3.client` and construct WITHOUT injecting a client. On the fixed
+        lazy seam, `__init__` does not touch boto3, so the spy is never called at
+        construction — the task-1 exploration test now PASSES against the fix.
+        (Accessing `.ses_client` here WOULD resolve the real client — the explicitly
+        production-wired path — so we deliberately do not touch it.)
+        """
+        with patch("services.email_verification_service.boto3.client") as spy_client:
+            EmailVerificationService(db_manager=Mock(), region="eu-west-1")
+
+        spy_client.assert_not_called()
+
+    def test_injected_fake_is_used_and_no_real_client_resolved(self, mock_ses_client):
+        """An injected fake is returned by the lazy property; boto3 is never reached.
+
+        The off-production default path (tests/scripts/fuzz) injects a fake. The lazy
+        `ses_client` property must return that fake and NEVER resolve a real
+        `boto3.client("ses", ...)`, even on repeated access.
+        """
+        with patch("services.email_verification_service.boto3.client") as spy_client:
+            svc = EmailVerificationService(
+                db_manager=Mock(), region="eu-west-1", ses_client=mock_ses_client
+            )
+            # First and repeated access both return the injected fake.
+            assert svc.ses_client is mock_ses_client
+            assert svc.ses_client is mock_ses_client
+
+        spy_client.assert_not_called()
+
+    def test_injected_fake_path_never_calls_real_verify_email_identity(
+        self, mock_ses_client
+    ):
+        """initiate_verification off a non-wired (fake-injected) path calls only the fake.
+
+        No real boto3 SES client is resolved and no real `verify_email_identity` is
+        fired — the fuzz-identity burst is unreproducible from a non-production-wired
+        construction.
+        """
+        with patch("services.email_verification_service.boto3.client") as spy_client:
+            svc = EmailVerificationService(
+                db_manager=Mock(), region="eu-west-1", ses_client=mock_ses_client
+            )
+            result = svc.initiate_verification("tenant1", "user@example.com")
+
+        assert result["success"] is True
+        # The fake received the call; boto3 (the real client) was never resolved.
+        mock_ses_client.verify_email_identity.assert_called_once_with(
+            EmailAddress="user@example.com"
+        )
+        spy_client.assert_not_called()
+
+
+@pytest.mark.unit
+class TestBugConditionB_PermissiveValidation:
+    """B-email (SECONDARY) — the UNFIXED _validate_email accepts abusive local parts.
+
+    Bug Condition isBugCondition_B_email(email): prototype-pollution keys, exploit
+    special characters, no sane domain, or oversized parts are nonetheless accepted by
+    the full RFC 5322 local-part regex.
+
+    EXPECTED OUTCOME on UNFIXED code: each assertion FAILS because `_validate_email`
+    returns True for these abusive addresses. On fixed code (tightened regex) they return
+    False.
+    """
+
+    def test_unfixed_validate_email_accepts_prototype_pollution_key(self, service):
+        # `__proto__` as the local part — a prototype-pollution key that should never
+        # become a permanent SES identity. UNFIXED regex returns True → assertion FAILS.
+        assert service._validate_email("__proto__@DA.BeauTy") is False
+
+    def test_unfixed_validate_email_accepts_percent_local_part(self, service):
+        # `%4` local part — exploit-ish special chars. UNFIXED regex returns True → FAILS.
+        assert service._validate_email("%4@A.PAGe") is False
+
+    def test_unfixed_validate_email_accepts_pipe_exploit_char(self, service):
+        # `a|b` local part — pipe is in the RFC 5322 class the UNFIXED regex allows, so it
+        # returns True → assertion FAILS, confirming the bug.
+        #
+        # NOTE: the design's loose example `a|b@x.y` does NOT isolate the pipe bug — its TLD
+        # `y` is 1 char and the unfixed regex requires 2+ (`\.[a-zA-Z]{2,}$`), so that input
+        # is rejected for an unrelated reason (short TLD), masking the pipe. A valid 2+ char
+        # TLD is used here so the case fails ONLY on the pipe exploit char — the genuine
+        # isBugCondition_B_email counterexample (confirmed: `a|b@x.yz` also returns True).
+        assert service._validate_email("a|b@example.com") is False
+
+
+# ============================================================================
+# PRESERVATION TESTS (ses-sender-identity-pollution-cleanup, task 2)
+#
+# These capture the UNFIXED baseline behavior that the later fixes (tasks 3.x /
+# 4.x) MUST preserve. Observation-first: they encode what the service does TODAY
+# for genuine, deliverable senders and for the resend cooldown / DB transitions.
+#
+# EXPECTED OUTCOME on UNFIXED code: these tests PASS (they are the baseline to
+# preserve). After the injectable-seam fix (3.x) and the tightened validation
+# (4.x) land, they MUST STILL PASS — genuine senders are never abusive inputs, so
+# Property 4 (Preservation) says F(x) == F'(x) for them.
+#
+# Validates (Preservation): Requirements 3.1 (genuine verify/resolve),
+#                           3.5 (resend cooldown + DB status transitions)
+# ============================================================================
+
+# Genuine, deliverable sender addresses: plausible local parts, real domains. None of
+# these trip isBugCondition_B_email (no prototype key, no exploit char, sane domain,
+# not oversized), so the tightened validation (task 4.x) must keep accepting them.
+GENUINE_SENDERS = [
+    "info@h-dcn.nl",
+    "webmaster@h-dcn.nl",
+    "accounts.payable@jabaki.nl",
+    "jan.jansen@example.com",
+    "support+billing@mail.example.co.uk",
+    "contact@my-company.org",
+]
+
+
+@pytest.mark.unit
+class TestPreservationGenuineSenderVerify:
+    """Preservation (req 3.1) — a genuine deliverable sender still verifies + resolves.
+
+    Baseline on UNFIXED code: _validate_email accepts the address, initiate_verification
+    calls SES verify_email_identity, a 'pending' record is stored, and get_verified_sender
+    resolves a later 'verified' row. The fixes must keep all of this intact for genuine
+    senders.
+    """
+
+    @pytest.mark.parametrize("email", GENUINE_SENDERS)
+    def test_genuine_sender_passes_validation(self, service, email):
+        """A genuine deliverable address passes _validate_email today (and must keep passing)."""
+        assert service._validate_email(email) is True
+
+    @pytest.mark.parametrize("email", GENUINE_SENDERS)
+    def test_genuine_sender_initiate_calls_ses_and_stores_pending(
+        self, service, mock_ses_client, mock_db, email
+    ):
+        """initiate_verification for a genuine address calls SES and stores a pending record."""
+        result = service.initiate_verification("tenant1", email)
+
+        assert result["success"] is True
+        assert result["status"] == "pending"
+        assert result["error"] is None
+        mock_ses_client.verify_email_identity.assert_called_once_with(
+            EmailAddress=email
+        )
+
+        # A pending record is persisted with the tenant + email + status.
+        call_args = mock_db.execute_query.call_args
+        assert "INSERT INTO email_verifications" in call_args[0][0]
+        params = call_args[0][1]
+        assert params[0] == "tenant1"
+        assert params[1] == email
+        assert params[2] == "pending"
+
+    def test_genuine_sender_resolves_via_get_verified_sender(self, service, mock_db):
+        """get_verified_sender returns a verified genuine sender with company name."""
+        mock_db.execute_query.side_effect = [
+            # verified email lookup
+            [{"email": "webmaster@h-dcn.nl"}],
+            # company name lookup
+            [{"value": '"HDCN"'}],
+        ]
+
+        result = service.get_verified_sender("tenant1")
+
+        assert result["verified"] is True
+        assert result["email"] == "webmaster@h-dcn.nl"
+        assert result["company_name"] == "HDCN"
+
+    def test_existing_service_fixture_patches_boto3(self, service, mock_ses_client):
+        """The existing `service` fixture (patches boto3 → fake) keeps wiring the fake client.
+
+        Baseline: constructing via the fixture injects the mocked SES client, so no real
+        AWS client is used. This must remain true across the fix.
+        """
+        assert service.ses_client is mock_ses_client
+
+
+@pytest.mark.unit
+class TestPreservationResendCooldownAndTransitions:
+    """Preservation (req 3.5) — the 60s resend cooldown + DB status transitions unchanged.
+
+    Baseline on UNFIXED code for VALID addresses:
+    - a resend inside the 60s window is rejected (no SES call),
+    - a resend after the window (or with no prior resend) proceeds + calls SES,
+    - a successful resend writes status='pending' + last_resend_at,
+    - update_email marks active records 'replaced' then initiates the new verification.
+    """
+
+    def test_resend_rejected_within_cooldown(self, service, mock_ses_client, mock_db):
+        """Within the 60s window → rejected, SES not called (baseline to preserve)."""
+        mock_db.execute_query.return_value = [
+            {
+                "email": "info@h-dcn.nl",
+                "status": "pending",
+                "last_checked_at": None,
+                "last_resend_at": datetime.utcnow() - timedelta(seconds=10),
+                "initiated_at": datetime(2025, 1, 1),
+                "verified_at": None,
+            }
+        ]
+
+        result = service.resend_verification("tenant1")
+
+        assert result["success"] is False
+        assert "60 seconds" in result["error"]
+        mock_ses_client.verify_email_identity.assert_not_called()
+
+    def test_resend_at_cooldown_boundary_just_under_is_rejected(
+        self, service, mock_ses_client, mock_db
+    ):
+        """Just under the 60s boundary is still rejected (cooldown constant unchanged)."""
+        mock_db.execute_query.return_value = [
+            {
+                "email": "info@h-dcn.nl",
+                "status": "pending",
+                "last_checked_at": None,
+                "last_resend_at": datetime.utcnow()
+                - timedelta(seconds=RESEND_COOLDOWN_SECONDS - 1),
+                "initiated_at": datetime(2025, 1, 1),
+                "verified_at": None,
+            }
+        ]
+
+        result = service.resend_verification("tenant1")
+
+        assert result["success"] is False
+        mock_ses_client.verify_email_identity.assert_not_called()
+
+    def test_resend_proceeds_after_cooldown_and_sets_pending(
+        self, service, mock_ses_client, mock_db
+    ):
+        """After the window → proceeds, SES called, status set to pending + last_resend_at."""
+        mock_db.execute_query.side_effect = [
+            # _get_active_record
+            [
+                {
+                    "email": "info@h-dcn.nl",
+                    "status": "failed",
+                    "last_checked_at": None,
+                    "last_resend_at": datetime.utcnow() - timedelta(seconds=120),
+                    "initiated_at": datetime(2025, 1, 1),
+                    "verified_at": None,
+                }
+            ],
+            # UPDATE last_resend_at + status
+            [],
+        ]
+
+        result = service.resend_verification("tenant1")
+
+        assert result["success"] is True
+        assert result["error"] is None
+        mock_ses_client.verify_email_identity.assert_called_once_with(
+            EmailAddress="info@h-dcn.nl"
+        )
+        # The UPDATE transitions status → pending and stamps last_resend_at.
+        update_call = mock_db.execute_query.call_args_list[1]
+        query = update_call[0][0]
+        assert "status = 'pending'" in query
+        assert "last_resend_at" in query
+
+    def test_resend_proceeds_when_no_previous_resend(
+        self, service, mock_ses_client, mock_db
+    ):
+        """last_resend_at is None (first resend) → proceeds (baseline)."""
+        mock_db.execute_query.side_effect = [
+            [
+                {
+                    "email": "info@h-dcn.nl",
+                    "status": "pending",
+                    "last_checked_at": None,
+                    "last_resend_at": None,
+                    "initiated_at": datetime(2025, 1, 1),
+                    "verified_at": None,
+                }
+            ],
+            [],
+        ]
+
+        result = service.resend_verification("tenant1")
+
+        assert result["success"] is True
+        mock_ses_client.verify_email_identity.assert_called_once()
+
+    def test_update_email_marks_replaced_then_initiates(
+        self, service, mock_ses_client, mock_db
+    ):
+        """update_email transitions old active records → 'replaced', then verifies the new one."""
+        mock_db.execute_query.side_effect = [
+            # UPDATE ... SET status = 'replaced'
+            [],
+            # INSERT new pending record from initiate_verification
+            [],
+        ]
+
+        result = service.update_email("tenant1", "new.sender@example.com")
+
+        assert result["success"] is True
+        assert result["status"] == "pending"
+        replace_call = mock_db.execute_query.call_args_list[0]
+        assert "SET status = 'replaced'" in replace_call[0][0]
+        mock_ses_client.verify_email_identity.assert_called_once_with(
+            EmailAddress="new.sender@example.com"
+        )
+
+    def test_check_status_verified_transition_persists(
+        self, service, mock_ses_client, mock_db
+    ):
+        """SES 'Success' → local 'verified' and the DB status transition is written (baseline)."""
+        mock_db.execute_query.side_effect = [
+            # _get_active_record
+            [
+                {
+                    "email": "info@h-dcn.nl",
+                    "status": "pending",
+                    "last_checked_at": None,
+                    "last_resend_at": None,
+                    "initiated_at": datetime(2025, 1, 1),
+                    "verified_at": None,
+                }
+            ],
+            # _update_verification_status
+            [],
+        ]
+        mock_ses_client.get_identity_verification_attributes.return_value = {
+            "VerificationAttributes": {
+                "info@h-dcn.nl": {"VerificationStatus": "Success"}
+            }
+        }
+
+        result = service.check_status("tenant1")
+
+        assert result["success"] is True
+        assert result["status"] == "verified"
+        update_call = mock_db.execute_query.call_args_list[1]
+        assert "SET status = %s" in update_call[0][0]
+        assert update_call[0][1][0] == "verified"

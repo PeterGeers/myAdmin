@@ -292,16 +292,23 @@ def get_branding_logo(slug: str) -> ResponseReturnValue:
         if not administration:
             return jsonify({"success": False, "error": "Page not found"}), 404
 
-        # The tenant's PUBLIC logo URL (the public-pages CloudFront asset), stored as
-        # `landing_page.logo_url` on upload — independent of landing-page publication.
+        # The tenant's PUBLIC logo, stored as `landing_page.logo_url` (independent of
+        # landing-page publication). By convention this is the RELATIVE public-pages S3
+        # key (e.g. `h-dcn/landing-pages/ast_..._logo.jpg`), NOT a full URL — the same
+        # value the landing page stores. We resolve it to a full CloudFront URL here
+        # (mirroring `landing_page_publish_service`), so the form can `<img src>` it
+        # directly. An already-absolute `http(s)` value is passed through unchanged.
         # Blank/absent → graceful "no logo" (R5.3).
         parameter_service = pkg._get_parameter_service()
-        logo_url = parameter_service.get_param(
+        raw = parameter_service.get_param(
             "landing_page", "logo_url", tenant=administration
         )
-        logo = (
-            logo_url.strip() if isinstance(logo_url, str) and logo_url.strip() else None
-        )
+        logo = raw.strip() if isinstance(raw, str) and raw.strip() else None
+        if logo and not logo.startswith("http"):
+            cf_domain = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "")
+            # Only publishable as a public URL when the CDN domain is configured; without it
+            # a bare relative key is not browser-loadable, so degrade to "no logo" (R5.3).
+            logo = f"https://{cf_domain}/{logo.lstrip('/')}" if cf_domain else None
 
         return jsonify({"success": True, "data": {"logo": logo}})
 
