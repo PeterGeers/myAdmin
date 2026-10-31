@@ -234,8 +234,22 @@ export function buildPreviewConfig(
     .filter((f) => fieldIsOnForm(overlay, f))
     .map((f) => projectField(overlay, f));
 
+  // Carry the authored functional-group CATALOG through (spec 13 R2): the staff FieldConfig
+  // resolves `functional_groups` (key/label/order) and the shared renderer orders SECTIONS by
+  // that authored `order` + shows the authored label. Without this the preview renderer has no
+  // catalog and falls back to ordering groups by min(field.order) — the wrong order the live
+  // findings reported. Mapped to the public `{key,label,order}` wire shape (resolved view).
+  const catalog = Array.isArray(fieldConfig?.functional_groups)
+    ? fieldConfig!.functional_groups!.map((g) => ({
+        key: g.key,
+        label: g.label,
+        order: typeof g.order === 'number' ? g.order : 0,
+      }))
+    : undefined;
+
   return {
     fields: projected,
+    functional_groups: catalog,
     locales: [...PREVIEW_LOCALES],
     notice: null,
   };

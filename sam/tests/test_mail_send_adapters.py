@@ -175,7 +175,11 @@ class TestSesBotoSender:
             subject="Hi",
             body_html="<p>Hi</p>",
             attachments=[
-                {"filename": "members.csv", "content": b"a,b\n1,2\n", "content_type": "text/csv"}
+                {
+                    "filename": "members.csv",
+                    "content": b"a,b\n1,2\n",
+                    "content_type": "text/csv",
+                }
             ],
         )
         assert out.ok is True and out.message_id == "raw-1"
@@ -258,7 +262,11 @@ class TestSesBotoSender:
             subject="Hi",
             body_html="<p>Hi</p>",
             attachments=[
-                {"filename": "members.csv", "content": b"a,b\n1,2\n", "content_type": "text/csv"}
+                {
+                    "filename": "members.csv",
+                    "content": b"a,b\n1,2\n",
+                    "content_type": "text/csv",
+                }
             ],
             tags={"ms_tenant": "682d64636e", "ms_run": "72756e2d31"},
         )
@@ -314,7 +322,9 @@ class TestMailSentMarkerStore:
         table = FakeTable()
         store = DynamoDbMailSentMarkerStore(table=table)
 
-        created = store.mark_if_absent(TENANT, "job-1", {"run_id": "r", "recipient_count": 1})
+        created = store.mark_if_absent(
+            TENANT, "job-1", {"run_id": "r", "recipient_count": 1}
+        )
         redelivered = store.mark_if_absent(TENANT, "job-1", {"run_id": "r"})
 
         assert created is True
@@ -335,7 +345,9 @@ class TestMailSentMarkerStore:
         table = FakeTable()
         store = DynamoDbMailSentMarkerStore(table=table)
         store.mark_if_absent(
-            TENANT, "job-m", {"run_id": "run-9", "set_id": "set-7", "recipient_count": 3}
+            TENANT,
+            "job-m",
+            {"run_id": "run-9", "set_id": "set-7", "recipient_count": 3},
         )
         item = next(iter(table.items.values()))
         assert item["run_id"] == "run-9"
@@ -351,3 +363,224 @@ class TestMailSentMarkerStore:
             store.mark_if_absent("", "job", {})
         with pytest.raises(ValueError):
             store.mark_if_absent(TENANT, "", {})
+
+
+# ── CONCERN C — SANITIZED SES ERROR (ses-sender-identity-pollution-cleanup, task 5.3/5.4) ─
+#
+# Expected-behavior test for Concern C on the SAM plane, re-worked from the task-1 C-SAM
+# bug-condition exploration test now that the fix (task 5.3) has landed in
+# `SesBotoSender.send`. On a ClientError the outcome carries ONLY the structured SES error
+# CODE + a generic phrase ("<Code>: SES send failed") — NO raw AWS Message, NO ARN, NO
+# `identity/`. The full code+message is logged server-side (CloudWatch) via `logger.warning`,
+# never outward. The code prefix is what the worker's `is_ses_rate_limited` matches, so the
+# retryable-vs-permanent classification is preserved.
+#
+# Validates (Expected Behavior — Property 3): Requirements 2.7, 3.3, 3.4
+
+
+class TestConcernC_SamErrorSanitized:
+    """C-SAM — ``SesBotoSender.send`` carries a structured+generic error, never raw AWS text.
+
+    Expected Behavior (Property 3): on a ClientError the outcome ``error`` is
+    ``"<Code>: SES send failed"`` — the stable SES error CODE prefix + a generic phrase. It
+    does NOT carry the raw AWS Message, the IAM ARN, or `identity/<addr>`; that full detail
+    is logged server-side only. The retained code prefix preserves the worker's
+    retryable-vs-permanent classification.
+    """
+
+    def test_send_sanitizes_access_denied_client_error_to_structured_generic(self):
+        """A forced AccessDenied ClientError carrying an ARN/identity raw message is sanitized."""
+        raw_msg = (
+            "User: arn:aws:iam::344561557829:user/WebMaster is not authorized to perform: "
+            "ses:SendRawEmail on resource: arn:aws:ses:eu-west-1:344561557829:identity/"
+            "noreply@tenant.example"
+        )
+        client = FakeSesClient(raise_error=FakeClientError("AccessDenied", raw_msg))
+        sender = SesBotoSender(client=client, configuration_set="")
+
+        out = sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+
+        assert out.ok is False
+        # Exact structured+generic value: the SES CODE prefix + the generic phrase, nothing else.
+        assert out.error == "AccessDenied: SES send failed"
+        # NONE of the raw AWS detail leaks outward — not the raw "<Code>: <Message>",
+        # not the ARN, not the `identity/<addr>`, not any substring of the raw message.
+        assert out.error != f"AccessDenied: {raw_msg}"
+        assert "arn:aws:" not in out.error
+        assert "identity/" not in out.error
+        assert raw_msg not in out.error
+        assert "WebMaster" not in out.error
+
+    def test_sanitized_error_preserves_worker_throttle_classification(self):
+        """The retained CODE prefix keeps the worker's retryable-vs-permanent classification.
+
+        A forced `Throttling` ClientError → `is_ses_rate_limited(out.error) is True` (RETRYABLE);
+        a forced `AccessDenied` → `is_ses_rate_limited(out.error) is False` (PERMANENT). The
+        worker's own classifier (imported from the worker module) must agree with the sanitized
+        outward error, proving the fix did not break classification.
+        """
+        from sam.members.worker.mail_send_worker import is_ses_rate_limited
+
+        throttled = FakeSesClient(
+            raise_error=FakeClientError("Throttling", "Maximum sending rate exceeded")
+        )
+        out_throttled = SesBotoSender(client=throttled, configuration_set="").send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+        assert out_throttled.ok is False
+        assert out_throttled.error == "Throttling: SES send failed"
+        # the retained `Throttling` code classifies RETRYABLE even though the raw message is gone
+        assert is_ses_rate_limited(out_throttled.error) is True
+
+        denied = FakeSesClient(
+            raise_error=FakeClientError(
+                "AccessDenied", "arn:aws:...:identity/x@y.z denied"
+            )
+        )
+        out_denied = SesBotoSender(client=denied, configuration_set="").send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+        assert out_denied.ok is False
+        # a non-throttle code classifies PERMANENT (and still carries no raw detail)
+        assert is_ses_rate_limited(out_denied.error) is False
+        assert (
+            "arn:aws:" not in out_denied.error and "identity/" not in out_denied.error
+        )
+
+
+# ── PRESERVATION TESTS (ses-sender-identity-pollution-cleanup, task 2) ───────────────────
+#
+# Capture the UNFIXED baseline behavior of the SAM send plane that the Concern C
+# sanitization fix (task 5.3/5.4) MUST preserve:
+#   * SesBotoSender only ever SENDS (send_email / send_raw_email) — it NEVER verifies an
+#     identity, and the per-send From is the resolved projected sender (Option B, no live
+#     SES verify on send) (req 3.2);
+#   * the ok=True success outcome shape (ok / message_id / size_bytes) is unchanged (req 3.3);
+#   * the no-resolved-sender MessageRejected refusal is unchanged (req 3.3);
+#   * on a ClientError the outcome still carries a structured code the worker classifies
+#     retryable-vs-permanent (req 3.4) — the baseline the fix retains server-side.
+#
+# EXPECTED OUTCOME on UNFIXED code: these tests PASS (baseline to preserve). After task 5.3
+# the "worker classification" preservation stays green (a structured code is retained),
+# while the raw-string leak (the task-1 bug-condition test above) flips to fixed.
+#
+# Validates (Preservation): Requirements 3.2, 3.3, 3.4
+
+
+class TestPreservationSesBotoSender:
+    """Preservation — SAM send success / refusal / classification baseline (req 3.2/3.3/3.4)."""
+
+    def test_sender_never_verifies_identity(self):
+        """SesBotoSender exposes only send paths — no verify_email_identity touch-point (req 3.2)."""
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="")
+        # The adapter never calls a verify API — the fake has no such method recorded.
+        assert not hasattr(client, "verify_email_identity")
+        # The public surface is `send` only; there is no verify method on the port.
+        assert not hasattr(sender, "verify_email_identity")
+
+    def test_simple_send_uses_resolved_projected_from_no_verify(self):
+        """The per-send From is the resolved projected sender; send_email is used, no verify (req 3.2)."""
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="")
+        out = sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+        assert out.ok is True
+        # exactly one SEND happened (simple path), and the From is the projected sender
+        assert len(client.send_email_calls) == 1
+        assert client.send_email_calls[0]["Source"] == "noreply@tenant.example"
+        assert client.send_raw_email_calls == []
+
+    def test_simple_send_success_outcome_shape(self):
+        """ok=True success shape (ok / message_id / size_bytes) unchanged (req 3.3)."""
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="")
+        out = sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+        assert out.ok is True
+        assert out.error is None
+        assert out.message_id == "simple-1"
+        assert out.size_bytes > 0
+
+    def test_attachment_send_success_outcome_shape(self):
+        """ok=True success shape unchanged on the raw (attachment) path (req 3.3)."""
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="cfg")
+        out = sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+            attachments=[
+                {
+                    "filename": "m.csv",
+                    "content": b"a,b\n1,2\n",
+                    "content_type": "text/csv",
+                }
+            ],
+        )
+        assert out.ok is True
+        assert out.error is None
+        assert out.message_id == "raw-1"
+        assert out.size_bytes > 0
+
+    def test_no_resolved_sender_refusal_unchanged(self):
+        """No From → MessageRejected refusal, no send, no substitute (req 3.3)."""
+        client = FakeSesClient()
+        sender = SesBotoSender(client=client, configuration_set="")
+        out = sender.send(
+            from_address="",
+            reply_to="webmaster@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+        assert out.ok is False
+        assert "no resolved sender" in out.error
+        assert client.send_email_calls == []
+        assert client.send_raw_email_calls == []
+
+    def test_client_error_retains_structured_code_for_worker_classification(self):
+        """On ClientError the outcome carries a structured code the worker classifies (req 3.4).
+
+        Baseline: a retryable SES error (Throttling) is reported on out.error with its code
+        preserved, which the worker service uses for retryable-vs-permanent classification.
+        The Concern C fix (task 5.3) must keep a structured code available for this, even as
+        it stops carrying the raw ARN/identity detail outward.
+        """
+        client = FakeSesClient(
+            raise_error=FakeClientError("Throttling", "Maximum sending rate exceeded")
+        )
+        sender = SesBotoSender(client=client, configuration_set="")
+        out = sender.send(
+            from_address="noreply@tenant.example",
+            recipients=["a@example.com"],
+            subject="Hi",
+            body_html="<p>Hi</p>",
+        )
+        assert out.ok is False
+        # The structured SES code is retained on the sanitized outward error (code + generic
+        # phrase), so the worker's classification still sees the `Throttling` marker — while the
+        # raw AWS Message ("Maximum sending rate exceeded") is NOT leaked outward (logged only).
+        assert out.error == "Throttling: SES send failed"
+        assert "Throttling" in out.error
+        assert "Maximum sending rate exceeded" not in out.error
