@@ -71,3 +71,21 @@
 | 2026-04-17 | Phase 16 complete: integration tests, database migrations, final checkpoint                             |
 | 2026-04-17 | Phase 17 complete: merged to main, Railway deployment, production smoke tests passed                    |
 | 2026-04-17 | Spec marked complete — all core phases implemented and verified                                         |
+
+---
+
+## Specs in this area
+
+Beyond the root ZZP module spec documented above, this area contains sub-specs:
+
+| Spec | Status | Description | Link |
+| --- | --- | --- | --- |
+| zzp-invoice-pdf-preview | active | Invoice PDF preview for ZZP. | [zzp-invoice-pdf-preview](zzp-invoice-pdf-preview) |
+| debtors-overdue-reconciliation-fix | active | Overdue-debtor reconciliation fix. | [debtors-overdue-reconciliation-fix](debtors-overdue-reconciliation-fix) |
+| rittenregistratie | active | Trip/mileage registration. | [rittenregistratie](rittenregistratie) |
+
+## Conventions
+
+Completed specs move to `_archive/` and are marked `"status": "done"` in their `.config.kiro`.
+Active specs sit directly in this folder. See the root
+[`.kiro/specs/README.md`](../README.md) for the overall model.
