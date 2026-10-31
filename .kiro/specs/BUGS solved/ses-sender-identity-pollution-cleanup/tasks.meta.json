@@ -1,0 +1,236 @@
+{
+  "pbtResults": {
+    "1. Write bug-condition exploration tests (Concern B + C) — BEFORE any fix": {
+      "status": "passed",
+      "failingExample": "All 4 bug conditions confirmed on UNFIXED code — every exploration test FAILS (the success case for exploration tests). Counterexamples:\n\nB-seam (PRIMARY): EmailVerificationService(db_manager=Mock(), region='eu-west-1') with no injected client resolves a REAL client — boto3.client called once as call('ses', region_name='eu-west-1') at construction. Un-injectable leak seam confirmed.\n\nB-email (SECONDARY), all accepted (return True, should be False):\n- _validate_email('__proto__@DA.BeauTy') == True  (prototype-pollution key)\n- _validate_email('%4@A.PAGe') == True             (percent / exploit char)\n- _validate_email('a|b@example.com') == True       (pipe exploit char; input corrected from the design's loose 'a|b@x.y', which was masked by the unfixed 2+ char TLD rule — probing confirmed 'a|b@x.yz' == True too)\n\nC-Flask (both send paths leak the verbatim AWS text to the client):\n- send_email error == 'AccessDenied: User: arn:aws:iam::344561557829:user/WebMaster ... ses:SendRawEmail ... identity/tenant@example.com ...'\n- send_email_with_attachments: same raw AccessDenied/ARN/identity leak\n\nC-SAM (SesBotoSender.send carries the raw _client_error_string outward):\n- out.error == 'AccessDenied: User: arn:aws:iam::344561557829:user/WebMaster ... identity/noreply@tenant.example'\n\nFull detail IS logged server-side on both planes (ERROR/WARNING lines captured), but that same raw detail also reaches the client-facing path — exactly isBugCondition_C.",
+      "lastRunTimestamp": 1793454576908
+    }
+  },
+  "executionHistory": {
+    "1. Write bug-condition exploration tests (Concern B + C) — BEFORE any fix": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454074197
+      },
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454082816
+      },
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454605271
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fixes)": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454074293
+      },
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454615491
+      },
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454882155
+      }
+    ],
+    "3.1 Make `EmailVerificationService` SES client injectable + lazy": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454074373
+      },
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454894721
+      },
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793455096240
+      }
+    ],
+    "3.2 Update paired tests (`test_email_verification_service.py` + `_props.py`) in the SAME change": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454074490
+      },
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793455101282
+      },
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793455358331
+      }
+    ],
+    "4.1 Harden `_validate_email`": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454074570
+      },
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793455363205
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456227427
+      }
+    ],
+    "4.2 Update paired tests (`test_email_verification_service.py` + `_props.py`) in the SAME change": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454074645
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456233211
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456426682
+      }
+    ],
+    "5.1 Flask `SESEmailService` — sanitize `ClientError` in both send paths": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454074714
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456437098
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456550229
+      }
+    ],
+    "5.2 Update Flask paired test (`test_ses_email_service.py`) in the SAME change": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454074796
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456555042
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456683680
+      }
+    ],
+    "5.3 SAM `SesBotoSender.send` — carry structured/generic error, not raw AWS text": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454074872
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456688092
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456954418
+      }
+    ],
+    "5.4 Update SAM paired tests (`mail_send_adapters` tests) in the SAME change": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454074946
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456959338
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793457115095
+      }
+    ],
+    "6. Concern B SECONDARY (SENSITIVE — LIVE IAM, manual) — Scope the verify grant + retire `WebMaster`": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454075045
+      },
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793457145256
+      },
+      {
+        "executionId": "dcb9c091-f83e-4231-8b58-07abefb0e0e7",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793457784739
+      }
+    ],
+    "7. Checkpoint — all tests pass + cleanup closeout": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793454075122
+      },
+      {
+        "executionId": "dcb9c091-f83e-4231-8b58-07abefb0e0e7",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793457790532
+      },
+      {
+        "executionId": "dcb9c091-f83e-4231-8b58-07abefb0e0e7",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793457819809
+      }
+    ],
+    "3. Concern B PRIMARY — Injectable, lazy Flask SES client (true root-cause fix) + paired tests": [
+      {
+        "executionId": "1c23e30b-6951-4f12-8f4b-ef6ad5001520",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793455358456
+      }
+    ],
+    "4. Concern B SECONDARY — Tighten `_validate_email` (defense-in-depth) + paired tests": [
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793456426820
+      }
+    ],
+    "5. Concern C — Error sanitization on BOTH planes + paired tests": [
+      {
+        "executionId": "1070dfbe-e998-4d68-92a6-f39b618e0279",
+        "chatSessionId": "sess_570ac266-39e5-4811-8825-ba05262197ed",
+        "timestamp": 1793457115233
+      }
+    ]
+  }
+}

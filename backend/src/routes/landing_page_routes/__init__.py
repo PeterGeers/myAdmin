@@ -24,6 +24,7 @@ Endpoints:
 - POST /api/landing/rollback          - Rollback to a previous version
 - POST /api/landing/images/upload     - Upload image to public S3 bucket
 - GET  /api/public/landing/resolve/<slug> - Public: resolve slug -> administration
+- GET  /api/public/landing/<slug>/logo - Public: resolve tenant branding logo (data URI)
 - POST /api/public/landing/<slug>/contact - Public: submit contact form inquiry
 
 The endpoint handlers are split across cohesive submodules under
@@ -49,6 +50,7 @@ from flask import Blueprint
 
 from database import DatabaseManager
 from services.domain_service import DomainService
+from services.logo_resolver import resolve_tenant_logo
 from services.media_asset_service import MediaAssetService
 from services.parameter_service import ParameterService
 from services.tenant_slug_service import TenantSlugService
@@ -252,4 +254,4 @@ from routes.landing_page_routes import (  # noqa: F401
 # is used) because the test suite patches it as
 # ``routes.landing_page_routes.MediaAssetService`` and the image-upload handler
 # resolves it through this package namespace at call time.
-__all__ = ["MediaAssetService", "landing_page_bp"]
+__all__ = ["MediaAssetService", "landing_page_bp", "resolve_tenant_logo"]
