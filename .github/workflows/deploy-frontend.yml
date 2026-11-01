@@ -75,8 +75,8 @@ jobs:
           VITE_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
           VITE_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
           VITE_DOCS_URL: ${{ secrets.VITE_DOCS_URL }}
-          VITE_CLOUDFRONT_DOMAIN: d3afn46os9e9nc.cloudfront.net
-          VITE_CLOUDFRONT_PUBLIC_PAGES_URL: https://d3afn46os9e9nc.cloudfront.net
+          VITE_CLOUDFRONT_DOMAIN: d3le4vf2nffsil.cloudfront.net
+          VITE_CLOUDFRONT_PUBLIC_PAGES_URL: https://d3le4vf2nffsil.cloudfront.net
           # Members module SAM API (sam-members stack output MembersApiBaseUrl).
           # Non-secret, stable stack URL (like the CloudFront URLs above). Without
           # this the build falls back to the committed dev default 127.0.0.1:3000,
