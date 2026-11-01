@@ -1,0 +1,297 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 In `applicationForm.model.ts::groupFieldsByFunctionalGroup`, order groups by": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399285948
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399294076
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399399376
+      }
+    ],
+    "1.2 Add/extend the unit test: groups appear in min-field-order order; stable tiebreak;": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286085
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399422020
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399549213
+      }
+    ],
+    "2.1 In `ApplicationFormRenderer.tsx::groupHeading`, render a presentable heading from the": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286195
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399554042
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399665254
+      }
+    ],
+    "2.2 Render test: every non-default group shows its heading; the default bucket shows no": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286273
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399669748
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399767549
+      }
+    ],
+    "3.1 Style `<Select>` to match the text `<Input>` weight on the public form (shared style /": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286356
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399772393
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399947805
+      }
+    ],
+    "3.2 Render test / visual check: select and input read at equal weight; focus ring visible;": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286438
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399952064
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400098739
+      }
+    ],
+    "4.1 Label-beside-control on `md`+, stacked on `base`, via Chakra responsive props; preserve": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286524
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400103106
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400204516
+      }
+    ],
+    "4.2 Replace the group `VStack` with a responsive `SimpleGrid columns={{ base: 1, md: 2 }}`": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286615
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400208537
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400419752
+      }
+    ],
+    "4.3 Render test: single column at `base`, ≥2 columns at `md`; DOM/tab order matches the": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286723
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400423649
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400629790
+      }
+    ],
+    "4.4 Re-run the axe accessibility gate against the new layout — must stay green.": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286797
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400633693
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400713110
+      }
+    ],
+    "5.1 Add a small PUBLIC, tenant-addressed branding-logo read that returns the tenant's logo": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286865
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400718361
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400972863
+      }
+    ],
+    "5.2 In `ApplicationFormPage.tsx`, render `<Image src={logo} alt={tenantName ?? 'logo'}>`": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399286941
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400990735
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793401293641
+      }
+    ],
+    "5.3 Render test: logo shown when configured (with alt); graceful absence when not.": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399287013
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793401298058
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793401468548
+      }
+    ],
+    "5b. (BACKLOG, out of this spec) Converge the fragmented logo configs": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399287089
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793401484328
+      }
+    ],
+    "6.1 Run the affected frontend suites (`vitest --run`) green, including the axe gate.": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399287170
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793401489107
+      },
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793401613766
+      }
+    ],
+    "6.2 Load the public form for a real tenant (h-dcn) in the running app; confirm all five:": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399287285
+      }
+    ],
+    "1. Group ORDER from field sequence (R2)": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399549308
+      }
+    ],
+    "2. Readable group headings (R1)": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793399767712
+      }
+    ],
+    "3. De-emphasize dropdown styling (R3)": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400098881
+      }
+    ],
+    "4. Responsive one-line + multi-column layout (R4)": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793400713222
+      }
+    ],
+    "5. Tenant logo at the top (R5) — ONE branding source, not landing-page-gated": [
+      {
+        "executionId": "d9fd691d-b897-42f9-bf18-65488d84b388",
+        "chatSessionId": "sess_1424a7fb-5f5f-4a4f-a62b-f39234cb14c6",
+        "timestamp": 1793401468662
+      }
+    ]
+  }
+}

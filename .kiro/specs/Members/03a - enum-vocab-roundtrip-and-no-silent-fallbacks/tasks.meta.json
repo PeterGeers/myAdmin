@@ -1,0 +1,331 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "0.1 **DISCOVERY — identify EVERY old path/pattern; reconcile against F1–F8 (close the gap).**": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220660754
+      },
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220671000
+      },
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793221050547
+      }
+    ],
+    "1. **Property 1: Bug Condition** — Unified Selectable-Vocabulary Round-Trip Asymmetry (extend the RED gate)": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220660941
+      },
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793221411642
+      },
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793224626514
+      }
+    ],
+    "2. **Property 2: Preservation** — Already-Resolving & Separate-Concept Behavior (observation-first, BEFORE the fix)": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220661060
+      },
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793221413049
+      },
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793224495086
+      }
+    ],
+    "3. **C7** — Small, idempotent, targeted `choices`→`options` backfill (right-sized)": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220661211
+      },
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793224632621
+      },
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793225125458
+      },
+      {
+        "executionId": "bec6b669-2540-47db-8c7c-dcd956b8955d",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793265955214
+      },
+      {
+        "executionId": "bec6b669-2540-47db-8c7c-dcd956b8955d",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793266821212
+      }
+    ],
+    "4. **C4** — Read-assembly seam populates `options` uniformly; resolver stays PURE": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220661320
+      },
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793225131965
+      },
+      {
+        "executionId": "cee8e673-36a2-4d3e-b359-d589cadbf1f9",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793227804745
+      }
+    ],
+    "5. **C5** — Reader build collapses split handling to ONE `options`; scope `values` derived": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220661423
+      },
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793225132936
+      },
+      {
+        "executionId": "cee8e673-36a2-4d3e-b359-d589cadbf1f9",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793227811415
+      }
+    ],
+    "6. **C1** — Frontend author/read ONE `options`, no kind branch": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220661547
+      },
+      {
+        "executionId": "cee8e673-36a2-4d3e-b359-d589cadbf1f9",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793227820741
+      },
+      {
+        "executionId": "c2b1ff6c-2819-48e1-941c-0bfb2280371a",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793260140869
+      },
+      {
+        "executionId": "2f7daf69-0bed-4a32-81ca-bf536a65b488",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793273050880
+      }
+    ],
+    "7. **C2** — Write surface accepts `options` only; Change-Op + one-key contract preserved": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220661680
+      },
+      {
+        "executionId": "cee8e673-36a2-4d3e-b359-d589cadbf1f9",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793227822256
+      }
+    ],
+    "8. **C3** — Write-edge duplicate-`value` guard → caller-safe 400 before any repo call": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220661788
+      },
+      {
+        "executionId": "cee8e673-36a2-4d3e-b359-d589cadbf1f9",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793227823480
+      },
+      {
+        "executionId": "c2b1ff6c-2819-48e1-941c-0bfb2280371a",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793260152687
+      }
+    ],
+    "9. **C6** — Fail-loud boundary, uniform across kinds, on the ASYMMETRY only": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220661904
+      },
+      {
+        "executionId": "cee8e673-36a2-4d3e-b359-d589cadbf1f9",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793227824974
+      }
+    ],
+    "10. **C8 (report-only)** — Extend the AST guard with four anti-reintroduction rules": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220662087
+      }
+    ],
+    "11.1 **Property 1: Expected Behavior** — extended symmetry gate GREEN (enum + scope + reference)": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220662194
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793261479469
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793262330489
+      }
+    ],
+    "11.2 **Property 2: Preservation** — preservation holds; spec-03 suite still green": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220662321
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793261481343
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793262332309
+      }
+    ],
+    "11.3 Real h-dcn round-trip through the editor read path": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220662491
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793261482548
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793262333329
+      }
+    ],
+    "12. **C8 (blocking)** — Flip the guard to BLOCKING once the tree is clean (G6)": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220662634
+      }
+    ],
+    "13. Checkpoint — ensure all tests pass": [
+      {
+        "executionId": "bd5d45b3-11c7-4b9c-b854-5b16f731010f",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793220662776
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793262738351
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793262839629
+      }
+    ],
+    "9. **C6** — Fail-loud boundary on the ASYMMETRY only; per-consumer blast-radius split (staff-raise / public-drop+alert)": [
+      {
+        "executionId": "c2b1ff6c-2819-48e1-941c-0bfb2280371a",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793260585129
+      }
+    ],
+    "9a. **C6 hard gate — all-tenant zero-un-migrated scan (BLOCKING, before fail-loud enabled)**": [
+      {
+        "executionId": "c2b1ff6c-2819-48e1-941c-0bfb2280371a",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793260610323
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793261443091
+      }
+    ],
+    "9b. **No-per-kind-branch serializer test (covers DROPPED C8 rule (c))**": [
+      {
+        "executionId": "c2b1ff6c-2819-48e1-941c-0bfb2280371a",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793260611593
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793261441803
+      }
+    ],
+    "10. **C8 (report-only, increment 2)** — Extend the AST guard with THREE anti-reintroduction rules (a)(b)(d)": [
+      {
+        "executionId": "c2b1ff6c-2819-48e1-941c-0bfb2280371a",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793260612842
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793261448310
+      }
+    ],
+    "11. Fix for enum-vocabulary round-trip & no-silent-fallbacks — verification": [
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793262333491
+      }
+    ],
+    "12. **C8 (blocking, increment 2)** — Flip the guard (rules a/b/d) to BLOCKING once the tree is clean (G6)": [
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793262341741
+      },
+      {
+        "executionId": "d173974f-0446-4b29-83c5-1ea0fa18dc0e",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793262737222
+      }
+    ],
+    "7. **C2** — Write surface accepts `options` only, WITH source-integrity guards (W1/W2/W3); Change-Op + one-key contract preserved": [
+      {
+        "executionId": "78bdd77e-0570-4134-8df5-6e49d5bc45e1",
+        "chatSessionId": "sess_3c783c59-746e-4459-8b74-499fe379b839",
+        "timestamp": 1793268613631
+      }
+    ]
+  }
+}
