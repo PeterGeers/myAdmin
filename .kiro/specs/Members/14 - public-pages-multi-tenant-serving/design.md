@@ -49,7 +49,7 @@ graph TB
   CF --> S3
   CF --> KVS1
   CF --> KVS2
-  Applicant -->|GET {slug}.jabaki.nl| CF
+  Applicant -->|GET #123;slug#125;.jabaki.nl| CF
   Applicant -->|GET/POST public API| SPubGet
   SPost --> SCfg
   LReg -. owns .- LDyn
