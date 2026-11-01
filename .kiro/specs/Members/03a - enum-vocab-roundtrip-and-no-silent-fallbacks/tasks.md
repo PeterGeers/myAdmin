@@ -175,7 +175,7 @@
   - _Preservation: P2_
   - _Requirements: 2.1, 2.6_ · _Components: C5, F1, F2, F3, F7_
 
-- [-] 6. **C1** — Frontend author/read ONE `options`, no kind branch
+- [x] 6. **C1** — Frontend author/read ONE `options`, no kind branch
   - Files: `frontend/src/components/TenantAdmin/MembersConfig/fieldConfigChangeOps.ts` (drop `choices`
     from `DEFINITION_ATTRS` so the write emits ONLY `options`);
     `frontend/src/components/TenantAdmin/MembersConfig/MembersFieldModal.tsx` (`optionsToChoices` /
@@ -205,7 +205,7 @@
   - _Preservation: P2; `resolveChoiceSource` source-selection behavior unchanged (F11 carve-out)_
   - _Requirements: 2.1, 2.6_ · _Components: C1, F5, F6, F11_
 
-- [-] 7. **C2** — Write surface accepts `options` only, WITH source-integrity guards (W1/W2/W3); Change-Op + one-key contract preserved
+- [x] 7. **C2** — Write surface accepts `options` only, WITH source-integrity guards (W1/W2/W3); Change-Op + one-key contract preserved
   - Files: `sam/members/domain/config_fields_crud_service.py` (`FIELD_DEFINITION_ATTRS` drops `choices`;
     ADD the three write-side source-integrity guards W1/W2/W3 below);
     `sam/members/domain/config_write_service.py` (`_field_choice_values`, :542 — F12/N2: migrate
@@ -253,7 +253,7 @@
   - _Preservation: spec-03 Change-Op guarantees (P2, R3.3); `application_choices` subset validation behavior unchanged (R3.2)_
   - _Requirements: 2.1, 2.4, 2.6, 3.2, 3.3_ · _Components: C2, F12, P5 (W1/W2/W3)_
 
-- [-] 8. **C3** — Write-edge duplicate-`value` guard → caller-safe 400 before any repo call
+- [x] 8. **C3** — Write-edge duplicate-`value` guard → caller-safe 400 before any repo call
   - Files: `sam/members/domain/config_fields_crud_service.py` (before any repository call).
   - Reject an `options` list containing a duplicate `value` via `ConfigFieldsCrudError`
     (subclasses `ValueError`); the edge maps it to a caller-safe 400 — no `str(e)` leak, full detail
@@ -266,7 +266,7 @@
   - _Preservation: P2_
   - _Requirements: 2.4_ · _Components: C3 (P4)_
 
-- [-] 9. **C6** — Fail-loud boundary on the ASYMMETRY only; per-consumer blast-radius split (staff-raise / public-drop+alert)
+- [x] 9. **C6** — Fail-loud boundary on the ASYMMETRY only; per-consumer blast-radius split (staff-raise / public-drop+alert)
   - Files: `sam/members/domain/_membership_writes_fieldconfig.py` (the seam from task 4, incl.
     `_public_field_options` — F10: the dropped `choices` fallback means a declared-but-unpropagated
     source reaches the uniform fail-loud rather than silently coercing via `field.choices`);
@@ -312,7 +312,7 @@
   - _Preservation: legitimately-empty source does NOT raise (G5); R3.2 public subset preserved_
   - _Requirements: 2.3, 2.6_ · _Components: C6, F4, F9, F10_
 
-  - [ ] 9a. **C6 hard gate — all-tenant zero-un-migrated scan (BLOCKING, before fail-loud enabled)**
+  - [x] 9a. **C6 hard gate — all-tenant zero-un-migrated scan (BLOCKING, before fail-loud enabled)**
     - **BLOCKING deployment step** gating C6 fail-loud (design "Hard gate before C6 goes live" /
       "Deployment ordering" §4). Fail-loud must NOT be enabled until an all-tenant scan confirms ZERO
       un-migrated bare-`choices` rows remain — not "essentially one row" by assumption. A single
@@ -331,7 +331,7 @@
       `cd sam && python -m pytest tests/test_scan_config_fields_un_migrated_choices.py -q`.
     - _Requirements: 2.3_ · _Components: C6 (hard gate), C7 (confirms backfill completeness)_
 
-  - [ ] 9b. **No-per-kind-branch serializer test (covers DROPPED C8 rule (c))**
+  - [x] 9b. **No-per-kind-branch serializer test (covers DROPPED C8 rule (c))**
     - Design dropped C8 blocking rule (c) (the per-field-KIND AST branch) — it needed two carve-outs
       (R3.2 subset filter, F11 source-selector) → false-positive risk. The invariant it protected is
       now covered by a TARGETED TEST instead of a blocking AST rule.
@@ -348,7 +348,7 @@
 
 ## Phase 4 — C8 mechanical guard (increment 2, REPORT-ONLY first; three rules a/b/d) — ~1 day  (R2.7)
 
-- [ ] 10. **C8 (report-only, increment 2)** — Extend the AST guard with THREE anti-reintroduction rules (a)(b)(d)
+- [x] 10. **C8 (report-only, increment 2)** — Extend the AST guard with THREE anti-reintroduction rules (a)(b)(d)
   - Files: `scripts/check_sam_config_crud.py` (EXTEND — real code only, not comments/docstrings;
     allow-list discipline; never `--no-verify`); `sam/tests/test_check_sam_config_crud.py` (planted-
     violation tests).
@@ -377,9 +377,9 @@
 
 ## Phase 5 — Verify the fix GREEN (fix checking + preservation) — ~0.5 day
 
-- [ ] 11. Fix for enum-vocabulary round-trip & no-silent-fallbacks — verification
+- [x] 11. Fix for enum-vocabulary round-trip & no-silent-fallbacks — verification
 
-  - [ ] 11.1 **Property 1: Expected Behavior** — extended symmetry gate GREEN (enum + scope + reference)
+  - [x] 11.1 **Property 1: Expected Behavior** — extended symmetry gate GREEN (enum + scope + reference)
     - **IMPORTANT**: re-run the SAME cases from task 1 — do NOT write new tests. When they pass, the
       unified-vocabulary behavior is confirmed.
     - Per-kind assertion (design G3): reads ALWAYS agree; enum strict inline PUT==GET; scope `options`
@@ -390,7 +390,7 @@
     - VERIFY: `cd sam && AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000 python -m pytest tests/e2e/test_enum_vocab_roundtrip_e2e.py tests/e2e/test_config_fields_roundtrip_red.py -q`
     - _Requirements: 2.1, 2.2, 2.6_
 
-  - [ ] 11.2 **Property 2: Preservation** — preservation holds; spec-03 suite still green
+  - [x] 11.2 **Property 2: Preservation** — preservation holds; spec-03 suite still green
     - **IMPORTANT**: re-run the SAME tests from task 2 — do NOT write new tests.
     - Confirm: options-authored fields render identically in both reads; `application_choices`
       unchanged; scope ACCESS resolution via `config#scope` / `ScopeConfig` unchanged; the full spec-03
@@ -400,7 +400,7 @@
       `AWS_ENDPOINT_URL_DYNAMODB=http://localhost:8000 python -m pytest tests/e2e/ -q`
     - _Requirements: 3.1, 3.2, 3.3_
 
-  - [ ] 11.3 Real h-dcn round-trip through the editor read path
+  - [x] 11.3 Real h-dcn round-trip through the editor read path
     - Drive a final read→(author/edit)→read of the real h-dcn `referral_source` vocabulary through the
       config editor read path; confirm the 6 values survive as `options` and both reads agree.
     - VERIFY: live local-DynamoDB h-dcn seed, container-gated E2E; manual editor read confirmation.
@@ -408,7 +408,7 @@
 
 ## Phase 6 — C8 flip to BLOCKING (increment 2, LAST) + checkpoint — ~0.5 day  (R2.7, G6)
 
-- [ ] 12. **C8 (blocking, increment 2)** — Flip the guard (rules a/b/d) to BLOCKING once the tree is clean (G6)
+- [x] 12. **C8 (blocking, increment 2)** — Flip the guard (rules a/b/d) to BLOCKING once the tree is clean (G6)
   - Files: `scripts/check_sam_config_crud.py` / its pre-commit + CI wiring (steering 43).
   - ONLY after increment 1 — C7 (task 3) + C1–C6 (tasks 4–9, incl. the C6 hard-gate scan 9a) — has
     landed and the extended gate is GREEN (tasks 11.x): clear the baseline, then flip report-only →
@@ -425,7 +425,7 @@
     rule (c) gone, there is no blocking rule for them to trip.
   - _Requirements: 2.7_ · _Components: C8 (blocking, three rules a/b/d)_
 
-- [ ] 13. Checkpoint — ensure all tests pass
+- [x] 13. Checkpoint — ensure all tests pass
   - Full SAM unit suite + container-gated E2E (extended symmetry gate + strengthened isolation +
     spec-03 suite) + frontend vitest + the guard tests all green; the real h-dcn round-trip verified.
     Ask the user if questions arise.
