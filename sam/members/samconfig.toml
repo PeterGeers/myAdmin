@@ -115,6 +115,11 @@ parameter_overrides = [
   # redeploy). TEST runs tighter (below) since it shares the account's API Gateway budget.
   "PublicApiThrottleRateLimit=10",
   "PublicApiThrottleBurstLimit=20",
+  # --- Public-pages hosting (spec 14 Task 9) — shared nonprofit bucket/distribution ---
+  # SAME values as TEST: ONE shared nonprofit public-pages bucket + CloudFront distribution (D7);
+  # the members-plane env boundary is the `test_` table prefix, NOT a separate bucket.
+  "LandingPagesBucket=myadmin-public-pages-nonprofit-506221081911",
+  "CloudFrontPublicPagesDistributionId=E3GLUX3TWBIJG",
   # SECRET — NOT here (steering 43 "no secrets in CI"): `OpenRouterApiKey` (the Members
   # AI-improve key, R2 task 2.4) is a NoEcho template parameter with NO default + an
   # `sk-or-v1-` AllowedPattern. It is supplied at DEPLOY time only, appended by the OIDC
@@ -212,6 +217,11 @@ parameter_overrides = [
   # CORS are the proportionate controls.
   "PublicApiThrottleRateLimit=5",
   "PublicApiThrottleBurstLimit=10",
+  # --- Public-pages hosting (spec 14 Task 9) — shared nonprofit bucket/distribution ---
+  # SAME values as PROD: ONE shared nonprofit public-pages bucket + CloudFront distribution (D7);
+  # the members-plane env boundary is the `test_` table prefix, NOT a separate bucket.
+  "LandingPagesBucket=myadmin-public-pages-nonprofit-506221081911",
+  "CloudFrontPublicPagesDistributionId=E3GLUX3TWBIJG",
   # SECRET — NOT here (steering 43): `OpenRouterApiKey` (R2 task 2.4) is supplied at deploy
   # time by the OIDC workflow via `--parameter-overrides "OpenRouterApiKey=${OPENROUTER_API_KEY}"`
   # from the TEST environment's secret store — never committed, never in CI config.

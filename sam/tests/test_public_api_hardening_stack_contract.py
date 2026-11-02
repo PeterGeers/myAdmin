@@ -105,13 +105,27 @@ def test_public_api_has_a_stage_throttle_bound_to_params(template):
     """R10.1: the public API's stage throttle caps rate + burst across every method/path."""
     settings = template["Resources"]["MembersPublicApi"]["Properties"]["MethodSettings"]
     # The wildcard method/path so the cap applies to BOTH public routes.
-    wildcard = [m for m in settings if m.get("HttpMethod") == "*" and m.get("ResourcePath") == "/*"]
-    assert wildcard, "a wildcard MethodSettings entry must throttle every method/path (R10.1)"
+    wildcard = [
+        m
+        for m in settings
+        if m.get("HttpMethod") == "*" and m.get("ResourcePath") == "/*"
+    ]
+    assert wildcard, (
+        "a wildcard MethodSettings entry must throttle every method/path (R10.1)"
+    )
     m = wildcard[0]
     rate = m["ThrottlingRateLimit"]
     burst = m["ThrottlingBurstLimit"]
-    assert isinstance(rate, _CfnTag) and rate.tag == "Ref" and rate.value == "PublicApiThrottleRateLimit"
-    assert isinstance(burst, _CfnTag) and burst.tag == "Ref" and burst.value == "PublicApiThrottleBurstLimit"
+    assert (
+        isinstance(rate, _CfnTag)
+        and rate.tag == "Ref"
+        and rate.value == "PublicApiThrottleRateLimit"
+    )
+    assert (
+        isinstance(burst, _CfnTag)
+        and burst.tag == "Ref"
+        and burst.value == "PublicApiThrottleBurstLimit"
+    )
 
 
 def test_usage_plan_exists_and_is_bound_to_the_public_api_stage(template):
@@ -121,14 +135,20 @@ def test_usage_plan_exists_and_is_bound_to_the_public_api_stage(template):
         for name, r in template["Resources"].items()
         if r["Type"] == "AWS::ApiGateway::UsagePlan"
     }
-    assert plans, "task 7.1 must declare an API Gateway usage plan for the public API (R10.1)"
+    assert plans, (
+        "task 7.1 must declare an API Gateway usage plan for the public API (R10.1)"
+    )
     [(_, plan)] = plans.items()
     props = plan["Properties"]
     # Bound to the public API, never the authenticated MembersApi.
     api_stages = props["ApiStages"]
     assert len(api_stages) == 1
     api_id = api_stages[0]["ApiId"]
-    assert isinstance(api_id, _CfnTag) and api_id.tag == "Ref" and api_id.value == "MembersPublicApi"
+    assert (
+        isinstance(api_id, _CfnTag)
+        and api_id.tag == "Ref"
+        and api_id.value == "MembersPublicApi"
+    )
     # Same rate/burst knobs as the stage throttle.
     throttle = props["Throttle"]
     assert throttle["RateLimit"].value == "PublicApiThrottleRateLimit"
@@ -151,7 +171,9 @@ def test_throttle_params_have_fail_safe_low_defaults(template):
     rate = params["PublicApiThrottleRateLimit"]
     burst = params["PublicApiThrottleBurstLimit"]
     assert rate["Type"] == "Number" and burst["Type"] == "Number"
-    assert rate["Default"] <= 100 and burst["Default"] <= 200  # low = bounded, not unlimited
+    assert (
+        rate["Default"] <= 100 and burst["Default"] <= 200
+    )  # low = bounded, not unlimited
     assert rate["MinValue"] >= 1 and burst["MinValue"] >= 1
 
 
@@ -187,22 +209,67 @@ def test_no_waf_is_provisioned_d17(template):
 # -----------------------------------------------------------------------------
 
 
-def test_public_fn_iam_is_exactly_the_three_scoped_grants(template):
-    """R10.5: members-table write + projection read + queue enqueue — and nothing else."""
+def test_public_fn_iam_is_exactly_the_four_scoped_grants(template):
+    """R10.5: members-table write + projection read + queue enqueue + slug-marker READ — and
+    nothing else. The slug-marker READ (`PublicReadSlugMarkers`) is the SAM-plane half of SEC-8
+    (spec 14 Task 9.2) that was missing — the public edge resolves `_slugs/{slug}` markers, so
+    the live Task-9.4 e2e surfaced the deployed public fn 500ing (AccessDenied on s3:ListBucket)
+    with no S3 grant at all. EXACT-set assertion — the public edge gains the scoped READ and
+    nothing wider (no S3 write, no new account/action)."""
     sids = set(_by_sid(template["Resources"]["MembersPublicFunction"]).keys())
     assert sids == {
         "PublicWriteMembersTable",
         "PublicReadGovernanceProjection",
         "PublicEnqueueMailSend",
+        "PublicReadSlugMarkers",
     }
 
 
+def test_public_fn_slug_marker_grant_is_scoped_read_only_no_write(template):
+    """Spec 14 Task 9.2 (SEC-8, SAM half): the public edge READS slug markers least-privilege —
+    GetObject on `_slugs/*` + ListBucket prefix-conditioned to `_slugs/*` (so a MISSING marker is
+    a clean NoSuchKey/404, not AccessDenied → enumeration-safe), ARNs from `${LandingPagesBucket}`,
+    and NO PutObject/DeleteObject on the public edge (claiming/renaming is the authenticated fn)."""
+    stmt = _by_sid(template["Resources"]["MembersPublicFunction"])[
+        "PublicReadSlugMarkers"
+    ]
+    actions = set(stmt["Action"])
+    # BOTH READ actions, nothing more. GetObject reads the marker body; ListBucket makes a missing
+    # marker surface as NoSuchKey instead of AccessDenied.
+    assert actions == {"s3:GetObject", "s3:ListBucket"}
+    # No WRITE on the public edge — it only resolves markers, never claims/renames them.
+    assert "s3:PutObject" not in actions
+    assert "s3:DeleteObject" not in actions
+    # ARNs built from the LandingPagesBucket param — never a hardcode.
+    subs = [
+        r.value for r in stmt["Resource"] if isinstance(r, _CfnTag) and r.tag == "Sub"
+    ]
+    # GetObject is object-scoped to the `_slugs/*` marker prefix.
+    assert any(s == "arn:aws:s3:::${LandingPagesBucket}/_slugs/*" for s in subs)
+    # ListBucket targets the bucket itself (object-prefix lives in the Condition, not the ARN).
+    assert any(s == "arn:aws:s3:::${LandingPagesBucket}" for s in subs)
+    # No hardcoded bucket name, no cross-account.
+    for s in subs:
+        assert "myadmin-public-pages" not in s
+    # The ListBucket enumeration is prefix-conditioned to `_slugs/*` (enumeration-safe, no
+    # bucket-wide list).
+    prefixes = stmt["Condition"]["StringLike"]["s3:prefix"]
+    assert "_slugs/*" in (prefixes if isinstance(prefixes, list) else [prefixes])
+
+
 def test_public_fn_members_table_grant_is_scoped_and_write_capable(template):
-    stmt = _by_sid(template["Resources"]["MembersPublicFunction"])["PublicWriteMembersTable"]
+    stmt = _by_sid(template["Resources"]["MembersPublicFunction"])[
+        "PublicWriteMembersTable"
+    ]
     actions = set(stmt["Action"])
     # The create_application spine: create (PutItem + the appsession conditional put), update
     # (same-session resubmit), query (name+dob GSI + appsession read), reads.
-    assert {"dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:GetItem"} <= actions
+    assert {
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:Query",
+        "dynamodb:GetItem",
+    } <= actions
     # The public path never deletes (D23) or batch-writes — those actions must be absent.
     assert "dynamodb:DeleteItem" not in actions
     assert "dynamodb:BatchWriteItem" not in actions
@@ -218,13 +285,19 @@ def test_public_fn_members_table_grant_is_scoped_and_write_capable(template):
 
 
 def test_public_fn_projection_grant_is_read_only_and_scoped(template):
-    stmt = _by_sid(template["Resources"]["MembersPublicFunction"])["PublicReadGovernanceProjection"]
+    stmt = _by_sid(template["Resources"]["MembersPublicFunction"])[
+        "PublicReadGovernanceProjection"
+    ]
     actions = set(stmt["Action"])
     # READ-ONLY — one-way projection (ADR 0005). No write of any kind.
     assert actions == {"dynamodb:Query", "dynamodb:GetItem"}
-    assert not any(a.startswith("dynamodb:Put") or a.startswith("dynamodb:Update")
-                   or a.startswith("dynamodb:Delete") or a.startswith("dynamodb:BatchWrite")
-                   for a in actions)
+    assert not any(
+        a.startswith("dynamodb:Put")
+        or a.startswith("dynamodb:Update")
+        or a.startswith("dynamodb:Delete")
+        or a.startswith("dynamodb:BatchWrite")
+        for a in actions
+    )
     [res] = stmt["Resource"]
     assert isinstance(res, _CfnTag) and res.tag == "Sub"
     assert "table/${GovernanceProjectionTableName}" in res.value
@@ -232,7 +305,9 @@ def test_public_fn_projection_grant_is_read_only_and_scoped(template):
 
 
 def test_public_fn_enqueue_grant_is_sendmessage_only_on_exact_queue(template):
-    stmt = _by_sid(template["Resources"]["MembersPublicFunction"])["PublicEnqueueMailSend"]
+    stmt = _by_sid(template["Resources"]["MembersPublicFunction"])[
+        "PublicEnqueueMailSend"
+    ]
     # Producer only — SendMessage, never Receive/Delete (that is the worker).
     assert stmt["Action"] == ["sqs:SendMessage"]
     [res] = stmt["Resource"]
@@ -241,21 +316,175 @@ def test_public_fn_enqueue_grant_is_sendmessage_only_on_exact_queue(template):
     assert res.value in ("MailSendQueue.Arn", ["MailSendQueue", "Arn"])
 
 
-def test_public_fn_has_no_ses_scheduler_or_passrole(template):
-    """R10.5: the public edge does NOT send SES (the worker does), manage schedules, or PassRole."""
+def test_public_fn_has_no_ses_scheduler_passrole_or_s3_write(template):
+    """R10.5 (tightened for spec 14 Task 9.2): the public edge does NOT send SES (the worker does),
+    manage schedules, or PassRole. It MAY now hold the scoped `_slugs/*` S3 READ (GetObject +
+    prefix-conditioned ListBucket — SEC-8 slug resolution), but still NO S3 WRITE (no
+    PutObject/DeleteObject — claiming/renaming markers is the authenticated MembersFunction)."""
     for stmt in _statements(template["Resources"]["MembersPublicFunction"]):
         for action in stmt["Action"]:
             assert not action.startswith("ses:")
             assert not action.startswith("scheduler:")
             assert action != "iam:PassRole"
-            assert not action.startswith("s3:")  # the public edge touches no template bodies
+            # The only S3 the public edge may hold is the scoped marker READ — never a write.
+            assert action not in ("s3:PutObject", "s3:DeleteObject")
+            if action.startswith("s3:"):
+                assert action in ("s3:GetObject", "s3:ListBucket")
 
 
 def test_public_fn_wires_mail_send_queue_url_matching_the_grant(template):
     """The producer env var + the SendMessage grant point at the SAME queue (cannot disagree)."""
-    env_vars = template["Resources"]["MembersPublicFunction"]["Properties"]["Environment"]["Variables"]
+    env_vars = template["Resources"]["MembersPublicFunction"]["Properties"][
+        "Environment"
+    ]["Variables"]
     url = env_vars["MAIL_SEND_QUEUE_URL"]
-    assert isinstance(url, _CfnTag) and url.tag == "Ref" and url.value == "MailSendQueue"
+    assert (
+        isinstance(url, _CfnTag) and url.tag == "Ref" and url.value == "MailSendQueue"
+    )
+
+
+# -----------------------------------------------------------------------------
+# Spec 14 Task 9.2 (SEC-8, SAM half) — the AUTHENTICATED publish fn's public-pages grant
+# -----------------------------------------------------------------------------
+
+
+def test_members_fn_publish_s3_grant_is_scoped_to_markers_and_served_artifacts(
+    template,
+):
+    """The publish route CLAIMS slugs (`_slugs/*` marker PutObject, rename DeleteObject) and writes
+    the served artifacts (`{slug}/index.html` + `{slug}/form.json`) — scoped to those prefixes,
+    never bucket-root `*` alone (mirrors the SEC-8 scoping Task 9.2 chose). GetObject is included
+    for idempotent read-before-write; least-privilege, no `s3:*`."""
+    stmt = _by_sid(template["Resources"]["MembersFunction"])[
+        "MembersPublishPublicPages"
+    ]
+    actions = set(stmt["Action"])
+    assert actions == {"s3:GetObject", "s3:PutObject", "s3:DeleteObject"}
+    # Never a blanket wildcard.
+    assert "s3:*" not in actions
+    subs = [
+        r.value for r in stmt["Resource"] if isinstance(r, _CfnTag) and r.tag == "Sub"
+    ]
+    # Markers: the `_slugs/*` prefix the claim/rename writes.
+    assert any(s == "arn:aws:s3:::${LandingPagesBucket}/_slugs/*" for s in subs)
+    # Served artifacts: the two exact filenames under any `{slug}/` — tighter than bucket-root `*`.
+    assert any(s == "arn:aws:s3:::${LandingPagesBucket}/*/index.html" for s in subs)
+    assert any(s == "arn:aws:s3:::${LandingPagesBucket}/*/form.json" for s in subs)
+    # NOT a bucket-root `/*` object grant on its own (that would be bucket-wide, defeating SEC-8).
+    assert not any(s == "arn:aws:s3:::${LandingPagesBucket}/*" for s in subs)
+    # No hardcoded bucket name.
+    for s in subs:
+        assert "myadmin-public-pages" not in s
+
+
+def test_members_fn_publish_listbucket_is_prefix_conditioned(template):
+    """The publish ListBucket is `s3:prefix`-conditioned to the marker + served prefixes — never a
+    bucket-wide list — so a missing marker/artifact is a clean NoSuchKey, enumeration-safe."""
+    stmt = _by_sid(template["Resources"]["MembersFunction"])["MembersListPublicPages"]
+    assert stmt["Action"] == ["s3:ListBucket"] or set(stmt["Action"]) == {
+        "s3:ListBucket"
+    }
+    [res] = stmt["Resource"]
+    assert isinstance(res, _CfnTag) and res.tag == "Sub"
+    assert res.value == "arn:aws:s3:::${LandingPagesBucket}"
+    prefixes = stmt["Condition"]["StringLike"]["s3:prefix"]
+    prefixes = prefixes if isinstance(prefixes, list) else [prefixes]
+    assert "_slugs/*" in prefixes
+    # The served-artifact prefixes are covered too (so the list stays scoped, not bucket-wide).
+    assert any(p.endswith("index.html") for p in prefixes)
+    assert any(p.endswith("form.json") for p in prefixes)
+
+
+def test_members_fn_publish_cloudfront_invalidation_is_scoped_to_the_one_distribution(
+    template,
+):
+    """Best-effort CloudFront invalidation (Task 9.1): `cloudfront:CreateInvalidation` ONLY, on
+    EXACTLY the `${CloudFrontPublicPagesDistributionId}` distribution ARN (in the nonprofit account
+    where the distribution lives, so this grant can actually invalidate). Least-privilege — no
+    wildcard distribution, no other CloudFront action."""
+    stmt = _by_sid(template["Resources"]["MembersFunction"])[
+        "MembersInvalidatePublicPages"
+    ]
+    assert stmt["Action"] == ["cloudfront:CreateInvalidation"] or set(
+        stmt["Action"]
+    ) == {"cloudfront:CreateInvalidation"}
+    [res] = stmt["Resource"]
+    assert isinstance(res, _CfnTag) and res.tag == "Sub"
+    assert res.value == (
+        "arn:aws:cloudfront::${AWS::AccountId}:distribution/"
+        "${CloudFrontPublicPagesDistributionId}"
+    )
+
+
+def test_members_fn_publish_grant_is_least_privilege_no_s3_star(template):
+    """No `s3:*` / `cloudfront:*` blanket anywhere in the publish grants — least-privilege (SEC-8)."""
+    publish_sids = (
+        "MembersPublishPublicPages",
+        "MembersListPublicPages",
+        "MembersInvalidatePublicPages",
+    )
+    by_sid = _by_sid(template["Resources"]["MembersFunction"])
+    for sid in publish_sids:
+        for action in by_sid[sid]["Action"]:
+            assert action not in ("s3:*", "cloudfront:*")
+            assert not action.endswith(":*")
+
+
+# -----------------------------------------------------------------------------
+# Public-pages hosting env (spec 14 Task 9) — the slug-marker + artifact stores'
+# fail-fast bucket/distribution MUST be wired into BOTH functions' Environment.
+# Regression: the live Task-9.4 e2e surfaced a deployed `members-public-*` 500ing on
+# every public GET/POST {slug} because LANDING_PAGES_BUCKET was never set (the slug
+# marker store's `require_env('LANDING_PAGES_BUCKET')` failed fast). These assert the
+# wiring so that regression is caught statically here next time.
+# -----------------------------------------------------------------------------
+
+#: The exact env KEY strings — MUST match the repository code constants
+#: (slug_marker_store.LANDING_PAGES_BUCKET_ENV_VAR /
+#: public_page_artifact_store.CLOUDFRONT_DISTRIBUTION_ENV_VAR).
+_LANDING_PAGES_BUCKET_ENV = "LANDING_PAGES_BUCKET"
+_CLOUDFRONT_DISTRIBUTION_ENV = "CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID"
+
+
+@pytest.mark.parametrize("fn_name", ["MembersPublicFunction", "MembersFunction"])
+def test_function_wires_public_pages_hosting_env_from_params(template, fn_name):
+    """Task 9: both the served public edge AND the authenticated publish fn carry the
+    slug-marker bucket + CloudFront distribution env vars, bound to the new params (`!Ref`)."""
+    env_vars = template["Resources"][fn_name]["Properties"]["Environment"]["Variables"]
+
+    bucket = env_vars[_LANDING_PAGES_BUCKET_ENV]
+    assert (
+        isinstance(bucket, _CfnTag)
+        and bucket.tag == "Ref"
+        and bucket.value == "LandingPagesBucket"
+    )
+
+    dist = env_vars[_CLOUDFRONT_DISTRIBUTION_ENV]
+    assert (
+        isinstance(dist, _CfnTag)
+        and dist.tag == "Ref"
+        and dist.value == "CloudFrontPublicPagesDistributionId"
+    )
+
+
+def test_public_pages_hosting_params_are_fail_fast_no_default(template):
+    """The two hosting params have NO default (house fail-fast pattern — a blank value must
+    break the deploy, never silently target the wrong bucket; steering 23)."""
+    params = template["Parameters"]
+    for name in ("LandingPagesBucket", "CloudFrontPublicPagesDistributionId"):
+        assert params[name]["Type"] == "String"
+        assert "Default" not in params[name], f"{name} must be fail-fast (no default)"
+
+
+def test_samconfig_supplies_public_pages_hosting_per_env(samconfig):
+    """Both envs pin the shared nonprofit bucket + distribution (same TEST/prod value, D7)."""
+    for env in ("test", "prod"):
+        overrides = _override_map(samconfig, env)
+        assert (
+            overrides["LandingPagesBucket"]
+            == "myadmin-public-pages-nonprofit-506221081911"
+        )
+        assert overrides["CloudFrontPublicPagesDistributionId"] == "E3GLUX3TWBIJG"
 
 
 # -----------------------------------------------------------------------------
@@ -271,7 +500,9 @@ def test_app_job_kinds_reuse_the_single_existing_mail_worker(template):
         if r["Type"] == "AWS::Serverless::Function"
         and r["Properties"].get("Handler") == "sam.members.worker.app.handler"
     }
-    assert set(workers) == {"MailWorkerFunction"}, "exactly one mail-send worker — no duplicate"
+    assert set(workers) == {"MailWorkerFunction"}, (
+        "exactly one mail-send worker — no duplicate"
+    )
     # It consumes exactly the one MailSendQueue (the queue the public edge enqueues to).
     events = template["Resources"]["MailWorkerFunction"]["Properties"]["Events"]
     sqs_sources = [e for e in events.values() if e["Type"] == "SQS"]
@@ -286,9 +517,13 @@ def test_worker_iam_covers_ses_send_for_app_job_kinds(template):
     stmt = _by_sid(template["Resources"]["MailWorkerFunction"])["MailWorkerSendViaSes"]
     actions = set(stmt["Action"])
     assert {"ses:SendEmail", "ses:SendRawEmail"} <= actions
-    assert "ses:SendBulkEmail" not in actions  # per-recipient individual sends, least privilege
+    assert (
+        "ses:SendBulkEmail" not in actions
+    )  # per-recipient individual sends, least privilege
     # Scoped to the verified tenant DOMAIN identity (never identity/*).
-    subs = [r.value for r in stmt["Resource"] if isinstance(r, _CfnTag) and r.tag == "Sub"]
+    subs = [
+        r.value for r in stmt["Resource"] if isinstance(r, _CfnTag) and r.tag == "Sub"
+    ]
     assert any("identity/${MailSenderDomain}" in s for s in subs)
     assert not any(s.rstrip("'").endswith("identity/*") for s in subs)
     # ses:FromAddress condition pins the local part to noreply@<domain>.
@@ -299,7 +534,9 @@ def test_worker_iam_covers_ses_send_for_app_job_kinds(template):
 
 def test_worker_iam_covers_projection_read_for_app_job_kinds(template):
     """Item 3: the app job kinds read config#mail / config#scope — the worker reads the projection."""
-    stmt = _by_sid(template["Resources"]["MailWorkerFunction"])["MailWorkerReadGovernanceProjection"]
+    stmt = _by_sid(template["Resources"]["MailWorkerFunction"])[
+        "MailWorkerReadGovernanceProjection"
+    ]
     assert set(stmt["Action"]) == {"dynamodb:Query", "dynamodb:GetItem"}
     [res] = stmt["Resource"]
     assert isinstance(res, _CfnTag) and res.tag == "Sub"
