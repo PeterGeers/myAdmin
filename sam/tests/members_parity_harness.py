@@ -381,24 +381,60 @@ class _HarnessFieldsCrudService:
         return {"version": "harness-v1", "idempotent_replay": False}
 
     def set_field(self, tenant_id, field_key, def_attrs, *, client_op_id=None):
-        return self._record("set_field", tenant_id, field_key, def_attrs, client_op_id=client_op_id)
-
-    def set_field_application(self, tenant_id, field_key, app_attrs, *, client_op_id=None):
         return self._record(
-            "set_field_application", tenant_id, field_key, app_attrs, client_op_id=client_op_id
+            "set_field", tenant_id, field_key, def_attrs, client_op_id=client_op_id
+        )
+
+    def set_field_application(
+        self, tenant_id, field_key, app_attrs, *, client_op_id=None
+    ):
+        return self._record(
+            "set_field_application",
+            tenant_id,
+            field_key,
+            app_attrs,
+            client_op_id=client_op_id,
         )
 
     def reset_field(self, tenant_id, field_key, *, client_op_id=None):
-        return self._record("reset_field", tenant_id, field_key, client_op_id=client_op_id)
+        return self._record(
+            "reset_field", tenant_id, field_key, client_op_id=client_op_id
+        )
 
     def delete_field(self, tenant_id, field_key, *, client_op_id=None):
-        return self._record("delete_field", tenant_id, field_key, client_op_id=client_op_id)
+        return self._record(
+            "delete_field", tenant_id, field_key, client_op_id=client_op_id
+        )
 
     def set_group(self, tenant_id, group_key, attrs, *, client_op_id=None):
-        return self._record("set_group", tenant_id, group_key, attrs, client_op_id=client_op_id)
+        return self._record(
+            "set_group", tenant_id, group_key, attrs, client_op_id=client_op_id
+        )
 
     def delete_group(self, tenant_id, group_key, *, client_op_id=None):
-        return self._record("delete_group", tenant_id, group_key, client_op_id=client_op_id)
+        return self._record(
+            "delete_group", tenant_id, group_key, client_op_id=client_op_id
+        )
+
+    def set_form_slug(self, tenant_id, slug, *, client_op_id=None):
+        # bugfix-slug-lifecycle task 3.1 — the slug-author op behind
+        # POST /members/application-form/slug. The real op validates (format/reserved then SEC-4
+        # prefix-ownership), claims the shared `_slugs/{slug}` marker and persists
+        # `config#fields.slug` via a single identity Change-Op (null clears). Those claim/persist
+        # mechanics have their own dedicated tests (test_config_fields_slug_author.py); the harness
+        # only needs to prove the EDGE dispatches a well-formed `{slug}` body to this service and
+        # answers 200. So the stand-in records the call and returns the uniform result shape.
+        return self._record("set_form_slug", tenant_id, slug, client_op_id=client_op_id)
+
+    def set_public_prefix(self, tenant_id, prefix, *, client_op_id=None):
+        # slug-prefix SAM-owned — the prefix-author op behind POST /members/application-form/prefix.
+        # The real op validates slug-safe format and persists config#fields.public_prefix via a
+        # single identity Change-Op (null clears); those mechanics have dedicated tests
+        # (test_config_fields_slug_author.py). The harness only proves the EDGE dispatches a
+        # well-formed `{prefix}` body here and answers 200, recording the call + uniform result.
+        return self._record(
+            "set_public_prefix", tenant_id, prefix, client_op_id=client_op_id
+        )
 
 
 class MembersParityHarness:
@@ -568,8 +604,8 @@ class MembersParityHarness:
         self._original_config_fields_crud_getter = (
             dispatch_mod.get_config_fields_crud_service
         )
-        dispatch_mod.get_config_fields_crud_service = (
-            lambda: self.config_fields_crud_service
+        dispatch_mod.get_config_fields_crud_service = lambda: (
+            self.config_fields_crud_service
         )  # type: ignore[assignment]
         # The application-form publish dispatch (spec 12 Task 2.1) resolves its service via
         # dispatch_mod.get_application_publish_service; point it at the harness's fake-table-backed
@@ -898,9 +934,7 @@ class MembersParityHarness:
             d,
             "membership_type dropdown lists the field's own inline options",
             "get_field_config",
-            Outcome.PASS
-            if {"erelid", "donateur"} <= assignable
-            else Outcome.FAIL,
+            Outcome.PASS if {"erelid", "donateur"} <= assignable else Outcome.FAIL,
             f"field options={sorted(option_codes)} assignable(allowed)={sorted(assignable)}",
         )
 
@@ -1144,11 +1178,55 @@ class MembersParityHarness:
                 "write_config_fields",
                 "PUT",
                 "/members/config/fields",
-                {"ops": [{"op": "set_group", "group": "personal", "attrs": {"order": 1}}]},
+                {
+                    "ops": [
+                        {"op": "set_group", "group": "personal", "attrs": {"order": 1}}
+                    ]
+                },
                 None,
                 {200},
                 {},
                 "apply a config#fields Change-Op list via the dedicated Change-Op door",
+            ),
+            # ── Application-form SLUG author/change (bugfix-slug-lifecycle task 3.1) ──
+            # The MISSING client-reachable SAM slug WRITE (defect B): the SIBLING write to the
+            # publish route below. Gate: members:admin (non-self-service, the default admin caller
+            # satisfies it) — tenant AUTHORITATIVE from the verified token, the body trusted ONLY
+            # for the slug VALUE. A well-formed `{slug}` body dispatches to
+            # ConfigFieldsCrudService.set_form_slug (the harness's in-memory stand-in records it)
+            # and answers 200 with the uniform {version, idempotent_replay} shape. The validate →
+            # claim-marker → single-identity Change-Op mechanics (and the 422/409 reject/conflict
+            # paths) have their own dedicated tests (test_config_fields_slug_author.py); the parity
+            # point here is that the EDGE dispatches the slug body to the service (not a 404
+            # no-route / 501 not-built). The literal /members/application-form/slug prefix is
+            # declared BEFORE /{member_id}, so it never collides.
+            (
+                "set_application_form_slug",
+                "POST",
+                "/members/application-form/slug",
+                {"slug": "h-dcn-aanmelden"},
+                None,
+                {200},
+                {},
+                "author the application form's public slug (members:admin, task 3.1)",
+            ),
+            # ── Application-form slug PREFIX author (slug-prefix SAM-owned) ──
+            # The tenant's own public slug PREFIX author path (the SEC-4 stem every form slug must
+            # sit under). Same members:admin gate + tenant-from-token contract as the slug route;
+            # a well-formed `{prefix}` body dispatches to ConfigFieldsCrudService.set_public_prefix
+            # (the stand-in records it) and answers 200. The validate → single-identity Change-Op
+            # mechanics have dedicated tests (test_config_fields_slug_author.py); the parity point
+            # is that the EDGE dispatches the prefix body to the service. The literal
+            # /members/application-form/prefix is declared BEFORE /{member_id}, so it never collides.
+            (
+                "set_application_form_prefix",
+                "POST",
+                "/members/application-form/prefix",
+                {"prefix": "h-dcn"},
+                None,
+                {200},
+                {},
+                "author the tenant's public slug prefix (members:admin, slug-prefix SAM-owned)",
             ),
             # The EXPLICIT application-form publish route (spec 12 Task 2.1, §C4/R5). Gate:
             # members:admin — the default admin caller satisfies it. The harness tenant has no

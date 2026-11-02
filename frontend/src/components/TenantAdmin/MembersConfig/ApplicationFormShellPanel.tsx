@@ -38,6 +38,7 @@ import {
   FormLabel,
   HStack,
   Heading,
+  Input,
   Link,
   Text,
   Textarea,
@@ -89,6 +90,26 @@ export interface ApplicationFormShellPanelProps {
   hasUnpublishedChanges?: boolean;
   /** Whether the form has ever been published (controls first-publish vs re-publish copy). */
   everPublished?: boolean;
+  /**
+   * Author / change / clear the FORM's public slug on the SAM plane (bugfix-slug-lifecycle task
+   * 3.3 / R2.3): the `members:admin` control that calls the SAM slug-author endpoint (NOT the
+   * Flask `landingPageApi`). Receives the raw input value — a non-blank string sets/changes the
+   * slug, an empty string clears it. When absent (not wired), no slug-author control is rendered.
+   */
+  onSetSlug?: (slug: string) => void;
+  /** Whether a slug-author write is in flight (disables the author control + shows a loading state). */
+  settingSlug?: boolean;
+  /**
+   * Author / change / clear the tenant's SAM-owned public slug PREFIX (slug-prefix SAM-owned):
+   * the `members:admin` control calling `setApplicationFormPrefix`. Receives the raw input value —
+   * a non-blank string sets/changes the prefix, an empty string clears it. When absent (not wired),
+   * no prefix-author control is rendered.
+   */
+  onSetPrefix?: (prefix: string) => void;
+  /** Whether a prefix-author write is in flight (disables the control + shows a loading state). */
+  settingPrefix?: boolean;
+  /** The tenant's current SAM-owned public prefix (`config#fields.public_prefix`), for display + seed. */
+  currentPrefix?: string | null;
   lang: 'nl' | 'en';
 }
 
@@ -104,6 +125,11 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
   publishing = false,
   hasUnpublishedChanges = false,
   everPublished = false,
+  onSetSlug,
+  settingSlug = false,
+  onSetPrefix,
+  settingPrefix = false,
+  currentPrefix = null,
   lang,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
@@ -111,6 +137,23 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
   const publicUrl = useMemo(() => deriveApplicationFormUrl(values.slug), [values.slug]);
   const iframeSnippet = useMemo(() => buildIframeSnippet(publicUrl), [publicUrl]);
   const [hasCopied, setHasCopied] = useState(false);
+  // The draft value of the slug-author input (bugfix-slug-lifecycle task 3.3). Seeded from the
+  // current SAM slug so editing starts from the stored value; a blank submit clears the slug.
+  const [slugDraft, setSlugDraft] = useState(values.slug ?? '');
+
+  // Re-seed the draft whenever the authoritative (SAM-sourced) slug changes — e.g. after a
+  // successful author re-load pushes the persisted `config#fields.slug` down. This keeps the
+  // input in step with SAM state rather than a stale optimistic value.
+  React.useEffect(() => {
+    setSlugDraft(values.slug ?? '');
+  }, [values.slug]);
+
+  // The draft value of the prefix-author input (slug-prefix SAM-owned). Seeded from the current
+  // SAM prefix so editing starts from the stored value; a blank submit clears the prefix.
+  const [prefixDraft, setPrefixDraft] = useState(currentPrefix ?? '');
+  React.useEffect(() => {
+    setPrefixDraft(currentPrefix ?? '');
+  }, [currentPrefix]);
 
   // Publish is readiness-gated (R5.4): slug + certified sender + ≥1 on-form field. These are the
   // SAME three readiness facts the readiness panel computes (reused, not re-derived here). The
@@ -189,11 +232,101 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
             </Text>
             <Text fontSize="sm" color="gray.500" data-testid="application-form-shell-slug-hint">
               {t(
-                'Stel eerst een formulier-slug in via de formulierconfiguratie om een publiek adres te krijgen.',
-                'Set a form slug in the form configuration first to get a public address.',
+                'Stel hieronder een formulier-slug in om een publiek adres te krijgen.',
+                'Set a form slug below to get a public address.',
               )}
             </Text>
           </Box>
+        )}
+
+        {/* ---------------------------------------------------------------- */}
+        {/* Prefix author control (slug-prefix SAM-owned) — the members:admin  */}
+        {/* control to set/change/clear the tenant's public slug PREFIX (the   */}
+        {/* SEC-4 stem every form slug must sit under). Calls the SAM prefix-   */}
+        {/* author endpoint via the builder's onSetPrefix. Rendered above the  */}
+        {/* slug control because a slug can only be authored once a prefix      */}
+        {/* exists. Blank submit clears the prefix.                            */}
+        {/* ---------------------------------------------------------------- */}
+        {onSetPrefix && (
+          <FormControl mt={4} data-testid="application-form-shell-prefix-editor">
+            <FormLabel htmlFor="application-form-shell-prefix-input">
+              {t('Publiek voorvoegsel (slug-prefix)', 'Public prefix (slug prefix)')}
+            </FormLabel>
+            <HStack spacing={2} align="center">
+              <Input
+                id="application-form-shell-prefix-input"
+                value={prefixDraft}
+                onChange={(e) => setPrefixDraft(e.target.value)}
+                placeholder={t('bijv. h-dcn', 'e.g. h-dcn')}
+                data-testid="application-form-shell-prefix-input"
+                maxW="sm"
+                isDisabled={settingPrefix}
+              />
+              <Button
+                size="sm"
+                colorScheme="orange"
+                onClick={() => onSetPrefix(prefixDraft)}
+                isLoading={settingPrefix}
+                // Disable only when the draft matches the stored prefix (no change); a blank draft
+                // with a stored prefix is a deliberate CLEAR, so it stays enabled.
+                isDisabled={settingPrefix || prefixDraft.trim() === (currentPrefix ?? '').trim()}
+                loadingText={t('Opslaan…', 'Saving…')}
+                data-testid="application-form-shell-prefix-save"
+              >
+                {t('Voorvoegsel opslaan', 'Save prefix')}
+              </Button>
+            </HStack>
+            <FormHelperText>
+              {t(
+                'Het korte publieke voorvoegsel van je organisatie. Elke formulier-slug moet hieronder vallen (bijv. voorvoegsel \u2018h-dcn\u2019 \u2192 slug \u2018h-dcn-aanmelden\u2019). Leeg maken wist het voorvoegsel.',
+                'Your organisation\u2019s short public prefix. Every form slug must sit under it (e.g. prefix \u2018h-dcn\u2019 \u2192 slug \u2018h-dcn-apply\u2019). Clearing it removes the prefix.',
+              )}
+            </FormHelperText>
+          </FormControl>
+        )}
+        {/* ---------------------------------------------------------------- */}
+        {/* Slug author control (bugfix-slug-lifecycle task 3.3 / R2.3) — the  */}
+        {/* members:admin control to set/change/clear the SAM form slug. It    */}
+        {/* calls the SAM slug-author endpoint (via the builder's onSetSlug),  */}
+        {/* NEVER the Flask landing plane. The displayed address + readiness   */}
+        {/* reflect the persisted SAM slug after the builder re-loads (R2.2).  */}
+        {/* ---------------------------------------------------------------- */}
+        {onSetSlug && (
+          <FormControl mt={4} data-testid="application-form-shell-slug-editor">
+            <FormLabel htmlFor="application-form-shell-slug-input">
+              {t('Formulier-slug (publiek adres)', 'Form slug (public address)')}
+            </FormLabel>
+            <HStack spacing={2} align="center">
+              <Input
+                id="application-form-shell-slug-input"
+                value={slugDraft}
+                onChange={(e) => setSlugDraft(e.target.value)}
+                placeholder={t('bijv. h-dcn-aanmelden', 'e.g. h-dcn-apply')}
+                data-testid="application-form-shell-slug-input"
+                maxW="sm"
+                isDisabled={settingSlug}
+              />
+              <Button
+                size="sm"
+                colorScheme="orange"
+                onClick={() => onSetSlug(slugDraft)}
+                isLoading={settingSlug}
+                // Disable only when the draft matches the stored slug (no change to make); a blank
+                // draft with a stored slug is a deliberate CLEAR, so it stays enabled.
+                isDisabled={settingSlug || slugDraft.trim() === (values.slug ?? '').trim()}
+                loadingText={t('Opslaan…', 'Saving…')}
+                data-testid="application-form-shell-slug-save"
+              >
+                {t('Adres opslaan', 'Save address')}
+              </Button>
+            </HStack>
+            <FormHelperText>
+              {t(
+                'Het eigen publieke adres van het formulier, opgeslagen bij de formulierconfiguratie (niet de landingspagina). Moet voldoen aan het toegestane voorvoegsel van je organisatie. Leeg maken wist het adres.',
+                'The form\u2019s own public address, stored with the form configuration (not the landing page). Must match your organisation\u2019s allowed prefix. Clearing it removes the address.',
+              )}
+            </FormHelperText>
+          </FormControl>
         )}
       </Box>
 

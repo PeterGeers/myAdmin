@@ -435,9 +435,31 @@ def get_config_fields_crud_service() -> Any:
             MembersConfigWriteRepository,
         )
 
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
+        from sam.members.repository.slug_marker_store import S3SlugMarkerStore
+
+        # bugfix-slug-lifecycle task 3.1: the slug-author op (`set_form_slug`) needs the shared
+        # `_slugs/{slug}` marker store (the SAME store the publish path claims through) + the
+        # tenant's own public-prefix reader (its projected `tenant` row) for the SEC-4 ownership
+        # check. Both resolve their AWS resource lazily + fail-fast on first use, so cold import
+        # still touches no AWS; the marker store's S3 client is injectable. A FRESH prefix reader
+        # per build is fine — the prefix read is a plain forward read, not the version-sensitive
+        # placement read the Change-Op write uses (that stays the `_FreshReaderIndirection`).
+        # bugfix-slug-lifecycle task 3.2: a slug CHANGE (the tenant already owns a different stored
+        # slug) is handled by `S3SlugMarkerStore.rename` (claim-new-before-release-old, R4.6) so the
+        # old `_slugs/{old}` marker is not orphaned. The op detects a change via the forward
+        # `get_form_slug` read — the SAME `MembersProjectionReader` already wired as `prefix_reader`
+        # exposes it, so it also serves as the `slug_reader` (a plain forward read, not the
+        # version-sensitive placement read the Change-Op write uses).
+        _slug_projection_reader = MembersProjectionReader()
         _CONFIG_FIELDS_CRUD_SERVICE = ConfigFieldsCrudService(
             MembersConfigWriteRepository(),
             reader=_FreshReaderIndirection(),
+            slug_marker_store=S3SlugMarkerStore(),
+            prefix_reader=_slug_projection_reader,
+            slug_reader=_slug_projection_reader,
         )
     return _CONFIG_FIELDS_CRUD_SERVICE
 
