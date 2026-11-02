@@ -15,13 +15,28 @@ VERBATIM — same regex, same length bounds, same reserved set — with the land
 the source of truth. Keep the two in lock-step: a change to the landing format contract must be
 mirrored here (and vice-versa) in the same change.
 
-SCOPE — format only (R4.2); uniqueness is separate (Task 1.2)
--------------------------------------------------------------
-This module answers ONLY "is this slug a well-formed, non-reserved slug string?". It performs NO
-uniqueness / collision check — within-tenant uniqueness is the ``_slugs/{slug}`` bucket-marker
-conditional ``put_object`` (OQ4, Task 1.2), and the form-vs-landing backstop is the publish-time
-S3 check (Task 2.2). A blank / malformed / reserved slug is rejected fail-loud so garbage never
-reaches the publish path (R8 unchanged).
+SCOPE — format + prefix-ownership; uniqueness is separate (Task 1.2)
+-------------------------------------------------------------------
+This module answers two orthogonal questions about a slug STRING, both pure (no I/O):
+
+1. :func:`validate_slug_format` — "is this a well-formed, non-reserved slug string?" (R4.2). It
+   performs NO uniqueness / collision check — within-tenant uniqueness is the ``_slugs/{slug}``
+   bucket-marker conditional ``put_object`` (OQ4, Task 1.2), and the form-vs-landing backstop is
+   the publish-time S3 check (Task 2.2). A blank / malformed / reserved slug is rejected fail-loud
+   so garbage never reaches the publish path (R8 unchanged).
+
+2. :func:`validate_slug_prefix_ownership` — **SEC-4** (spec 14 R2.3/R2.5/R10.4): "does this NEW
+   slug belong under the AUTHENTICATED tenant's public prefix?". This is a SEPARATE, additive
+   layer on top of format: the uniqueness gate (Task 1) is tenant-AGNOSTIC — it stops two tenants
+   claiming the SAME slug but does NOT stop tenant B squatting on tenant A's prefix
+   (``tenantA-apply``). The prefix rule closes that squatting hole on EVERY claim path. It stays a
+   PURE string check: the caller resolves the tenant's own prefix from its projected ``tenant``
+   row (``MembersProjectionReader.get_public_prefix`` — SAM reads its own projection, never calls
+   Flask, ADR 0005) and supplies a grandfathering predicate for live/legacy slugs; this module
+   never touches S3 / DynamoDB / MySQL.
+
+Ordering on a claim path: format/reserved (1) runs FIRST, then the prefix rule (2), then the
+atomic uniqueness claim (Task 1). A malformed slug never reaches the prefix check.
 """
 
 from __future__ import annotations
@@ -34,6 +49,7 @@ __all__ = [
     "SLUG_MIN_LENGTH",
     "SLUG_PATTERN",
     "validate_slug_format",
+    "validate_slug_prefix_ownership",
 ]
 
 #: Slugs reserved for system use — cannot be claimed as a form slug. Replicated VERBATIM from the
@@ -96,3 +112,89 @@ def validate_slug_format(slug: object) -> str | None:
         return f"'{slug}' is a reserved name and cannot be used as a form slug"
 
     return None
+
+
+def validate_slug_prefix_ownership(
+    slug: object,
+    tenant_prefix: object,
+    *,
+    is_grandfathered: bool = False,
+) -> str | None:
+    """SEC-4 prefix-ownership check: return a caller-safe error, or ``None`` when the claim is OK.
+
+    The tenant-SCOPED squatting guard (spec 14 R2.3/R2.5, R10.4 / SEC-4). A NEW page slug must be
+    EXACTLY the authenticated tenant's ``public_prefix`` or ``{prefix}-{suffix}`` — i.e. it must
+    start with the tenant's OWN prefix as a whole prefix segment. A slug that does not (including
+    one that sits under ANOTHER tenant's prefix) is REJECTED so no claim is performed. This closes
+    the squatting hole the Task-1 uniqueness gate alone cannot: that gate is tenant-AGNOSTIC (it
+    only stops two tenants claiming the SAME slug), so without this check tenant B could claim
+    ``tenantA-apply`` under tenant A's trusted ``*.jabaki.nl`` namespace (a phishing vector).
+
+    This is a PURE string rule — no I/O. The caller resolves ``tenant_prefix`` from the
+    AUTHENTICATED tenant's OWN projected ``tenant`` row
+    (:meth:`sam.members.repository.projection_config_reader.MembersProjectionReader.get_public_prefix`
+    — SAM reads its own projection, never calls Flask, ADR 0005) and decides ``is_grandfathered``
+    (see below). It is enforced on EVERY claim path (publish/claim), AFTER
+    :func:`validate_slug_format` (format/reserved runs first) and BEFORE the atomic uniqueness
+    claim.
+
+    Grandfathering (R2.5): the prefix rule applies to NEW claims only. Already-live / legacy slugs
+    — INCLUDING uppercase legacy slugs like ``GoodwinSolutions`` that predate this rule and would
+    fail even ``SLUG_PATTERN`` — must NOT be broken or force-renamed. When the caller determines
+    the slug is already live for THIS owner (e.g. an existing same-owner marker for the slug, so a
+    same-owner idempotent re-publish, Task 1.3), it passes ``is_grandfathered=True`` and this check
+    PASSES unconditionally (``None``) — it never re-validates an established slug's shape or prefix.
+
+    Prefix-less tenants (back-compat, task 6.2 omits a NULL prefix): a tenant with NO projected
+    prefix (``tenant_prefix`` is ``None`` / blank) cannot assert ownership of a fresh prefixed
+    namespace. The SAFE decision (documented) is:
+
+    - a grandfathered (already-live, same-owner) slug is STILL allowed — a prefix-less tenant's
+      established slugs keep working (``is_grandfathered`` short-circuits before the prefix lookup);
+    - a NEW claim by a prefix-less tenant is REJECTED with a caller-safe message asking that a
+      public prefix be configured first. This neither hard-breaks a prefix-less tenant's existing
+      slugs (they grandfather) NOR lets a prefix-less tenant squat a new prefixed slug (it cannot
+      prove ownership of any prefix) — matching the spec's grandfathering intent.
+
+    Args:
+        slug: The NEW slug being claimed. Expected to already be a well-formed string (the caller
+            runs :func:`validate_slug_format` first); a non-string is rejected defensively.
+        tenant_prefix: The authenticated tenant's ``public_prefix`` (from its projected ``tenant``
+            row), or ``None``/blank when the tenant has no prefix projected yet.
+        is_grandfathered: ``True`` when the caller has determined this slug is already live for the
+            SAME owner (idempotent re-publish / legacy slug) and must be let through unchanged.
+
+    Returns:
+        A caller-safe error string (no internals) when the claim violates the prefix rule, or
+        ``None`` when the slug is owned by (or grandfathered for) the tenant.
+    """
+    # Grandfathered live/legacy slug (incl. uppercase legacy, same-owner re-publish): never
+    # re-validate shape or prefix — an established slug must not be broken or force-renamed (R2.5).
+    if is_grandfathered:
+        return None
+
+    if not isinstance(slug, str) or not slug:
+        return "slug must be a string"
+
+    # A prefix-less tenant (NULL/absent projected prefix — back-compat, task 6.2) cannot prove
+    # ownership of any prefixed namespace, so a NEW claim is refused (a prefix-less tenant's
+    # existing slugs are handled by the grandfather short-circuit above, never reaching here).
+    if not isinstance(tenant_prefix, str) or not tenant_prefix.strip():
+        return (
+            "this tenant has no public prefix configured yet; a public prefix must be set "
+            "before a new page slug can be claimed"
+        )
+
+    prefix = tenant_prefix.strip()
+
+    # The slug must be EXACTLY the prefix, or the prefix followed by a hyphen + suffix — so the
+    # prefix is matched as a WHOLE leading segment. A bare ``startswith(prefix)`` would be wrong:
+    # it would let ``h-dcn2`` borrow the ``h-dcn`` prefix. Requiring ``prefix`` or ``prefix-…``
+    # pins it to the tenant's own sub-namespace and rejects another tenant's prefix.
+    if slug == prefix or slug.startswith(f"{prefix}-"):
+        return None
+
+    return (
+        f"slug must start with this tenant's public prefix '{prefix}' "
+        f"(either '{prefix}' or '{prefix}-<suffix>')"
+    )

@@ -66,6 +66,8 @@ from sam.members.domain.analytics_set import AnalyticsSetValidationError
 from sam.members.domain.application_publish import (
     PublishNotReady,
     PublishPipelineNotWired,
+    PublishSlugConflict,
+    PublishSlugRejected,
 )
 from sam.members.domain.error_codes import FieldError  # noqa: F401 (surface compat)
 from sam.members.domain.execute_and_deliver import (
@@ -1243,6 +1245,31 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             "The application form is not ready to publish",
             code=exc.code,
             reason=exc.reason.value,
+        )
+    except PublishSlugRejected as exc:
+        # spec 14 Task 8.1: the tenant is ready and the artifact rendered, but the stored slug is
+        # malformed/reserved or violates the SEC-4 prefix-ownership rule (it does not sit under the
+        # tenant's own public prefix). NO marker was claimed and no write reached. Mapped to a 422
+        # (a well-formed, authorized request whose slug value is invalid — distinct from the 409
+        # readiness refusal and the 409 foreign-owned conflict) carrying the validator's own
+        # caller-safe detail (no internals, steering 30/37).
+        return _error(
+            422,
+            exc.detail,
+            code=exc.code,
+            route=spec.name,
+        )
+    except PublishSlugConflict:
+        # spec 14 Task 8.1 (clobber backstop, R4.4): the slug is already claimed by a FOREIGN owner
+        # (a different plane / kind / tenant), so the publish REFUSES to overwrite it and performs
+        # no write. Mapped to a 409 (conflict with existing state) carrying a GENERIC, no-internals
+        # message — never the raw SlugTaken / str(e). A same-owner re-publish is idempotent and
+        # never reaches here.
+        return _error(
+            409,
+            "That page address is already in use",
+            code="errors.application.publishSlugConflict",
+            route=spec.name,
         )
     except PublishPipelineNotWired:
         # The tenant PASSED the readiness gate but the live publish pipeline is task 2.2 — the

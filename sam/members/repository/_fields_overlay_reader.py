@@ -554,6 +554,46 @@ class _FieldOverlayReadMixin:
             return None
         return slug.strip()
 
+    # ── Tenant public prefix reader (projected tenant row, spec 14 R2.2; design C5) ─────
+
+    def get_public_prefix(self, tenant_id: str) -> str | None:
+        """Return the tenant's ``public_prefix`` from its projected ``tenant`` row, or ``None``.
+
+        The SAM read of the tenant's single short PUBLIC PREFIX (spec 14 R2.1/R2.2, design C5).
+        The prefix is authored Flask-side on the tenant record (task 6.1) and projected READ-ONLY
+        as an ADDITIVE attribute onto the already-projected ``tenant`` row (``SK="tenant"``,
+        :data:`~services.projection_schema.RECORD_TYPE_TENANT`) by the projection builder (task
+        6.2). SAM resolves the prefix HERE off its OWN projected row — it NEVER calls Flask
+        (one-directional projection, ADR 0005).
+
+        Resolved by the NORMAL ``tenant_id``-pinned partition read (the same shared, cached Query
+        the sibling config reads use); it scans the partition for the single ``tenant``-type row
+        (no id segment) rather than a ``config#<id>`` row, so it uses :meth:`_classify` directly
+        instead of :meth:`_find_config_row`.
+
+        Empty-is-valid / fail-safe (same discipline as :meth:`get_form_slug`): a **missing**
+        ``tenant`` row, a missing ``public_prefix`` attribute (the builder OMITS it when the source
+        value is NULL/absent — back-compat, task 6.2), or a non-string / blank value all resolve to
+        ``None`` (the tenant has no public prefix yet). The prefix-ownership rule treats a ``None``
+        prefix as "cannot assert ownership of a fresh prefixed namespace" — see
+        :func:`sam.members.domain.form_slug.validate_slug_prefix_ownership`.
+
+        Args:
+            tenant_id: The tenant (partition key) whose public prefix to resolve.
+
+        Returns:
+            The projected non-blank ``public_prefix`` string, or ``None`` when absent/unusable.
+        """
+        for item in self._query_partition(tenant_id):
+            record_type, _id_parts = self._classify(item)
+            if record_type != schema.RECORD_TYPE_TENANT:
+                continue
+            prefix = item.get("public_prefix")
+            if not isinstance(prefix, str) or not prefix.strip():
+                return None
+            return prefix.strip()
+        return None
+
     def get_config_fields_version(
         self, tenant_id: str, *, consistent_read: bool = False
     ):
