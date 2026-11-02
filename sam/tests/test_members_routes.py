@@ -74,7 +74,13 @@ def test_route_map_covers_eighteen_behaviours_total():
     # MINUS the five Lidmaatschap Beheer catalog routes (03b CONTRACT, Task 10.5:
     # list/get/create/update/deactivate membership-types retired — membership_type now owns its
     # vocabulary as inline field options) = 46.
-    assert len(ROUTES) == 46
+    # ...plus the application-form SLUG author/change route (bugfix-slug-lifecycle task 3.1 —
+    # POST /members/application-form/slug, members:admin; the MISSING client-reachable SAM slug
+    # WRITE that validates + claims _slugs/{slug} + persists config#fields.slug via a Change-Op) = 47.
+    # ...plus the application-form slug PREFIX author route (slug-prefix SAM-owned —
+    # POST /members/application-form/prefix, members:admin; persists config#fields.public_prefix
+    # via a Change-Op) = 48.
+    assert len(ROUTES) == 48
 
 
 def test_route_map_groups_match_the_design_c1_counts():
@@ -92,7 +98,12 @@ def test_route_map_groups_match_the_design_c1_counts():
     # PLUS the config#fields CHANGE-OP write route (spec 03 Task 2.7 — PUT /members/config/fields,
     # members:admin; the identity-keyed Change-Op door for config#fields), also grouped with the
     # admin-config surface = MEMBER is 12.
-    assert len(routes_by_group(RouteGroup.MEMBER)) == 12
+    # PLUS the application-form SLUG author/change route (bugfix-slug-lifecycle task 3.1 —
+    # POST /members/application-form/slug, members:admin), also grouped with the admin-config
+    # surface = MEMBER is 13.
+    # PLUS the application-form slug PREFIX author route (slug-prefix SAM-owned —
+    # POST /members/application-form/prefix, members:admin), also admin-config = MEMBER is 14.
+    assert len(routes_by_group(RouteGroup.MEMBER)) == 14
     # Membership lifecycle is 5 after the two transition routes were retired
     # (retire-members-status-lifecycle-engine): create + list + get + update + delete.
     assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 5
@@ -136,6 +147,14 @@ def test_route_map_includes_each_named_behaviour():
         # Application-form PUBLISH (spec 12 Task 2.1 — POST /members/application-form/publish,
         # members:admin, readiness-gated; route + gate real, live write task 2.2/dormant)
         "publish_application_form",
+        # Application-form SLUG author/change (bugfix-slug-lifecycle task 3.1 —
+        # POST /members/application-form/slug, members:admin; validates + claims _slugs/{slug} +
+        # persists config#fields.slug via an identity Change-Op)
+        "set_application_form_slug",
+        # Application-form slug PREFIX author (slug-prefix SAM-owned —
+        # POST /members/application-form/prefix, members:admin; persists config#fields.public_prefix
+        # via an identity Change-Op)
+        "set_application_form_prefix",
         # membership lifecycle
         "create_membership",
         "list_memberships",

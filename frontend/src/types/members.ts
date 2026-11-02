@@ -677,6 +677,16 @@ export interface FieldConfig {
    */
   slug?: string | null;
   /**
+   * The tenant's SAM-owned public slug PREFIX (`config#fields.public_prefix`) — the short stem
+   * (e.g. `h-dcn`) under which every authored form `slug` must sit (SEC-4 prefix ownership). Served
+   * on `GET /members/field-config` so the Application Form Builder can DISPLAY it and the admin can
+   * set/change/clear it via `setApplicationFormPrefix` (POST /members/application-form/prefix). The
+   * prefix lives ONLY on the SAM plane (the former Flask `tenants.public_prefix` column was
+   * dropped). Absent/`null`/blank → the tenant has no prefix configured yet (a new form `slug`
+   * cannot be authored until one is set).
+   */
+  public_prefix?: string | null;
+  /**
    * The last successful publish timestamp (ISO-8601) on `config#fields` (spec 12 R5 / Phase 1).
    * Absent/`null` = the form has never been published. Surfaced so the builder can show the
    * save/publish distinction (a draft may have unpublished changes since this stamp).

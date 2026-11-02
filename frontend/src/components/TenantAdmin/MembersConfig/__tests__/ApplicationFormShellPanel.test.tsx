@@ -54,18 +54,20 @@ describe('applicationShellForm — public URL derivation (R5.1 / E4)', () => {
   });
 });
 
-describe('applicationShellForm — FORM slug resolution (spec 12 R4 / Phase 1)', () => {
-  it('prefers the FORM slug on config#fields over a landing-slug fallback', () => {
+describe('applicationShellForm — FORM slug resolution (spec 12 R4 / bugfix-slug-lifecycle R2.1/R2.2)', () => {
+  it('sources the FORM slug from config#fields (the SAM source of truth)', () => {
     expect(deriveFormSlug({ fields: [], slug: 'hdcn-application-form' }, 'h-dcn')).toBe(
       'hdcn-application-form',
     );
   });
-  it('falls back to the landing slug when no form slug is set (older build / unauthored)', () => {
-    expect(deriveFormSlug({ fields: [] }, 'h-dcn')).toBe('h-dcn');
-    expect(deriveFormSlug({ fields: [], slug: null }, 'h-dcn')).toBe('h-dcn');
-    expect(deriveFormSlug({ fields: [], slug: '   ' }, 'h-dcn')).toBe('h-dcn');
+  it('returns null when the SAM form slug is absent/blank — NEVER falls back to the Flask landing slug (bugfix R2.1)', () => {
+    // bugfix-slug-lifecycle defect A: the cross-plane landing-slug fallback is REMOVED. A null/blank
+    // SAM slug means "no public address yet" even when a (now-ignored) landing slug is passed.
+    expect(deriveFormSlug({ fields: [] }, 'h-dcn')).toBeNull();
+    expect(deriveFormSlug({ fields: [], slug: null }, 'h-dcn')).toBeNull();
+    expect(deriveFormSlug({ fields: [], slug: '   ' }, 'h-dcn')).toBeNull();
   });
-  it('returns null when neither a form slug nor a fallback exists (no public address yet)', () => {
+  it('returns null when no SAM form slug exists (no public address yet)', () => {
     expect(deriveFormSlug({ fields: [] }, null)).toBeNull();
     expect(deriveFormSlug(null, null)).toBeNull();
     expect(deriveFormSlug({ fields: [], slug: '' }, '')).toBeNull();
@@ -74,12 +76,16 @@ describe('applicationShellForm — FORM slug resolution (spec 12 R4 / Phase 1)',
     // The form slug need not match the tenant name — deriveFormSlug honours it verbatim.
     expect(deriveFormSlug({ fields: [], slug: 'join-our-club' }, 'h-dcn')).toBe('join-our-club');
   });
-  it('mailConfigToShellValues seeds the FORM slug from config#fields (not the landing fallback)', () => {
+  it('mailConfigToShellValues seeds the FORM slug from config#fields only (never the landing slug)', () => {
     const values = mailConfigToShellValues(
       { fields: [], slug: 'hdcn-application-form' },
       'h-dcn',
     );
     expect(values.slug).toBe('hdcn-application-form');
+  });
+  it('mailConfigToShellValues yields a null slug when the SAM slug is absent, ignoring any passed landing slug (bugfix R2.2)', () => {
+    const values = mailConfigToShellValues({ fields: [], slug: null }, 'hdcn-application-form');
+    expect(values.slug).toBeNull();
   });
 });
 
@@ -325,13 +331,15 @@ describe('applicationShellForm — config#mail body assembly (R5.5)', () => {
   it('seeds the shell values from a loaded mail_config (iframe mode derived from origins)', () => {
     const cfg: FieldConfig = {
       fields: [],
+      // bugfix-slug-lifecycle: the slug is sourced from the SAM config#fields.slug, not a fallback.
+      slug: 'h-dcn',
       mail_config: {
         ...loaded,
         consent_notice: { version: 'v3', text: { nl: 'nl tekst', en: 'en text' } },
         application_embed_origins: ['https://a.org', 'https://b.org'],
       },
     };
-    const values = mailConfigToShellValues(cfg, 'h-dcn');
+    const values = mailConfigToShellValues(cfg, null);
     expect(values.slug).toBe('h-dcn');
     expect(values.embedMode).toBe('iframe');
     expect(values.embedOrigins).toEqual(['https://a.org', 'https://b.org']);
@@ -675,10 +683,77 @@ describe('ApplicationFormShellPanel — form slug URL states (spec 12 R4.4 / R3.
   it('states the form has no public address yet + a slug hint when no slug (not the landing editor)', () => {
     renderPanel({ ...BASE_VALUES, slug: null });
     expect(screen.getByTestId('application-form-shell-no-url')).toBeInTheDocument();
+    // bugfix-slug-lifecycle task 3.3: the hint now points at the inline SAM slug-author control
+    // below, not "the form configuration"/the landing editor.
     expect(screen.getByTestId('application-form-shell-slug-hint')).toHaveTextContent(
-      /form configuration/i,
+      /set a form slug/i,
     );
     expect(screen.queryByTestId('application-form-shell-open-live')).not.toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Slug-author control (bugfix-slug-lifecycle task 3.3 / R2.3).        */
+/*  The members:admin control to set/change/clear the SAM form slug via */
+/*  the SAM slug-author endpoint — NOT the Flask landing plane.         */
+/* ------------------------------------------------------------------ */
+describe('ApplicationFormShellPanel — slug-author control (bugfix-slug-lifecycle R2.3)', () => {
+  it('renders no slug-author control when onSetSlug is not wired', () => {
+    renderPanel({ ...BASE_VALUES, slug: null });
+    expect(screen.queryByTestId('application-form-shell-slug-editor')).not.toBeInTheDocument();
+  });
+
+  it('renders the slug-author control (labelled input + save) when onSetSlug is wired', () => {
+    render(
+      <ApplicationFormShellPanel
+        values={{ ...BASE_VALUES, slug: null }}
+        onChange={vi.fn()}
+        onSetSlug={vi.fn()}
+        lang="en"
+      />,
+    );
+    expect(screen.getByTestId('application-form-shell-slug-editor')).toBeInTheDocument();
+    // Accessibility: the input has a programmatic label (htmlFor/id wiring).
+    expect(screen.getByLabelText(/form slug/i)).toBeInTheDocument();
+  });
+
+  it('seeds the input from the current SAM slug and submits the edited value', () => {
+    const onSetSlug = vi.fn();
+    render(
+      <ApplicationFormShellPanel
+        values={{ ...BASE_VALUES, slug: 'h-dcn' }}
+        onChange={vi.fn()}
+        onSetSlug={onSetSlug}
+        lang="en"
+      />,
+    );
+    const input = screen.getByTestId('application-form-shell-slug-input') as HTMLInputElement;
+    // Seeded from the stored slug.
+    expect(input.value).toBe('h-dcn');
+    // Save is disabled while the draft equals the stored slug (nothing to change).
+    expect(screen.getByTestId('application-form-shell-slug-save')).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: 'h-dcn-apply' } });
+    fireEvent.click(screen.getByTestId('application-form-shell-slug-save'));
+    expect(onSetSlug).toHaveBeenCalledWith('h-dcn-apply');
+  });
+
+  it('a blank input with a stored slug stays enabled (a deliberate clear) and submits empty', () => {
+    const onSetSlug = vi.fn();
+    render(
+      <ApplicationFormShellPanel
+        values={{ ...BASE_VALUES, slug: 'h-dcn' }}
+        onChange={vi.fn()}
+        onSetSlug={onSetSlug}
+        lang="en"
+      />,
+    );
+    const input = screen.getByTestId('application-form-shell-slug-input');
+    fireEvent.change(input, { target: { value: '' } });
+    // Clearing differs from the stored slug → the Save (clear) action is enabled.
+    expect(screen.getByTestId('application-form-shell-slug-save')).toBeEnabled();
+    fireEvent.click(screen.getByTestId('application-form-shell-slug-save'));
+    expect(onSetSlug).toHaveBeenCalledWith('');
   });
 });
 
@@ -726,5 +801,72 @@ describe('ApplicationFormShellPanel — embed snippet consistency with the publi
       'https://sites.google.com',
       'https://portal.h-dcn.nl',
     ]);
+  });
+});
+
+
+/* ------------------------------------------------------------------ */
+/*  Prefix-author control (slug-prefix SAM-owned)                      */
+/* ------------------------------------------------------------------ */
+describe('ApplicationFormShellPanel — prefix-author control (slug-prefix SAM-owned)', () => {
+  it('renders no prefix-author control when onSetPrefix is not wired', () => {
+    renderPanel({ ...BASE_VALUES, slug: null });
+    expect(
+      screen.queryByTestId('application-form-shell-prefix-editor'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders the prefix-author control (labelled input + save) when onSetPrefix is wired', () => {
+    render(
+      <ApplicationFormShellPanel
+        values={{ ...BASE_VALUES, slug: null }}
+        onChange={vi.fn()}
+        onSetPrefix={vi.fn()}
+        currentPrefix={null}
+        lang="en"
+      />,
+    );
+    expect(screen.getByTestId('application-form-shell-prefix-editor')).toBeInTheDocument();
+    // Accessibility: the input has a programmatic label (htmlFor/id wiring).
+    expect(screen.getByLabelText(/public prefix/i)).toBeInTheDocument();
+  });
+
+  it('seeds the input from the current SAM prefix and submits the edited value', () => {
+    const onSetPrefix = vi.fn();
+    render(
+      <ApplicationFormShellPanel
+        values={{ ...BASE_VALUES, slug: null }}
+        onChange={vi.fn()}
+        onSetPrefix={onSetPrefix}
+        currentPrefix="h-dcn"
+        lang="en"
+      />,
+    );
+    const input = screen.getByTestId('application-form-shell-prefix-input') as HTMLInputElement;
+    expect(input.value).toBe('h-dcn');
+    // Save is disabled while the draft equals the stored prefix (nothing to change).
+    expect(screen.getByTestId('application-form-shell-prefix-save')).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: 'h-dcn-new' } });
+    fireEvent.click(screen.getByTestId('application-form-shell-prefix-save'));
+    expect(onSetPrefix).toHaveBeenCalledWith('h-dcn-new');
+  });
+
+  it('a blank input with a stored prefix stays enabled (a deliberate clear) and submits empty', () => {
+    const onSetPrefix = vi.fn();
+    render(
+      <ApplicationFormShellPanel
+        values={{ ...BASE_VALUES, slug: null }}
+        onChange={vi.fn()}
+        onSetPrefix={onSetPrefix}
+        currentPrefix="h-dcn"
+        lang="en"
+      />,
+    );
+    const input = screen.getByTestId('application-form-shell-prefix-input');
+    fireEvent.change(input, { target: { value: '' } });
+    expect(screen.getByTestId('application-form-shell-prefix-save')).toBeEnabled();
+    fireEvent.click(screen.getByTestId('application-form-shell-prefix-save'));
+    expect(onSetPrefix).toHaveBeenCalledWith('');
   });
 });

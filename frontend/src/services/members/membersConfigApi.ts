@@ -175,3 +175,85 @@ export async function publishApplicationForm(): Promise<MembersApplicationPublis
   );
 }
 
+/**
+ * The authoritative result the SAM application-form slug-author route returns on a 200
+ * (bugfix-slug-lifecycle task 3.1 / R2.3). The write IS the authored state — the slug has been
+ * validated (format/reserved + SEC-4 prefix-ownership), the shared `_slugs/{slug}` marker claimed,
+ * and `config#fields.slug` persisted via a single identity Change-Op. `slug` echoes the stored
+ * value (an explicit `null` clears it); `version` is the row-level write stamp `config#fields` now
+ * carries.
+ */
+export interface MembersApplicationSlugResult {
+  success: boolean;
+  /** The slug now stored on `config#fields.slug` (`null`/absent when the slug was cleared). */
+  slug?: string | null;
+  /** The monotonic write stamp `config#fields` now carries. */
+  version?: string;
+}
+
+/**
+ * POST /members/application-form/slug — author / change / clear the application-form public slug
+ * (bugfix-slug-lifecycle task 3.1 / defect B; R2.3).
+ *
+ * The MISSING client-reachable SAM slug WRITE. A `members:admin`-gated action that carries
+ * `{ slug }` (a non-blank string to set/change, or `null` to clear) and delegates to
+ * `ConfigFieldsCrudService.set_form_slug`, which validates the slug (format/reserved then SEC-4
+ * tenant-prefix-ownership), claims the shared `_slugs/{slug}` marker for the owning tenant, and
+ * persists `config#fields.slug` via a SINGLE identity Change-Op (steering 39 — never a whole-record
+ * replace). `tenant_id` is resolved from the verified JWT at the edge, NEVER from the body
+ * (steering 39), so this is the ONLY payload field. This is the SAM source of truth — NOT the Flask
+ * landing plane (`landingPageApi` is never used here).
+ *
+ * Unwraps the module's `{ data }` envelope so the caller receives `{ success, slug, version }`. A
+ * non-2xx (auth/entitlement 401/403, a format/prefix-ownership validation 400/422, a foreign-owner
+ * `SlugTaken` 409) propagates as the structured ApiError thrown by `postJson` — the caller surfaces
+ * a caller-safe message.
+ */
+export async function setApplicationFormSlug(
+  slug: string | null
+): Promise<MembersApplicationSlugResult> {
+  return unwrapData<MembersApplicationSlugResult>(
+    await postJson<unknown>('/members/application-form/slug', { slug })
+  );
+}
+
+/**
+ * Result of the public-prefix author write.
+ *
+ * The slug PREFIX is the tenant's own short public stem (e.g. `h-dcn`) under which every authored
+ * form slug must sit (SEC-4 prefix ownership). It is SAM-owned: stored as
+ * `config#fields.public_prefix` and read back by the same `config#fields` reader the slug uses.
+ * `prefix` echoes the stored value (an explicit `null` clears it); `version` is the row-level
+ * write stamp `config#fields` carries.
+ */
+export interface MembersApplicationPrefixResult {
+  success: boolean;
+  /** The prefix now stored on `config#fields.public_prefix` (`null`/absent when cleared). */
+  prefix?: string | null;
+  /** The monotonic write stamp `config#fields` now carries. */
+  version?: string;
+}
+
+/**
+ * POST /members/application-form/prefix — author / change / clear the tenant's SAM-owned public
+ * slug prefix (slug-prefix SAM-owned).
+ *
+ * A `members:admin`-gated action carrying `{ prefix }` (a non-blank slug-safe string to set/change,
+ * or `null` to clear) that delegates to `ConfigFieldsCrudService.set_public_prefix`, which validates
+ * slug-safe format and persists `config#fields.public_prefix` via a SINGLE identity Change-Op
+ * (steering 39 — never a whole-record replace). `tenant_id` is resolved from the verified JWT at the
+ * edge, NEVER from the body, so `prefix` is the ONLY payload field. The prefix lives only on the SAM
+ * plane (the former Flask `tenants.public_prefix` column was dropped).
+ *
+ * Unwraps the module's `{ data }` envelope so the caller receives `{ success, prefix, version }`. A
+ * non-2xx (auth/entitlement 401/403, a slug-safe-format validation 422) propagates as the structured
+ * ApiError thrown by `postJson` — the caller surfaces a caller-safe message.
+ */
+export async function setApplicationFormPrefix(
+  prefix: string | null
+): Promise<MembersApplicationPrefixResult> {
+  return unwrapData<MembersApplicationPrefixResult>(
+    await postJson<unknown>('/members/application-form/prefix', { prefix })
+  );
+}
+

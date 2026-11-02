@@ -1,0 +1,154 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "Exploration test FAILED on UNFIXED code as expected (bug confirmed). Counterexamples for tenant h-dcn (SAM config#fields.slug = NULL):\n\nAUTHOR facet (backend):\n- ConfigFieldsCrudService exposes NO form-slug author op (only set_field, set_field_application, reset_field, delete_field, set_group, delete_group, remove_legacy_choices, remove_inline_options). assert [] == truthy failed.\n- No client-reachable SAM route authors the slug (only slug-touching route is publish_application_form, which CLAIMS an existing slug). assert [] == truthy failed.\n- Root cause pinned (passing): _WRITABLE_CONFIG_IDS = {scope, mail} excludes 'fields', so the generic PUT /members/config/{configId} door rejects configId=fields.\n\nPUBLISH_REACHABILITY facet (backend):\n- For config#fields.slug=None, publish correctly refuses PublishNotReady(NO_SLUG) (passing, preserved baseline).\n- There is NO SAM author path (no CRUD slug op AND no slug-author route) to clear NO_SLUG → publish permanently unreachable. assert False failed.\n\nDISPLAY facet (frontend):\n- Builder renders application-form-shell-public-url = \"https://hdcn-application-form.jabaki.nl/apply\" (the Flask landing slug) while SAM cfg.slug=null — expected application-form-shell-no-url (\"no public address yet\"). Unable to find application-form-shell-no-url.\n- The Flask slug string \"hdcn-application-form\" appears in the SAM screen text (cross-plane leak).\n- Readiness computed from seeded shell slug reports slugPresent=true (expected false) — display disagrees with SAM authoritative state.\n\nBackend: 3 failed, 2 passed. Frontend: 3 failed. All failures encode the expected (fixed) behavior and prove the bug exists.",
+      "lastRunTimestamp": 1793651473790
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651169242
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651177374
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651498208
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651169390
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651503859
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651808091
+      }
+    ],
+    "3.1 Add the SAM slug-author Change-Op (backend domain + route + dispatch)": [
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651169495
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651813631
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793652332875
+      }
+    ],
+    "3.2 Add rename/change support if low-cost via the marker-store rename": [
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651169591
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793652338985
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793652690158
+      }
+    ],
+    "3.3 Fix the SAM admin display + readiness and add the author control (frontend)": [
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651169688
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793652694971
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793653230924
+      }
+    ],
+    "3.4 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651169789
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793653236047
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793653312147
+      }
+    ],
+    "3.5 Verify preservation tests still pass": [
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651169930
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793653317370
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793653380920
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793651170073
+      },
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793653385378
+      },
+      {
+        "executionId": "1895e80a-dac2-4847-ad02-cf7cafa8e714",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793654992632
+      }
+    ],
+    "3. Fix for broken SAM slug lifecycle (author -> display -> publish)": [
+      {
+        "executionId": "d2421bcb-fa57-4f40-9ffe-22624f40f156",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793653381061
+      }
+    ]
+  }
+}

@@ -53,8 +53,11 @@ import {
   saveFieldConfigChangeOps,
 } from '../../../services/membersConfigService';
 import { deriveFieldConfigChangeOps } from './fieldConfigChangeOps';
-import { getSlug } from '../../../services/landingPageApi';
-import { publishApplicationForm } from '../../../services/members/membersConfigApi';
+import {
+  publishApplicationForm,
+  setApplicationFormSlug,
+  setApplicationFormPrefix,
+} from '../../../services/members/membersConfigApi';
 import { computeReadiness } from './applicationReadiness';
 import type { MembersConfigValue } from '../../../types/membersConfig';
 import type { FieldConfig } from '../../../types/members';
@@ -84,6 +87,11 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   const [saving, setSaving] = useState(false);
   const [savingMail, setSavingMail] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  // Whether a slug-author write is in flight (the `members:admin` set/change/clear control).
+  const [settingSlug, setSettingSlug] = useState(false);
+  // Whether a prefix-author write is in flight (the `members:admin` set/change/clear control for
+  // the SAM-owned public slug prefix).
+  const [settingPrefix, setSettingPrefix] = useState(false);
   // Whether a Save has committed draft changes that have NOT yet been (re)published (spec 12
   // R5.1a — save ≠ publish). Set on any successful field/mail save, cleared on a successful
   // publish and on a fresh load. Drives the "draft has unpublished changes" hint so the admin
@@ -135,16 +143,15 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       const overlayValue = (cfg?.field_overlay as MembersConfigValue) ?? {};
       setOverlay(overlayValue);
       setBaseline(JSON.stringify(overlayValue));
-      // The public slug is read-mostly here (E4): the builder DISPLAYS the derived URL and points
-      // at the Landing Page editor to change it. A slug read failure degrades to "no address yet".
-      let slug: string | null = null;
-      try {
-        slug = (await getSlug()).data?.slug ?? null;
-      } catch {
-        // ignore — best-effort; a missing slug just shows "no public address yet".
-      }
-      // Seed the form-shell working values from the authoritative `config#mail` body + the slug.
-      const shellValues = mailConfigToShellValues(cfg, slug);
+      // The public slug is sourced from the SAM `config#fields.slug` served on the field-config
+      // response (`cfg.slug`), NOT from the Flask landing plane (bugfix-slug-lifecycle R2.1/R2.2 —
+      // the retired cross-plane `getSlug()` read is gone). A SAM screen reflects SAM state: when
+      // `cfg.slug` is absent/null the panel shows "no public address yet", and `shell.slug` +
+      // `computeReadiness` are driven by the SAM slug only — never a landing-plane slug. The slug
+      // is now AUTHORED from this screen via `handleSetSlug` (the SAM slug-author endpoint), so
+      // after a successful set a fresh load reflects the persisted SAM slug. Pass no fallback so
+      // the ONLY source is `cfg.slug` (deriveFormSlug returns null when absent).
+      const shellValues = mailConfigToShellValues(cfg, null);
       setShell(shellValues);
       setShellBaseline(shellValues);
     } catch (e) {
@@ -268,6 +275,97 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   // form that has never been published (its config exists but no live artifact does yet).
   const hasUnpublishedChanges =
     dirty || mailDirty || savedSincePublish || (!everPublished && readiness.isSendReady);
+
+  /**
+   * Author / change / clear the application-form public slug on the SAM plane
+   * (bugfix-slug-lifecycle task 3.3 / R2.3): the `members:admin` control that was MISSING (defect
+   * B). It calls the SAM slug-author endpoint (`POST /members/application-form/slug` via
+   * `setApplicationFormSlug`), NEVER the Flask `landingPageApi` — the SAM `config#fields.slug` is
+   * the single source of truth. The server validates (format/reserved + SEC-4 prefix-ownership),
+   * claims the shared `_slugs/{slug}` marker, and persists the slug via a single identity
+   * Change-Op; an explicit empty value CLEARS it (`null`). On success the builder RE-LOADS so the
+   * displayed public address + the Publish readiness signal reflect the persisted SAM slug (not an
+   * optimistic local value) — the display and the authoritative SAM publish gate always agree
+   * (R2.2). A validation / foreign-owner failure surfaces as a caller-safe error toast.
+   */
+  const handleSetSlug = async (nextSlug: string) => {
+    setSettingSlug(true);
+    try {
+      const trimmed = nextSlug.trim();
+      const res = await setApplicationFormSlug(trimmed ? trimmed : null);
+      if (res.success) {
+        toast({
+          title: trimmed
+            ? t('Publiek adres opgeslagen', 'Public address saved')
+            : t('Publiek adres gewist', 'Public address cleared'),
+          status: 'success',
+          duration: 3000,
+        });
+        // Re-load so the SAM-sourced display + readiness reflect the persisted config#fields.slug.
+        await load();
+      } else {
+        toast({
+          title: 'Error',
+          description: t('Publiek adres opslaan is mislukt', 'Saving the public address failed'),
+          status: 'error',
+          duration: 6000,
+        });
+      }
+    } catch (e) {
+      // Caller-safe: surface the structured ApiError message (validation 400/422, foreign-owner
+      // 409) without leaking internals — the backend already returns a caller-safe envelope.
+      toast({
+        title: 'Error',
+        description: e instanceof Error ? e.message : String(e),
+        status: 'error',
+        duration: 6000,
+      });
+    } finally {
+      setSettingSlug(false);
+    }
+  };
+
+  /**
+   * Author / change / clear the tenant's SAM-owned public slug PREFIX (slug-prefix SAM-owned):
+   * the `members:admin` control that calls `setApplicationFormPrefix` (POST
+   * /members/application-form/prefix). The prefix is the SEC-4 stem every form slug must sit under;
+   * it lives only on the SAM plane (`config#fields.public_prefix`). On success a fresh load reflects
+   * the persisted prefix (so the slug control's validation and the displayed value stay in step). A
+   * validation failure surfaces as a caller-safe error toast.
+   */
+  const handleSetPrefix = async (nextPrefix: string) => {
+    setSettingPrefix(true);
+    try {
+      const trimmed = nextPrefix.trim();
+      const res = await setApplicationFormPrefix(trimmed ? trimmed : null);
+      if (res.success) {
+        toast({
+          title: trimmed
+            ? t('Voorvoegsel opgeslagen', 'Prefix saved')
+            : t('Voorvoegsel gewist', 'Prefix cleared'),
+          status: 'success',
+          duration: 3000,
+        });
+        await load();
+      } else {
+        toast({
+          title: 'Error',
+          description: t('Voorvoegsel opslaan is mislukt', 'Saving the prefix failed'),
+          status: 'error',
+          duration: 6000,
+        });
+      }
+    } catch (e) {
+      toast({
+        title: 'Error',
+        description: e instanceof Error ? e.message : String(e),
+        status: 'error',
+        duration: 6000,
+      });
+    } finally {
+      setSettingPrefix(false);
+    }
+  };
 
   /**
    * Deliberately publish the application form (spec 12 R5 / OQ1 = option 1): the ONE explicit
@@ -402,6 +500,11 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
             publishing={publishing}
             hasUnpublishedChanges={hasUnpublishedChanges}
             everPublished={everPublished}
+            onSetSlug={handleSetSlug}
+            settingSlug={settingSlug}
+            onSetPrefix={handleSetPrefix}
+            settingPrefix={settingPrefix}
+            currentPrefix={fieldConfig?.public_prefix ?? null}
             lang={lang}
           />
         </GridItem>

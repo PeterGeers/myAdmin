@@ -102,6 +102,10 @@ from sam.members.domain.mail_gate import MailGateProvider
 from sam.members.domain.mail_config import MailConfigProvider
 from sam.members.domain.config_status import ConfigStatusProvider
 from sam.members.domain.default_page_size import DefaultPageSizeProvider
+from sam.members.domain.config_fields_crud_service import (
+    SlugAuthorConflict,
+    SlugAuthorRejected,
+)
 
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
@@ -423,6 +427,42 @@ class _ProjectionDefaultPageSizeProvider:
         if _DEFAULT_PAGE_SIZE_PROVIDER_OVERRIDE is not None:
             return _DEFAULT_PAGE_SIZE_PROVIDER_OVERRIDE.get_default_page_size(tenant_id)
         return _new_projection_reader().get_default_page_size(tenant_id)
+
+
+class _ProjectionFormSlugProvider:
+    """A thin form-slug / public-prefix read indirection over a per-call fresh reader.
+
+    slug-prefix SAM-owned — the form-slug + public-prefix read seam wired at the module edge,
+    mirroring :class:`_ProjectionDefaultPageSizeProvider`. The :class:`MembershipService` is a lazy
+    module-level singleton; to reflect a freshly re-projected ``config#fields`` edit (the admin
+    authors the form slug or the public prefix via the SAM Change-Ops, the row re-projects) without
+    rebuilding the service per request, its form-slug provider is this stable indirection: every
+    ``get_form_slug`` / ``get_public_prefix`` call delegates to a FRESH
+    :class:`MembersProjectionReader` (both read the ``config#fields`` row), so the field-config
+    endpoint's ``slug`` + ``public_prefix`` always reflect the current projection while the service
+    singleton stays UNCHANGED. Honours the overlay test override seam (a test injecting a
+    ``MembersProjectionReader`` over a fake table drives both reads without an AWS round-trip).
+    Empty-is-valid is owned by the reader (missing row / absent attr → ``None``).
+    """
+
+    def get_form_slug(self, tenant_id: str):
+        if _OVERLAY_PROVIDER_OVERRIDE is not None and hasattr(
+            _OVERLAY_PROVIDER_OVERRIDE, "get_form_slug"
+        ):
+            return _OVERLAY_PROVIDER_OVERRIDE.get_form_slug(tenant_id)
+        return _new_projection_reader().get_form_slug(tenant_id)
+
+    def get_public_prefix(self, tenant_id: str):
+        if _OVERLAY_PROVIDER_OVERRIDE is not None and hasattr(
+            _OVERLAY_PROVIDER_OVERRIDE, "get_public_prefix"
+        ):
+            return _OVERLAY_PROVIDER_OVERRIDE.get_public_prefix(tenant_id)
+        return _new_projection_reader().get_public_prefix(tenant_id)
+
+
+#: The form-slug / public-prefix provider handed to the domain service — a stable indirection that
+#: reads a fresh projection each call (see :class:`_ProjectionFormSlugProvider`).
+_FORM_SLUG_PROVIDER = _ProjectionFormSlugProvider()
 
 
 #: The default-page-size provider handed to the domain service — a stable indirection that
@@ -1141,6 +1181,7 @@ def _get_membership_service() -> MembershipService:
             mail_config_provider=_MAIL_CONFIG_PROVIDER,
             config_status_provider=_CONFIG_STATUS_PROVIDER,
             default_page_size_provider=_DEFAULT_PAGE_SIZE_PROVIDER,
+            form_slug_provider=_FORM_SLUG_PROVIDER,
             scheduler_port=EventBridgeSchedulerApi(),
         )
     return _SERVICE
@@ -1417,6 +1458,33 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             400,
             str(exc),
             code="errors.validation.failed",
+        )
+    except SlugAuthorRejected as exc:
+        # bugfix-slug-lifecycle task 3.1: the authored application-form slug is malformed/reserved
+        # or violates the SEC-4 prefix-ownership rule (it does not sit under the tenant's own
+        # public prefix). NO marker was claimed and config#fields.slug was NOT persisted. Mapped to
+        # a 422 (a well-formed, authorized request whose slug VALUE is invalid — distinct from the
+        # 409 foreign-owner conflict and the generic 400 ops-validation) carrying the validator's
+        # own caller-safe detail (no internals, steering 30/37). A ConfigFieldsCrudError subclass,
+        # so this branch MUST precede the generic `except ConfigFieldsCrudError` 400 to be mapped
+        # as a 422.
+        return _error(
+            422,
+            exc.detail,
+            code="errors.validation.failed",
+            route=spec.name,
+        )
+    except SlugAuthorConflict:
+        # bugfix-slug-lifecycle task 3.1 (clobber backstop, R4.4): the authored slug is already
+        # claimed by a FOREIGN owner (a different plane / kind / tenant), so the op REFUSES to
+        # overwrite it and persists NOTHING. Mapped to a 409 (conflict with existing state)
+        # carrying a GENERIC, no-internals message — never the raw SlugTaken / str(e). A same-owner
+        # re-author is idempotent and never reaches here.
+        return _error(
+            409,
+            "That page address is already in use",
+            code="errors.application.slugConflict",
+            route=spec.name,
         )
     except ConfigFieldsCrudError as exc:
         # A DELIBERATE, caller-safe config#fields Change-Op validation error (spec 03 Task 2.7):
