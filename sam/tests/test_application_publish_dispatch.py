@@ -149,7 +149,14 @@ def test_publish_ready_tenant_renders_the_shell_via_page_shell_before_the_dorman
     assert 'class="application-form"' in rendered
     assert 'name="f0"' in rendered  # the one on-form field from the fake config
     # canonical head_meta wired from the slug (SEO scaffold through page_shell):
-    assert "https://hdcn-application-form.jabaki.nl/" in rendered
+    # Pin the slug-derived URL AS the canonical href (the full page_shell tag), not as a
+    # bare substring — asserting the whole tag is stricter (it must appear as the canonical
+    # link, not merely somewhere in the blob) and avoids the incomplete-URL-sanitization
+    # pattern a bare `in <url>` membership check trips (CodeQL py/incomplete-url-substring-sanitization).
+    assert (
+        '<link rel="canonical" href="https://hdcn-application-form.jabaki.nl/" />'
+        in rendered
+    )
 
 
 def test_publish_unready_tenant_renders_nothing():
