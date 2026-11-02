@@ -150,6 +150,82 @@ def test_build_emits_single_tenant_record_with_tenant_attrs(sam_module):
     assert ti.attributes == {"display_name": "Tenant A", "country": "NL"}
 
 
+# --- public_prefix: additive tenant passthrough (spec 14 R2.1–R2.6, task 6.2) ---
+
+
+def test_build_tenant_row_carries_public_prefix_from_source(sam_module):
+    # ADDITIVE: because the source read is SELECT * FROM tenants, a non-null
+    # public_prefix arrives on the source row and must be carried 1:1 onto the
+    # projected tenant row so the SAM claim path can read it off its OWN projection
+    # (no call to Flask — one-directional projection, ADR 0005).
+    tenant = {
+        "administration": "TenantA",
+        "display_name": "Tenant A",
+        "public_prefix": "vdh",
+    }
+    modules = [{"module_name": sam_module, "is_active": True}]
+
+    items = build_projection_items(tenant, modules)
+
+    tenant_item = next(i for i in items if _sk_of(i) == "tenant")
+    assert tenant_item.attributes.get("public_prefix") == "vdh"
+    # and it survives DynamoDB serialization onto the physical item.
+    assert tenant_item.to_dynamodb_item()["public_prefix"] == "vdh"
+
+
+def test_build_tenant_row_omits_public_prefix_when_null(sam_module):
+    # BACK-COMPATIBLE: a tenant whose source public_prefix is NULL (SELECT * yields
+    # {'public_prefix': None}) must project a CLEAN ABSENCE — not a bogus None — so
+    # the SAM read side sees "no prefix" without special-casing a null-typed attr.
+    tenant = {
+        "administration": "TenantA",
+        "display_name": "Tenant A",
+        "public_prefix": None,
+    }
+    modules = [{"module_name": sam_module, "is_active": True}]
+
+    items = build_projection_items(tenant, modules)
+
+    tenant_item = next(i for i in items if _sk_of(i) == "tenant")
+    assert "public_prefix" not in tenant_item.attributes
+    # other tenant-level attributes are untouched by the omission.
+    assert tenant_item.attributes == {"display_name": "Tenant A"}
+    assert "public_prefix" not in tenant_item.to_dynamodb_item()
+
+
+def test_build_tenant_row_absent_public_prefix_is_omitted(sam_module):
+    # A tenant row that predates the column (key absent entirely) projects no
+    # public_prefix attribute — identical back-compatible default to the NULL case.
+    tenant = {"administration": "TenantA", "display_name": "Tenant A"}
+    modules = [{"module_name": sam_module, "is_active": True}]
+
+    items = build_projection_items(tenant, modules)
+
+    tenant_item = next(i for i in items if _sk_of(i) == "tenant")
+    assert "public_prefix" not in tenant_item.attributes
+
+
+def test_build_tenant_row_with_public_prefix_validates(sam_module):
+    # The additive, non-key public_prefix attribute must not break write-time
+    # validation — a tenant row carries no extra required attrs, so the extra
+    # attribute passes through validate_item cleanly (R5.5).
+    from services.projection_validator import validate_item
+
+    tenant = {
+        "administration": "TenantA",
+        "display_name": "Tenant A",
+        "public_prefix": "vdh",
+        "version": 2,
+    }
+    modules = [{"module_name": sam_module, "is_active": True}]
+
+    items = build_projection_items(tenant, modules)
+    tenant_item = next(i for i in items if _sk_of(i) == "tenant")
+
+    # validate_item returns the item unchanged on success (no raise).
+    assert validate_item(tenant_item) is tenant_item
+
+
 def test_build_all_items_share_the_tenant_partition_key(sam_module):
     tenant = {"administration": "TenantA"}
     modules = [{"module_name": sam_module, "is_active": True}]
@@ -224,12 +300,19 @@ def test_build_emits_role_item_per_role_grant(sam_module):
 
     role_items = {i.sort_key: i for i in items if i.sort_key.startswith("role#")}
     assert set(role_items) == {
-        schema.build_sort_key(schema.RECORD_TYPE_ROLE, "alice@example.invalid", "SamTest_Read"),
-        schema.build_sort_key(schema.RECORD_TYPE_ROLE, "bob@example.invalid", "Finance_CRUD"),
+        schema.build_sort_key(
+            schema.RECORD_TYPE_ROLE, "alice@example.invalid", "SamTest_Read"
+        ),
+        schema.build_sort_key(
+            schema.RECORD_TYPE_ROLE, "bob@example.invalid", "Finance_CRUD"
+        ),
     }
     # role rows mirror (email, role) verbatim — tenant-level reference data.
     alice = role_items["role#alice@example.invalid#SamTest_Read"]
-    assert alice.attributes == {"email": "alice@example.invalid", "role": "SamTest_Read"}
+    assert alice.attributes == {
+        "email": "alice@example.invalid",
+        "role": "SamTest_Read",
+    }
 
 
 def test_build_role_row_missing_email_or_role_raises(sam_module):
@@ -251,7 +334,13 @@ def test_build_no_token_only_resolved_data_projected(sam_module):
 
     items = build_projection_items(tenant, modules, roles)
 
-    forbidden = {"permissions", "resolved", "effective_permissions", "decision", "capabilities"}
+    forbidden = {
+        "permissions",
+        "resolved",
+        "effective_permissions",
+        "decision",
+        "capabilities",
+    }
     for item in items:
         assert forbidden.isdisjoint(item.attributes.keys()), (
             f"token-only (S4) data leaked into projection: {item.attributes!r}"

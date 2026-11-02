@@ -447,14 +447,16 @@ def get_config_fields_crud_service() -> Any:
 # The `publish_application_form` route (`POST /members/application-form/publish`) is backed by the
 # standalone :class:`~sam.members.domain.application_publish.ApplicationPublishService` (NOT the
 # MembershipService). It owns the readiness gate (slug + certified sender + ≥1 on-form field,
-# R5.4) — REAL and tested here — and the publish seam, whose live S3 render/write + CloudFront
-# invalidation is task 2.2 and stays DORMANT (the seam raises PublishPipelineNotWired). It is
-# resolved lazily once (warm-reuse), mirroring :func:`get_config_write_service`. A test replaces
-# :data:`_APPLICATION_PUBLISH_SERVICE` (or patches :func:`get_application_publish_service`) with a
-# service over in-memory fakes, so no AWS is touched. The service's three seams are satisfied by
-# ONE DynamoDB-backed projection reader (``get_form_slug`` / ``is_mail_certified`` /
-# ``get_mail_domain``) plus the public field-config read (the single filter authority, reused via
-# the MembershipService's ``get_public_field_config``) — no readiness logic is duplicated.
+# R5.4) — REAL and tested here — the shared-shell render, and (spec 14 Task 8.1) the SLUG CLAIM
+# via the shared `_slugs/{slug}` marker store + the SEC-4 prefix-ownership check. The ONLY dormant
+# part is the live S3 artifact write + CloudFront invalidation (Task 9; the seam raises
+# PublishPipelineNotWired AFTER the claim). It is resolved lazily once (warm-reuse), mirroring
+# :func:`get_config_write_service`. A test replaces :data:`_APPLICATION_PUBLISH_SERVICE` (or
+# patches :func:`get_application_publish_service`) with a service over in-memory fakes, so no AWS
+# is touched. The readiness seams are satisfied by ONE DynamoDB-backed projection reader
+# (``get_form_slug`` / ``is_mail_certified`` / ``get_mail_domain`` / ``get_public_prefix``) plus
+# the public field-config read (the single filter authority, reused via the MembershipService's
+# ``get_public_field_config``) and the S3 marker store — no readiness logic is duplicated.
 
 #: The module-global publish service, built once at cold start (``None`` until first use).
 _APPLICATION_PUBLISH_SERVICE: Any = None
@@ -487,11 +489,29 @@ def get_application_publish_service() -> Any:
             MembersProjectionReader,
         )
 
+        from sam.members.repository.public_page_artifact_store import (
+            S3PublicPageArtifactStore,
+        )
+        from sam.members.repository.slug_marker_store import S3SlugMarkerStore
+
         reader = MembersProjectionReader()
         _APPLICATION_PUBLISH_SERVICE = ApplicationPublishService(
             slug_reader=reader,
             readiness_provider=reader,
             field_config_reader=_get_membership_service(),
+            # spec 14 Task 8.1: the publish flow CLAIMS its slug via the shared `_slugs/{slug}`
+            # marker store (Task 1) and resolves the tenant's own public prefix off its projected
+            # `tenant` row (Task 6.3) for the SEC-4 ownership check. The store's S3 client is lazy +
+            # injectable.
+            slug_marker_store=S3SlugMarkerStore(),
+            prefix_reader=reader,
+            # spec 14 Task 9.1 (GATED live wiring): the LIVE write of the SERVED `{slug}/index.html`
+            # + `{slug}/form.json` artifacts + the best-effort CloudFront invalidation. The store
+            # resolves the SAME nonprofit bucket/distribution the landing publish uses
+            # (`LANDING_PAGES_BUCKET` + `CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID`, D7 — never a new
+            # resource); its S3/CloudFront clients are lazy + injectable. A denied invalidation is
+            # non-fatal (known-deferred to Task 9.2 SEC-8 IAM) — the put is authoritative.
+            artifact_writer=S3PublicPageArtifactStore(),
         )
     return _APPLICATION_PUBLISH_SERVICE
 

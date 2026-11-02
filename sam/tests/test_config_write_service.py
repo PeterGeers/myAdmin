@@ -541,10 +541,10 @@ def test_put_config_mail_embed_origins_malformed_raises_validation_error():
     for bad in (
         "https://one-origin",  # non-list
         {"a": "b"},  # non-list mapping
-        ["https://ok", ""],  # blank entry
-        ["https://ok", "   "],  # blank-only entry
-        ["https://ok", 123],  # non-string entry
-        ["https://ok", None],  # None entry
+        ["https://ok.example", ""],  # blank entry
+        ["https://ok.example", "   "],  # blank-only entry
+        ["https://ok.example", 123],  # non-string entry
+        ["https://ok.example", None],  # None entry
     ):
         repo = FakeWriteRepository()
         with pytest.raises(ConfigWriteValidationError):
@@ -552,6 +552,63 @@ def test_put_config_mail_embed_origins_malformed_raises_validation_error():
                 _TENANT, "mail", {"application_embed_origins": bad}
             )
         assert repo.calls == []  # nothing persisted on a validation failure
+
+
+def test_put_config_mail_embed_origins_rejects_wildcard_and_injection_sec7():
+    """SEC-7 (design §10 / R6.3): a tenant-authored embed origin becomes a token in the edge CSP
+    `frame-ancestors` directive, and framing DEFAULTS CLOSED — so the write path must reject a `*`
+    wildcard-all, an `http://` origin, a path/query/fragment, and any whitespace / CSP-delimiter
+    injection that could open framing to all or inject a second directive. Each is rejected
+    fail-loud and NOTHING is persisted (never silently weakening frame-ancestors)."""
+    dangerous = (
+        ["*"],  # wildcard-all → anyone could frame the form
+        ["https://*"],  # wildcard host
+        ["https://*.evil.example"],  # wildcard subdomain
+        ["http://plain.example"],  # non-https (form is https-only)
+        ["https://ok.example/path"],  # path not allowed in an origin
+        ["https://ok.example?q=1"],  # query not allowed
+        ["https://ok.example#frag"],  # fragment not allowed
+        ["https://ok.example evil.example"],  # embedded space → extra ancestors token
+        ["https://ok.example; script-src 'none'"],  # CSP directive injection
+        ["https://ok.example'"],  # quote injection
+        ['https://ok.example"'],  # quote injection
+        ["'none'"],  # not an origin at all
+        ["ok.example"],  # missing scheme
+        ["https://" + "a" * 300 + ".example"],  # over-long entry
+    )
+    for bad in dangerous:
+        repo = FakeWriteRepository()
+        with pytest.raises(ConfigWriteValidationError):
+            _service(repo).put_config(
+                _TENANT, "mail", {"application_embed_origins": bad}
+            )
+        assert repo.calls == [], f"nothing should persist for {bad!r}"
+
+    # And too many entries is rejected (bounded list, SEC-7 defensive).
+    repo = FakeWriteRepository()
+    with pytest.raises(ConfigWriteValidationError):
+        _service(repo).put_config(
+            _TENANT,
+            "mail",
+            {"application_embed_origins": [f"https://h{i}.example" for i in range(51)]},
+        )
+    assert repo.calls == []
+
+
+def test_put_config_mail_embed_origins_accepts_well_formed_https_with_port():
+    """SEC-7: a well-formed `https://host[:port]` origin passes the hardened guard and is stored."""
+    repo = FakeWriteRepository()
+    body = {
+        "application_embed_origins": [
+            "https://www.acme.nl",
+            "https://portal.acme.nl:8443",
+        ],
+    }
+    _service(repo).put_config(_TENANT, "mail", body)
+    assert repo.calls[0]["attributes"]["application_embed_origins"] == [
+        "https://www.acme.nl",
+        "https://portal.acme.nl:8443",
+    ]
 
 
 def test_put_config_mail_non_object_body_raises_validation_error():
@@ -834,7 +891,9 @@ def test_option_relax_application_required_on_every_platform_required_field_writ
     and `membership.membership_type` (a required reference) keeps a valid option set so the
     R3.4a well-formedness rule is satisfied while it is relaxed (that rule is orthogonal to the
     removed no-relax binding)."""
-    assert _ALL_PLATFORM_REQUIRED_DOTTED  # guard: the registry still has required fixed fields
+    assert (
+        _ALL_PLATFORM_REQUIRED_DOTTED
+    )  # guard: the registry still has required fixed fields
     repo = FakeWriteRepository()
     overrides = {}
     for dotted in _ALL_PLATFORM_REQUIRED_DOTTED:
@@ -1014,7 +1073,9 @@ def _normalize_groups(raw) -> dict:
                 out[str(e.get("key") or gkey)] = e
         return out
     if isinstance(raw, (list, tuple)):
-        return {str(e["key"]): dict(e) for e in raw if isinstance(e, dict) and e.get("key")}
+        return {
+            str(e["key"]): dict(e) for e in raw if isinstance(e, dict) and e.get("key")
+        }
     return {}
 
 
@@ -1122,7 +1183,9 @@ def test_fields_write_partial_functional_groups_merge_per_key_never_truncate_cat
     }
     repo = FakeWriteRepository()
     # The configurator edits ONE group; the body carries only that group.
-    body = {"functional_groups": [{"key": "old", "label": {"en": "Renamed"}, "order": 9}]}
+    body = {
+        "functional_groups": [{"key": "old", "label": {"en": "Renamed"}, "order": 9}]
+    }
     _service_with_reader(repo, stored).put_config(_TENANT, "fields", body)
     groups = repo.calls[0]["attributes"]["functional_groups"]
     # MAP keyed by group key; the edited group is updated, the untouched group SURVIVES.
@@ -1322,7 +1385,9 @@ class _FieldUsageProbe:
         return {"member_data": True, "values": self._by_field.get(field_key, set())}
 
 
-def _service_with_reader_and_probe(repo, overlay, probe, version="2026-11-01T00:00:00+00:00"):
+def _service_with_reader_and_probe(
+    repo, overlay, probe, version="2026-11-01T00:00:00+00:00"
+):
     return ConfigWriteService(
         repo,
         version_fn=lambda: version,
@@ -1520,7 +1585,11 @@ def test_option_integrity_in_use_option_may_be_retired_allowed_false():
     body = {
         "overrides": _membership_type_options(
             {"value": "gewoon_lid", "allowed": True, "order": 10},
-            {"value": "erelid", "allowed": False, "order": 20},  # retired, still present
+            {
+                "value": "erelid",
+                "allowed": False,
+                "order": 20,
+            },  # retired, still present
         )
     }
     _service_with_reader_and_probe(repo, stored, probe).put_config(
@@ -1742,9 +1811,15 @@ def test_property1_no_orphaned_reference_roundtrip_over_real_fixture():
     probe = _OptionUsageProbe(
         in_use={("membership_type", v) for v in _REAL_MEMBER_MEMBERSHIP_TYPE_VALUES}
     )
-    body = {"overrides": {"membership.membership_type": {"options": [dict(o) for o in options]}}}
+    body = {
+        "overrides": {
+            "membership.membership_type": {"options": [dict(o) for o in options]}
+        }
+    }
 
-    _service_with_reader_and_probe(repo, stored, probe).put_config(_TENANT, "fields", body)
+    _service_with_reader_and_probe(repo, stored, probe).put_config(
+        _TENANT, "fields", body
+    )
 
     written = repo.calls[0]["attributes"]["overrides"]["membership.membership_type"][
         "options"
@@ -1753,7 +1828,9 @@ def test_property1_no_orphaned_reference_roundtrip_over_real_fixture():
     # read→write→read preserved the full option vocabulary verbatim (order + values).
     assert [o["value"] for o in written] == [o["value"] for o in options]
     # Every stored member membership_type value resolves to a written option — zero orphans.
-    orphaned = [v for v in _REAL_MEMBER_MEMBERSHIP_TYPE_VALUES if v not in written_values]
+    orphaned = [
+        v for v in _REAL_MEMBER_MEMBERSHIP_TYPE_VALUES if v not in written_values
+    ]
     assert orphaned == [], f"stored member values orphaned by the collapse: {orphaned}"
 
 
@@ -1767,9 +1844,15 @@ def test_property2_grandfather_preserved_roundtrip_over_real_fixture():
     # A real member still holds the retired `erelid` value.
     probe = _OptionUsageProbe(in_use={("membership_type", "erelid")})
     repo = FakeWriteRepository()
-    body = {"overrides": {"membership.membership_type": {"options": [dict(o) for o in options]}}}
+    body = {
+        "overrides": {
+            "membership.membership_type": {"options": [dict(o) for o in options]}
+        }
+    }
 
-    _service_with_reader_and_probe(repo, stored, probe).put_config(_TENANT, "fields", body)
+    _service_with_reader_and_probe(repo, stored, probe).put_config(
+        _TENANT, "fields", body
+    )
 
     written = repo.calls[0]["attributes"]["overrides"]["membership.membership_type"][
         "options"
@@ -1796,13 +1879,15 @@ def test_property2_grandfather_toggle_both_ways_over_real_fixture():
     repo_a = FakeWriteRepository()
     probe = _OptionUsageProbe(in_use={("membership_type", "erelid")})
     _service_with_reader_and_probe(repo_a, stored_retired, probe).put_config(
-        _TENANT, "fields", {"overrides": {"membership.membership_type": {"options": reactivated}}}
+        _TENANT,
+        "fields",
+        {"overrides": {"membership.membership_type": {"options": reactivated}}},
     )
     written_a = {
         o["value"]: o
-        for o in repo_a.calls[0]["attributes"]["overrides"]["membership.membership_type"][
-            "options"
-        ]
+        for o in repo_a.calls[0]["attributes"]["overrides"][
+            "membership.membership_type"
+        ]["options"]
     }
     assert written_a["erelid"].get("allowed") is True
 
@@ -1813,12 +1898,18 @@ def test_property2_grandfather_toggle_both_ways_over_real_fixture():
             o["allowed"] = True
     repo_b = FakeWriteRepository()
     _service_with_reader_and_probe(repo_b, stored_active, probe).put_config(
-        _TENANT, "fields", {"overrides": {"membership.membership_type": {"options": [dict(o) for o in options]}}}
+        _TENANT,
+        "fields",
+        {
+            "overrides": {
+                "membership.membership_type": {"options": [dict(o) for o in options]}
+            }
+        },
     )
     written_b = {
         o["value"]: o
-        for o in repo_b.calls[0]["attributes"]["overrides"]["membership.membership_type"][
-            "options"
-        ]
+        for o in repo_b.calls[0]["attributes"]["overrides"][
+            "membership.membership_type"
+        ]["options"]
     }
     assert written_b["erelid"].get("allowed") is False

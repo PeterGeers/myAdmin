@@ -442,6 +442,40 @@ Parameters:
     MinValue: 1
     MaxValue: 5000
 
+  # --- Public-pages hosting: the shared nonprofit S3 bucket + CloudFront distribution (spec 14 Task 9) ---
+  # The SERVED `{slug}/` publish + the `_slugs/{slug}` control-plane claim both resolve their
+  # bucket fail-fast from the `LANDING_PAGES_BUCKET` env var
+  # (`repository/slug_marker_store.LANDING_PAGES_BUCKET_ENV_VAR` → `require_env`, no default), and
+  # the best-effort CloudFront invalidation resolves its distribution from
+  # `CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID`
+  # (`repository/public_page_artifact_store.CLOUDFRONT_DISTRIBUTION_ENV_VAR`). Those env vars were
+  # NEVER wired into either Lambda's Environment.Variables, so a deployed `members-public-*` 500s on
+  # every public `GET/POST {slug}` (the slug-marker store's `require_env` fails fast) — the bug the
+  # Task-9.4 live end-to-end surfaced. These two parameters carry the concrete per-env values via
+  # `!Ref` into both functions (the house pattern — NO default, concrete values in samconfig), so a
+  # blank value still breaks the deploy loudly rather than silently targeting the wrong bucket
+  # (steering 23 no-dangerous-fallback). The values are the SAME for TEST and PROD: there is ONE
+  # shared nonprofit public-pages bucket + distribution (hosting migration, D7) — the members-plane
+  # environment boundary is the `test_` table prefix, NOT a separate bucket.
+  LandingPagesBucket:
+    Type: String
+    Description: >-
+      Name of the shared public-pages S3 bucket the SAM publish writes served `{slug}/` artifacts +
+      the `_slugs/{slug}` control-plane marker to (spec 14 Task 9). Surfaced as the
+      `LANDING_PAGES_BUCKET` env var the slug-marker + artifact stores resolve fail-fast. The SAME
+      nonprofit bucket for TEST + PROD (one shared hosting bucket, D7). No default — fail-fast
+      (steering 23): a blank name must break the deploy, never silently target the wrong bucket.
+
+  CloudFrontPublicPagesDistributionId:
+    Type: String
+    Description: >-
+      CloudFront distribution id for the public-pages (`*.jabaki.nl`) distribution the SAM publish
+      best-effort invalidates (spec 14 Task 9). Surfaced as the
+      `CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID` env var the artifact store reads (a blank value only
+      skips the non-fatal invalidation — the artifact write is authoritative). The SAME nonprofit
+      distribution for TEST + PROD (one shared hosting distribution, D7). No default — fail-fast
+      (steering 23).
+
 # Stage -> APP_ENV: the deploy stage is the single environment knob; APP_ENV is
 # DERIVED from it so the two cannot drift. `local` and `test` both resolve to the
 # TEST environment (APP_ENV=test); only `prod` is production. This mirrors the
@@ -732,6 +766,58 @@ Resources:
               Condition:
                 StringEquals:
                   "iam:PassedToService": scheduler.amazonaws.com
+            # --- Public-pages PUBLISH (spec 14 Task 9 — SEC-8, the SAM-plane half) -------------
+            # The authenticated publish route (`POST /members/application-form/publish`) CLAIMS the
+            # slug (PutObject the `_slugs/{slug}` marker, rename = DeleteObject the old marker),
+            # writes the SERVED artifacts (`{slug}/index.html` + `{slug}/form.json`), and best-effort
+            # invalidates the CloudFront cache. This is the WRITE counterpart of the public edge's
+            # read-only `PublicReadSlugMarkers` grant.
+            #
+            # LEAST-PRIVILEGE, PREFIX-SCOPED (mirrors the SEC-8 scoping Task 9.2 chose for the
+            # Railway identity — served `{slug}/` + `_slugs/`, NOT bucket-wide `*`):
+            #   * s3:Get/Put/DeleteObject on the markers (`_slugs/*`) AND the served artifacts
+            #     (`*/index.html` + `*/form.json` — the exact two served filenames under any
+            #     `{slug}/`, tighter than a bucket-root `*`). GetObject is included so a re-publish
+            #     can read-before-write the marker (idempotent same-owner check).
+            #   * s3:ListBucket on the bucket, `s3:prefix`-conditioned to `_slugs/*` + the served
+            #     prefix, so a missing marker/artifact is a clean NoSuchKey (not AccessDenied) and
+            #     the list stays enumeration-safe — never a bucket-wide list.
+            #   * cloudfront:CreateInvalidation on EXACTLY the one public-pages distribution
+            #     (`${CloudFrontPublicPagesDistributionId}`). The distribution lives in the
+            #     NONPROFIT account (same account as this stack, 506221081911), so this grant can
+            #     actually invalidate — the invalidation is best-effort (Task 9.1) and the publish
+            #     does not fail if it is throttled. CloudFront is global, so the ARN carries no
+            #     region. Just CreateInvalidation on that one distribution — no wildcard, no `s3:*`.
+            # ARNs are `!Sub` on `${LandingPagesBucket}` / `${CloudFrontPublicPagesDistributionId}`
+            # — never a hardcode.
+            - Sid: MembersPublishPublicPages
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource:
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}/_slugs/*"
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}/*/index.html"
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}/*/form.json"
+            - Sid: MembersListPublicPages
+              Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource:
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}"
+              Condition:
+                StringLike:
+                  "s3:prefix":
+                    - "_slugs/*"
+                    - "*/index.html"
+                    - "*/form.json"
+            - Sid: MembersInvalidatePublicPages
+              Effect: Allow
+              Action:
+                - cloudfront:CreateInvalidation
+              Resource:
+                - !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontPublicPagesDistributionId}"
       Environment:
         Variables:
           # APP_ENV — the environment selector, DERIVED from the Stage parameter via
@@ -804,6 +890,16 @@ Resources:
           SCHEDULER_TARGET_FUNCTION_ARN: !GetAtt MembersSchedulerTriggerFunction.Arn
           SCHEDULER_EXECUTION_ROLE_ARN: !GetAtt MembersSchedulerExecutionRole.Arn
           SCHEDULER_GROUP_NAME: !Ref SchedulerGroupName
+          # --- Public-pages hosting (spec 14 Task 9) — the authenticated PUBLISH runs HERE ---
+          # The authenticated publish path (slug claim via `S3SlugMarkerStore` + the served
+          # `{slug}/` artifact write + CloudFront invalidation via `S3PublicPageArtifactStore`)
+          # executes in THIS function, so both stores resolve their bucket/distribution fail-fast
+          # from these env vars. The KEYS are the exact code constants:
+          #   LANDING_PAGES_BUCKET                    = slug_marker_store.LANDING_PAGES_BUCKET_ENV_VAR
+          #   CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID = public_page_artifact_store.CLOUDFRONT_DISTRIBUTION_ENV_VAR
+          # Wired via `!Ref` to the new parameters (house pattern — concrete values in samconfig).
+          LANDING_PAGES_BUCKET: !Ref LandingPagesBucket
+          CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID: !Ref CloudFrontPublicPagesDistributionId
           # NOTE: NO MEMBERS_LOCAL_TENANT_ID — the local-dev tenant fallback was removed in
           #       s5c (R6.2, C-UNWIND). Tenant context resolves SOLELY from the verified
           #       entitlement (custom:entitlements); a token with no usable tenant denies
@@ -1525,6 +1621,40 @@ Resources:
                 - sqs:SendMessage
               Resource:
                 - !GetAtt MailSendQueue.Arn
+            # (d) slug-marker READ — the SAM-plane half of SEC-8 (Task 9.2) that was MISSING: Task
+            # 9.2 granted the Railway identity (personal acct) but NOT the SAM Lambda roles
+            # (nonprofit acct), so the deployed `members-public-*` role had NO S3 permission on the
+            # public-pages bucket and `slug_marker_store.resolve()` 500'd (AccessDenied → unhandled)
+            # — the bug the live Task-9.4 e2e surfaced AFTER the LANDING_PAGES_BUCKET env fix.
+            #
+            # The public READ edge only RESOLVES markers — it reads `_slugs/{slug}` via GetObject
+            # and NEVER writes (no PutObject/DeleteObject; claiming/renaming is the authenticated
+            # MembersFunction's job). Least-privilege, prefix-scoped to `_slugs/*`.
+            #
+            # BOTH actions are required for a clean, enumeration-safe 404:
+            #   * s3:GetObject on `_slugs/*` reads the marker body for a slug that exists.
+            #   * s3:ListBucket on the bucket (conditioned to the `_slugs/*` prefix) is what makes a
+            #     MISSING marker return NoSuchKey (→ clean 404). WITHOUT ListBucket, S3 masks a
+            #     missing key as AccessDenied (403), which the code does not treat as not-found →
+            #     unhandled 500. The `s3:prefix` condition keeps the list enumeration-safe
+            #     (only `_slugs/*`, never a bucket-wide list). ARNs are `!Sub` on the
+            #     `${LandingPagesBucket}` param — never a hardcode, never cross-account.
+            # ONE statement, both actions — the `s3:prefix` Condition constrains only `s3:ListBucket`
+            # (GetObject ignores it); GetObject is scoped by its object-level `_slugs/*` ARN. This is
+            # the standard least-privilege read+list pairing, kept as a single Sid so the public fn's
+            # IAM stays an auditable exact set.
+            - Sid: PublicReadSlugMarkers
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:ListBucket
+              Resource:
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}/_slugs/*"
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}"
+              Condition:
+                StringLike:
+                  "s3:prefix":
+                    - "_slugs/*"
       Environment:
         Variables:
           # APP_ENV derived from Stage (same single-knob discipline as the other functions) so the
@@ -1558,6 +1688,16 @@ Resources:
           #   second — R7.3). This also closes the CI `--parameter-overrides` blast radius that
           #   blanked the map (spec 12 decision 1a / D7).
           PUBLIC_FORM_ALLOWED_ORIGINS: !Ref PublicFormAllowedOrigins
+          # --- Public-pages hosting (spec 14 Task 9) — the served public `GET/POST {slug}` edge ---
+          # The public edge resolves slug→tenant via the `_slugs/{slug}` bucket marker
+          # (`S3SlugMarkerStore`), which resolves its bucket fail-fast from `LANDING_PAGES_BUCKET`
+          # (`require_env`, no default). This var was MISSING, so a deployed `members-public-*` 500s
+          # on every public `GET/POST {slug}` — the bug Task 9.4 surfaced. The artifact store's
+          # distribution id is carried too so a publish-adjacent read path stays consistent. KEYS
+          # are the exact code constants (LANDING_PAGES_BUCKET_ENV_VAR /
+          # CLOUDFRONT_DISTRIBUTION_ENV_VAR); wired via `!Ref` to the new parameters.
+          LANDING_PAGES_BUCKET: !Ref LandingPagesBucket
+          CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID: !Ref CloudFrontPublicPagesDistributionId
       Events:
         # The TWO public routes (design §3), registered on the SEPARATE public API ONLY — never on
         # `MembersApi`. Each is an explicit method+path (NOT a catch-all `{proxy+}`) so the public
