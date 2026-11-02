@@ -73,7 +73,15 @@ build-MembersLayer:
 	#   package is deliberately NOT vendored.
 	cp "$(SERVICES)/dynamodb_client.py" "$(ARTIFACTS_DIR)/python/services/dynamodb_client.py"
 	cp "$(SERVICES)/projection_schema.py" "$(ARTIFACTS_DIR)/python/services/projection_schema.py"
-	printf '"""Vendored services shim: only dynamodb_client is shipped in the Members layer."""\n' \
+	# landing_page_styles: the SINGLE, shared, `re`/`typing`-only CSS generator
+	#   (`LandingPageStyles`). The SAM application-form shell renderer
+	#   (sam/members/domain/application_form_render.py, spec 14 Task 2.2) composes its CSS
+	#   from it and passes the result to the shared `page_shell` — so CSS has ONE source
+	#   across both planes. Vendored the same least-surface `cp` way (it imports only stdlib
+	#   `re` + `typing`, verified — no further `backend/src` closure), NOT the whole services
+	#   package. Flagged in the Task 2.1 packaging decision note.
+	cp "$(SERVICES)/landing_page_styles.py" "$(ARTIFACTS_DIR)/python/services/landing_page_styles.py"
+	printf '"""Vendored services shim: only the dynamodb_client / projection_schema / landing_page_styles files are shipped in the Members layer."""\n' \
 		> "$(ARTIFACTS_DIR)/python/services/__init__.py"
 	# --- install the shared auth runtime deps (PyJWT / cryptography / requests) -
 	# Install the shared auth runtime deps as Lambda-PLATFORM manylinux wheels.
