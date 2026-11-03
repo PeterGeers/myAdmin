@@ -236,6 +236,19 @@ class FieldConfigSurfaceMixin:
             # the config-write path is the authoritative gate that a `format.checker` is a known
             # token (R8.1b) — the frontend dropdown is convenience, never the only guard.
             "field_format_tokens": sorted(field_formats.known_tokens()),
+            # The FORM's own public slug + the tenant's SAM-owned public slug PREFIX, both read
+            # off the SAME `config#fields` row (slug-prefix SAM-owned). Surfaced here so the
+            # Application Form Builder can DISPLAY the resolved public address and gate Publish
+            # (`slug`), and the admin can see/edit the ownership stem every slug must sit under
+            # (`public_prefix`, SEC-4). Both come from the injected form-slug provider — a stable
+            # indirection over a fresh projection reader in production (its `get_form_slug` /
+            # `get_public_prefix` read `config#fields`), `None` in a service built without one.
+            # Empty-is-valid: a tenant that has authored neither surfaces `None` for both (the
+            # builder then states "no public address yet" / "no prefix configured"). Presentation-
+            # only: the module serves them; the author Change-Ops (`set_form_slug` /
+            # `set_public_prefix`) and the SEC-4 rule enforce server-side regardless.
+            "slug": self._form_slug(tenant_id),
+            "public_prefix": self._public_prefix(tenant_id),
             # NOTE (spec 03 task 5.3, steering 39 guard): the RAW stored `config#fields` overlay
             # (`fields` / `overrides` / `fixed_overrides` / `functional_groups`, dotted
             # `{group}.{key}` keys) is DELIBERATELY NOT surfaced here. The raw storage shape MUST
@@ -250,6 +263,41 @@ class FieldConfigSurfaceMixin:
             # used only by the Change-Op CRUD service's validate-and-place step — and is never
             # exposed on the API/cross-boundary path.
         }
+
+    def _form_slug(self, tenant_id: str) -> str | None:
+        """The tenant's stored application-form ``slug`` (``config#fields.slug``), or ``None``.
+
+        Read through the injected form-slug provider (a stable indirection over a fresh projection
+        reader in production — its ``get_form_slug`` reads ``config#fields``). Fail-safe: no
+        provider, no ``get_form_slug``, or a read fault all resolve to ``None`` (the builder then
+        states the form has no public address yet). Presentation-only — the author Change-Op is the
+        authoritative write.
+        """
+        provider = getattr(self, "_form_slug_provider", None)
+        if provider is None or not hasattr(provider, "get_form_slug"):
+            return None
+        try:
+            value = provider.get_form_slug(tenant_id)
+        except Exception:  # noqa: BLE001 - a read fault must not black out the whole config read
+            return None
+        return value if isinstance(value, str) and value.strip() else None
+
+    def _public_prefix(self, tenant_id: str) -> str | None:
+        """The tenant's SAM-owned public slug ``prefix`` (``config#fields.public_prefix``), or None.
+
+        Read through the SAME injected form-slug provider (its ``get_public_prefix`` reads
+        ``config#fields`` — slug-prefix SAM-owned). Fail-safe to ``None`` on no provider / no method
+        / a read fault (the admin screen then shows "no prefix configured"). Presentation-only — the
+        author Change-Op (``set_public_prefix``) + the SEC-4 rule enforce server-side.
+        """
+        provider = getattr(self, "_form_slug_provider", None)
+        if provider is None or not hasattr(provider, "get_public_prefix"):
+            return None
+        try:
+            value = provider.get_public_prefix(tenant_id)
+        except Exception:  # noqa: BLE001 - a read fault must not black out the whole config read
+            return None
+        return value if isinstance(value, str) and value.strip() else None
 
     # ── Public application-form field config (seam a/c — task 4.1, R5.1–R5.3) ─────────
 

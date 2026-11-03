@@ -46,7 +46,9 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -73,8 +75,14 @@ _TENANT = "preserve-tenant"
 @pytest.fixture()
 def catalog_repo() -> FakeCatalogRepository:
     r = FakeCatalogRepository()
-    r.add_type(_TENANT, _entry(_TENANT, "gewoon", label={"nl": "Gewoon", "en": "Ordinary"}, order=10))
-    r.add_type(_TENANT, _entry(_TENANT, "erelid", label={"nl": "Erelid", "en": "Honorary"}, order=20))
+    r.add_type(
+        _TENANT,
+        _entry(_TENANT, "gewoon", label={"nl": "Gewoon", "en": "Ordinary"}, order=10),
+    )
+    r.add_type(
+        _TENANT,
+        _entry(_TENANT, "erelid", label={"nl": "Erelid", "en": "Honorary"}, order=20),
+    )
     return r
 
 
@@ -95,8 +103,18 @@ def _options_authored_overlay() -> TenantOverlay:
         overrides={
             "membership.membership_type": FixedFieldOverride(
                 options=(
-                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Ordinary"}, allowed=True, order=10),
-                    EnumOption(value="erelid", label={"nl": "Erelid", "en": "Honorary"}, allowed=True, order=20),
+                    EnumOption(
+                        value="gewoon",
+                        label={"nl": "Gewoon", "en": "Ordinary"},
+                        allowed=True,
+                        order=10,
+                    ),
+                    EnumOption(
+                        value="erelid",
+                        label={"nl": "Erelid", "en": "Honorary"},
+                        allowed=True,
+                        order=20,
+                    ),
                 ),
             ),
         },
@@ -107,8 +125,12 @@ def _options_authored_overlay() -> TenantOverlay:
                 required=False,
                 label={"nl": "Bron", "en": "Source"},
                 options=(
-                    EnumOption(value="internet", label={"nl": "Internet", "en": "Internet"}),
-                    EnumOption(value="facebook", label={"nl": "Facebook", "en": "Facebook"}),
+                    EnumOption(
+                        value="internet", label={"nl": "Internet", "en": "Internet"}
+                    ),
+                    EnumOption(
+                        value="facebook", label={"nl": "Facebook", "en": "Facebook"}
+                    ),
                     EnumOption(value="staff_only", label={"nl": "Staf", "en": "Staff"}),
                 ),
                 functional_group="membership",
@@ -159,9 +181,21 @@ class TestOptionsAuthoredRendersIdenticallyInBothReads:
         # grandfather flag (always present; defaults True so an unauthored option stays offered).
         # `order` is omitted here because these options are unranked (EnumOption.order is None).
         assert opts == [
-            {"value": "internet", "label": {"nl": "Internet", "en": "Internet"}, "allowed": True},
-            {"value": "facebook", "label": {"nl": "Facebook", "en": "Facebook"}, "allowed": True},
-            {"value": "staff_only", "label": {"nl": "Staf", "en": "Staff"}, "allowed": True},
+            {
+                "value": "internet",
+                "label": {"nl": "Internet", "en": "Internet"},
+                "allowed": True,
+            },
+            {
+                "value": "facebook",
+                "label": {"nl": "Facebook", "en": "Facebook"},
+                "allowed": True,
+            },
+            {
+                "value": "staff_only",
+                "label": {"nl": "Staf", "en": "Staff"},
+                "allowed": True,
+            },
         ]
 
     def test_both_reads_agree_on_the_exposed_option_values(self, service):
@@ -184,8 +218,12 @@ class TestOptionsAuthoredRendersIdenticallyInBothReads:
         # For a value exposed in BOTH reads, the label is identical (same source vocabulary).
         editor = service.get_field_config(_TENANT)
         public = service.get_public_field_config(_TENANT)
-        editor_by_val = {o["value"]: o["label"] for o in _field(editor, "referral_source")["options"]}
-        public_by_val = {o["value"]: o["label"] for o in _field(public, "referral_source")["options"]}
+        editor_by_val = {
+            o["value"]: o["label"] for o in _field(editor, "referral_source")["options"]
+        }
+        public_by_val = {
+            o["value"]: o["label"] for o in _field(public, "referral_source")["options"]
+        }
         for val in public_by_val:
             assert public_by_val[val] == editor_by_val[val]
 
@@ -227,8 +265,18 @@ class TestEnumOptionAllowedAndOrderSerialized:
         )
         opts = _field(svc.get_field_config(_TENANT), "referral_source")["options"]
         assert opts == [
-            {"value": "internet", "label": {"en": "Internet"}, "allowed": True, "order": 10},
-            {"value": "facebook", "label": {"en": "Facebook"}, "allowed": True, "order": 20},
+            {
+                "value": "internet",
+                "label": {"en": "Internet"},
+                "allowed": True,
+                "order": 10,
+            },
+            {
+                "value": "facebook",
+                "label": {"en": "Facebook"},
+                "allowed": True,
+                "order": 20,
+            },
         ]
 
     def test_staff_read_carries_allowed_false_for_a_retired_option(self, catalog_repo):
@@ -251,10 +299,14 @@ class TestEnumOptionAllowedAndOrderSerialized:
             catalog_repo,
             (
                 EnumOption(value="internet", label={"en": "Internet"}, allowed=True),
-                EnumOption(value="fax", label={"en": "Fax"}, allowed=False, roles=("Staff",)),
+                EnumOption(
+                    value="fax", label={"en": "Fax"}, allowed=False, roles=("Staff",)
+                ),
             ),
         )
-        opts = _field(svc.get_public_field_config(_TENANT), "referral_source")["options"]
+        opts = _field(svc.get_public_field_config(_TENANT), "referral_source")[
+            "options"
+        ]
         for o in opts:
             assert "allowed" in o
             assert "roles" not in o
@@ -267,7 +319,10 @@ class TestApplicationChoicesSubsetUnchanged:
     def test_editor_read_carries_the_authored_subset_verbatim(self, service):
         # OBSERVED: the editor read echoes the authored application_choices subset unchanged.
         editor = service.get_field_config(_TENANT)
-        assert _field(editor, "referral_source")["application_choices"] == ["internet", "facebook"]
+        assert _field(editor, "referral_source")["application_choices"] == [
+            "internet",
+            "facebook",
+        ]
 
     def test_public_read_filters_options_down_to_the_subset(self, service):
         # OBSERVED: the public read FILTERS the field's options to the declared subset — the
@@ -277,7 +332,9 @@ class TestApplicationChoicesSubsetUnchanged:
         assert vals == ["internet", "facebook"]
         assert "staff_only" not in vals
 
-    def test_public_required_flag_is_the_application_required_not_staff_required(self, service):
+    def test_public_required_flag_is_the_application_required_not_staff_required(
+        self, service
+    ):
         # OBSERVED: the public field's `required` reflects application_required (False here),
         # not the staff `required`. Preserved — the subset/public concept is distinct.
         public = service.get_public_field_config(_TENANT)
@@ -288,7 +345,9 @@ class TestApplicationChoicesSubsetUnchanged:
 
 
 class TestReferenceReadsFieldInlineOptions:
-    def test_membership_type_editor_options_are_the_fields_inline_options(self, service):
+    def test_membership_type_editor_options_are_the_fields_inline_options(
+        self, service
+    ):
         # 03b CONTRACT (Task 10.5): membership_type (a REFERENCE field) resolves `options` from the
         # field's OWN inline vocabulary — NOT a catalog read (the catalog is retired). The options
         # are served through the SAME enum serializer as any other enum, each carrying the unified
@@ -296,8 +355,18 @@ class TestReferenceReadsFieldInlineOptions:
         editor = service.get_field_config(_TENANT)
         opts = _field(editor, "membership_type")["options"]
         assert opts == [
-            {"value": "gewoon", "label": {"nl": "Gewoon", "en": "Ordinary"}, "allowed": True, "order": 10},
-            {"value": "erelid", "label": {"nl": "Erelid", "en": "Honorary"}, "allowed": True, "order": 20},
+            {
+                "value": "gewoon",
+                "label": {"nl": "Gewoon", "en": "Ordinary"},
+                "allowed": True,
+                "order": 10,
+            },
+            {
+                "value": "erelid",
+                "label": {"nl": "Erelid", "en": "Honorary"},
+                "allowed": True,
+                "order": 20,
+            },
         ]
 
 
@@ -314,7 +383,9 @@ class TestScopeAccessStateSurfaceUnchanged:
         assert team["scope"] == {"enabled": True, "required_for": ["Members_CRUD"]}
         assert "values" not in team["scope"]
 
-    def test_scope_backed_field_options_are_the_inline_authored_vocabulary(self, service):
+    def test_scope_backed_field_options_are_the_inline_authored_vocabulary(
+        self, service
+    ):
         # OBSERVED: the scope-backed field's served `options` are its inline authored options.
         editor = service.get_field_config(_TENANT)
         assert [o["value"] for o in _field(editor, "team")["options"]] == ["a", "b"]
@@ -403,7 +474,8 @@ def test_property_options_authored_preservation(spec):
         },
     )
     service = MembershipService(
-        FakeCatalogRepository(), overlay_provider=StaticOverlayProvider({_TENANT: overlay})
+        FakeCatalogRepository(),
+        overlay_provider=StaticOverlayProvider({_TENANT: overlay}),
     )
 
     editor = service.get_field_config(_TENANT)
@@ -434,7 +506,9 @@ def test_property_options_authored_preservation(spec):
 
 
 class TestPublicReadConsumesSeamOptionsWithSubsetFilter:
-    def test_public_subset_filter_is_preserved_and_applied_to_the_seam_options(self, service):
+    def test_public_subset_filter_is_preserved_and_applied_to_the_seam_options(
+        self, service
+    ):
         # R3.2 preserved: the public read FILTERS the seam's full vocabulary down to the declared
         # application_choices — staff_only excluded — exactly as before, now off the ONE `options`.
         public = service.get_public_field_config(_TENANT)
@@ -453,7 +527,9 @@ class TestPublicReadConsumesSeamOptionsWithSubsetFilter:
             # unranked. The staff-only `roles` gate is still dropped.
             assert set(opt) == {"value", "label", "allowed"}
 
-    def test_public_bare_choices_enum_is_dropped_not_page_blackout(self, catalog_repo, caplog):
+    def test_public_bare_choices_enum_is_dropped_not_page_blackout(
+        self, catalog_repo, caplog
+    ):
         # F10 + C6 (task 9, REVISED per-consumer split): a bare-`choices`, application-visible enum
         # (no inline options, not scope-backed) DECLARES an inline vocabulary (`choices`) that did
         # NOT propagate into `options` — the asymmetry. The read-assembly seam still RAISES
@@ -479,7 +555,9 @@ class TestPublicReadConsumesSeamOptionsWithSubsetFilter:
         import logging
 
         with caplog.at_level(logging.ERROR):
-            public = svc.get_public_field_config(_TENANT)  # must NOT raise — page served
+            public = svc.get_public_field_config(
+                _TENANT
+            )  # must NOT raise — page served
         # The offending field is dropped; the page is still served (no magazine_pref field).
         assert all(f["key"] != "magazine_pref" for f in public["fields"])
         # An operator ALERT was emitted (metric/alert channel) for the drop.
@@ -511,7 +589,10 @@ class TestScopeBackedFieldPopulatedFromScopeVocabAtSeam:
             {
                 _TENANT: [
                     ScopeDimension(
-                        key="region", field="region", enabled=True, values=("noord", "zuid")
+                        key="region",
+                        field="region",
+                        enabled=True,
+                        values=("noord", "zuid"),
                     )
                 ]
             }
@@ -580,13 +661,20 @@ class TestFailLoudOnAsymmetry:
         # catalog is not a read source — proving the fallback is gone.)
         class _FetchErrorCatalog:
             def list_membership_types(self, tenant_id, active_only=False):
-                raise AssertionError("catalog must NOT be read for membership_type (03b CONTRACT)")
+                raise AssertionError(
+                    "catalog must NOT be read for membership_type (03b CONTRACT)"
+                )
 
         overlay = TenantOverlay(
             overrides={
                 "membership.membership_type": FixedFieldOverride(
                     options=(
-                        EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Ordinary"}, allowed=True, order=10),
+                        EnumOption(
+                            value="gewoon",
+                            label={"nl": "Gewoon", "en": "Ordinary"},
+                            allowed=True,
+                            order=10,
+                        ),
                     ),
                 ),
             },
@@ -595,20 +683,21 @@ class TestFailLoudOnAsymmetry:
                     key="referral_source",
                     type=FieldType.ENUM,
                     label={"nl": "Bron", "en": "Source"},
-                    options=(
-                        EnumOption(value="a", label={"nl": "A", "en": "A"}),
-                    ),
+                    options=(EnumOption(value="a", label={"nl": "A", "en": "A"}),),
                     order=50,
                 )
             },
         )
         svc = MembershipService(
-            _FetchErrorCatalog(), overlay_provider=StaticOverlayProvider({_TENANT: overlay})
+            _FetchErrorCatalog(),
+            overlay_provider=StaticOverlayProvider({_TENANT: overlay}),
         )
         # No raise: the staff read resolves membership_type from its inline options, never the
         # (deliberately broken) catalog.
         editor = svc.get_field_config(_TENANT)
-        assert [o["value"] for o in _field(editor, "membership_type")["options"]] == ["gewoon"]
+        assert [o["value"] for o in _field(editor, "membership_type")["options"]] == [
+            "gewoon"
+        ]
 
     def test_error_is_caller_safe_generic_message_no_data_leak(self, catalog_repo):
         # steering 30: the client-visible message is GENERIC — it echoes NO offending data (not the
@@ -646,7 +735,9 @@ class TestFailLoudDoesNotFireOnLegitimatelyEmptySources:
     """(b) G5 must-NOT-raise cases: a legitimately empty/absent source is a valid in-progress
     state across EVERY kind — the asymmetry predicate must not trip on any of them."""
 
-    def test_scope_source_with_zero_values_does_not_raise_at_the_seam(self, catalog_repo):
+    def test_scope_source_with_zero_values_does_not_raise_at_the_seam(
+        self, catalog_repo
+    ):
         # G5 (scope): a scope-backed field whose injected `scope_vocab` entry is EMPTY is a
         # legitimately-empty source (a dimension with zero values yet) — NOT the asymmetry. The
         # seam must project the (empty) list, NEVER raise. Exercised at the seam unit directly
@@ -690,7 +781,9 @@ class TestFailLoudDoesNotFireOnLegitimatelyEmptySources:
         editor = svc.get_field_config(_TENANT)  # must NOT raise
         assert _field(editor, "membership_type")["options"] is None
 
-    def test_newly_created_field_with_no_declared_source_does_not_raise(self, catalog_repo):
+    def test_newly_created_field_with_no_declared_source_does_not_raise(
+        self, catalog_repo
+    ):
         # G5: a newly-created not-yet-populated field with NO declared vocabulary at all (a plain
         # string field — no options, no choices, not scope/reference). No declared source → not
         # the asymmetry; the seam returns None, no raise.
@@ -773,7 +866,10 @@ class TestPublicPathDropsAsymmetricFieldAndAlerts:
                     key="bad_mid",
                     type=FieldType.ENUM,
                     label={"nl": "Slecht", "en": "Bad"},
-                    choices=("Geen", "Papier"),  # bare choices, un-propagated → asymmetry
+                    choices=(
+                        "Geen",
+                        "Papier",
+                    ),  # bare choices, un-propagated → asymmetry
                     functional_group="membership",
                     order=20,
                     application_visible=True,
@@ -796,7 +892,9 @@ class TestPublicPathDropsAsymmetricFieldAndAlerts:
         # — a field raising in the MIDDLE of the loop does not skip the field after it.
         svc = MembershipService(
             catalog_repo,
-            overlay_provider=StaticOverlayProvider({_TENANT: self._overlay_one_bad_two_good()}),
+            overlay_provider=StaticOverlayProvider(
+                {_TENANT: self._overlay_one_bad_two_good()}
+            ),
         )
         public = svc.get_public_field_config(_TENANT)  # must NOT raise
         keys = {f["key"] for f in public["fields"]}
@@ -815,7 +913,9 @@ class TestPublicPathDropsAsymmetricFieldAndAlerts:
 
         svc = MembershipService(
             catalog_repo,
-            overlay_provider=StaticOverlayProvider({_TENANT: self._overlay_one_bad_two_good()}),
+            overlay_provider=StaticOverlayProvider(
+                {_TENANT: self._overlay_one_bad_two_good()}
+            ),
         )
         with caplog.at_level(logging.ERROR):
             svc.get_public_field_config(_TENANT)
@@ -835,13 +935,17 @@ class TestPublicPathDropsAsymmetricFieldAndAlerts:
         # A correlation id ties the alert to the server-side detail (32-hex uuid4).
         assert re.search(r"correlation_id=[0-9a-f]{32}", text), text
 
-    def test_public_drop_does_not_leak_internal_detail_to_served_schema(self, catalog_repo):
+    def test_public_drop_does_not_leak_internal_detail_to_served_schema(
+        self, catalog_repo
+    ):
         # Steering 30 / resolved-view contract: the served public schema carries only the surviving
         # fields — no error payload, no dropped-field key, no raw-storage key. The applicant sees
         # the field simply absent, nothing about WHY.
         svc = MembershipService(
             catalog_repo,
-            overlay_provider=StaticOverlayProvider({_TENANT: self._overlay_one_bad_two_good()}),
+            overlay_provider=StaticOverlayProvider(
+                {_TENANT: self._overlay_one_bad_two_good()}
+            ),
         )
         public = svc.get_public_field_config(_TENANT)
         blob = json.dumps(public)
@@ -860,7 +964,9 @@ class TestPublicPathDropsAsymmetricFieldAndAlerts:
 
         svc = MembershipService(
             catalog_repo,
-            overlay_provider=StaticOverlayProvider({_TENANT: self._overlay_one_bad_two_good()}),
+            overlay_provider=StaticOverlayProvider(
+                {_TENANT: self._overlay_one_bad_two_good()}
+            ),
         )
         with pytest.raises(UnpropagatedVocabularyError):
             svc.get_field_config(_TENANT)
@@ -888,7 +994,9 @@ class TestG5LegitimatelyEmptyDoesNotRaiseOnPublicPathEither:
         # default in the fixed set — the public read serves it with an empty option list, NOT
         # dropped, NOT raised.
         empty_catalog = FakeCatalogRepository()
-        svc = MembershipService(empty_catalog, overlay_provider=StaticOverlayProvider({}))
+        svc = MembershipService(
+            empty_catalog, overlay_provider=StaticOverlayProvider({})
+        )
         public = svc.get_public_field_config(_TENANT)  # must NOT raise
         mt = [f for f in public["fields"] if f["key"] == "membership_type"]
         # membership_type is present (not dropped) with an empty, valid option list.
@@ -942,6 +1050,7 @@ class TestG5LegitimatelyEmptyDoesNotRaiseOnPublicPathEither:
         public = svc.get_public_field_config(_TENANT)  # must NOT raise
         note = [f for f in public["fields"] if f["key"] == "club_note"]
         assert note and note[0]["options"] is None
+
 
 # ── 03a task 9b — NO-PER-KIND-BRANCH serializer test (covers the DROPPED C8 rule (c)) ─────────
 #
@@ -1013,12 +1122,24 @@ def _three_kind_overlay() -> TenantOverlay:
             "membership.membership_type": FixedFieldOverride(
                 application_visible=True,
                 application_required=False,
-                application_choices=("gewoon",),  # R3.2 subset of the field's inline options
+                application_choices=(
+                    "gewoon",
+                ),  # R3.2 subset of the field's inline options
                 # 03b CONTRACT (Task 10.5): the reference vocabulary is the field's OWN inline
                 # options (the catalog is retired), folded from the two active h-dcn types.
                 options=(
-                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Ordinary"}, allowed=True, order=10),
-                    EnumOption(value="erelid", label={"nl": "Erelid", "en": "Honorary"}, allowed=True, order=20),
+                    EnumOption(
+                        value="gewoon",
+                        label={"nl": "Gewoon", "en": "Ordinary"},
+                        allowed=True,
+                        order=10,
+                    ),
+                    EnumOption(
+                        value="erelid",
+                        label={"nl": "Erelid", "en": "Honorary"},
+                        allowed=True,
+                        order=20,
+                    ),
                 ),
             ),
         },
@@ -1029,15 +1150,22 @@ def _three_kind_overlay() -> TenantOverlay:
                 required=False,
                 label={"nl": "Bron", "en": "Source"},
                 options=(
-                    EnumOption(value="internet", label={"nl": "Internet", "en": "Internet"}),
-                    EnumOption(value="facebook", label={"nl": "Facebook", "en": "Facebook"}),
+                    EnumOption(
+                        value="internet", label={"nl": "Internet", "en": "Internet"}
+                    ),
+                    EnumOption(
+                        value="facebook", label={"nl": "Facebook", "en": "Facebook"}
+                    ),
                     EnumOption(value="staff_only", label={"nl": "Staf", "en": "Staff"}),
                 ),
                 functional_group="membership",
                 order=50,
                 application_visible=True,
                 application_required=False,
-                application_choices=("internet", "facebook"),  # R3.2 subset (staff_only excluded)
+                application_choices=(
+                    "internet",
+                    "facebook",
+                ),  # R3.2 subset (staff_only excluded)
             ),
             "region": OverlayField(
                 key="region",
@@ -1048,7 +1176,9 @@ def _three_kind_overlay() -> TenantOverlay:
                 order=60,
                 application_visible=True,
                 application_required=False,
-                application_choices=("noord",),  # R3.2 subset of the scope dimension values
+                application_choices=(
+                    "noord",
+                ),  # R3.2 subset of the scope dimension values
             ),
         },
     )
@@ -1094,10 +1224,16 @@ class TestNoPerKindReadShapeBranchInSerializers:
         editor = three_kind_service.get_field_config(_TENANT)
         for key in self._KINDS:
             opts = _field(editor, key)["options"]
-            assert opts is not None and len(opts) >= 1, f"{key}: expected populated options"
+            assert opts is not None and len(opts) >= 1, (
+                f"{key}: expected populated options"
+            )
             for o in opts:
-                assert isinstance(o, dict), f"{key}: option is not a rich dict (read-shape branch?)"
-                assert "value" in o and "label" in o, f"{key}: option missing uniform {{value,label}}"
+                assert isinstance(o, dict), (
+                    f"{key}: option is not a rich dict (read-shape branch?)"
+                )
+                assert "value" in o and "label" in o, (
+                    f"{key}: option missing uniform {{value,label}}"
+                )
                 assert isinstance(o["value"], str)
                 assert isinstance(o["label"], dict)
 
@@ -1110,10 +1246,14 @@ class TestNoPerKindReadShapeBranchInSerializers:
         public = three_kind_service.get_public_field_config(_TENANT)
         for key in self._KINDS:
             opts = _field(public, key)["options"]
-            assert opts is not None and len(opts) >= 1, f"{key}: expected populated public options"
+            assert opts is not None and len(opts) >= 1, (
+                f"{key}: expected populated public options"
+            )
             for o in opts:
                 assert isinstance(o, dict), f"{key}: public option is not a rich dict"
-                assert "value" in o and "label" in o, f"{key}: public option missing {{value,label}}"
+                assert "value" in o and "label" in o, (
+                    f"{key}: public option missing {{value,label}}"
+                )
                 assert "roles" not in o  # staff-only gate never on the public contract
 
     def test_shared_option_keyset_is_identical_across_all_kinds_on_each_read(
@@ -1132,7 +1272,9 @@ class TestNoPerKindReadShapeBranchInSerializers:
         # common uniform shape is {value, label}. Every kind's options are a SUPERSET of that.
         for key, sets in keysets.items():
             for ks in sets:
-                assert {"value", "label"} <= set(ks), f"{key}: option keyset {ks} lacks the uniform core"
+                assert {"value", "label"} <= set(ks), (
+                    f"{key}: option keyset {ks} lacks the uniform core"
+                )
 
     def test_r32_public_subset_filter_is_allowed_and_applied_not_flagged(
         self, three_kind_service
@@ -1152,7 +1294,9 @@ class TestNoPerKindReadShapeBranchInSerializers:
             "facebook",
         ]
         assert [o["value"] for o in _field(public, "region")["options"]] == ["noord"]
-        assert [o["value"] for o in _field(public, "membership_type")["options"]] == ["gewoon"]
+        assert [o["value"] for o in _field(public, "membership_type")["options"]] == [
+            "gewoon"
+        ]
         # And the editor (no subset filter) still exposes the FULL vocabulary for each kind — the
         # subset is a public-only PROJECTION, applied uniformly, not a per-kind read-shape branch.
         editor = three_kind_service.get_field_config(_TENANT)
@@ -1161,7 +1305,10 @@ class TestNoPerKindReadShapeBranchInSerializers:
             "facebook",
             "staff_only",
         ]
-        assert [o["value"] for o in _field(editor, "region")["options"]] == ["noord", "zuid"]
+        assert [o["value"] for o in _field(editor, "region")["options"]] == [
+            "noord",
+            "zuid",
+        ]
         assert [o["value"] for o in _field(editor, "membership_type")["options"]] == [
             "gewoon",
             "erelid",
@@ -1177,7 +1324,100 @@ class TestNoPerKindReadShapeBranchInSerializers:
         editor = three_kind_service.get_field_config(_TENANT)
         public = three_kind_service.get_public_field_config(_TENANT)
         for key in self._KINDS:
-            staff_by_val = {o["value"]: o["label"] for o in _field(editor, key)["options"]}
+            staff_by_val = {
+                o["value"]: o["label"] for o in _field(editor, key)["options"]
+            }
             for o in _field(public, key)["options"]:
-                assert o["value"] in staff_by_val, f"{key}: public value not in staff vocabulary"
-                assert o["label"] == staff_by_val[o["value"]], f"{key}: label differs across reads"
+                assert o["value"] in staff_by_val, (
+                    f"{key}: public value not in staff vocabulary"
+                )
+                assert o["label"] == staff_by_val[o["value"]], (
+                    f"{key}: label differs across reads"
+                )
+
+
+# ── slug + public_prefix surfacing on get_field_config (slug-prefix SAM-owned) ────────
+#
+# get_field_config surfaces the FORM slug and the tenant's SAM-owned public PREFIX (both read off
+# config#fields via the injected form_slug_provider) so the Application Form Builder can DISPLAY the
+# public address and the admin can see/edit the ownership prefix. Fail-safe to None when no provider
+# / no method / a read fault. These pin that contract (the latent spec-14 gap: the read-back was
+# never surfaced).
+
+
+class _FakeFormSlugProvider:
+    """Duck-typed form-slug provider exposing get_form_slug + get_public_prefix (like the
+    production MembersProjectionReader), with optional raise to prove fail-safe."""
+
+    def __init__(self, *, slug=None, prefix=None, raises=False):
+        self._slug = slug
+        self._prefix = prefix
+        self._raises = raises
+
+    def get_form_slug(self, tenant_id):
+        if self._raises:
+            raise RuntimeError("boom")
+        return self._slug
+
+    def get_public_prefix(self, tenant_id):
+        if self._raises:
+            raise RuntimeError("boom")
+        return self._prefix
+
+
+def _service_with_slug_provider(catalog_repo, provider):
+    return MembershipService(
+        catalog_repo,
+        overlay_provider=StaticOverlayProvider({_TENANT: _options_authored_overlay()}),
+        form_slug_provider=provider,
+    )
+
+
+class TestSlugAndPrefixSurfacing:
+    def test_surfaces_stored_slug_and_prefix(self, catalog_repo):
+        svc = _service_with_slug_provider(
+            catalog_repo, _FakeFormSlugProvider(slug="h-dcn-aanmelden", prefix="h-dcn")
+        )
+        cfg = svc.get_field_config(_TENANT)
+        assert cfg["slug"] == "h-dcn-aanmelden"
+        assert cfg["public_prefix"] == "h-dcn"
+
+    def test_absent_values_surface_as_none(self, catalog_repo):
+        svc = _service_with_slug_provider(
+            catalog_repo, _FakeFormSlugProvider(slug=None, prefix=None)
+        )
+        cfg = svc.get_field_config(_TENANT)
+        assert cfg["slug"] is None
+        assert cfg["public_prefix"] is None
+
+    def test_blank_values_normalise_to_none(self, catalog_repo):
+        svc = _service_with_slug_provider(
+            catalog_repo, _FakeFormSlugProvider(slug="   ", prefix="  ")
+        )
+        cfg = svc.get_field_config(_TENANT)
+        assert cfg["slug"] is None
+        assert cfg["public_prefix"] is None
+
+    def test_no_provider_surfaces_none_not_crash(self, catalog_repo):
+        # A service built without a form_slug_provider (the Static-only test path) must still
+        # answer the keys as None, never raise or omit them.
+        svc = MembershipService(
+            catalog_repo,
+            overlay_provider=StaticOverlayProvider(
+                {_TENANT: _options_authored_overlay()}
+            ),
+        )
+        cfg = svc.get_field_config(_TENANT)
+        assert cfg["slug"] is None
+        assert cfg["public_prefix"] is None
+
+    def test_provider_read_fault_is_fail_safe_none(self, catalog_repo):
+        # A read fault in the provider must not black out the whole config read — the keys
+        # degrade to None and every other key is still served.
+        svc = _service_with_slug_provider(
+            catalog_repo, _FakeFormSlugProvider(raises=True)
+        )
+        cfg = svc.get_field_config(_TENANT)
+        assert cfg["slug"] is None
+        assert cfg["public_prefix"] is None
+        assert "fields" in cfg  # the rest of the read still served

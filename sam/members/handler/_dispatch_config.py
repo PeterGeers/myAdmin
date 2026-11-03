@@ -132,4 +132,46 @@ def dispatch_config(
         publish_service = _dispatch_mod.get_application_publish_service()
         return publish_service.publish(tenant_id)
 
+    # ── Application-form SLUG author/change (bugfix-slug-lifecycle task 3.1) ──────────
+    #
+    # The MISSING client-reachable SAM slug WRITE (bugfix defect B). The edge has already verified
+    # the JWT, resolved `tenant_id` from the verified token (NEVER the body — steering 39), and
+    # enforced the members:admin gate BEFORE reaching here. This branch lifts the `{slug}` body
+    # value and delegates to `ConfigFieldsCrudService.set_form_slug`, which validates (format then
+    # SEC-4 prefix-ownership), claims the shared `_slugs/{slug}` marker, and persists
+    # `config#fields.slug` via a SINGLE identity Change-Op (an explicit `null` CLEARS it). The
+    # service owns ALL semantics: a malformed/reserved/out-of-prefix slug raises SlugAuthorRejected
+    # (→ 422), a foreign-owned slug raises SlugAuthorConflict (→ 409), a stale row raises
+    # StaleVersionError (→ 409) — all mapped caller-safe at the handler (never str(e)). The body is
+    # trusted ONLY for the slug VALUE; `tenant_id` is AUTHORITATIVE from the verified context.
+    if name == "set_application_form_slug":
+        crud_service = _dispatch_mod.get_config_fields_crud_service()
+        body = request.body if isinstance(request.body, dict) else {}
+        # An ABSENT `slug` key is a malformed request (the one thing this route carries); surface a
+        # caller-safe 422 via the service's own rejection rather than silently clearing the slug.
+        if "slug" not in body:
+            raise ConfigWriteValidationError(
+                "request body must carry a 'slug' value (a string to author, or null to clear)"
+            )
+        return crud_service.set_form_slug(tenant_id, body.get("slug"))
+
+    # ── Application-form slug PREFIX author/change (slug-prefix SAM-owned) ────────────
+    #
+    # The tenant's own public slug PREFIX author path (the SEC-4 stem every form slug must sit
+    # under). The edge has verified the JWT, resolved `tenant_id` from the token (NEVER the body),
+    # and enforced members:admin BEFORE here. This branch lifts the `{prefix}` body value and
+    # delegates to `ConfigFieldsCrudService.set_public_prefix`, which validates slug-safe format
+    # and persists `config#fields.public_prefix` via a SINGLE identity Change-Op (explicit `null`
+    # CLEARS it). A malformed/reserved prefix raises SlugAuthorRejected (→ 422); a stale row raises
+    # StaleVersionError (→ 409) — mapped caller-safe at the handler (never str(e)). The body is
+    # trusted ONLY for the prefix VALUE; `tenant_id` is AUTHORITATIVE from the verified context.
+    if name == "set_application_form_prefix":
+        crud_service = _dispatch_mod.get_config_fields_crud_service()
+        body = request.body if isinstance(request.body, dict) else {}
+        if "prefix" not in body:
+            raise ConfigWriteValidationError(
+                "request body must carry a 'prefix' value (a string to author, or null to clear)"
+            )
+        return crud_service.set_public_prefix(tenant_id, body.get("prefix"))
+
     return UNHANDLED

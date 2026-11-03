@@ -196,6 +196,7 @@ class MembershipService(
         config_status_provider: ConfigStatusProvider | None = None,
         default_page_size_provider: DefaultPageSizeProvider | None = None,
         consent_notice_provider: ConsentNoticeProvider | None = None,
+        form_slug_provider: object | None = None,
         scheduler_port: "SchedulerApiPort | None" = None,
     ):
         self._repo = repository
@@ -290,6 +291,14 @@ class MembershipService(
             if consent_notice_provider is not None
             else StaticConsentNoticeProvider()
         )
+        # The form-slug / public-prefix read seam (slug-prefix SAM-owned). Duck-typed (no new
+        # Protocol): any object exposing `get_form_slug(tenant_id)` and `get_public_prefix(tenant_id)`
+        # — in production the stable `_ProjectionFormSlugProvider` indirection over a fresh
+        # projection reader (both read the `config#fields` row), `None` in a service built without
+        # one. get_field_config surfaces its two reads as `slug` + `public_prefix` so the
+        # Application Form Builder can DISPLAY the public address and the admin can see/edit the
+        # ownership prefix. Fail-safe to None is owned by the get_field_config helpers.
+        self._form_slug_provider = form_slug_provider
         # The unified Rung-3 registry (design C5). The WRITE path (task 5.2) resolves
         # validate_member through it; an unregistered tenant resolves to the safe generic
         # default (Property 5). Defaults to an empty registry.

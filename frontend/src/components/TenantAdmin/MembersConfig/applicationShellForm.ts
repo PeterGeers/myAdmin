@@ -218,20 +218,24 @@ export function embedOriginsToText(origins: string[] | null | undefined): string
 }
 
 /**
- * Resolve the FORM slug the public URL is derived from (spec 12 R4 / Phase 1). The slug is now data
- * on the SAM `config#fields` row (`cfg.slug`) — the form's OWN public address, independent of the
- * tenant's landing-page slug and free to differ from the tenant NAME. Prefer that FORM slug when
- * present; fall back to a caller-supplied slug (the landing slug the builder loaded best-effort —
- * back-compat for an older module build that does not yet serve `config#fields.slug`). A blank/
- * absent value on both yields `null` so the panel states the form has no public address yet (R4.4).
+ * Resolve the FORM slug the public URL is derived from (spec 12 R4 / Phase 1; bugfix-slug-lifecycle
+ * R2.1/R2.2). The slug is data on the SAM `config#fields` row (`cfg.slug`) — the form's OWN public
+ * address, independent of the tenant's landing-page slug and free to differ from the tenant NAME —
+ * and it is the SINGLE source. A SAM screen reflects SAM state: when `cfg.slug` is absent/blank the
+ * form has no public address yet (R4.4), and this returns `null`.
+ *
+ * The former Flask landing-slug `fallbackSlug` has been REMOVED (bugfix-slug-lifecycle defect A, R1.2):
+ * falling back to the Flask landing slug was a CROSS-PLANE read that made the SAM display + the
+ * Publish-readiness "slug present" signal disagree with the authoritative SAM publish gate. The
+ * parameter is retained (ignored) for signature back-compat so existing callers that still pass a
+ * second argument compile, but it NEVER sources the slug — only `cfg.slug` does.
  */
 export function deriveFormSlug(
   cfg: FieldConfig | null | undefined,
-  fallbackSlug: string | null | undefined,
+  _ignoredFallbackSlug?: string | null | undefined,
 ): string | null {
   const form = (cfg?.slug ?? '').trim();
-  if (form) return form;
-  return (fallbackSlug ?? '').trim() || null;
+  return form || null;
 }
 
 /**
@@ -241,9 +245,10 @@ export function deriveFormSlug(
  * a tenant with ≥1 configured origin is treated as `iframe`, otherwise `standalone`.
  *
  * The public slug is the FORM slug on `config#fields` (spec 12 R4), resolved via
- * {@link deriveFormSlug}: `cfg.slug` wins when present, else the caller-supplied `slug` fallback
- * (the landing slug, back-compat). So once a form authors its own slug the panel shows the FORM's
- * address, not the landing one.
+ * {@link deriveFormSlug}: SAM `cfg.slug` is the SINGLE source. The former Flask landing-slug
+ * fallback has been removed (bugfix-slug-lifecycle R2.1/R2.2) — the `slug` parameter is ignored for
+ * sourcing (retained for signature back-compat) so a SAM screen reflects SAM state only, never a
+ * cross-plane landing slug.
  *
  * The allowed-origin list is SEEDED with the {@link CONFIRMED_EMBED_ORIGINS} when the tenant has
  * authored NO origins yet (R5.2b): the admin starts the iframe editor from the known-good targets

@@ -226,14 +226,14 @@ def _tenant_id_of(tenant: Mapping[str, Any]) -> str:
 
 #: Optional tenant-level passthrough attributes that must be OMITTED from the
 #: projected ``tenant`` row when their source value is ``NULL``/absent, rather than
-#: projected as a bogus ``None``. ``public_prefix`` (spec 14 R2.1–R2.6, task 6.2) is
-#: the per-tenant public slug prefix carried 1:1 from ``tenants.public_prefix`` (task
-#: 6.1, authored Flask-side) so the SAM claim path can read it off its OWN projected
-#: ``tenant`` row (no call to Flask — one-directional projection, ADR 0005). It is a
-#: UNIQUE but NULLABLE column: a tenant that has not been assigned a prefix yet must
-#: project a clean ABSENCE (back-compatible default) so the SAM read side sees "no
-#: prefix" rather than a null-typed attribute it would have to special-case.
-_OPTIONAL_OMIT_IF_NULL_TENANT_ATTRS = frozenset({"public_prefix"})
+#: projected as a bogus ``None``. Currently EMPTY: the former ``public_prefix`` entry
+#: was removed when the slug prefix moved to the SAM plane (it is now SAM-owned on the
+#: ``config#fields`` row — authored via ``ConfigFieldsCrudService.set_public_prefix``
+#: and read via ``MembersProjectionReader.get_public_prefix`` — so Flask no longer
+#: stores or projects it; the ``tenants.public_prefix`` column was dropped). The
+#: mechanism is retained (a future nullable tenant column that SAM reads can be added
+#: here) so a clean ABSENCE is projected instead of a bogus ``None``.
+_OPTIONAL_OMIT_IF_NULL_TENANT_ATTRS: frozenset = frozenset()
 
 
 def _tenant_attributes(tenant: Mapping[str, Any]) -> dict[str, Any]:
@@ -244,14 +244,14 @@ def _tenant_attributes(tenant: Mapping[str, Any]) -> dict[str, Any]:
     the item. No per-user or token-only data is present in a ``tenants`` row, so
     nothing here can leak S4 data.
 
-    ADDITIVE passthrough (task 6.2): because the source read is ``SELECT * FROM
-    tenants``, a newly-added nullable column such as ``public_prefix`` already
-    arrives on the source row and is carried 1:1 onto the ``tenant`` item with no
-    source change needed. Such OPTIONAL columns
-    (:data:`_OPTIONAL_OMIT_IF_NULL_TENANT_ATTRS`) are OMITTED when ``NULL``/absent so
-    a tenant without a prefix projects a clean absence (a safe, back-compatible
-    default) instead of a bogus ``None`` attribute the SAM read side would have to
-    special-case.
+    ADDITIVE passthrough: because the source read is ``SELECT * FROM tenants``, any
+    newly-added tenant column arrives on the source row and is carried 1:1 onto the
+    ``tenant`` item with no source change needed. Columns listed in
+    :data:`_OPTIONAL_OMIT_IF_NULL_TENANT_ATTRS` (currently none) are OMITTED when
+    ``NULL``/absent so a clean absence is projected instead of a bogus ``None`` the
+    SAM read side would have to special-case. (The former ``public_prefix`` passthrough
+    was removed — the slug prefix is now SAM-owned on ``config#fields``, not projected
+    from Flask.)
     """
     excluded = {schema.PARTITION_KEY_ATTR, "administration", *_VERSION_FIELDS}
     attrs = {k: v for k, v in tenant.items() if k not in excluded}
