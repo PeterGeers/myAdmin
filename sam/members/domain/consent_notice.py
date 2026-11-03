@@ -54,6 +54,16 @@ class ConsentNoticeProvider(Protocol):
         """Return the tenant's current notice version, or ``None`` when none is authored."""
         ...
 
+    # NOTE: the public field-config read (``get_public_field_config``) ALSO surfaces the FULL
+    # notice ``{version, text}`` so the published form can render the localized body the applicant
+    # accepts (Member Application Form Round 2 / Defect 2). That is served through an OPTIONAL
+    # ``get_consent_notice(tenant_id) -> {"version", "text"} | None`` accessor, which the DynamoDB
+    # projection reader (:class:`MembersProjectionReader`) already exposes. It is DELIBERATELY not a
+    # required method on this ``Protocol``: the version-only seam above is the minimal contract the
+    # consent STAMP (``create_application``) depends on, and the static reference provider need not
+    # carry the full body. The public read duck-types: it prefers ``get_consent_notice`` when the
+    # provider exposes it and falls back to the version-only accessor otherwise (empty-is-valid).
+
 
 class StaticConsentNoticeProvider:
     """In-memory :class:`ConsentNoticeProvider` — the tenant-agnostic reference provider.

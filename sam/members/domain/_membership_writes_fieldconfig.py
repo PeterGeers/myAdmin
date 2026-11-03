@@ -399,18 +399,49 @@ class FieldConfigSurfaceMixin:
             # The applicant locale selector's options (R6b). The renderer selects each field's
             # label language from the applicant's chosen locale, defaulting to `nl` (R5.3/R6b.1).
             "locales": list(SUPPORTED_LOCALES),
-            # The tenant's CURRENT versioned consent-notice version (D26/R12.1a). The form shows
-            # the notice and the submit stamps THIS server-resolved version (never a client
-            # value). `None` when the tenant authored no notice (empty-is-valid, R12.1c) — the
-            # affirmative consent is still required + recorded by `create_application`. The notice
-            # TEXT body + the readiness 409 are the Flask projection (8.2) / task 4.2 concern;
-            # this surfaces the pinned version the form references.
-            "notice": {
-                "version": self._consent_notice_provider.get_consent_notice_version(
-                    tenant_id
-                )
-            },
+            # The tenant's CURRENT versioned consent notice (D26/R12.1a). The form shows the
+            # notice TEXT and the submit stamps THIS server-resolved version (never a client
+            # value). The FULL notice `{version, text}` is sourced from the consent-notice seam
+            # (`get_consent_notice`) so the published form has the localized body to render + have
+            # the applicant accept — without it consent is posted empty and the backend hard-
+            # rejects with 422 CONSENT_REQUIRED (Round-2 Defect 2). `text` is `{locale: body}`
+            # read off the `config#mail` row; the raw storage item never crosses the boundary
+            # (steering 39) — only `{version, text}` is surfaced. Empty-is-valid (R12.1c): a
+            # tenant that authored no well-formed notice surfaces `{"version": None}` exactly as
+            # before — the affirmative consent is still required + recorded by `create_application`.
+            "notice": self._resolve_public_notice(tenant_id),
         }
+
+    def _resolve_public_notice(self, tenant_id: str) -> dict[str, Any]:
+        """Resolve the PUBLIC consent notice `{version, text}` served to the form (R12.1a/R12.1c).
+
+        Sourced from the injected consent-notice seam. The seam's concrete provider is the
+        DynamoDB-backed projection reader, which exposes the FULL notice via `get_consent_notice`
+        (`{"version", "text"} | None`, the `config#mail` read authority); when present that full
+        notice is surfaced so the published form can render the localized `text` the applicant
+        accepts (Round-2 Defect 2 fix).
+
+        Provider selection (full vs version-only) is by DUCK-TYPING, mirroring the seam's existing
+        `get_consent_notice_version` contract (`consent_notice.ConsentNoticeProvider`):
+
+        - If the provider exposes `get_consent_notice`, call it. A well-formed `{version, text}`
+          is surfaced whole; `None` (empty-is-valid) falls back to the version-only shape below.
+        - Otherwise (a provider that only satisfies the version-only Protocol, e.g. the static
+          test provider / the Round-1 stamp seam) resolve `get_consent_notice_version` and serve
+          `{"version": ...}` exactly as before — no `text` key, no behaviour change.
+
+        Steering 39: only the resolved `{version, text}` domain view crosses the boundary — never
+        the raw `config#mail` item.
+        """
+        provider = self._consent_notice_provider
+        get_full = getattr(provider, "get_consent_notice", None)
+        if callable(get_full):
+            notice = get_full(tenant_id)
+            if isinstance(notice, Mapping) and notice.get("version") is not None:
+                return {"version": notice.get("version"), "text": notice.get("text")}
+        # Version-only fallback (empty-is-valid / provider without the full-notice method): serve
+        # the pinned version alone, exactly the pre-Round-2 shape.
+        return {"version": provider.get_consent_notice_version(tenant_id)}
 
     def _serialize_public_field(
         self,
