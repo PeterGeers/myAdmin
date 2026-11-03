@@ -1,0 +1,154 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "Exploration test FAILED on UNFIXED code across all 3 facets (the SUCCESS case — bug confirmed). Falsifying example (all facets): config={'tenant_id':'h-dcn','fields':[{'key':'iban','type':'text','label':{'nl':'IBAN','en':'IBAN'},'required':True,'format':{'checker':'IBAN','params':{}}}],'functional_groups':[],'locales':['nl'],'notice':{'version':'v1'}}.\n\nSUBMIT facet: bare native method=post form=True, preventDefault=False, submit <script> with fetch/XHR=False, POST /public/members/{slug}/applications reference=False. Counterexample: applicant clicks Verstuur -> browser native-POSTs form-urlencoded to https://hdcn-aanmelden.jabaki.nl/apply -> 404 Not Found; backend endpoint never called, application lost.\n\nFORMAT facet: the format={'checker':'IBAN'} token is ignored by _render_field; no client-side IBAN check wired. Counterexample: applicant types an IBAN with a bad checksum -> page accepts it with no feedback.\n\nCONSENT_LOCALE facet: consent control bound to notice.version='v1'=False (no consent control rendered at all). Counterexample: config exposes notice.version + locales, but published page shows no consent checkbox -> a correctly-posted body is hard-rejected by the backend for missing consent.",
+      "lastRunTimestamp": 1793719247026
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719074946
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719084105
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719272086
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075141
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719281727
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719671733
+      }
+    ],
+    "3.1 Bake the public API base into the artifact at publish time (fail-fast, no silent default)": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075290
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719680746
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720092857
+      }
+    ],
+    "3.2 Render a working submit script + honor the `format` token (client checks)": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075403
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720101686
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720568674
+      }
+    ],
+    "3.3 Render the consent control + locale selector, styled with LandingPageStyles": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075522
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720577256
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720965286
+      }
+    ],
+    "3.4 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075688
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720973867
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721073641
+      }
+    ],
+    "3.5 Verify preservation tests still pass": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075856
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721081891
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721174359
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075992
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721184284
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721961307
+      }
+    ],
+    "3. Fix for the published application form that cannot be submitted": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721174523
+      }
+    ]
+  }
+}

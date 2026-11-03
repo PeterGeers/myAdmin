@@ -193,8 +193,12 @@ def test_golden_fixture_pins_the_shared_page_shell_scaffold():
     )
     # Exactly one <style> block wraps the single CSS source's output:
     assert expected.count("<style>") == 1 and expected.count("</style>") == 1
-    # The body scaffold composed by the SAM wiring:
-    assert '<form class="application-form" method="post">' in expected
+    # The body scaffold composed by the SAM wiring. Since bugfix `bugfix-published-form-submit`
+    # Task 3.2 the form is JS-handled (novalidate + `data-*` for the submit script) rather than a
+    # bare native-POST dead end, and carries the embedded submit <script>:
+    assert '<form class="application-form" method="post" novalidate' in expected
+    assert "data-slug=" in expected and "data-api-base=" in expected
+    assert "<script>" in expected and "preventDefault" in expected
 
 
 def test_golden_fixture_pins_the_single_landing_page_styles_css_source():
