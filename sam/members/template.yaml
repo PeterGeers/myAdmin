@@ -400,6 +400,28 @@ Parameters:
       samconfig (e.g. `https://aanmelden.jabaki.nl`). Empty default = fail-closed, never a wildcard.
     Default: ""
 
+  # PublicFormApex (CORS Option B — application-form-submit Round 2 task 7.1, R5.1/R5.5): the
+  #   per-env PUBLIC-PAGES apex the published application form is served on (e.g. `jabaki.nl`),
+  #   surfaced as the `PUBLIC_FORM_APEX` env var `public_app._form_apex` reads at runtime. The
+  #   published artifact for a slug lives at `https://{slug}.{apex}` (the CloudFront public-pages
+  #   distribution maps `{slug}.{apex}` to the served `{slug}/` prefix — the SAME apex
+  #   `application_publish` bakes into the canonical URL). For a route that has resolved its slug to
+  #   a tenant for THAT request, the edge UNIONS the form's OWN host `https://{resolved_slug}.{apex}`
+  #   into the CORS allow-list (`public_app._resolved_slug_host`), so the published per-tenant host
+  #   can read its own submit response. This is the TIGHTEST widening — a single exact host computed
+  #   from this apex, NEVER a broad `*.{apex}` wildcard, so no foreign `*.{apex}` site is admitted.
+  #   An unset var falls back to the canonical `jabaki.nl` in code; an explicitly BLANK value simply
+  #   SKIPS the slug-host member (CORS stays fail-closed — a missing apex never raises, never widens).
+  PublicFormApex:
+    Type: String
+    Description: >-
+      The per-env public-pages apex the published application form is served on (e.g.
+      `jabaki.nl`), surfaced as the `PUBLIC_FORM_APEX` env var the public edge reads for CORS
+      Option B (R5.1/R5.5). The edge admits the form's OWN resolved slug host
+      `https://{resolved_slug}.{apex}` only — never a `*.{apex}` wildcard. Unset falls back to the
+      canonical apex in code; a blank value skips the slug-host member (fail-closed).
+    Default: "jabaki.nl"
+
   # PublicTenantSlugMap — REMOVED (spec 12 task 7.1, R7.3). The public edge no longer resolves
   #   slug→tenant_id from an env projection; it reads the `_slugs/{slug}` bucket marker
   #   (`S3SlugMarkerStore`, OQ4) via `TenantDirectory` (task 1.4). The slug is now DATA on
@@ -1696,6 +1718,14 @@ Resources:
           #   second — R7.3). This also closes the CI `--parameter-overrides` blast radius that
           #   blanked the map (spec 12 decision 1a / D7).
           PUBLIC_FORM_ALLOWED_ORIGINS: !Ref PublicFormAllowedOrigins
+          # PUBLIC_FORM_APEX (CORS Option B — application-form-submit Round 2 task 7.1, R5.1/R5.5):
+          #   the per-env public-pages apex the published form is served on, read per request by
+          #   `public_app._form_apex`. For a route that resolved its slug to a tenant, the edge
+          #   unions the form's OWN host `https://{resolved_slug}.{apex}` into the CORS allow-list
+          #   (`_resolved_slug_host`) — the TIGHTEST widening (one exact host, NEVER a `*.{apex}`
+          #   wildcard). Unset falls back to the canonical `jabaki.nl` in code; a blank value skips
+          #   the slug-host member (fail-closed). No new grant — it is pure DATA from the env.
+          PUBLIC_FORM_APEX: !Ref PublicFormApex
           # --- Public-pages hosting (spec 14 Task 9) — the served public `GET/POST {slug}` edge ---
           # The public edge resolves slug→tenant via the `_slugs/{slug}` bucket marker
           # (`S3SlugMarkerStore`), which resolves its bucket fail-fast from `LANDING_PAGES_BUCKET`

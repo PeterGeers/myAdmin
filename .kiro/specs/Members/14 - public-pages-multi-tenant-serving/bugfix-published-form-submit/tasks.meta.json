@@ -4,6 +4,14 @@
       "status": "passed",
       "failingExample": "Exploration test FAILED on UNFIXED code across all 3 facets (the SUCCESS case — bug confirmed). Falsifying example (all facets): config={'tenant_id':'h-dcn','fields':[{'key':'iban','type':'text','label':{'nl':'IBAN','en':'IBAN'},'required':True,'format':{'checker':'IBAN','params':{}}}],'functional_groups':[],'locales':['nl'],'notice':{'version':'v1'}}.\n\nSUBMIT facet: bare native method=post form=True, preventDefault=False, submit <script> with fetch/XHR=False, POST /public/members/{slug}/applications reference=False. Counterexample: applicant clicks Verstuur -> browser native-POSTs form-urlencoded to https://hdcn-aanmelden.jabaki.nl/apply -> 404 Not Found; backend endpoint never called, application lost.\n\nFORMAT facet: the format={'checker':'IBAN'} token is ignored by _render_field; no client-side IBAN check wired. Counterexample: applicant types an IBAN with a bad checksum -> page accepts it with no feedback.\n\nCONSENT_LOCALE facet: consent control bound to notice.version='v1'=False (no consent control rendered at all). Counterexample: config exposes notice.version + locales, but published page shows no consent checkbox -> a correctly-posted body is hard-rejected by the backend for missing consent.",
       "lastRunTimestamp": 1793719247026
+    },
+    "7.5 Verify Round-2 bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1793735514994
+    },
+    "7.6 Verify Round-2 preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1793735585629
     }
   },
   "executionHistory": {
@@ -148,6 +156,121 @@
         "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
         "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
         "timestamp": 1793721174523
+      }
+    ],
+    "5. Write Round-2 bug condition exploration test": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793733979989
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734498130
+      }
+    ],
+    "6. Write Round-2 preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734123532
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734499341
+      }
+    ],
+    "7.1 CORS Option B — allow the resolved slug host (fail-closed otherwise, no wildcard)": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734517932
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734871386
+      }
+    ],
+    "7.2 Surface the full consent notice {version, text} in get_public_field_config": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734877185
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735126173
+      }
+    ],
+    "7.3 Render the notice TEXT above the consent checkbox, styled with LandingPageStyles": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735136874
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735289052
+      }
+    ],
+    "7.4 Map the consent-required and field 422s inline in the submit script": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735294309
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735458657
+      }
+    ],
+    "7.5 Verify Round-2 bug condition exploration test now passes": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735468704
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735534478
+      }
+    ],
+    "7.6 Verify Round-2 preservation tests still pass": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735538920
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735603510
+      }
+    ],
+    "7. Fix for the published form submit failing in TEST (CORS, notice text, error clarity)": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735603660
+      }
+    ],
+    "8. Round 2 Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735608505
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735958907
       }
     ]
   }

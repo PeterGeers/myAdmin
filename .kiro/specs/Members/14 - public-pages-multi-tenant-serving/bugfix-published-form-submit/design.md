@@ -440,3 +440,291 @@ The TENANT LOGO is a deliberate FOLLOW-UP (not this bugfix). The known fact to c
 
 This note exists so the follow-up starts with the cross-plane sourcing + public-URL resolution
 already identified. It is explicitly NOT implemented here.
+
+---
+
+# Round 2 — CORS, consent notice text, and error clarity
+
+## Round 2 Overview
+
+The Round-1 fix shipped: the published `{slug}/index.html` now renders a `preventDefault`ed submit
+script, client-side `format` (IBAN/EMAIL) + `required` checks, a locale selector, and a consent
+CHECKBOX bound to `notice.version`. Testing that artifact in TEST showed the applicant STILL cannot
+complete a submission. Three root causes were confirmed this session against the current code — all
+in the submit flow — and are fixed together as Round 2:
+
+- **Defect 1 — CORS blocks the response.** The published form is served per-tenant at
+  `https://{slug}.jabaki.nl` and POSTs cross-origin to the separate public API (`MembersPublicApi`).
+  `sam/members/handler/public_app.py::_apply_cors_origin` echoes `Access-Control-Allow-Origin` only
+  when the request `Origin` is an EXACT-STRING member of `_allowed_origins()` (the
+  `PUBLIC_FORM_ALLOWED_ORIGINS` env — a SINGLE canonical host per env: TEST
+  `https://aanmelden-test.jabaki.nl`, PROD `https://aanmelden.jabaki.nl`) unioned with the tenant's
+  `application_embed_origins`. The per-slug published host `{slug}.jabaki.nl` is in NEITHER list, so
+  the browser drops the CORS header and BLOCKS the read; the submit fetch rejects into the generic
+  catch-all and the real 422 is never readable. An exact-string match cannot cover per-slug hosts.
+- **Defect 2 — the consent NOTICE TEXT is not shown.** `get_public_field_config`
+  (`_membership_writes_fieldconfig.py`) serves `notice = {"version": ...}` ONLY (wired to
+  `_consent_notice_provider.get_consent_notice_version`). The applicant therefore has no text to
+  read/accept, consent is posted empty, and the backend returns a 422 `CONSENT_REQUIRED`. The FULL
+  notice `{version, text}` ALREADY exists in SAM on the `config#mail` row and is read by
+  `MembersProjectionReader.get_consent_notice(tenant_id) -> {"version","text"} | None`
+  (`repository/_mail_config_reader.py`) — whose docstring states the public field-config read is
+  intended to serve "this notice's current text + version to the form". So the text is in SAM
+  already; NO Flask projection is needed.
+- **Defect 3 — error messages are unclear.** Once CORS is fixed the real 422 is readable, but the
+  submit script maps only a generic catch-all; the consent-required 422 (synthetic field key
+  `consent`, code `CONSENT_REQUIRED`) and per-field 422s are not surfaced near their controls.
+
+### Already handled — NO-OP (verified this session)
+
+The applicant's consent ACCEPTANCE is already STORED IN SAM: `create_application`
+(`_membership_writes_application.py::_stamp_application_consent`) stamps a server-authoritative
+`consent = {version, accepted_at, locale}` onto the member record in DynamoDB (version resolved
+server-side via `get_consent_notice_version`, timestamp server-UTC, locale normalized). Round 2
+does NOT touch this. The round-2 work is only: let the applicant SEE + ACCEPT the notice (serve +
+render text), CORS so the submit is readable, and clear errors.
+
+## Round 2 Glossary additions
+
+- **Resolved slug host**: the published form's OWN origin `https://{resolved_slug}.{apex}`, where
+  `resolved_slug` is the slug already resolved from the `_slugs/{slug}` marker for THAT request and
+  `apex` is a per-env config/env var (e.g. `jabaki.nl` in prod, the test apex in TEST). The tightest
+  CORS match — only the form's own slug host, never a broad `*.jabaki.nl` wildcard.
+- **Full consent notice**: `{version, text}` where `text = {locale: body}`, read from the
+  `config#mail` row via `MembersProjectionReader.get_consent_notice`. Empty-is-valid → `None`.
+- **CORS Option B** (user-chosen): allow the request `Origin` when it equals the resolved slug host,
+  unioned with the existing static baseline + the tenant's embed origins; fail-closed otherwise,
+  never `*`, no wildcard.
+
+## Round 2 Bug Details
+
+The bug manifests on the SHIPPED published form's SUBMIT flow across three facets. Formal condition
+(continuing the Round-1 `isBugCondition` with new facets):
+
+```
+FUNCTION isBugConditionR2(input)
+  INPUT: input of type PublishedSubmitInteraction
+         { facet: CORS | NOTICE_TEXT | ERROR_CLARITY,
+           slug: str,
+           resolved_slug: str,            # from the _slugs/{slug} marker for THIS request
+           apex: str,                     # per-env config/env var
+           request_origin: str,           # the submitting form's host, https://{slug}.jabaki.nl
+           public_field_config: Mapping,  # get_public_field_config output
+           rendered_artifact: HtmlString,
+           backend_response: HttpResponse }
+  OUTPUT: boolean
+
+  RETURN
+    // Defect 1 — the form's own slug host is blocked by CORS
+    (input.facet = CORS
+       AND input.request_origin = "https://" + input.resolved_slug + "." + input.apex
+       AND NOT cors_allows(input.request_origin))          # header dropped -> read blocked
+    OR
+    // Defect 2 — notice text is not served, so the applicant cannot see/accept it
+    (input.facet = NOTICE_TEXT
+       AND consent_notice_exists_in_sam(input.slug)        # get_consent_notice returns {version,text}
+       AND public_field_config.notice HAS "version"
+       AND NOT public_field_config.notice HAS "text")      # only version served
+    OR
+    // Defect 3 — a readable 422 is mapped only to the generic catch-all
+    (input.facet = ERROR_CLARITY
+       AND input.backend_response.status = 422
+       AND NOT artifact_maps_inline(input.rendered_artifact, input.backend_response))
+END FUNCTION
+```
+
+### Round 2 Examples
+
+- `hdcn-aanmelden` submits from `https://hdcn-aanmelden.jabaki.nl` to the public API → the request
+  `Origin` is neither the static baseline (`https://aanmelden-test.jabaki.nl` in TEST) nor in
+  `application_embed_origins`, so `_apply_cors_origin` drops the header → the browser blocks the
+  read → generic catch-all; the real 422 never seen. (facet=CORS)
+- `config#mail` for h-dcn carries `consent_notice = {version:"2", text:{nl:"…", en:"…"}}`, but
+  `get_public_field_config` serves `notice = {version:"2"}` only → the form shows no text → consent
+  posted empty → 422 `CONSENT_REQUIRED`. (facet=NOTICE_TEXT)
+- The backend returns 422 with field key `consent` / code `CONSENT_REQUIRED` → the submit script
+  shows "Je aanmelding kon niet worden verwerkt" instead of a clear "please accept the notice"
+  message near the checkbox. (facet=ERROR_CLARITY)
+
+## Round 2 Hypothesized Root Cause
+
+1. **CORS allow-list is an exact-string set that cannot cover per-slug hosts (Defect 1).**
+   `_allowed_origins()` reads a single canonical host from `PUBLIC_FORM_ALLOWED_ORIGINS`;
+   `_apply_cors_origin` admits an `Origin` only on exact membership of that set ∪
+   `application_embed_origins`. The published per-slug host `{slug}.jabaki.nl` is structurally
+   outside both, so no static value can admit it without either enumerating every slug or opening a
+   `*.jabaki.nl` wildcard (too broad). The fix must derive the allowed origin from the request's
+   OWN resolved slug + a per-env apex.
+
+2. **The public field-config read serves version-only (Defect 2).** `get_public_field_config`
+   builds `notice = {"version": get_consent_notice_version(tenant_id)}`. The full notice already
+   lives in SAM (`get_consent_notice`), but this read path does not call it, so `text` never reaches
+   the form. The fix wires a provider exposing `get_consent_notice` and surfaces `{version, text}`.
+
+3. **The renderer has a checkbox but no text, and the checkbox only renders when a version exists
+   (Defect 2 consequence).** `_render_consent_control` renders a checkbox bound to `notice.version`
+   but no notice body; with text now served, the renderer must show the localized, HTML-escaped text
+   above the checkbox and render the checkbox whenever a notice is present.
+
+4. **The submit script maps only a generic catch-all (Defect 3).** The response handler does not
+   distinguish the consent-required 422 (synthetic field key `consent`, code `CONSENT_REQUIRED`) or
+   per-field 422s from opaque/5xx failures, so every failure reads the same. The fix maps the
+   consent 422 near the consent control and field 422s near their fields.
+
+## Round 2 Correctness Properties
+
+Property 3: Bug Condition (Round 2) - Submit is readable, consent is shown, errors are clear
+
+_For any_ published-submit interaction where the Round-2 bug condition holds (isBugConditionR2
+returns true): for a CORS interaction, the fixed `public_app` SHALL echo
+`Access-Control-Allow-Origin` for the request `Origin` when it equals the resolved slug host
+`https://{resolved_slug}.{apex}` (resolved_slug from the `_slugs/{slug}` marker, apex from a per-env
+config/env var), unioned with the static baseline and the tenant's `application_embed_origins`, and
+SHALL remain fail-closed (drop the header, never `*`, no `*.jabaki.nl` wildcard) for any other
+origin; for a NOTICE_TEXT interaction, `get_public_field_config` SHALL surface the FULL notice
+`{version, text}` (from `get_consent_notice`, empty-is-valid → `None`/absent) and the renderer SHALL
+show the localized, HTML-escaped notice text ABOVE a consent checkbox bound to `notice.version`,
+rendering the checkbox whenever a notice is present, styled with `LandingPageStyles`; and for an
+ERROR_CLARITY interaction, the submit script SHALL map the consent-required 422 (field key
+`consent`, code `CONSENT_REQUIRED`) to a clear message near the consent control and field 422s
+inline near their fields, keeping a neutral message only for opaque/5xx cases.
+
+**Validates: Requirements 5.1, 5.2, 5.3, 5.4**
+
+Property 4: Preservation (Round 2) - Backend consent gate, consent stamp, and other planes unchanged
+
+_For any_ input where the Round-2 bug condition does NOT hold (isBugConditionR2 returns false), the
+fixed system SHALL produce the same result as the original, preserving: the backend public submit
+endpoint and its consent gate (`_consent_is_affirmative` requires `accepted === true`, fail-closed);
+the server-authoritative consent stamp on the member record (`_stamp_application_consent`); the
+in-app SPA form; the Flask landing plane; the `config#mail` write path
+(`config_write_service._shape_consent_notice`); and `get_public_field_config` as the single field
+authority with no raw-shape leak (surfacing the full notice adds only `text` beside `version`). CORS
+for any origin that is NOT the resolved slug host, the static baseline, or a tenant embed origin
+SHALL stay fail-closed exactly as today.
+
+**Validates: Requirements 6.1, 6.2, 6.3, 6.4, 6.5**
+
+## Round 2 Fix Implementation
+
+### Changes Required (Round 2)
+
+**1. CORS Option B — allow the resolved slug host (Defect 1).**
+
+- **File**: `sam/members/handler/public_app.py`
+  - When the route has resolved a slug to a tenant for THAT request, compute the form's own host
+    `https://{resolved_slug}.{apex}` where `apex` is read from a per-env config/env var (NO
+    hardcode, NO `*.jabaki.nl` wildcard). Union it with the existing `_allowed_origins()` static
+    baseline and `_tenant_embed_origins(tenant_id)` inside the `_apply_cors_origin` decision.
+  - Keep the existing fail-closed semantics: no `Origin`, a foreign origin, or an empty union → drop
+    the header, never `*`. The only widening is the form's OWN slug host, derived from the request's
+    resolved slug — so no foreign `*.jabaki.nl` site is admitted.
+
+**2. Surface the full consent notice in the public field config (Defect 2).**
+
+- **File**: `sam/members/domain/_membership_writes_fieldconfig.py` (`get_public_field_config`)
+  - Replace the version-only `notice = {"version": ...}` with the FULL notice `{version, text}`
+    sourced from `get_consent_notice` (wired via a provider exposing `get_consent_notice`; the
+    projection reader `MembersProjectionReader` already satisfies it). Keep empty-is-valid: a tenant
+    with no well-formed notice surfaces `None`/absent. No raw record shape crosses the boundary
+    (steering 39) — only `{version, text}` is added.
+
+**3. Render the notice TEXT above the consent checkbox (Defect 2).**
+
+- **File**: `sam/members/domain/application_form_render.py` (`_render_consent_control` /
+  `build_form_body_html`)
+  - When a notice is present, render its localized `text[locale]` (with `nl` fallback),
+    HTML-escaped, ABOVE the consent checkbox, with the checkbox still bound to `notice.version`.
+    Render the checkbox whenever there is a notice (so consent can be given). Style with the shared
+    `LandingPageStyles` classes — no new CSS source.
+
+**4. Map the consent-required and field 422s inline (Defect 3).**
+
+- **File**: `sam/members/domain/application_form_render.py` (the embedded submit script)
+  - In the response handler, map a 422 whose synthetic field key is `consent` (code
+    `CONSENT_REQUIRED`) to a clear message near the consent control, and each field 422 to an inline
+    message near that field. Keep a neutral generic message only for opaque / 5xx responses. No
+    internal detail leaked.
+
+NOTE: Round 2 stays within the SAM render/publish step + the public handler's CORS decision + the
+public field-config read's notice surfacing. The backend submit/consent gate, the consent stamp, the
+in-app SPA form, the Flask landing plane, and the `config#mail` write path are NOT modified.
+
+## Round 2 Testing Strategy
+
+### Round 2 Validation Approach
+
+Same two-phase discipline: first surface counterexamples on the UNFIXED (Round-1-shipped) code
+across the three facets, then verify the fix. CORS is asserted against `_apply_cors_origin` /
+`handler` over a resolved slug + per-env apex; notice surfacing against `get_public_field_config`
+over the REAL `config#mail` (`get_consent_notice`) shape; render + error mapping against the
+`build_form_body_html` / `_render_consent_control` output string.
+
+### Round 2 Exploratory Bug Condition Checking
+
+**Goal**: surface counterexamples proving submit still fails on the shipped code.
+
+**Test Cases**:
+1. **CORS blocks the form host (CORS)**: with `PUBLIC_FORM_ALLOWED_ORIGINS` set to the single TEST
+   canonical host and a tenant with no matching embed origin, a request whose `Origin` is the
+   resolved slug host `https://{resolved_slug}.{apex}` gets NO `Access-Control-Allow-Origin` on the
+   response (read blocked) — buggy.
+2. **Notice text missing (NOTICE_TEXT)**: for a tenant whose `config#mail`
+   `get_consent_notice` returns `{version, text}`, `get_public_field_config` returns
+   `notice = {"version": ...}` with NO `text` — buggy.
+3. **Generic error only (ERROR_CLARITY)**: the rendered submit script contains no mapping of a
+   `consent` / `CONSENT_REQUIRED` 422 to a consent-adjacent message nor field-adjacent 422 mapping —
+   only the generic catch-all — buggy.
+
+**Expected Counterexamples**:
+- The form's own slug host is dropped from CORS → the fetch rejects → generic catch-all.
+- `notice` carries only `version`, no `text`.
+- All 422s read the same generic message.
+
+### Round 2 Fix Checking
+
+```
+FOR ALL input WHERE isBugConditionR2(input) DO
+  // CORS          -> _apply_cors_origin echoes Access-Control-Allow-Origin for the resolved slug host
+  //                  (https://{resolved_slug}.{apex}) ∪ static baseline ∪ embed origins; fail-closed otherwise
+  // NOTICE_TEXT   -> get_public_field_config.notice == {version, text} from get_consent_notice (None when absent),
+  //                  renderer shows localized HTML-escaped text above the checkbox (checkbox renders when notice present)
+  // ERROR_CLARITY -> submit script maps consent 422 near the consent control and field 422s inline
+  ASSERT expectedBehaviorR2(result)
+END FOR
+```
+
+### Round 2 Preservation Checking
+
+```
+FOR ALL input WHERE NOT isBugConditionR2(input) DO
+  ASSERT originalSystem(input) = fixedSystem(input)
+  // backend submit endpoint + consent gate (_consent_is_affirmative, accepted===true, fail-closed);
+  // the consent stamp on the member record (_stamp_application_consent);
+  // in-app SPA form; Flask landing plane; config#mail write path (_shape_consent_notice);
+  // get_public_field_config single-field-authority (only `text` added beside `version`, no raw shape);
+  // CORS fail-closed for any non-slug-host, non-baseline, non-embed origin (never `*`, no wildcard)
+END FOR
+```
+
+**Testing Approach**: property-based for CORS (generate origins: the resolved slug host, the static
+baseline, embed origins, and arbitrary foreign origins incl. other `*.jabaki.nl` hosts — assert
+exactly the first three are admitted and every foreign host is fail-closed) and for notice surfacing
+(configs with/without a well-formed notice → `{version, text}` vs `None`). Prove the notice round-trip
+against the REAL `config#mail` `get_consent_notice` shape (e.g. h-dcn), not a hand-built fixture
+(steering 39).
+
+### Round 2 Unit / Property / Integration Tests
+
+- **Unit**: `_apply_cors_origin` admits the resolved slug host and remains fail-closed for a foreign
+  `*.jabaki.nl` host; `get_public_field_config` emits `{version, text}` / `None`; the rendered body
+  shows the localized escaped notice text above the checkbox; the submit script maps the `consent` /
+  `CONSENT_REQUIRED` 422 and field 422s inline.
+- **Property-based**: Property 3 (bug condition) over generated origins + notice configs + 422
+  shapes; Property 4 (preservation) over non-bug inputs (backend gate, consent stamp, Flask plane,
+  write path, single-field-authority, CORS fail-closed for foreign origins).
+- **Integration**: paired SAM pytest (`python -m pytest -c sam/pytest.ini <paths> -q`) exercising
+  `get_public_field_config` over the real `config#mail`/`get_consent_notice` shape and the
+  `public_app` CORS decision with a resolved slug + per-env apex; a TEST end-to-end that the
+  published `{slug}.jabaki.nl` submit response is readable, the notice text is shown, consent is
+  accepted, and a consent-required 422 surfaces clearly.
