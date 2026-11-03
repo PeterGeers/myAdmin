@@ -51,6 +51,7 @@ from sam.members.domain.application_publish import (
     FORM_OWNER_KIND,
     FORM_OWNER_PLANE,
     FORM_RESOURCE_REF,
+    PUBLIC_API_BASE_ENV_VAR,
     ApplicationPublishService,
     PublishNotReady,
     PublishNotReadyReason,
@@ -64,6 +65,26 @@ from sam.members.handler import app
 from sam.members.repository.slug_marker_store import SlugMarker
 
 _TENANT = "h-dcn"
+
+#: The publish-time public API base baked into the artifact (bugfix `bugfix-published-form-submit`
+#: Task 3.1). The render step resolves `PUBLIC_API_BASE_URL` fail-fast (no silent default), so every
+#: ready-tenant publish path here must have it set — this autouse fixture supplies a representative
+#: value. The dedicated fail-fast test (`test_publish_fails_fast_when_public_api_base_env_missing`)
+#: UN-sets it to pin the no-default behaviour.
+_PUBLIC_API_BASE = "https://api.jabaki.nl"
+
+
+@pytest.fixture(autouse=True)
+def _set_public_api_base_env(monkeypatch):
+    """Set the publish-time `PUBLIC_API_BASE_URL` for every test (bugfix Task 3.1).
+
+    Change-with-tests (steering 34/39): the publish render step now resolves the public API base
+    from this env var fail-fast (no silent default). A ready-tenant publish therefore requires it
+    to be set — this fixture supplies a representative base so the existing readiness / claim /
+    live-write assertions still exercise their intended paths. Tests that pin the fail-fast raise
+    un-set it locally via monkeypatch.
+    """
+    monkeypatch.setenv(PUBLIC_API_BASE_ENV_VAR, _PUBLIC_API_BASE)
 
 
 # ── In-memory seams for the publish service (no boto3, no DynamoDB) ───────────────────
@@ -166,6 +187,61 @@ def test_publish_unready_tenant_renders_nothing():
     with pytest.raises(PublishNotReady):
         svc.publish(_TENANT)
     assert not hasattr(svc, "_rendered_html")
+
+
+# ── bugfix bugfix-published-form-submit Task 3.1 — publish-time public API base (fail-fast) ──
+
+
+def test_publish_fails_fast_when_public_api_base_env_missing(monkeypatch):
+    # bugfix Task 3.1 / R2.6: the public API base is resolved from `PUBLIC_API_BASE_URL` with NO
+    # silent default (the GOVERNANCE_PROJECTION_TABLE fail-fast model). A READY tenant whose
+    # publish-time env var is unset must FAIL LOUDLY at the render step rather than bake the wrong
+    # backend into the artifact. (The `DynamoDBConfigError` from the shared `require_env` helper is
+    # the fail-fast raise; importing it lazily keeps this the ONLY place the test names it.)
+    from services.dynamodb_client import DynamoDBConfigError
+
+    monkeypatch.delenv(PUBLIC_API_BASE_ENV_VAR, raising=False)
+    svc = _service()  # fully ready — reaches the render step
+    with pytest.raises(DynamoDBConfigError):
+        svc.publish(_TENANT)
+    # Fail-fast at the render resolution: no artifact was baked with a wrong/absent base.
+    assert not hasattr(svc, "_rendered_html")
+
+
+def test_publish_blank_public_api_base_env_also_fails_fast(monkeypatch):
+    # A blank/whitespace value is treated as missing too (no silent default) — the shared
+    # `require_env` rejects unset AND blank identically.
+    from services.dynamodb_client import DynamoDBConfigError
+
+    monkeypatch.setenv(PUBLIC_API_BASE_ENV_VAR, "   ")
+    svc = _service()
+    with pytest.raises(DynamoDBConfigError):
+        svc.publish(_TENANT)
+
+
+def test_publish_threads_slug_and_resolved_api_base_into_the_render(monkeypatch):
+    # bugfix Task 3.1: the publish step resolves the base from the env var and threads BOTH the
+    # resolved base AND the slug into `render_application_form_page`, so a LATER task's submit
+    # script can target `POST {base}/public/members/{slug}/applications`. Assert the renderer is
+    # called with the resolved base + slug (the carry-through), without asserting any emitted
+    # submit markup yet (that is Task 3.2).
+    import sam.members.domain.application_publish as publish_mod
+
+    real_render = publish_mod.render_application_form_page
+    captured = {}
+
+    def _spy_render(config, **kwargs):
+        captured.update(kwargs)
+        # Delegate to the real renderer so `_rendered_html` is still a valid document.
+        return real_render(config, **kwargs)
+
+    monkeypatch.setenv(PUBLIC_API_BASE_ENV_VAR, "https://api.example.test")
+    monkeypatch.setattr(publish_mod, "render_application_form_page", _spy_render)
+    svc = _service(slug="hdcn-application-form")
+    with pytest.raises(PublishPipelineNotWired):
+        svc.publish(_TENANT)
+    assert captured.get("slug") == "hdcn-application-form"
+    assert captured.get("public_api_base") == "https://api.example.test"
 
 
 def test_publish_refuses_when_no_slug_and_attempts_no_write():
