@@ -554,45 +554,41 @@ class _FieldOverlayReadMixin:
             return None
         return slug.strip()
 
-    # ── Tenant public prefix reader (projected tenant row, spec 14 R2.2; design C5) ─────
+    # ── SAM-owned public prefix reader (config#fields.public_prefix) ────────────────────
 
     def get_public_prefix(self, tenant_id: str) -> str | None:
-        """Return the tenant's ``public_prefix`` from its projected ``tenant`` row, or ``None``.
+        """Return the tenant's SAM-owned public slug ``prefix`` from ``config#fields``, or ``None``.
 
-        The SAM read of the tenant's single short PUBLIC PREFIX (spec 14 R2.1/R2.2, design C5).
-        The prefix is authored Flask-side on the tenant record (task 6.1) and projected READ-ONLY
-        as an ADDITIVE attribute onto the already-projected ``tenant`` row (``SK="tenant"``,
-        :data:`~services.projection_schema.RECORD_TYPE_TENANT`) by the projection builder (task
-        6.2). SAM resolves the prefix HERE off its OWN projected row — it NEVER calls Flask
-        (one-directional projection, ADR 0005).
+        The slug PREFIX is the tenant's own short public stem (e.g. ``h-dcn``) under which every
+        application-form slug must sit (SEC-4 prefix ownership). It is SAM-OWNED: authored by
+        :meth:`sam.members.domain.config_fields_crud_service.ConfigFieldsCrudService.set_public_prefix`
+        as the top-level ``public_prefix`` attribute on the tenant's ``config#fields`` row, and read
+        back HERE by the SAME ``tenant_id``-pinned partition read the sibling config reads use.
 
-        Resolved by the NORMAL ``tenant_id``-pinned partition read (the same shared, cached Query
-        the sibling config reads use); it scans the partition for the single ``tenant``-type row
-        (no id segment) rather than a ``config#<id>`` row, so it uses :meth:`_classify` directly
-        instead of :meth:`_find_config_row`.
+        (History: the prefix was previously stored in Flask as ``tenants.public_prefix`` and
+        carried onto the projected ``tenant`` row. That MySQL column and its projection were
+        removed — the prefix now lives only on the SAM plane, alongside the form ``slug`` on the
+        same ``config#fields`` row, so author + read are one plane, one record.)
 
         Empty-is-valid / fail-safe (same discipline as :meth:`get_form_slug`): a **missing**
-        ``tenant`` row, a missing ``public_prefix`` attribute (the builder OMITS it when the source
-        value is NULL/absent — back-compat, task 6.2), or a non-string / blank value all resolve to
-        ``None`` (the tenant has no public prefix yet). The prefix-ownership rule treats a ``None``
-        prefix as "cannot assert ownership of a fresh prefixed namespace" — see
+        ``config#fields`` row, a missing ``public_prefix`` attribute, or a non-string / blank value
+        all resolve to ``None`` (the tenant has no public prefix yet). The prefix-ownership rule
+        treats a ``None`` prefix as "cannot assert ownership of a fresh prefixed namespace" — see
         :func:`sam.members.domain.form_slug.validate_slug_prefix_ownership`.
 
         Args:
             tenant_id: The tenant (partition key) whose public prefix to resolve.
 
         Returns:
-            The projected non-blank ``public_prefix`` string, or ``None`` when absent/unusable.
+            The stored non-blank ``public_prefix`` string, or ``None`` when absent/unusable.
         """
-        for item in self._query_partition(tenant_id):
-            record_type, _id_parts = self._classify(item)
-            if record_type != schema.RECORD_TYPE_TENANT:
-                continue
-            prefix = item.get("public_prefix")
-            if not isinstance(prefix, str) or not prefix.strip():
-                return None
-            return prefix.strip()
-        return None
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        if row is None:
+            return None
+        prefix = row.get("public_prefix")
+        if not isinstance(prefix, str) or not prefix.strip():
+            return None
+        return prefix.strip()
 
     def get_config_fields_version(
         self, tenant_id: str, *, consistent_read: bool = False

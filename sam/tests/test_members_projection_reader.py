@@ -434,7 +434,9 @@ class TestGetOverlay:
         table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
 
         reader = MembersProjectionReader(table=table)
-        assert reader.get_overlay("h-dcn").overrides["membership.status"].options is None
+        assert (
+            reader.get_overlay("h-dcn").overrides["membership.status"].options is None
+        )
 
     def test_get_overlay_option_absent_allowed_reads_true_back_compat(self):
         """03b (BU-1, Req 3.1/3.2): an option authored WITHOUT an ``allowed`` key reads as
@@ -442,7 +444,9 @@ class TestGetOverlay:
         (back-compat). An absent ``order`` reads as ``None`` (unranked)."""
         table = FakeTable()
         overrides = {
-            "membership.status": {"options": [{"value": "active", "label": {"en": "Active"}}]}
+            "membership.status": {
+                "options": [{"value": "active", "label": {"en": "Active"}}]
+            }
         }
         table.put(_config_fields_item("h-dcn", fields={}, overrides=overrides))
 
@@ -458,8 +462,18 @@ class TestGetOverlay:
         overrides = {
             "membership.status": {
                 "options": [
-                    {"value": "active", "label": {"en": "Active"}, "allowed": True, "order": 10},
-                    {"value": "died", "label": {"en": "Passed Away"}, "allowed": False, "order": 20},
+                    {
+                        "value": "active",
+                        "label": {"en": "Active"},
+                        "allowed": True,
+                        "order": 10,
+                    },
+                    {
+                        "value": "died",
+                        "label": {"en": "Passed Away"},
+                        "allowed": False,
+                        "order": 20,
+                    },
                 ]
             }
         }
@@ -597,12 +611,16 @@ class TestGetOverlay:
         migrated_item["functional_groups"] = groups_map
         migrated.put(migrated_item)
 
-        legacy_groups = MembersProjectionReader(table=legacy).get_overlay(
-            "legacy-tenant"
-        ).functional_groups
-        migrated_groups = MembersProjectionReader(table=migrated).get_overlay(
-            "migrated-tenant"
-        ).functional_groups
+        legacy_groups = (
+            MembersProjectionReader(table=legacy)
+            .get_overlay("legacy-tenant")
+            .functional_groups
+        )
+        migrated_groups = (
+            MembersProjectionReader(table=migrated)
+            .get_overlay("migrated-tenant")
+            .functional_groups
+        )
 
         # Same keys, and each FunctionalGroup resolves identically (key/label/order).
         assert set(legacy_groups) == set(migrated_groups) == {"personal", "motor"}
@@ -1909,3 +1927,58 @@ class TestConfigFieldsWriteReadRoundTripSymmetry:
         )
         overlay = reader.get_overlay("h-dcn")
         assert "personal.city" in overlay.overrides
+
+
+# ---------------------------------------------------------------------------
+# get_public_prefix — config#fields.public_prefix (SAM-owned slug prefix)
+#
+# The slug PREFIX is now SAM-owned, stored as the top-level `public_prefix` attribute on the
+# tenant's `config#fields` row (authored by ConfigFieldsCrudService.set_public_prefix) and read
+# back here — mirroring get_form_slug. (The old Flask `tenants.public_prefix` column + its
+# projection onto the `tenant` row were removed; the prefix lives only on the SAM plane.)
+# ---------------------------------------------------------------------------
+
+
+def _config_fields_item_with_prefix(tenant_id, public_prefix, version=1):
+    item = _config_fields_item(tenant_id, fields={}, overrides={}, version=version)
+    if public_prefix is not None:
+        item["public_prefix"] = public_prefix
+    return item
+
+
+class TestGetPublicPrefix:
+    def test_reads_stored_prefix_from_config_fields(self):
+        table = FakeTable()
+        table.put(_config_fields_item_with_prefix("h-dcn", "h-dcn"))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_public_prefix("h-dcn") == "h-dcn"
+
+    def test_trims_whitespace(self):
+        table = FakeTable()
+        table.put(_config_fields_item_with_prefix("h-dcn", "  h-dcn  "))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_public_prefix("h-dcn") == "h-dcn"
+
+    def test_missing_config_row_resolves_to_none(self):
+        table = FakeTable()  # nothing seeded
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_public_prefix("unconfigured") is None
+
+    def test_absent_prefix_attribute_resolves_to_none(self):
+        table = FakeTable()
+        # A config#fields row exists but carries no public_prefix (the common not-yet-set state).
+        table.put(_config_fields_item("h-dcn", fields={}, overrides={}))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_public_prefix("h-dcn") is None
+
+    def test_blank_prefix_resolves_to_none(self):
+        table = FakeTable()
+        table.put(_config_fields_item_with_prefix("h-dcn", "   "))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_public_prefix("h-dcn") is None
+
+    def test_non_string_prefix_resolves_to_none(self):
+        table = FakeTable()
+        table.put(_config_fields_item_with_prefix("h-dcn", 123))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_public_prefix("h-dcn") is None

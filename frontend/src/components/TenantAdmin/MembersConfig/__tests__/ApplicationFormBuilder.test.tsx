@@ -75,13 +75,11 @@ vi.mock('../../../../services/parameterService', () => ({
   getParameterDefault: vi.fn(),
 }));
 
-// The form-shell panel (task 3.2) reads the landing-page slug to DERIVE + display the public URL.
-// It is a best-effort read (a failure degrades to "no address yet"); mock it so the scaffold load
-// is deterministic and makes no real network call.
-const mockGetSlug = vi.fn();
-vi.mock('../../../../services/landingPageApi', () => ({
-  getSlug: (...a: unknown[]) => mockGetSlug(...a),
-}));
+// bugfix-slug-lifecycle task 3.3: the builder NO LONGER reads the Flask landing-plane slug
+// (`landingPageApi.getSlug`) — the slug is now sourced from the SAM `config#fields.slug` (`cfg.slug`,
+// served on the field-config read) and AUTHORED via the SAM slug-author endpoint
+// (`membersConfigApi.setApplicationFormSlug`). The retired cross-plane `getSlug` mock is gone;
+// fixtures carry `slug` to drive the SAM-sourced display + readiness.
 
 // The membership-type field's subset picker (task 3.3 / R4) sources its vocabulary from the LIVE
 // catalog; the builder loads it best-effort via `listMembershipTypes`. Mock it so the scaffold load
@@ -92,9 +90,16 @@ const mockListMembershipTypes = vi.fn();
 // publish route calls AND prove save ≠ publish end-to-end: a plain Save must NEVER fire it, and a
 // successful publish clears the "unpublished changes" state.
 const mockPublishApplicationForm = vi.fn();
+// bugfix-slug-lifecycle task 3.3: the SAM slug-author endpoint the author control calls (NOT the
+// Flask landing plane). Capture it to COUNT the slug-write calls and assert the builder re-loads
+// after a successful author so the display/readiness reflect the persisted SAM slug.
+const mockSetApplicationFormSlug = vi.fn();
+const mockSetApplicationFormPrefix = vi.fn();
 vi.mock('../../../../services/members/membersConfigApi', () => ({
   listMembershipTypes: (...a: unknown[]) => mockListMembershipTypes(...a),
   publishApplicationForm: (...a: unknown[]) => mockPublishApplicationForm(...a),
+  setApplicationFormSlug: (...a: unknown[]) => mockSetApplicationFormSlug(...a),
+  setApplicationFormPrefix: (...a: unknown[]) => mockSetApplicationFormPrefix(...a),
 }));
 
 import { ApplicationFormBuilder } from '../ApplicationFormBuilder';
@@ -119,6 +124,9 @@ const overlayRow: Parameter = {
 } as unknown as Parameter;
 
 const FIELD_CONFIG: FieldConfig = {
+  // bugfix-slug-lifecycle: the SAM form slug now lives on config#fields and is the SINGLE source
+  // for the displayed public URL + the Publish readiness "slug present" signal (no Flask fallback).
+  slug: 'h-dcn',
   fields: [
     { key: 'email', functional_group: 'personal', provenance: 'tenant_added', type: 'string', label: { en: 'Email', nl: 'E-mail' } },
   ],
@@ -156,7 +164,8 @@ function seed(rows: Record<string, Parameter> = { field_overlay: overlayRow }, c
   mockUpdate.mockResolvedValue({ success: true });
   mockApplyChangeOps.mockResolvedValue({ success: true, configId: 'fields', version: '2026-10-21T10:00:00+00:00' });
   mockWriteMailConfig.mockResolvedValue({ success: true, configId: 'mail', version: '2026-10-21T10:05:00+00:00' });
-  mockGetSlug.mockResolvedValue({ success: true, data: { slug: 'h-dcn' } });
+  mockSetApplicationFormSlug.mockResolvedValue({ success: true, slug: 'h-dcn', version: '2026-10-21T10:10:00+00:00' });
+  mockSetApplicationFormPrefix.mockResolvedValue({ success: true, prefix: 'h-dcn', version: '2026-10-21T10:11:00+00:00' });
   mockListMembershipTypes.mockResolvedValue([
     { type_code: 'regular', label: { en: 'Regular', nl: 'Gewoon' }, active: true, order: 1 },
   ]);
@@ -621,5 +630,104 @@ describe('ApplicationFormBuilder — explicit Publish wiring (spec 12 task 6.2 /
     expect(
       screen.getByTestId('application-form-shell-unpublished-changes'),
     ).toBeInTheDocument();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  bugfix-slug-lifecycle task 3.3 — SAM-sourced slug display + the     */
+/*  members:admin author control (SAM endpoint, NOT the Flask plane).   */
+/* ------------------------------------------------------------------ */
+describe('ApplicationFormBuilder — SAM slug display + author control (bugfix-slug-lifecycle R2.1/R2.2/R2.3)', () => {
+  // h-dcn's verified state: SAM config#fields.slug = null. The SAM screen must reflect SAM state
+  // ("no public address yet"), NOT a landing-plane slug — and offer the author control to set one.
+  const NO_SAM_SLUG: FieldConfig = { ...FIELD_CONFIG, slug: null };
+
+  it('displays the public URL derived from the SAM config#fields.slug (never the Flask plane)', async () => {
+    await renderBuilder();
+    // FIELD_CONFIG.slug = 'h-dcn' → the SAM-sourced public URL is shown.
+    expect(screen.getByTestId('application-form-shell-public-url')).toHaveTextContent(
+      'https://h-dcn.jabaki.nl',
+    );
+    expect(screen.queryByTestId('application-form-shell-no-url')).not.toBeInTheDocument();
+  });
+
+  it('shows "no public address yet" when the SAM slug is null (SAM state, not a cross-plane slug)', async () => {
+    await renderBuilder(undefined, NO_SAM_SLUG);
+    expect(screen.getByTestId('application-form-shell-no-url')).toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-shell-public-url')).not.toBeInTheDocument();
+  });
+
+  it('authoring a slug calls the SAM slug-author endpoint (not the Flask plane) then re-loads so the display reflects the persisted SAM slug', async () => {
+    // Start with no SAM slug; after a successful author the re-load returns the slugged config.
+    await renderBuilder(undefined, NO_SAM_SLUG);
+    expect(screen.getByTestId('application-form-shell-no-url')).toBeInTheDocument();
+
+    // Type a new slug into the author control and save it.
+    fireEvent.change(screen.getByTestId('application-form-shell-slug-input'), {
+      target: { value: 'h-dcn-apply' },
+    });
+    // The re-load after the author returns the persisted SAM slug.
+    mockSetApplicationFormSlug.mockResolvedValue({ success: true, slug: 'h-dcn-apply' });
+    mockGetFieldConfig.mockResolvedValue({ ...FIELD_CONFIG, slug: 'h-dcn-apply' });
+    fireEvent.click(screen.getByTestId('application-form-shell-slug-save'));
+
+    // The SAM slug-author endpoint fired exactly once with the typed slug — NOT the Flask plane.
+    await waitFor(() => expect(mockSetApplicationFormSlug).toHaveBeenCalledTimes(1));
+    expect(mockSetApplicationFormSlug).toHaveBeenCalledWith('h-dcn-apply');
+
+    // After the re-load the display reflects the persisted SAM slug (not an optimistic value).
+    await waitFor(() =>
+      expect(screen.getByTestId('application-form-shell-public-url')).toHaveTextContent(
+        'https://h-dcn-apply.jabaki.nl',
+      ),
+    );
+  });
+
+  it('an empty submit CLEARS the slug (null) via the SAM endpoint', async () => {
+    await renderBuilder();
+    // Clear the input (FIELD_CONFIG.slug = 'h-dcn') and save → a deliberate clear.
+    fireEvent.change(screen.getByTestId('application-form-shell-slug-input'), {
+      target: { value: '' },
+    });
+    mockGetFieldConfig.mockResolvedValue(NO_SAM_SLUG);
+    fireEvent.click(screen.getByTestId('application-form-shell-slug-save'));
+
+    await waitFor(() => expect(mockSetApplicationFormSlug).toHaveBeenCalledTimes(1));
+    // A blank input clears the slug → null on the wire (steering 39 clear semantics).
+    expect(mockSetApplicationFormSlug).toHaveBeenCalledWith(null);
+  });
+});
+
+
+describe('ApplicationFormBuilder \u2014 prefix author control (slug-prefix SAM-owned)', () => {
+  it('authors the public prefix via the SAM prefix endpoint then re-loads', async () => {
+    // A form config that already has a prefix, so the control seeds from it (like the slug test
+    // seeds from a stored slug via the cfg arg, not a pre-render mock override).
+    await renderBuilder(undefined, { ...FIELD_CONFIG, public_prefix: 'h-dcn' });
+
+    const input = screen.getByTestId('application-form-shell-prefix-input') as HTMLInputElement;
+    expect(input.value).toBe('h-dcn');
+
+    fireEvent.change(input, { target: { value: 'h-dcn-x' } });
+    mockSetApplicationFormPrefix.mockResolvedValue({ success: true, prefix: 'h-dcn-x' });
+    mockGetFieldConfig.mockResolvedValue({ ...FIELD_CONFIG, public_prefix: 'h-dcn-x' });
+    fireEvent.click(screen.getByTestId('application-form-shell-prefix-save'));
+
+    await waitFor(() => expect(mockSetApplicationFormPrefix).toHaveBeenCalledTimes(1));
+    expect(mockSetApplicationFormPrefix).toHaveBeenCalledWith('h-dcn-x');
+  });
+
+  it('a blank prefix submit clears it (null on the wire)', async () => {
+    await renderBuilder(undefined, { ...FIELD_CONFIG, public_prefix: 'h-dcn' });
+
+    const input = screen.getByTestId('application-form-shell-prefix-input') as HTMLInputElement;
+    expect(input.value).toBe('h-dcn');
+
+    fireEvent.change(input, { target: { value: '' } });
+    mockGetFieldConfig.mockResolvedValue({ ...FIELD_CONFIG, public_prefix: null });
+    fireEvent.click(screen.getByTestId('application-form-shell-prefix-save'));
+
+    await waitFor(() => expect(mockSetApplicationFormPrefix).toHaveBeenCalledTimes(1));
+    expect(mockSetApplicationFormPrefix).toHaveBeenCalledWith(null);
   });
 });

@@ -1,0 +1,14 @@
+{
+  "name": "drop_public_prefix_from_tenants",
+  "description": "Drop tenants.public_prefix (and its UNIQUE constraint). The slug prefix moved to the SAM plane: it is now SAM-owned on the config#fields row, authored via ConfigFieldsCrudService.set_public_prefix (POST /members/application-form/prefix) and read via MembersProjectionReader.get_public_prefix. Flask no longer stores, projects, or backfills it (the add-migration 20261112120000 + its backfill_tenant_public_prefix.py data step and the projection_builder passthrough were removed). Reverses 20261112120000. MySQL 9.4: no IF EXISTS on indexes/columns — idempotency comes from the migration tracker, not SQL syntax; drop the UNIQUE index before the column.",
+  "timestamp": "20261115120000",
+  "up": [
+    "ALTER TABLE tenants DROP INDEX uq_tenants_public_prefix",
+    "ALTER TABLE tenants DROP COLUMN public_prefix"
+  ],
+  "down": [
+    "ALTER TABLE tenants ADD COLUMN public_prefix VARCHAR(20) DEFAULT NULL COMMENT 'Short, globally-unique, slug-safe public tenant prefix (legacy; superseded by the SAM-owned config#fields.public_prefix).'",
+    "ALTER TABLE tenants ADD CONSTRAINT uq_tenants_public_prefix UNIQUE (public_prefix)"
+  ],
+  "version": "1.0"
+}
