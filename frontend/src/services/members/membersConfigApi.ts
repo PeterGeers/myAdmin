@@ -212,9 +212,15 @@ export interface MembersApplicationSlugResult {
 export async function setApplicationFormSlug(
   slug: string | null
 ): Promise<MembersApplicationSlugResult> {
-  return unwrapData<MembersApplicationSlugResult>(
+  // postJson throws a structured ApiError on any non-2xx, so reaching here means the write
+  // succeeded (2xx). The platform envelope carries `success` at the TOP level and the service
+  // result under `data` ({ version, idempotent_replay }); unwrapData returns only `data` (no
+  // `success`), so we set success:true explicitly and spread the unwrapped result. (Without this
+  // the caller's `res.success` is undefined and a successful write is misreported as a failure.)
+  const data = unwrapData<{ version?: string; idempotent_replay?: boolean }>(
     await postJson<unknown>('/members/application-form/slug', { slug })
   );
+  return { success: true, slug, version: data?.version };
 }
 
 /**
@@ -252,8 +258,12 @@ export interface MembersApplicationPrefixResult {
 export async function setApplicationFormPrefix(
   prefix: string | null
 ): Promise<MembersApplicationPrefixResult> {
-  return unwrapData<MembersApplicationPrefixResult>(
+  // See setApplicationFormSlug: reaching here is a 2xx (postJson throws otherwise). The envelope's
+  // `success` is top-level and dropped by unwrapData (which returns only the `data` service
+  // result), so set success:true explicitly and echo the authored prefix + version.
+  const data = unwrapData<{ version?: string; idempotent_replay?: boolean }>(
     await postJson<unknown>('/members/application-form/prefix', { prefix })
   );
+  return { success: true, prefix, version: data?.version };
 }
 
