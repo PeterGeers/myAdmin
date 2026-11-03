@@ -161,6 +161,24 @@ MAX_PAYLOAD_BYTES = 64 * 1024
 #: the public write must not be callable from any origin.
 ALLOWED_ORIGINS_ENV = "PUBLIC_FORM_ALLOWED_ORIGINS"
 
+#: The env var carrying the per-env PUBLIC-PAGES APEX the published application form is served on
+#: (task 7.1 / R5.1). The published artifact for a slug lives at ``https://{slug}.{apex}`` — the
+#: CloudFront public-pages distribution maps ``{slug}.{apex}`` to the served ``{slug}/`` prefix
+#: (``application_publish``/``public_page_artifact_store`` write the canonical ``{slug}.jabaki.nl``
+#: URL). CORS Option B (R5.1/5.5) admits that form's OWN resolved slug host — computed from the
+#: apex HERE, never a hardcode and NEVER a broad ``*.{apex}`` wildcard. The canonical public-pages
+#: apex is ``jabaki.nl`` (the SAME value ``application_publish`` bakes into the canonical URL), so
+#: that is the resolved default; a stack/test may override it per env via this var. An explicitly
+#: BLANK override resolves to NO apex, so the slug-host union member is simply SKIPPED (CORS stays
+#: fail-closed — a missing apex never raises and never widens the allow-list, it only declines to
+#: add the one slug-host member).
+APEX_ENV = "PUBLIC_FORM_APEX"
+
+#: The canonical public-pages apex the published form is served on when :data:`APEX_ENV` is unset.
+#: Mirrors the apex ``application_publish`` already bakes into the canonical ``{slug}.jabaki.nl``
+#: URL, so the CORS slug-host and the served host cannot drift.
+_DEFAULT_FORM_APEX = "jabaki.nl"
+
 
 class _PublicResult:
     """A completed public read/write result + the RESOLVED tenant (for the 200's per-tenant CORS).
@@ -172,11 +190,20 @@ class _PublicResult:
     (verify-before-trust) — never a client value.
     """
 
-    __slots__ = ("data", "tenant_id")
+    __slots__ = ("data", "tenant_id", "resolved_slug")
 
-    def __init__(self, data: Any, *, tenant_id: str | None = None):
+    def __init__(
+        self,
+        data: Any,
+        *,
+        tenant_id: str | None = None,
+        resolved_slug: str | None = None,
+    ):
         self.data = data
         self.tenant_id = tenant_id
+        # The slug the route resolved to this tenant for THIS request (CORS Option B, task 7.1) —
+        # so the 200 admits the form's OWN host `https://{resolved_slug}.{apex}`.
+        self.resolved_slug = resolved_slug
 
 
 class PublicAbuseRejected(Exception):
@@ -217,9 +244,18 @@ class PublicRouteNotImplemented(Exception):
     the tenant's ``application_embed_origins`` even while the service behind it is pending.
     """
 
-    def __init__(self, message: str = "", *, tenant_id: str | None = None):
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        tenant_id: str | None = None,
+        resolved_slug: str | None = None,
+    ):
         super().__init__(message)
         self.tenant_id = tenant_id
+        # The slug the route resolved to this tenant (CORS Option B, task 7.1) so even the 501
+        # honours the form's OWN slug host, consistent with the 200.
+        self.resolved_slug = resolved_slug
 
 
 # ── CORS (R10.3) — restrict the one Access-Control-Allow-Origin header ────────────────
@@ -282,8 +318,49 @@ def _tenant_embed_origins(tenant_id: str | None) -> list[str]:
         return []
 
 
+def _form_apex() -> str | None:
+    """The per-env PUBLIC-PAGES apex the published form is served on (R5.1), resolved at call time.
+
+    Reads :data:`APEX_ENV` and trims it; an UNSET var resolves to the canonical
+    :data:`_DEFAULT_FORM_APEX` (``jabaki.nl`` — the SAME apex ``application_publish`` bakes into the
+    served canonical URL, so the CORS slug-host and the served host cannot drift). An explicitly
+    BLANK override resolves to ``None`` so the slug-host union member is SKIPPED — a missing apex
+    NEVER raises and NEVER widens the allow-list (CORS stays fail-closed); it only declines to add
+    the one slug-host member. Resolved per request (not import-time) so a stack param / a test
+    ``monkeypatch.setenv`` is honoured without reloading the module (mirrors :func:`_allowed_origins`).
+    """
+    raw = os.environ.get(APEX_ENV)
+    if raw is None:
+        return _DEFAULT_FORM_APEX
+    apex = raw.strip()
+    return apex or None
+
+
+def _resolved_slug_host(resolved_slug: str | None) -> str | None:
+    """The published form's OWN origin ``https://{resolved_slug}.{apex}`` for CORS Option B (R5.1).
+
+    The TIGHTEST CORS match (design Round 2 "CORS Option B"): the form's OWN host for the slug the
+    route ALREADY resolved from the ``_slugs/{slug}`` marker for THIS request (verify-before-trust —
+    never a raw/client value). Returns ``None`` — so NO slug-host member is unioned into the
+    allow-list — when there is no resolved slug (e.g. the non-probeable 404 branches, where no slug
+    resolved) OR when the apex is unset/blank (:func:`_form_apex`). Both cases keep CORS fail-closed:
+    a request is admitted by the slug host ONLY when a real resolved slug AND a configured apex
+    compose the form's own origin — never a broad ``*.{apex}`` wildcard, never a foreign host.
+    """
+    if not isinstance(resolved_slug, str) or not resolved_slug.strip():
+        return None
+    apex = _form_apex()
+    if not apex:
+        return None
+    return f"https://{resolved_slug.strip()}.{apex}"
+
+
 def _apply_cors_origin(
-    response: dict, request: ParsedRequest, *, tenant_id: str | None = None
+    response: dict,
+    request: ParsedRequest,
+    *,
+    tenant_id: str | None = None,
+    resolved_slug: str | None = None,
 ) -> dict:
     """Restrict the response's ``Access-Control-Allow-Origin`` to the form origin(s) (R10.3/R5.2).
 
@@ -292,11 +369,19 @@ def _apply_cors_origin(
     site, so this REPLACES that one header per the allow-list, leaving the rest of the shared
     envelope (and the authenticated edge) untouched. The allow-list is the UNION of:
 
-    - the STATIC stack-wide baseline (:func:`_allowed_origins`, e.g. the canonical form host); and
+    - the STATIC stack-wide baseline (:func:`_allowed_origins`, e.g. the canonical form host);
     - the PER-TENANT ``application_embed_origins`` (:func:`_tenant_embed_origins`) — supplied ONLY
       when the route resolved to an allow-listed ``tenant_id`` (task 5.3). On the non-probeable
       404 branches ``tenant_id`` is ``None``, so those responses carry the static baseline ONLY
-      and an unknown-slug / unknown-path 404 stay indistinguishable (R2.3/R1a.4).
+      and an unknown-slug / unknown-path 404 stay indistinguishable (R2.3/R1a.4); and
+    - CORS Option B (task 7.1, R5.1/R5.5): the form's OWN resolved slug host
+      ``https://{resolved_slug}.{apex}`` (:func:`_resolved_slug_host`) — supplied ONLY when the
+      route has resolved the slug to its tenant for THIS request (never a raw/client value), so the
+      published per-tenant host ``{slug}.{apex}`` the form is served on can read its own submit
+      response. This is the TIGHTEST widening: a single exact host, computed from the per-env apex
+      (:func:`_form_apex`), NEVER a broad ``*.{apex}`` wildcard — so no foreign ``*.{apex}`` site is
+      admitted. On the non-probeable 404 branches ``resolved_slug`` is ``None`` (nothing resolved),
+      so no slug-host member is added and those responses stay indistinguishable.
 
     Decision (fail-closed, never ``*``):
 
@@ -313,6 +398,12 @@ def _apply_cors_origin(
     headers = dict(response.get("headers") or {})
     origin = _request_origin(request)
     allowed = _allowed_origins() + _tenant_embed_origins(tenant_id)
+    # CORS Option B (task 7.1): union the form's OWN resolved slug host when the route resolved a
+    # slug for THIS request (and the apex is configured). ``None`` (no resolved slug / no apex) adds
+    # nothing — the union stays the static baseline ∪ tenant embed origins (fail-closed).
+    slug_host = _resolved_slug_host(resolved_slug)
+    if slug_host and slug_host not in allowed:
+        allowed = allowed + [slug_host]
     if origin and origin in allowed:
         headers["Access-Control-Allow-Origin"] = origin
         # A shared cache must key on Origin so it never serves origin A its cached
@@ -748,8 +839,10 @@ def _dispatch_public(request: ParsedRequest) -> Any:
             schema = _assert_fail_closed_public_schema(
                 _application_service().get_public_field_config(tenant_id)
             )
-            # Carry the resolved tenant so the 200's CORS honours its embed origins (task 5.3).
-            return _PublicResult(schema, tenant_id=tenant_id)
+            # Carry the resolved tenant AND the resolved slug so the 200's CORS honours the
+            # tenant's embed origins (task 5.3) AND the form's OWN slug host (CORS Option B,
+            # task 7.1) — the published `{slug}.{apex}` host can read its own field-config.
+            return _PublicResult(schema, tenant_id=tenant_id, resolved_slug=slug)
         except ApplicationNotAvailable as exc:
             # Publication gate (R5.3 / SEC-5): a resolved-but-not-send-ready tenant is NOT
             # accepting applications yet — on the PUBLIC read this must be INDISTINGUISHABLE from
@@ -822,8 +915,10 @@ def _dispatch_public(request: ParsedRequest) -> Any:
         )
         raise PublicTenantNotFound(slug) from exc
 
-    # Carry the resolved tenant so the 200's CORS honours its authored embed origins (task 5.3).
-    return _PublicResult(record, tenant_id=tenant_id)
+    # Carry the resolved tenant AND the resolved slug so the 200's CORS honours the tenant's
+    # authored embed origins (task 5.3) AND the form's OWN slug host (CORS Option B, task 7.1) —
+    # the published `{slug}.{apex}` host can read its own submit response.
+    return _PublicResult(record, tenant_id=tenant_id, resolved_slug=slug)
 
 
 # ── Lambda entry point (the public, token-less edge — D27) ────────────────────────────
@@ -901,6 +996,7 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             _error(501, "Not implemented", code="errors.api.notImplemented"),
             request,
             tenant_id=exc.tenant_id,
+            resolved_slug=exc.resolved_slug,
         )
     except MemberValidationError as exc:
         # SEC-2 (task 4.2): the submit failed the authoritative server-side per-field validation
@@ -951,6 +1047,9 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
     # Task 4, which returns the AcceptedResult the service layer marks.)
     if isinstance(result, _PublicResult):
         return _apply_cors_origin(
-            _response(200, {"data": result.data}), request, tenant_id=result.tenant_id
+            _response(200, {"data": result.data}),
+            request,
+            tenant_id=result.tenant_id,
+            resolved_slug=result.resolved_slug,
         )
     return _apply_cors_origin(_response(200, {"data": result}), request)

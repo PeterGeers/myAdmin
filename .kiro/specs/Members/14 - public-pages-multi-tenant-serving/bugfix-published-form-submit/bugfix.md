@@ -140,3 +140,115 @@ as before — the landing module is not modified by this fix (spec 14 Scope deci
 SHALL NOT re-derive a field list or let any raw record shape cross the boundary (steering 39) —
 the already-rendered `required` flag, input types, group/section ordering, labels, and the shared
 `LandingPageStyles` CSS SHALL be preserved.
+
+---
+
+# Round 2 — defects found testing the shipped fix in TEST
+
+The Round-1 fix shipped and the published form now renders a working `preventDefault`ed submit
+script with client-side `format` checks and a consent checkbox. Exercising that artifact in TEST
+surfaced that **submit still fails for the applicant**. Three defects were confirmed this session
+against the current code; they are the SAME broken submit flow (the applicant cannot complete a
+submission), so they are fixed together as a second round under the same bug condition. The
+Round-1 sections (1/2/3) are unchanged; Round 2 CONTINUES the numbering with Current Behavior
+(section 4), Expected Behavior (section 5), and Unchanged Behavior (section 6).
+
+The three facets:
+
+- **CORS** — the published per-tenant host `{slug}.jabaki.nl` is NOT in the submit endpoint's CORS
+  allow-list, so the browser drops `Access-Control-Allow-Origin` and BLOCKS the read; the fetch
+  rejects and the applicant only ever sees the generic "could not be processed" catch-all — the
+  real 422 is never readable.
+- **NOTICE_TEXT** — the published form serves only the consent notice `version` (no TEXT), so the
+  applicant cannot SEE or meaningfully ACCEPT the notice; and because the full notice is not
+  served, consent is posted empty and the backend returns a 422 `CONSENT_REQUIRED`.
+- **ERROR_CLARITY** — once CORS is fixed the real 422 is readable, but the submit script maps only
+  a generic catch-all; the consent-required 422 and per-field 422s are not surfaced clearly near
+  their controls.
+
+## Already handled (NO-OP — do not change)
+
+The applicant's consent ACCEPTANCE is ALREADY STORED IN SAM. `create_application`
+(`_membership_writes_application.py::_stamp_application_consent`) stamps a server-authoritative
+`consent = {version, accepted_at, locale}` onto the member record in DynamoDB — version resolved
+server-side via `get_consent_notice_version`, timestamp server-UTC, locale normalized. So "store
+consent in SAM" is DONE. Round 2 is ONLY: (1) let the applicant SEE + ACCEPT the notice (serve +
+render its TEXT), (2) CORS so the submit response is readable, (3) clear error messages.
+
+## Bug Analysis — Round 2
+
+### Current Behavior (Defect) — Round 2
+
+4.1 WHEN an applicant submits the published form served per-tenant at `https://{slug}.jabaki.nl`
+(e.g. `hdcn-aanmelden.jabaki.nl`) which POSTs cross-origin to the separate public API
+(`MembersPublicApi`) THEN `public_app.py::_apply_cors_origin` echoes `Access-Control-Allow-Origin`
+ONLY when the request `Origin` is an EXACT-STRING member of `_allowed_origins()`
+(the `PUBLIC_FORM_ALLOWED_ORIGINS` env — a SINGLE canonical host per env) unioned with the tenant's
+`application_embed_origins`; the per-slug published host `{slug}.jabaki.nl` is in NEITHER, so the
+browser drops the CORS header and BLOCKS the read, the submit fetch rejects, and the applicant sees
+only the generic "Je aanmelding kon niet worden verwerkt" catch-all — the real 422 is never
+readable.
+
+4.2 WHEN the published form is served THEN `get_public_field_config`
+(`_membership_writes_fieldconfig.py`) returns `notice = {"version": ...}` ONLY (wired to
+`_consent_notice_provider.get_consent_notice_version`), so the applicant is shown NO notice TEXT to
+read and accept — even though the FULL notice `{version, text}` already exists in SAM on the
+`config#mail` row and is readable via `MembersProjectionReader.get_consent_notice(tenant_id)`.
+
+4.3 WHEN the published renderer builds the consent control and only a notice VERSION (no text) is
+served THEN the applicant cannot meaningfully give consent, so the posted body carries empty/absent
+consent and the backend returns a 422 `CONSENT_REQUIRED` (synthetic field key `consent`) — the
+submit is rejected.
+
+4.4 WHEN the backend returns a 422 (consent-required, synthetic field key `consent` / code
+`CONSENT_REQUIRED`, or a per-field validation error) THEN the submit script maps it only to the
+generic catch-all message, so the applicant is not told clearly that consent is required or which
+field is invalid.
+
+### Expected Behavior (Correct) — Round 2
+
+5.1 WHEN an applicant submits the published form from its own per-tenant host
+`https://{slug}.jabaki.nl` THEN `public_app.py` SHALL allow the request `Origin` when it equals the
+RESOLVED form's OWN host `https://{resolved_slug}.{apex}`, where `resolved_slug` is the slug already
+resolved from the `_slugs/{slug}` marker for THAT request and `apex` comes from a per-env
+config/env var (NOT hardcoded, NO broad `*.jabaki.nl` wildcard), unioned with the existing static
+baseline (`_allowed_origins()`) and the tenant's `application_embed_origins` — so the browser
+receives `Access-Control-Allow-Origin` and the submit response is readable; any other origin SHALL
+remain fail-closed (the header is dropped, never `*`).
+
+5.2 WHEN the published form is served THEN `get_public_field_config` SHALL surface the FULL consent
+notice `{version, text}` (sourced from `get_consent_notice`, wired via a provider exposing
+`get_consent_notice`; the projection reader already satisfies it) instead of version-only, keeping
+empty-is-valid (`None`/absent notice stays valid).
+
+5.3 WHEN the published renderer builds the consent control and a notice is present THEN it SHALL
+render the notice TEXT (localized, HTML-escaped) ABOVE the consent checkbox, with the checkbox bound
+to `notice.version`, styled with the shared `LandingPageStyles` classes (no new CSS source); the
+checkbox SHALL render whenever there is a notice, so consent can be given.
+
+5.4 WHEN the backend returns a 422 THEN the submit script SHALL map the consent-required 422
+(synthetic field key `consent`, code `CONSENT_REQUIRED`) to a clear inline message near the consent
+control, and field 422s to inline messages near their respective fields, reserving a neutral generic
+message only for genuinely opaque / 5xx cases.
+
+### Unchanged Behavior (Regression Prevention) — Round 2
+
+6.1 WHEN a submit reaches the backend public endpoint THEN the system SHALL CONTINUE TO run its
+consent gate unchanged — `_consent_is_affirmative` requires `accepted === true`, fail-closed — and
+SHALL NOT be weakened by the CORS or render changes.
+
+6.2 WHEN `create_application` stamps consent THEN the system SHALL CONTINUE TO write the
+server-authoritative `consent = {version, accepted_at, locale}` onto the member record exactly as
+today (`_stamp_application_consent`) — this is already DONE and is NOT modified.
+
+6.3 WHEN the in-app SPA form, the Flask landing plane, or the `config#mail` write path
+(`config_write_service._shape_consent_notice`) runs THEN the system SHALL CONTINUE TO behave exactly
+as today — none are modified by Round 2.
+
+6.4 WHEN the published renderer consumes field config THEN `get_public_field_config` SHALL CONTINUE
+TO be the single field authority (no raw-shape leak, steering 39); surfacing the full notice SHALL
+add only `text` alongside the existing `version` and SHALL NOT expose any raw record shape.
+
+6.5 WHEN the request `Origin` is not the resolved form's own host, not in the static baseline, and
+not in the tenant's `application_embed_origins` THEN CORS SHALL CONTINUE TO be fail-closed (drop the
+header, never `*`) exactly as today — no foreign `*.jabaki.nl` site is permitted.

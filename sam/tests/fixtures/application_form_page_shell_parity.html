@@ -198,6 +198,13 @@
 
   var CHECKERS = { EMAIL: checkEmail, IBAN: checkIban };
 
+  // The synthetic field key the backend uses for the consent reject (code CONSENT_REQUIRED —
+  // `_membership_writes_application._CONSENT_FIELD_KEY`). The wire `code` is the shared
+  // `errors.validation.required` i18n leaf, so the RELIABLE runtime signal is the field KEY,
+  // not the code — a 422 entry whose `field === "consent"` is the consent-required reject and
+  // is mapped to a clear message near the consent control (`[data-field="consent"]`).
+  var CONSENT_REQUIRED = "consent";
+
   function controls() {
     // Every named field control inside the form (inputs / selects / textareas), skipping the
     // honeypot and the submit button.
@@ -207,8 +214,21 @@
   }
 
   function fieldWrap(el) {
-    var wrap = el.closest ? el.closest(".form-field") : null;
+    // The per-field wrapper is `.form-field`; the submit-contract controls (consent, locale)
+    // sit in a sibling `.form-meta-field` wrapper (the consent control is
+    // `<div class="form-meta-field" data-field="consent">`). Resolve either so the inline
+    // message lands inside the control's own wrapper, next to what it refers to.
+    var wrap = el.closest ? el.closest(".form-field, .form-meta-field") : null;
     return wrap || el.parentNode;
+  }
+
+  function wrapForField(name) {
+    // Prefer the control carrying this `name`; fall back to the `[data-field="{name}"]` wrapper
+    // (the consent control is addressed by its synthetic `data-field="consent"` key). This lets
+    // a server 422 for a synthetic key with no live `[name]` control still resolve a wrapper.
+    var el = form.querySelector('[name="' + name + '"]');
+    if (el) { return fieldWrap(el); }
+    return form.querySelector('[data-field="' + name + '"]');
   }
 
   function clearErrors() {
@@ -219,9 +239,8 @@
   }
 
   function showFieldError(name, message) {
-    var el = form.querySelector('[name="' + name + '"]');
-    if (!el) { return; }
-    var wrap = fieldWrap(el);
+    var wrap = wrapForField(name);
+    if (!wrap) { return; }
     var msg = document.createElement("div");
     msg.className = "field-error";
     msg.setAttribute("role", "alert");
@@ -326,23 +345,42 @@
           return;
         }
         if (response.status === 422) {
+          // The 422 body is the shared per-field envelope: `{errors:[{field, code, detail}]}`
+          // (handler `_field_errors_array`). Map EACH entry inline next to its control by its
+          // `field` key; the consent reject arrives on the synthetic `CONSENT_REQUIRED` field
+          // key (`consent`) and lands near the consent control (`[data-field="consent"]`). The
+          // server `detail` is shown via textContent only (never innerHTML) — no markup inject.
           return response.json().then(function (data) {
             var arr = (data && data.errors) || [];
             if (Array.isArray(arr) && arr.length) {
+              var sawConsent = false;
               arr.forEach(function (entry) {
-                if (entry && entry.field) {
+                if (!entry || !entry.field) { return; }
+                if (entry.field === CONSENT_REQUIRED) {
+                  // Consent-required: a clear, consent-adjacent message near the checkbox.
+                  sawConsent = true;
+                  showFieldError(
+                    CONSENT_REQUIRED,
+                    entry.detail || "Je moet akkoord gaan om je aanmelding te versturen."
+                  );
+                } else {
                   showFieldError(entry.field, entry.detail || "Ongeldige waarde.");
                 }
               });
-              neutral("Controleer de gemarkeerde velden.");
+              neutral(
+                sawConsent
+                  ? "Ga akkoord met de voorwaarden en controleer de gemarkeerde velden."
+                  : "Controleer de gemarkeerde velden."
+              );
             } else {
+              // A 422 with no usable per-field array — treat as a neutral validation nudge.
               neutral("Controleer je gegevens en probeer het opnieuw.");
             }
           }).catch(function () {
             neutral("Controleer je gegevens en probeer het opnieuw.");
           });
         }
-        // 404 / neutral states — deliberately non-probeable, no internal detail.
+        // 404 / 5xx / any other opaque state — deliberately non-probeable, no internal detail.
         neutral("Je aanmelding kon niet worden verwerkt. Probeer het later opnieuw.");
       })
       .catch(function () {

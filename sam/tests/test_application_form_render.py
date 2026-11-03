@@ -398,7 +398,14 @@ def test_consent_and_locale_reuse_shared_styling_classes():
     (the shared `LandingPageStyles` look, no new CSS source) — NOT a bolted-on new class."""
     body = build_form_body_html(_config_with_notice("v1"))
     assert '<fieldset class="form-group" data-group="_meta">' in body
-    assert body.count('class="form-meta-field"') == 2  # locale + consent
+    # Exactly two meta-control WRAPPERS in the rendered MARKUP — locale + consent. Scope the count
+    # to the markup before the embedded submit `<script>` (as the sibling XSS/consent tests in this
+    # file already do): Round-2 Task 7.4's inline-error script carries an explanatory comment that
+    # quotes `<div class="form-meta-field" data-field="consent">`, so counting the whole body also
+    # matches that script PROSE. The invariant is unchanged (two rendered wrappers) — it is just
+    # measured against the emitted markup, not a string the script happens to mention.
+    markup = body.split("<script")[0]
+    assert markup.count('<div class="form-meta-field"') == 2  # locale + consent
     # They live inside the form, before the submit button / script.
     assert body.index('data-group="_meta"') < body.index("Verstuur")
 

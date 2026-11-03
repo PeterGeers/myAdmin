@@ -232,28 +232,67 @@ def _render_locale_selector(public_field_config: Mapping[str, Any]) -> str:
     )
 
 
-def _render_consent_control(public_field_config: Mapping[str, Any]) -> str:
-    """Render the consent checkbox bound to the config's ``notice.version`` (bugfix Task 3.3 / R2.4).
+def _notice_text_for(notice: Mapping[str, Any], locale: str) -> str:
+    """Pick the consent notice body in the applicant locale, defaulting to ``nl`` (bugfix Round-2
+    Task 7.3 / R5.3).
+
+    The Round-2 surfacing (Task 7.2) serves the FULL notice ``{version, text}`` where ``text`` is a
+    locale→string map (e.g. ``{"nl": "...", "en": "..."}``). This mirrors :func:`_label_for`'s
+    locale/``nl`` fallback contract exactly: choose the chosen locale, fall back to ``nl``, then to
+    any present non-blank body. A missing / malformed ``text`` (not a mapping, or no non-blank body)
+    degrades to ``""`` — the control then renders the checkbox with no notice paragraph (parity with
+    the label degrade). The returned value is config-origin DATA and is HTML-escaped by the caller
+    before it enters markup.
+    """
+    text = notice.get("text")
+    if isinstance(text, Mapping):
+        for candidate in (locale, "nl"):
+            value = text.get(candidate)
+            if value and str(value).strip():
+                return str(value)
+        for value in text.values():
+            if value and str(value).strip():
+                return str(value)
+    return ""
+
+
+def _render_consent_control(
+    public_field_config: Mapping[str, Any], locale: str = "nl"
+) -> str:
+    """Render the localized consent notice TEXT + checkbox bound to ``notice.version`` (bugfix
+    Round-2 Task 7.3 / R5.3, R6.4; builds on Round-1 Task 3.3 / R2.4).
 
     The backend REQUIRES a ``consent`` object on submit and stamps the authoritative consent record
-    against the notice version; a submit without it is hard-rejected. The config exposes the version
-    under ``notice = {"version": ...}``. This renders a ``<input type="checkbox" name="consent">``
-    carrying the version as a ``data-notice-version`` attribute — the embedded submit script reads
-    ``consentEl.checked`` + ``consentEl.getAttribute("data-notice-version")`` into the posted
-    ``consent`` object (``collect()``). The version is HTML-escaped (config-origin DATA) so it can
-    never break out of the attribute.
+    against the notice version; a submit without it is hard-rejected. The Round-2 surfacing serves
+    the FULL notice ``{version, text}`` (``text`` a locale→string map). When a notice IS present
+    this renders, in order:
 
-    Degrade-gracefully contract: a missing ``notice`` or a ``None``/empty version means there is no
-    notice to consent to, so NO consent control is rendered (returns ``""``) — the already-correct
-    render output for a notice-less config is unchanged (the parity golden config carries
-    ``notice.version = None`` and therefore renders no consent control).
+      1. the localized ``text[locale]`` (``nl`` fallback, :func:`_notice_text_for`), HTML-escaped,
+         as a ``<p class="consent-notice-text">`` ABOVE the checkbox so the applicant can READ what
+         they are accepting (Round-2 Defect 2 — the text was previously not served/rendered, so
+         consent was posted empty → 422 ``CONSENT_REQUIRED``);
+      2. the ``<input type="checkbox" name="consent">`` carrying the version as a
+         ``data-notice-version`` attribute — the embedded submit script reads ``consentEl.checked``
+         + ``consentEl.getAttribute("data-notice-version")`` into the posted ``consent`` object
+         (``collect()``).
 
-    Styled with the SAME ``<label>`` + control structure and the shared ``LandingPageStyles`` look
-    as every other control (R2.5 — no new CSS source). It uses the ``form-meta-field`` wrapper class
-    (a sibling of the field ``form-field`` class) so it is visually consistent yet is NOT counted as
-    a config FIELD by the preservation field-count invariant (consent is a submit-contract control,
-    not a tenant field). No ``required`` attribute is emitted (the server is the authoritative
-    enforcer of consent), so the preservation ``body.count(" required")`` invariant is untouched.
+    EVERY config-origin value (the notice ``text`` body and the ``version``) is HTML-escaped so it
+    can never break out of markup (steering 39 — config-origin values escaped). Localization reuses
+    the SAME locale/``nl`` fallback as field labels (:func:`_label_for`).
+
+    Degrade-gracefully contract (unchanged, empty-is-valid): a missing ``notice`` or a ``None``/empty
+    version means there is no notice to consent to, so NO consent control is rendered (returns
+    ``""``) — the already-correct notice-LESS render output stays byte-identical (the Round-2
+    preservation golden config carries ``notice.version = None`` and therefore renders nothing).
+    When a notice IS present the checkbox is rendered whenever there is a version, so consent can be
+    given even if a locale body happens to be blank (the text paragraph is simply omitted then).
+
+    Styled with the SAME shared ``LandingPageStyles`` look as every other control (R2.5/R6.4 — no
+    new CSS source): the wrapper reuses the ``form-meta-field`` class (a sibling of the field
+    ``form-field`` class) so it is visually consistent yet is NOT counted as a config FIELD by the
+    preservation field-count invariant, and the notice paragraph reuses the shared ``<p>`` typography.
+    No ``required`` attribute is emitted (the server is the authoritative enforcer of consent), so
+    the preservation ``body.count(" required")`` invariant is untouched.
     """
     notice = public_field_config.get("notice")
     version = ""
@@ -265,8 +304,18 @@ def _render_consent_control(public_field_config: Mapping[str, Any]) -> str:
         return ""
 
     version_attr = _html.escape(version)
+    # The localized notice body (nl fallback) is config-origin DATA — HTML-escaped before it enters
+    # markup. An absent/blank body degrades to no paragraph; the checkbox still renders so consent
+    # can be given (the version is the binding, the text is the human-readable explanation).
+    notice_text = _notice_text_for(notice, locale) if isinstance(notice, Mapping) else ""
+    notice_paragraph = (
+        f'  <p class="consent-notice-text">{_html.escape(notice_text)}</p>\n'
+        if notice_text
+        else ""
+    )
     return (
         '<div class="form-meta-field" data-field="consent">\n'
+        f"{notice_paragraph}"
         '  <label for="consent">\n'
         f'    <input type="checkbox" id="consent" name="consent" data-notice-version="{version_attr}" />\n'
         "    Ik ga akkoord\n"
@@ -364,13 +413,15 @@ def build_form_body_html(
     # new CSS, R2.5). The submit script (Task 3.2) already reads them off the DOM:
     #   * the locale `<select name="locale">` (options = config `locales`, first selected) ->
     #     `collect()` reads it into `locale`;
-    #   * the consent `<input type="checkbox" name="consent" data-notice-version=...>` bound to
-    #     `notice.version` -> `collect()` stamps `consent.accepted` + `consent.version`.
+    #   * the consent control: the localized `notice.text[locale]` (nl fallback, HTML-escaped) as a
+    #     `<p>` ABOVE a `<input type="checkbox" name="consent" data-notice-version=...>` bound to
+    #     `notice.version` (bugfix Round-2 Task 7.3) -> `collect()` stamps `consent.accepted` +
+    #     `consent.version`; the applicant can now READ the notice before accepting it.
     # Consent degrades to "" when the config has no notice version (parity golden config), so the
     # already-correct notice-less render output is unchanged. Neither control carries a ` required`
     # attribute, so the preservation `body.count(" required")` invariant is untouched.
     locale_selector = _render_locale_selector(public_field_config)
-    consent_control = _render_consent_control(public_field_config)
+    consent_control = _render_consent_control(public_field_config, locale)
     meta_controls = "\n".join(c for c in (locale_selector, consent_control) if c)
     if meta_controls:
         # Wrap the submit-contract controls in a trailing `<fieldset class="form-group">` so they
@@ -472,6 +523,13 @@ _SUBMIT_SCRIPT = """<script>
 
   var CHECKERS = { EMAIL: checkEmail, IBAN: checkIban };
 
+  // The synthetic field key the backend uses for the consent reject (code CONSENT_REQUIRED —
+  // `_membership_writes_application._CONSENT_FIELD_KEY`). The wire `code` is the shared
+  // `errors.validation.required` i18n leaf, so the RELIABLE runtime signal is the field KEY,
+  // not the code — a 422 entry whose `field === "consent"` is the consent-required reject and
+  // is mapped to a clear message near the consent control (`[data-field="consent"]`).
+  var CONSENT_REQUIRED = "consent";
+
   function controls() {
     // Every named field control inside the form (inputs / selects / textareas), skipping the
     // honeypot and the submit button.
@@ -481,8 +539,21 @@ _SUBMIT_SCRIPT = """<script>
   }
 
   function fieldWrap(el) {
-    var wrap = el.closest ? el.closest(".form-field") : null;
+    // The per-field wrapper is `.form-field`; the submit-contract controls (consent, locale)
+    // sit in a sibling `.form-meta-field` wrapper (the consent control is
+    // `<div class="form-meta-field" data-field="consent">`). Resolve either so the inline
+    // message lands inside the control's own wrapper, next to what it refers to.
+    var wrap = el.closest ? el.closest(".form-field, .form-meta-field") : null;
     return wrap || el.parentNode;
+  }
+
+  function wrapForField(name) {
+    // Prefer the control carrying this `name`; fall back to the `[data-field="{name}"]` wrapper
+    // (the consent control is addressed by its synthetic `data-field="consent"` key). This lets
+    // a server 422 for a synthetic key with no live `[name]` control still resolve a wrapper.
+    var el = form.querySelector('[name="' + name + '"]');
+    if (el) { return fieldWrap(el); }
+    return form.querySelector('[data-field="' + name + '"]');
   }
 
   function clearErrors() {
@@ -493,9 +564,8 @@ _SUBMIT_SCRIPT = """<script>
   }
 
   function showFieldError(name, message) {
-    var el = form.querySelector('[name="' + name + '"]');
-    if (!el) { return; }
-    var wrap = fieldWrap(el);
+    var wrap = wrapForField(name);
+    if (!wrap) { return; }
     var msg = document.createElement("div");
     msg.className = "field-error";
     msg.setAttribute("role", "alert");
@@ -600,23 +670,42 @@ _SUBMIT_SCRIPT = """<script>
           return;
         }
         if (response.status === 422) {
+          // The 422 body is the shared per-field envelope: `{errors:[{field, code, detail}]}`
+          // (handler `_field_errors_array`). Map EACH entry inline next to its control by its
+          // `field` key; the consent reject arrives on the synthetic `CONSENT_REQUIRED` field
+          // key (`consent`) and lands near the consent control (`[data-field="consent"]`). The
+          // server `detail` is shown via textContent only (never innerHTML) — no markup inject.
           return response.json().then(function (data) {
             var arr = (data && data.errors) || [];
             if (Array.isArray(arr) && arr.length) {
+              var sawConsent = false;
               arr.forEach(function (entry) {
-                if (entry && entry.field) {
+                if (!entry || !entry.field) { return; }
+                if (entry.field === CONSENT_REQUIRED) {
+                  // Consent-required: a clear, consent-adjacent message near the checkbox.
+                  sawConsent = true;
+                  showFieldError(
+                    CONSENT_REQUIRED,
+                    entry.detail || "Je moet akkoord gaan om je aanmelding te versturen."
+                  );
+                } else {
                   showFieldError(entry.field, entry.detail || "Ongeldige waarde.");
                 }
               });
-              neutral("Controleer de gemarkeerde velden.");
+              neutral(
+                sawConsent
+                  ? "Ga akkoord met de voorwaarden en controleer de gemarkeerde velden."
+                  : "Controleer de gemarkeerde velden."
+              );
             } else {
+              // A 422 with no usable per-field array — treat as a neutral validation nudge.
               neutral("Controleer je gegevens en probeer het opnieuw.");
             }
           }).catch(function () {
             neutral("Controleer je gegevens en probeer het opnieuw.");
           });
         }
-        // 404 / neutral states — deliberately non-probeable, no internal detail.
+        // 404 / 5xx / any other opaque state — deliberately non-probeable, no internal detail.
         neutral("Je aanmelding kon niet worden verwerkt. Probeer het later opnieuw.");
       })
       .catch(function () {
