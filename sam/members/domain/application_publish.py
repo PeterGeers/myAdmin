@@ -63,6 +63,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
+from services.dynamodb_client import require_env
+
 from sam.members.domain.application_form_render import render_application_form_page
 from sam.members.domain.application_readiness import (
     MailReadinessProvider,
@@ -88,6 +90,8 @@ __all__ = [
     "FORM_OWNER_PLANE",
     "FORM_OWNER_KIND",
     "FORM_RESOURCE_REF",
+    "PUBLIC_API_BASE_ENV_VAR",
+    "resolve_public_api_base",
     "ApplicationPublishService",
 ]
 
@@ -99,6 +103,36 @@ __all__ = [
 FORM_OWNER_PLANE = "sam"
 FORM_OWNER_KIND = "application_form"
 FORM_RESOURCE_REF = "config#fields"
+
+#: The publish-time env var carrying the PUBLIC API base URL baked into the served artifact
+#: (bugfix ``bugfix-published-form-submit`` Task 3.1 / R2.6). The published static page cannot
+#: read ``VITE_*``, so the submit script's ``fetch`` target
+#: (``POST {base}/public/members/{slug}/applications``) must be resolved at PUBLISH time and
+#: baked in. Resolved with NO silent default via :func:`resolve_public_api_base` — mirroring the
+#: ``GOVERNANCE_PROJECTION_TABLE`` fail-fast model (steering 39): a missing value raises at the
+#: first real publish rather than silently targeting the wrong backend per environment.
+PUBLIC_API_BASE_ENV_VAR = "PUBLIC_API_BASE_URL"
+
+
+def resolve_public_api_base() -> str:
+    """Resolve the PUBLIC API base URL from the publish-time env var (fail-fast, no default).
+
+    Reads :data:`PUBLIC_API_BASE_ENV_VAR` via the projection layer's
+    :func:`services.dynamodb_client.require_env` — the SAME fail-fast resource-resolution helper
+    the SAM repositories use (``GOVERNANCE_PROJECTION_TABLE`` model, steering 39). There is NO
+    default fallback: a missing/blank value raises :class:`services.dynamodb_client.
+    DynamoDBConfigError` at the first real publish, so a mis-configured environment fails loudly
+    rather than baking the WRONG backend address into every published artifact. No boto3, no
+    plane-crossing — the base is DATA resolved from env at publish time.
+
+    Returns:
+        The stripped, non-empty public API base URL (e.g. ``https://api.example.com``) the
+        submit script's ``fetch`` targets.
+
+    Raises:
+        DynamoDBConfigError: the env var is unset or blank (fail-fast — no silent default).
+    """
+    return require_env(PUBLIC_API_BASE_ENV_VAR)
 
 
 @runtime_checkable
@@ -517,6 +551,10 @@ class ApplicationPublishService:
             authoritative even if the best-effort invalidation is denied.
 
         Raises:
+            DynamoDBConfigError: the publish-time ``PUBLIC_API_BASE_URL`` env var is unset/blank —
+                resolved fail-fast at the render step (bugfix Task 3.1 / R2.6, no silent default)
+                so a mis-configured environment fails loudly rather than baking the wrong backend
+                address into the artifact.
             PublishNotReady: a readiness precondition (slug / certified sender / on-form field) is
                 missing — NO render or write attempted, typed admin-facing reason.
             PublishSlugRejected: the slug is malformed/reserved or violates the SEC-4 prefix rule
@@ -540,6 +578,13 @@ class ApplicationPublishService:
         # head_meta + body + css to the shared shell. This is the render-only half of publish; the
         # LIVE S3 put + CloudFront invalidation stay GATED (spec 14 Tasks 8/9, R6.4).
         config = self._field_config.get_public_field_config(tenant_id)
+        # Resolve the PUBLIC API base at the FIRST real publish use (fail-fast, no silent default
+        # — bugfix Task 3.1 / R2.6). A missing `PUBLIC_API_BASE_URL` raises here rather than baking
+        # the wrong backend into the artifact. The resolved base + the slug are threaded into the
+        # renderer so a later task's (3.2) submit script can target
+        # `POST {public_api_base}/public/members/{slug}/applications` per environment. No boto3 / no
+        # plane-crossing — this is DATA resolved from env.
+        public_api_base = resolve_public_api_base()
         self._rendered_html = render_application_form_page(
             config,
             head_meta={
@@ -547,6 +592,8 @@ class ApplicationPublishService:
                 "canonical": f"https://{slug}.jabaki.nl/",
                 "site_name": slug,
             },
+            slug=slug,
+            public_api_base=public_api_base,
         )
 
         # ── CLAIM step (spec 14 Task 8.1 — WIRED) ──────────────────────────────────────

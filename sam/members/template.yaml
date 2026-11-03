@@ -832,6 +832,14 @@ Resources:
           GOVERNANCE_PROJECTION_TABLE: !Ref GovernanceProjectionTableName
           # Shared bucket for mail-template bodies/logos (C4) — fail-fast, no default.
           S3_SHARED_BUCKET: !Ref SharedBucketName
+          # Public application-intake API base baked into the PUBLISHED form artifact at publish
+          # time (bugfix `bugfix-published-form-submit`). The publish path resolves this fail-fast
+          # (`application_publish.resolve_public_api_base` -> `require_env('PUBLIC_API_BASE_URL')`,
+          # no default) and threads it into the rendered static page so its submit script POSTs to
+          # `{base}/public/members/{slug}/applications`. Derived from the SAME `MembersPublicApi`
+          # resource as the `MembersPublicApiBaseUrl` output — one source, no hardcoded URL, correct
+          # per environment; a blank value fails loudly at publish rather than baking a wrong base.
+          PUBLIC_API_BASE_URL: !Sub "https://${MembersPublicApi}.execute-api.${Region}.amazonaws.com/${Stage}"
           # NOTE ON `--env-vars` (local): `sam local start-api --env-vars` can only
           #   OVERRIDE variables that are DECLARED here — it cannot ADD undeclared
           #   ones. So every var the local env-vars JSON supplies (the DynamoDB-Local

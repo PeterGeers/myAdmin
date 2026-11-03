@@ -116,7 +116,7 @@
 </head>
 <body>
 <main>
-<form class="application-form" method="post">
+<form class="application-form" method="post" novalidate data-slug="" data-api-base="">
 <fieldset class="form-group" data-group="personal">
   <h2>Persoonlijk</h2>
 <div class="form-field" data-field="first_name">
@@ -146,8 +146,211 @@
   </select>
 </div>
 </fieldset>
+<fieldset class="form-group" data-group="_meta">
+<div class="form-meta-field" data-field="locale">
+  <label for="locale">Taal</label>
+  <select id="locale" name="locale">
+    <option value="nl" selected>nl</option>
+    <option value="en">en</option>
+  </select>
+</div>
+</fieldset>
+<div class="form-status" role="status" aria-live="polite"></div>
 <button type="submit">Verstuur</button>
 </form>
+<script>
+(function () {
+  "use strict";
+  var form = document.querySelector("form.application-form");
+  if (!form) { return; }
+  var status = form.querySelector(".form-status");
+
+  // EMAIL — mirrors field_formats._EMAIL_PATTERN (local@domain.tld, >=1 dot in domain).
+  var EMAIL_RE = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+  function checkEmail(value) {
+    return EMAIL_RE.test(String(value).trim())
+      ? null
+      : "Vul een geldig e-mailadres in.";
+  }
+
+  // IBAN — mirrors field_formats.check_iban: ISO 13616 structure + mod-97 (ISO 7064) checksum.
+  var IBAN_STRUCTURE = /^[A-Z]{2}[0-9]{2}[A-Z0-9]{1,30}$/;
+  function ibanMod97(compact) {
+    var rearranged = compact.slice(4) + compact.slice(0, 4);
+    var remainder = 0;
+    for (var i = 0; i < rearranged.length; i++) {
+      var ch = rearranged.charAt(i);
+      // 'A'-'Z' -> "10".."35"; '0'-'9' -> the digit itself.
+      var chunk = /[A-Z]/.test(ch) ? String(ch.charCodeAt(0) - 55) : ch;
+      for (var j = 0; j < chunk.length; j++) {
+        remainder = (remainder * 10 + (chunk.charCodeAt(j) - 48)) % 97;
+      }
+    }
+    return remainder;
+  }
+  function checkIban(value) {
+    var compact = String(value).replace(/ /g, "").toUpperCase();
+    if (!IBAN_STRUCTURE.test(compact) || ibanMod97(compact) !== 1) {
+      return "Vul een geldig IBAN in.";
+    }
+    return null;
+  }
+
+  var CHECKERS = { EMAIL: checkEmail, IBAN: checkIban };
+
+  function controls() {
+    // Every named field control inside the form (inputs / selects / textareas), skipping the
+    // honeypot and the submit button.
+    return Array.prototype.slice
+      .call(form.querySelectorAll("[name]"))
+      .filter(function (el) { return el.name && el.name !== "website"; });
+  }
+
+  function fieldWrap(el) {
+    var wrap = el.closest ? el.closest(".form-field") : null;
+    return wrap || el.parentNode;
+  }
+
+  function clearErrors() {
+    Array.prototype.slice
+      .call(form.querySelectorAll(".field-error"))
+      .forEach(function (n) { n.parentNode.removeChild(n); });
+    if (status) { status.textContent = ""; status.className = "form-status"; }
+  }
+
+  function showFieldError(name, message) {
+    var el = form.querySelector('[name="' + name + '"]');
+    if (!el) { return; }
+    var wrap = fieldWrap(el);
+    var msg = document.createElement("div");
+    msg.className = "field-error";
+    msg.setAttribute("role", "alert");
+    // textContent — NEVER innerHTML — so a server detail string cannot inject markup.
+    msg.textContent = message;
+    wrap.appendChild(msg);
+  }
+
+  function neutral(message) {
+    if (status) { status.textContent = message; status.className = "form-status form-status-error"; }
+  }
+
+  function clientValidate() {
+    var errors = {};
+    controls().forEach(function (el) {
+      var value = el.value == null ? "" : String(el.value);
+      if (el.hasAttribute("required") && !value.trim()) {
+        errors[el.name] = "Dit veld is verplicht.";
+        return;
+      }
+      if (!value.trim()) { return; }
+      var token = el.getAttribute("data-format");
+      var checker = token ? CHECKERS[token] : null;
+      if (checker) {
+        var problem = checker(value);
+        if (problem) { errors[el.name] = problem; }
+      }
+    });
+    return errors;
+  }
+
+  function collect() {
+    var fields = {};
+    controls().forEach(function (el) {
+      fields[el.name] = el.value == null ? "" : el.value;
+    });
+    // Locale: read a locale/lang selector if the page rendered one (Task 3.3); else the page lang.
+    var localeEl = form.querySelector('[name="locale"], [name="lang"]');
+    var locale = localeEl && localeEl.value
+      ? localeEl.value
+      : (document.documentElement.getAttribute("lang") || "nl");
+    // Consent: read a consent control if present (Task 3.3 wires the real one bound to the notice
+    // version); until then an empty object keeps the backend JSON shape correct.
+    var consentEl = form.querySelector('[name="consent"]');
+    var consent = {};
+    if (consentEl) {
+      consent.accepted = consentEl.type === "checkbox" ? !!consentEl.checked : !!consentEl.value;
+      var version = consentEl.getAttribute("data-notice-version");
+      if (version) { consent.version = version; }
+    }
+    // website is the honeypot — always sent empty from a real browser.
+    return {
+      fields: fields,
+      locale: locale,
+      consent: consent,
+      session_key: form.getAttribute("data-session-key") || undefined,
+      website: ""
+    };
+  }
+
+  function submitUrl() {
+    var base = (form.dataset.apiBase || "").replace(/\/+$/, "");
+    // The backend endpoint is the literal template "/public/members/{slug}/applications" with the
+    // slug read from the DOM (`form.dataset.slug`) and URL-encoded — no config value is ever
+    // interpolated into this string (XSS-safe). The template literal is kept whole so the path
+    // contract is self-evident in the artifact.
+    var path = "/public/members/{slug}/applications".replace(
+      "{slug}", encodeURIComponent(form.dataset.slug || "")
+    );
+    return base + path;
+  }
+
+  form.addEventListener("submit", function (event) {
+    // (a) the native POST to the static /apply page must NEVER fire.
+    event.preventDefault();
+    clearErrors();
+
+    // (b) client-side presence + format checks (convenience; the server 422 stays authoritative).
+    var clientErrors = clientValidate();
+    var names = Object.keys(clientErrors);
+    if (names.length) {
+      names.forEach(function (name) { showFieldError(name, clientErrors[name]); });
+      neutral("Controleer de gemarkeerde velden.");
+      return;
+    }
+
+    // (c)/(d) serialize the backend JSON shape and POST it as JSON.
+    var payload = collect();
+    fetch(submitUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+      .then(function (response) {
+        // (e) map the response — success / inline 422 / neutral everything-else.
+        if (response.ok) {
+          form.reset();
+          if (status) {
+            status.textContent = "Bedankt, je aanmelding is ontvangen.";
+            status.className = "form-status form-status-success";
+          }
+          return;
+        }
+        if (response.status === 422) {
+          return response.json().then(function (data) {
+            var arr = (data && data.errors) || [];
+            if (Array.isArray(arr) && arr.length) {
+              arr.forEach(function (entry) {
+                if (entry && entry.field) {
+                  showFieldError(entry.field, entry.detail || "Ongeldige waarde.");
+                }
+              });
+              neutral("Controleer de gemarkeerde velden.");
+            } else {
+              neutral("Controleer je gegevens en probeer het opnieuw.");
+            }
+          }).catch(function () {
+            neutral("Controleer je gegevens en probeer het opnieuw.");
+          });
+        }
+        // 404 / neutral states — deliberately non-probeable, no internal detail.
+        neutral("Je aanmelding kon niet worden verwerkt. Probeer het later opnieuw.");
+      })
+      .catch(function () {
+        neutral("Je aanmelding kon niet worden verwerkt. Probeer het later opnieuw.");
+      });
+  });
+})();
+</script>
 </main>
 </body>
 </html>

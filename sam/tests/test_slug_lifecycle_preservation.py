@@ -64,6 +64,7 @@ from sam.members.domain.application_publish import (
     FORM_OWNER_KIND,
     FORM_OWNER_PLANE,
     FORM_RESOURCE_REF,
+    PUBLIC_API_BASE_ENV_VAR,
     ApplicationPublishService,
     PublishNotReady,
     PublishPipelineNotWired,
@@ -93,6 +94,28 @@ _FIXTURE = os.path.join(
 def _load_real_overlay() -> dict:
     with open(_FIXTURE, encoding="utf-8") as f:
         return json.load(f)
+
+
+#: The publish-time public API base baked into the rendered artifact. Change-with-tests
+#: (steering 34/39): the bugfix `bugfix-published-form-submit` Task 3.1 inserted a fail-fast
+#: `resolve_public_api_base()` (reads `PUBLIC_API_BASE_URL`, NO silent default) into the SHARED
+#: `ApplicationPublishService.publish()` render path. The two R3.1 preservation tests below call
+#: `publish(_TENANT)` and now need this env set to reach their expected `PublishPipelineNotWired`
+#: raise rather than fail-fast on the missing env. Mirrors the `_set_public_api_base_env` autouse
+#: fixture in the sibling `test_application_publish_dispatch.py`.
+_PUBLIC_API_BASE = "https://api.jabaki.nl"
+
+
+@pytest.fixture(autouse=True)
+def _set_public_api_base_env(monkeypatch):
+    """Set the publish-time `PUBLIC_API_BASE_URL` for every test in this module (bugfix Task 3.1).
+
+    The shared publish render step now resolves the public API base from this env var fail-fast
+    (no silent default), so the already-slugged publish-path preservation tests require it to be
+    set to exercise their intended `PublishPipelineNotWired` path. This is the legitimate
+    change-with-tests update the shared-path change requires; the assertions below are unchanged.
+    """
+    monkeypatch.setenv(PUBLIC_API_BASE_ENV_VAR, _PUBLIC_API_BASE)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════
