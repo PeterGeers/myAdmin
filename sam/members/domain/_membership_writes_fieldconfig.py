@@ -249,6 +249,11 @@ class FieldConfigSurfaceMixin:
             # `set_public_prefix`) and the SEC-4 rule enforce server-side regardless.
             "slug": self._form_slug(tenant_id),
             "public_prefix": self._public_prefix(tenant_id),
+            # Publish-state scalars (Round 3 Defect 4) — `published_version` / `published_at` from
+            # the SAME `config#fields` row, so the builder's `everPublished` is true after a publish
+            # and "Draft has unpublished changes" can clear. Resolved scalars only (steering 39);
+            # absent keys → `None` (never published).
+            **self._published_state(tenant_id),
             # NOTE (spec 03 task 5.3, steering 39 guard): the RAW stored `config#fields` overlay
             # (`fields` / `overrides` / `fixed_overrides` / `functional_groups`, dotted
             # `{group}.{key}` keys) is DELIBERATELY NOT surfaced here. The raw storage shape MUST
@@ -281,6 +286,24 @@ class FieldConfigSurfaceMixin:
         except Exception:  # noqa: BLE001 - a read fault must not black out the whole config read
             return None
         return value if isinstance(value, str) and value.strip() else None
+
+    def _published_state(self, tenant_id: str) -> dict[str, Any]:
+        """``{"published_version", "published_at"}`` for the staff field-config read (else ``None``).
+
+        Read through the injected form-slug provider's ``get_published_state`` (the projection
+        reader in production). Fail-safe: no provider / no method / a read fault → both ``None``.
+        """
+        state: Mapping[str, Any] = {}
+        provider = getattr(self, "_form_slug_provider", None)
+        if provider is not None and hasattr(provider, "get_published_state"):
+            try:
+                state = provider.get_published_state(tenant_id) or {}
+            except Exception:  # noqa: BLE001 - a read fault must not black out the config read
+                state = {}
+        return {
+            "published_version": state.get("published_version"),
+            "published_at": state.get("published_at"),
+        }
 
     def _public_prefix(self, tenant_id: str) -> str | None:
         """The tenant's SAM-owned public slug ``prefix`` (``config#fields.public_prefix``), or None.
@@ -410,6 +433,12 @@ class FieldConfigSurfaceMixin:
             # tenant that authored no well-formed notice surfaces `{"version": None}` exactly as
             # before — the affirmative consent is still required + recorded by `create_application`.
             "notice": self._resolve_public_notice(tenant_id),
+            # Publish-state (Round 3 Defect 4): `published_version` only, so `_next_published_version`
+            # (`ApplicationPublishService`, which reads this SAME public view) advances from the
+            # persisted value instead of always computing 1. Absent when never published
+            # (empty-is-valid) — `published_at` is admin-facing metadata, not part of the public
+            # schema, and stays on the staff read only.
+            "published_version": self._published_state(tenant_id).get("published_version"),
         }
 
     def _resolve_public_notice(self, tenant_id: str) -> dict[str, Any]:

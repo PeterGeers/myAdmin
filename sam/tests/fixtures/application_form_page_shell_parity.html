@@ -238,9 +238,17 @@
     if (status) { status.textContent = ""; status.className = "form-status"; }
   }
 
+  // Fallback for an error entry with no target element: append to the form-level message area
+  // (textContent only) so it is never dropped silently and several entries do not overwrite.
+  function statusAppend(message) {
+    if (!status) { return; }
+    status.textContent = status.textContent ? status.textContent + " " + message : message;
+    status.className = "form-status form-status-error";
+  }
+
   function showFieldError(name, message) {
     var wrap = wrapForField(name);
-    if (!wrap) { return; }
+    if (!wrap) { statusAppend(message); return; }
     var msg = document.createElement("div");
     msg.className = "field-error";
     msg.setAttribute("role", "alert");

@@ -554,6 +554,39 @@ class _FieldOverlayReadMixin:
             return None
         return slug.strip()
 
+    def get_published_state(self, tenant_id: str) -> dict:
+        """Return the form's publish-state scalars from ``config#fields`` (Round 3, task 11.4).
+
+        ``{"published_version": int, "published_at": str}`` — each key present ONLY when stored
+        and well-formed (positive non-bool int / non-blank string). Empty-is-valid / fail-safe:
+        a missing row or absent attribute yields ``{}`` (never published) — never a raise. Returns
+        resolved scalars only; no raw row shape crosses the boundary (steering 39).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        if row is None:
+            return {}
+        state: dict = {}
+        version = row.get("published_version")
+        if isinstance(version, int) and not isinstance(version, bool) and version > 0:
+            state["published_version"] = version
+        else:
+            # Boto3 returns DynamoDB numbers as Decimal — accept an integral Decimal.
+            try:
+                from decimal import Decimal
+
+                if (
+                    isinstance(version, Decimal)
+                    and version == version.to_integral_value()
+                    and version > 0
+                ):
+                    state["published_version"] = int(version)
+            except Exception:  # noqa: BLE001 - fail-safe read
+                pass
+        published_at = row.get("published_at")
+        if isinstance(published_at, str) and published_at.strip():
+            state["published_at"] = published_at.strip()
+        return state
+
     # ── SAM-owned public prefix reader (config#fields.public_prefix) ────────────────────
 
     def get_public_prefix(self, tenant_id: str) -> str | None:
