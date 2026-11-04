@@ -534,8 +534,24 @@ def get_application_publish_service() -> Any:
             # resource); its S3/CloudFront clients are lazy + injectable. A denied invalidation is
             # non-fatal (known-deferred to Task 9.2 SEC-8 IAM) — the put is authoritative.
             artifact_writer=S3PublicPageArtifactStore(),
+            # Round 3 Defect 4: persist `published_version` / `published_at` on `config#fields`
+            # after the artifact write, via the CRUD service's version-conditional Change-Op.
+            publish_state_writer=_CrudPublishStateWriter(),
         )
     return _APPLICATION_PUBLISH_SERVICE
+
+
+class _CrudPublishStateWriter:
+    """``PublishStateWriter`` backed by ``ConfigFieldsCrudService.set_publish_state`` (lazy)."""
+
+    def record_publish(
+        self, tenant_id: str, *, published_version: int, published_at: str
+    ) -> None:
+        get_config_fields_crud_service().set_publish_state(
+            tenant_id,
+            published_version=published_version,
+            published_at=published_at,
+        )
 
 
 # ── Application-form live preview is IN-BROWSER (spec 12, redesign C / R3) ─────────────

@@ -530,6 +530,51 @@ class ConfigFieldsCrudService:
 
         return self._run(tenant_id, derive_set, client_op_id=client_op_id)
 
+    # ── Publish-state op (bugfix-published-form-submit Round 3, task 11.4) ──────────────
+
+    def set_publish_state(
+        self,
+        tenant_id: str,
+        *,
+        published_version: int,
+        published_at: str,
+        client_op_id: str | None = None,
+    ) -> dict:
+        """Persist the publish-state metadata (``published_version`` / ``published_at``).
+
+        Mirrors :meth:`set_form_slug`'s persist step: a SINGLE version-conditional identity
+        Change-Op through ``apply_ops`` (steering 39 — never a whole-record put). The op SETs ONLY
+        the two top-level publish-state attributes, so DynamoDB leaves ``slug`` and every
+        ``fields`` / ``overrides`` / ``functional_groups`` slice physically UNTOUCHED (by
+        construction). A concurrent write surfaces as the repository's ``StaleVersionError`` after
+        the guarded one-shot re-derive retry in :meth:`_run` (a clean conflict, no partial change).
+
+        Args:
+            tenant_id: The AUTHORITATIVE tenant (verified token / publish service), never a body.
+            published_version: The new monotonic publish version (a positive int, not a bool).
+            published_at: The ISO-8601 publish timestamp (a non-blank string).
+            client_op_id: Optional lost-response idempotency token forwarded to ``apply_ops``.
+
+        Raises:
+            ConfigFieldsCrudError: ``published_version`` / ``published_at`` are malformed.
+        """
+        if (
+            isinstance(published_version, bool)
+            or not isinstance(published_version, int)
+            or published_version < 1
+        ):
+            raise ConfigFieldsCrudError("published_version must be a positive integer")
+        if not isinstance(published_at, str) or not published_at.strip():
+            raise ConfigFieldsCrudError("published_at must be a non-blank string")
+
+        def derive(snapshot):
+            return [
+                {"action": SET, "path": ["published_version"], "value": published_version},
+                {"action": SET, "path": ["published_at"], "value": published_at},
+            ]
+
+        return self._run(tenant_id, derive, client_op_id=client_op_id)
+
     # ── Public-prefix author op (slug-prefix SAM-owned, config#fields.public_prefix) ────
 
     def set_public_prefix(
