@@ -1517,10 +1517,9 @@ Resources:
   # CORS (R10.3/R10.4): a public POST must not be callable cross-origin from any site, so CORS is
   # restricted to the known form origin(s). The authoritative, per-request CORS decision is made in
   # `public_app._apply_cors_origin` against the `PUBLIC_FORM_ALLOWED_ORIGINS` allow-list (echo the
-  # caller's Origin only when allow-listed; fail-closed otherwise — NEVER `*`). This API-level
-  # `Cors` block only governs the SAM-auto-generated OPTIONS preflight responder; it is pinned to
-  # the SAME first allow-listed origin (not `*`) so the preflight and the real response agree and
-  # the public surface never advertises a wildcard. (Deferred to 7.1: throttle + usage plan.)
+  # caller's Origin only when allow-listed; fail-closed otherwise — NEVER `*`). The same decision
+  # answers the OPTIONS preflight: there is deliberately NO API-level `Cors` block (a static mock
+  # cannot echo the per-slug host); OPTIONS is routed to the Lambda instead (Round 4).
   MembersPublicApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -1537,16 +1536,10 @@ Resources:
           ResourcePath: "/*"
           ThrottlingRateLimit: !Ref PublicApiThrottleRateLimit
           ThrottlingBurstLimit: !Ref PublicApiThrottleBurstLimit
-      Cors:
-        AllowMethods: "'GET,POST,OPTIONS'"
-        AllowHeaders: "'Content-Type'"
-        # The preflight responder's origin — the FIRST configured form origin (the handler makes
-        # the authoritative per-origin decision on real requests). `<<unset>>` when the param is
-        # blank so a fail-closed deploy never emits a wildcard preflight. Quoted per the SAM `Cors`
-        # string convention.
-        AllowOrigin: !Sub
-          - "'${Origin}'"
-          - Origin: !Select [0, !Split [",", !Ref PublicFormAllowedOrigins]]
+      # NO `Cors` block (Round 4): a SAM `Cors` block makes API Gateway answer OPTIONS with a
+      # STATIC mock whose AllowOrigin is one fixed origin — it can never echo the per-slug host
+      # `https://{slug}.{apex}`. OPTIONS is instead routed to `MembersPublicFunction` (explicit
+      # `Method: options` events below) and decided per origin by `public_app._apply_cors_origin`.
 
   # --- Public API usage plan (R10.1, D17, task 7.1) ---------------------------
   # The USAGE PLAN half of R10.1: a managed, inspectable throttle object bound to the public
@@ -1578,7 +1571,8 @@ Resources:
   # `_http` envelope, the `tenant_directory` resolver, and the `tenant_slug_reader`), and the empty-
   # package-over-layer pattern (`CodeUri: function/`) like every other function here.
   #
-  # IAM (task 7.1): this function's LEAST-PRIVILEGE policy — exactly THREE scoped grants, no more.
+  # IAM (task 7.1): this function's LEAST-PRIVILEGE policy — exactly THREE scoped grants (a)-(c), plus the (d) slug-marker READ pair
+  # (GetObject + prefix-conditioned ListBucket, two statements), no more.
   # It mirrors the authenticated MembersFunction's exact-ARN discipline (steering 23: exact ARNs,
   # NO wildcard table, NO cross-account), but is narrower — the public edge only CREATES/UPDATES an
   # application record, reads the projection to decide readiness + resolve recipients for the
@@ -1661,7 +1655,7 @@ Resources:
             # and NEVER writes (no PutObject/DeleteObject; claiming/renaming is the authenticated
             # MembersFunction's job). Least-privilege, prefix-scoped to `_slugs/*`.
             #
-            # BOTH actions are required for a clean, enumeration-safe 404:
+            # BOTH actions are required (in two statements, below) for a clean, enumeration-safe 404:
             #   * s3:GetObject on `_slugs/*` reads the marker body for a slug that exists.
             #   * s3:ListBucket on the bucket (conditioned to the `_slugs/*` prefix) is what makes a
             #     MISSING marker return NoSuchKey (→ clean 404). WITHOUT ListBucket, S3 masks a
@@ -1669,17 +1663,27 @@ Resources:
             #     unhandled 500. The `s3:prefix` condition keeps the list enumeration-safe
             #     (only `_slugs/*`, never a bucket-wide list). ARNs are `!Sub` on the
             #     `${LandingPagesBucket}` param — never a hardcode, never cross-account.
-            # ONE statement, both actions — the `s3:prefix` Condition constrains only `s3:ListBucket`
-            # (GetObject ignores it); GetObject is scoped by its object-level `_slugs/*` ARN. This is
-            # the standard least-privilege read+list pairing, kept as a single Sid so the public fn's
-            # IAM stays an auditable exact set.
+            # TWO statements (not one): IAM evaluates a statement's Condition against EVERY action
+            # in it. `s3:prefix` is a context key only for s3:ListBucket; s3:GetObject has no such
+            # key, so a StringLike on `s3:prefix` never matches a GetObject request and the former
+            # single combined statement DENIED GetObject (live AccessDenied). Hence the split,
+            # mirroring MembersFunction's MembersPublishPublicPages / MembersListPublicPages pair:
+            #   * PublicReadSlugMarkers - s3:GetObject ONLY, scoped by its `_slugs/*` object ARN,
+            #     NO Condition.
+            #   * PublicListSlugMarkers - s3:ListBucket ONLY, on the bucket ARN, with the
+            #     `s3:prefix` Condition limiting the list to `_slugs/*`.
+            # Same actions and resources as before - least privilege is unchanged.
             - Sid: PublicReadSlugMarkers
               Effect: Allow
               Action:
                 - s3:GetObject
-                - s3:ListBucket
               Resource:
                 - !Sub "arn:aws:s3:::${LandingPagesBucket}/_slugs/*"
+            - Sid: PublicListSlugMarkers
+              Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource:
                 - !Sub "arn:aws:s3:::${LandingPagesBucket}"
               Condition:
                 StringLike:
@@ -1753,6 +1757,20 @@ Resources:
             RestApiId: !Ref MembersPublicApi
             Path: /public/members/{tenant_slug}/applications
             Method: POST
+        # CORS preflight (Round 4): routed to the Lambda so it is answered per origin (incl. the
+        # per-slug host) by `public_app._preflight_response`, not by a static API Gateway mock.
+        PublicFieldConfigPreflight:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MembersPublicApi
+            Path: /public/members/{tenant_slug}/field-config
+            Method: options
+        PublicApplicationsPreflight:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MembersPublicApi
+            Path: /public/members/{tenant_slug}/applications
+            Method: options
 
 Outputs:
   MembersFunctionArn:

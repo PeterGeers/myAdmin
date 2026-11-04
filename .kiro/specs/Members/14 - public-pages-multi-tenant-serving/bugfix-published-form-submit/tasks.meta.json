@@ -25,6 +25,19 @@
     "11.6 Verify Round-3 preservation tests still pass": {
       "status": "passed",
       "lastRunTimestamp": 1793783527164
+    },
+    "13. Write Round-4 bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "IAM: PublicReadSlugMarkers grants s3:GetObject under s3:prefix Condition; PREFLIGHT_ROUTE: no OPTIONS events on either public path (found []); PREFLIGHT_HANDLER: OPTIONS from https://hdcn-aanmelden.jabaki.nl -> 404, no ACAO",
+      "lastRunTimestamp": 1793795032390
+    },
+    "15.4 Verify Round-4 preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1793802254924
+    },
+    "15.3 Verify Round-4 bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1793802258470
     }
   },
   "executionHistory": {
@@ -449,6 +462,137 @@
         "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
         "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
         "timestamp": 1793783541817
+      }
+    ],
+    "13. Write Round-4 bug condition exploration test": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938214
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794945516
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795517574
+      }
+    ],
+    "14. Write Round-4 preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938394
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794946638
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795518675
+      }
+    ],
+    "15.1 Split the slug-marker IAM statement": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938522
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795525291
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795617660
+      }
+    ],
+    "15.2 Route OPTIONS to the Lambda and answer it per origin": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938666
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795618672
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795958948
+      }
+    ],
+    "15.3 Verify Round-4 bug condition exploration test now passes": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938789
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795959060
+      },
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802274547
+      }
+    ],
+    "15.4 Verify Round-4 preservation tests still pass": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938911
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795959146
+      },
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802228608
+      },
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802275784
+      }
+    ],
+    "16. Round 4 Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794939019
+      },
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802276712
+      },
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802390632
+      }
+    ],
+    "15. Fix for slug-marker IAM and per-origin preflight": [
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802275954
       }
     ]
   }

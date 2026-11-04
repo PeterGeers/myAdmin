@@ -844,3 +844,95 @@ Preservation (must PASS on current code): consent gate/stamp, foreign-origin rej
 400/404 unchanged, notice-less render unchanged. Fix checking and preservation checking reuse the
 same tests after the fix. Checkpoint: `python -m pytest -c sam/pytest.ini sam/tests -q` plus the
 frontend builder tests if touched.
+
+---
+
+# Round 4 — slug-marker IAM and per-origin preflight
+
+## Round 4 Overview
+
+Two defects keep the published form unsubmittable on TEST. (1) The public Lambda cannot read slug markers
+because of an IAM Condition mis-scoped onto `s3:GetObject`. (2) The preflight is answered by API Gateway's
+static SAM `Cors` mock, which can never echo the per-slug host. Fix: split the IAM statement and route
+`OPTIONS` to the Lambda, which reuses the existing per-origin decision.
+
+## Round 4 Bug Details
+
+```
+FUNCTION isBugConditionR4(input)
+  INPUT: input of type {facet, request}
+  OUTPUT: boolean
+
+  RETURN (facet = IAM AND policy statement has s3:GetObject AND Condition on s3:prefix)
+      OR (facet = PREFLIGHT AND request.method = OPTIONS AND route IN public routes
+          AND origin is allowed for the resolved slug AND response.ACAO != origin)
+END FUNCTION
+
+FUNCTION expectedBehaviorR4(result)
+  RETURN GetObject on _slugs/* granted by an unconditioned statement
+     AND ListBucket granted by a separate prefix-conditioned statement
+     AND preflight is 204 with ACAO == origin (allowed) or no ACAO (foreign/unresolved), never "*"
+END FUNCTION
+```
+
+Examples: OPTIONS from `https://hdcn-aanmelden.jabaki.nl` returns ACAO empty (expected: echoed). POST
+returns 500 with `AccessDenied s3:GetObject .../_slugs/hdcn-aanmelden` (expected: resolves, 200/422).
+OPTIONS from `https://evil.example` must return no ACAO (unchanged).
+
+## Round 4 Hypothesized Root Cause
+
+11. `MembersPublicFunction` Sid `PublicReadSlugMarkers` combines `s3:GetObject` and `s3:ListBucket` under one
+    `Condition: StringLike s3:prefix`. IAM applies a Condition to every action in the statement; GetObject
+    requests carry no `s3:prefix`, so the condition is false. The template comment claiming "GetObject
+    ignores it" is wrong. The authenticated `MembersFunction` uses two statements and works.
+12. The preflight is answered by the static `Cors` block on `MembersPublicApi`, so the Lambda's
+    `_apply_cors_origin` decision never runs for `OPTIONS`.
+
+## Round 4 Correctness Properties
+
+Property 7: Bug Condition (Round 4) - Slug markers are readable and the preflight is decided per origin
+
+_For any_ input where isBugConditionR4 holds, the fixed template and `public_app.handler` SHALL grant
+`s3:GetObject` on `_slugs/*` without a Condition (ListBucket in its own conditioned statement) and SHALL
+answer `OPTIONS` on both public routes from the Lambda with 204, the allow-methods/headers/max-age/Vary
+headers, and ACAO equal to the request origin when allowed.
+
+**Validates: Requirements 11.1, 11.2, 11.3**
+
+Property 8: Preservation (Round 4) - Authenticated CORS, real-request CORS and other IAM unchanged
+
+_For any_ input where isBugConditionR4 does NOT hold, the fixed code SHALL behave as before: foreign
+origins get no ACAO on GET/POST/OPTIONS, the `MembersApi` `Cors` block is unchanged, and the public
+function's other IAM statements are the same Sid/Action/Resource set.
+
+**Validates: Requirements 12.1, 12.2, 12.3, 12.4, 12.5**
+
+## Round 4 Fix Implementation
+
+**File**: `sam/members/template.yaml`
+1. Split `PublicReadSlugMarkers` into `PublicReadSlugMarkerObjects` (`s3:GetObject` on
+   `arn:aws:s3:::${LandingPagesBucket}/_slugs/*`, no Condition) and `PublicListSlugMarkers`
+   (`s3:ListBucket` on the bucket ARN, `s3:prefix: _slugs/*`); correct the comment.
+2. Add explicit `Method: OPTIONS` events on `MembersPublicFunction` for
+   `/public/members/{tenant_slug}/field-config` and `/public/members/{tenant_slug}/applications`; remove the
+   `Cors` block from `MembersPublicApi` so SAM stops generating the mock responder.
+
+**File**: `backend`-side `public_app.py` (SAM `handler/public_app.py`)
+3. In `handler`, add an OPTIONS branch before the body-based abuse guards: resolve the slug via the same
+   marker resolution, call `_apply_cors_origin` with tenant + resolved slug, return 204 with
+   `Access-Control-Allow-Methods: GET,POST,OPTIONS`, `Access-Control-Allow-Headers: Content-Type`,
+   `Access-Control-Max-Age: 600`, `Vary: Origin`. Unresolved slug or foreign origin: no ACAO. No `*`, no PII
+   logged. The stage throttle still applies.
+
+## Round 4 Testing Strategy
+
+Exploration (must FAIL on current code), facets: **IAM** (load the template with the CFN-tag-tolerant loader
+already used in `sam/tests/test_public_api_stack_contract.py`; no `MembersPublicFunction` statement combines
+`s3:GetObject` with an `s3:prefix` Condition, and `_slugs/*` GetObject is granted unconditioned),
+**PREFLIGHT_ROUTE** (OPTIONS events exist for both paths; `MembersPublicApi` has no static `Cors`),
+**PREFLIGHT_HANDLER** (real `public_app.handler`, OPTIONS from `https://hdcn-aanmelden.jabaki.nl`, fake slug
+store: 204 with ACAO == origin and allow-methods/headers).
+
+Preservation (must PASS now): foreign origin gets no ACAO on GET/POST; `MembersApi` `Cors` unchanged; other
+public IAM statements unchanged. Checkpoint: `python -m pytest -c sam/pytest.ini sam/tests -q` and
+`sam validate --lint` on the template if available.

@@ -325,3 +325,57 @@ behave as today (empty-is-valid).
 
 9.4 WHEN Round 1–2 behavior runs (submit script, format checks, notice text render, inline 422
 mapping, slug-host CORS on 200) THEN it SHALL CONTINUE TO pass its existing tests unchanged.
+
+---
+
+# Round 4 — slug-marker IAM and per-origin preflight
+
+## Bug Analysis — Round 4
+
+Verified on live TEST after the Round 3 deploy and re-publish: the consent text and checkbox render and
+the browser posts `consent: {accepted: true, version: "2026-03"}`, yet the applicant still sees "Je
+aanmelding kon niet worden verwerkt" and the browser reports a CORS error. Two independent defects remain.
+
+### Current Behavior (Defect) — Round 4
+
+10.1 WHEN the public Lambda resolves a slug marker (`s3:GetObject` on `_slugs/{slug}`) THEN the system
+fails with `AccessDenied` and the POST returns HTTP 500 `errors.api.serverError`, because the single
+`PublicReadSlugMarkers` IAM statement attaches an `s3:prefix` Condition to `s3:GetObject`, which carries
+no such key, so GetObject is never allowed.
+
+10.2 WHEN a browser sends a CORS preflight `OPTIONS` for a public route from the slug host (e.g.
+`https://hdcn-aanmelden.jabaki.nl`) THEN the system answers HTTP 200 with an EMPTY
+`access-control-allow-origin`, because API Gateway's static `Cors` responder on `MembersPublicApi` answers
+instead of the Lambda and can only advertise the first static origin, so the browser rejects the preflight
+and never sends the POST.
+
+### Expected Behavior (Correct) — Round 4
+
+11.1 WHEN the public Lambda resolves a slug marker THEN the system SHALL be allowed `s3:GetObject` on
+`_slugs/*` by an unconditioned statement, with `s3:ListBucket` in a separate statement on the bucket ARN
+conditioned on `s3:prefix` `_slugs/*` (same least privilege).
+
+11.2 WHEN a preflight `OPTIONS` reaches either public route THEN the system SHALL answer it from
+`MembersPublicFunction` with 204, `Access-Control-Allow-Methods: GET,POST,OPTIONS`,
+`Access-Control-Allow-Headers: Content-Type`, a short `Access-Control-Max-Age` and `Vary: Origin`, and
+SHALL set `Access-Control-Allow-Origin` to the request origin only when the per-origin decision
+(resolved slug host, static baseline, tenant embed origins) allows it.
+
+11.3 WHEN the slug is unresolved or the origin is foreign THEN the system SHALL omit
+`Access-Control-Allow-Origin` on the preflight (fail-closed), never `*` and never a wildcard.
+
+### Unchanged Behavior (Regression Prevention) — Round 4
+
+12.1 WHEN the authenticated `MembersApi` handles requests THEN its CORS configuration SHALL CONTINUE TO be
+unchanged.
+
+12.2 WHEN a real GET or POST arrives THEN the per-origin CORS decision (incl. foreign-origin rejection on
+200, 422 and 500) SHALL CONTINUE TO be unchanged.
+
+12.3 WHEN the public function's other IAM statements are evaluated THEN they SHALL CONTINUE TO be the same
+Sid/Action/Resource set, except for the slug-marker split.
+
+12.4 WHEN a preflight arrives THEN the stage throttle SHALL CONTINUE TO apply, the body-based abuse guards
+(honeypot, payload cap) SHALL NOT run on it, and no PII SHALL be logged.
+
+12.5 WHEN Round 1–3 behavior runs THEN it SHALL CONTINUE TO pass its existing tests unchanged.
