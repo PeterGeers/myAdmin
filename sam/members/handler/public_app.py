@@ -934,6 +934,69 @@ def _dispatch_public(
 # ── Lambda entry point (the public, token-less edge — D27) ────────────────────────────
 
 
+def _is_public_preflight_route(request: ParsedRequest) -> bool:
+    """True for an ``OPTIONS`` on one of the two public route shapes (slug-agnostic)."""
+    if request.method != "OPTIONS":
+        return False
+    path = (request.path or "").rstrip("/")
+    return path.startswith(_PUBLIC_PREFIX) and path.endswith(
+        ("/field-config", "/applications")
+    )
+
+
+def _preflight_response(request: ParsedRequest) -> dict:
+    """Answer a CORS preflight per origin (Round 4, R12).
+
+    API Gateway's static ``Cors`` mock cannot echo the per-slug host, so ``OPTIONS`` is routed to
+    this Lambda and decided by the SAME :func:`_apply_cors_origin` union (baseline ∪ tenant embed
+    origins ∪ the resolved slug host) as the real request. Fail-closed: an unresolved slug, an
+    unknown route, a foreign origin, or ANY error during resolution yields a 204 with NO
+    ``Access-Control-Allow-Origin`` (never ``*``) and no body detail.
+    """
+    tenant_id: str | None = None
+    resolved_slug: str | None = None
+    if _is_public_preflight_route(request):
+        slug = _slug_from_path(request)
+        try:
+            tenant_id = _resolve_sam_form_tenant(slug)
+            if tenant_id is not None:
+                resolved_slug = slug
+        except Exception:
+            # No PII / stack in the response; resolution failure simply means no ACAO.
+            logger.warning(
+                "Public preflight slug resolution failed; answering without ACAO"
+            )
+            tenant_id = None
+            resolved_slug = None
+    # Built directly (not via the shared envelope) so no default ``*`` ACAO exists to leak.
+    response: dict = {
+        "statusCode": 204,
+        "headers": {
+            "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "600",
+            "Vary": "Origin",
+        },
+        "body": "",
+    }
+    try:
+        response = _apply_cors_origin(
+            response, request, tenant_id=tenant_id, resolved_slug=resolved_slug
+        )
+    except Exception:
+        logger.warning("Public preflight CORS decision failed; answering without ACAO")
+        response["headers"].pop("Access-Control-Allow-Origin", None)
+    response["headers"]["Vary"] = (
+        "Origin"  # _apply_cors_origin may have appended a duplicate
+    )
+    logger.info(
+        "Public preflight answered (resolved=%s, allowed=%s)",
+        tenant_id is not None,
+        "Access-Control-Allow-Origin" in response["headers"],
+    )
+    return response
+
+
 def handler(event: Mapping[str, Any], context: Any = None) -> dict:
     """API Gateway proxy entry point for the SAM members **public application intake** (D27).
 
@@ -960,6 +1023,11 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
     to the configured form origin(s) (R10.3) via :func:`_apply_cors_origin`.
     """
     request = _parse_request(event)
+
+    # 0) CORS preflight (Round 4): decided per origin BEFORE the body-based abuse guards (a
+    #    preflight carries no body) and before the public-route check (OPTIONS is not a route).
+    if request.method == "OPTIONS":
+        return _preflight_response(request)
 
     # 1) Abuse guards FIRST (R10.2) — a flood is turned away before any tenant resolution/write.
     try:
