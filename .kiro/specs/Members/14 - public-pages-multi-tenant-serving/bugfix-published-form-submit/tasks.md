@@ -548,3 +548,108 @@ Branch: `bugfix/published-form-submit-round4` (off origin/test at 88eb9cb80, inc
 
 - [x] 16. Round 4 Checkpoint - Ensure all tests pass
   - Run `python -m pytest -c sam/pytest.ini sam/tests -q` (full SAM suite) and `sam validate --lint` on `sam/members/template.yaml` if available; ensure all pass. Ask the user if questions arise.
+
+---
+
+## Round 5 — field-keyed errors, required parity, readable error UX
+
+Branch: `bugfix/published-form-submit-round5` (off origin/test at 215c61ec8, incl. PR #203). Four defects
+(13–16) verified against live TEST. Same exploration-first discipline, kept tight: tasks 17–20.
+
+### Round 5 Task Dependency Graph
+
+```json
+{
+  "waves": [
+    {
+      "wave": 1,
+      "tasks": ["17", "18"],
+      "description": "Round-5 exploration test (fails on current code) and preservation tests (pass on current code), written first."
+    },
+    {
+      "wave": 2,
+      "tasks": ["19.1", "19.2", "19.3", "19.4"],
+      "description": "Bare keys, required parity, script, CSS. Independent in logic; 19.3 and 19.4 both change render output, so run them sequentially if they share the page-shell golden fixture. All depend on 17 and 18."
+    },
+    {
+      "wave": 3,
+      "tasks": ["19.5", "19.6"],
+      "description": "Verify exploration test passes and preservation tests still pass. Depend on 19.1-19.4."
+    },
+    {
+      "wave": 4,
+      "tasks": ["20"],
+      "description": "Round-5 checkpoint: full SAM suite, landing_page_styles backend tests, golden fixture. Depends on all of task 19."
+    }
+  ]
+}
+```
+
+### Round 5 Tasks
+
+- [x] 17. Write Round-5 bug condition exploration test
+  - **Property 9: Bug Condition** - Errors are field-keyed, required is one authority, errors are readable
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - Under `sam/tests/`, `python -m pytest -c sam/pytest.ini <paths> -q`, with an h-dcn-shaped config; reuse the existing repo/overlay fakes
+  - **KEYS**: drive the real `public_app.handler` POST with empty fields (consent accepted) through the REAL membership engine; every `errors[].field` is a bare key present in the rendered form's control names and contains no "."
+  - **REQUIRED_PARITY**: set of controls rendered `required` == set of fields the engine rejects as required when blank; record why `magazine_pref` differs
+  - **SCRIPT**: rendered script has no `neutral(` call that replaces the status after inline mapping (marker: the 422 branch uses `statusAppend`/non-replacing summary), maps `errors.validation.required` to "Dit veld is verplicht.", never assigns `entry.detail` to the UI, sets `aria-invalid`
+  - **CSS**: `LandingPageStyles` output contains `.field-error` and `.form-status-error` rules
+  - Run on UNFIXED code; **EXPECTED OUTCOME**: FAILS; document counterexamples
+  - _Bug_Condition: isBugConditionR5 facets KEYS, REQUIRED_PARITY, SCRIPT, CSS_
+  - _Requirements: 13.1, 13.2, 13.3, 13.4_
+
+- [x] 18. Write Round-5 preservation property tests (BEFORE implementing fix)
+  - **Property 10: Preservation** - Success flow, consent, CORS, existing CSS and authenticated 422 unchanged
+  - **IMPORTANT**: Follow observation-first methodology
+  - Successful `create_application` record shape; consent gate and stamp; Round-4 preflight headers
+  - Existing `LandingPageStyles` CSS snapshot is a prefix/subset of the output
+  - Authenticated `MembersApi` 422 shape unchanged (the mapper is public-only)
+  - **EXPECTED OUTCOME**: Tests PASS on unfixed code
+  - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6_
+
+- [x] 19. Fix for field-keyed errors, required parity and readable error UX
+
+  - [x] 19.1 Return bare field keys in the public 422
+    - In `sam/members/handler/public_app.py` map dotted → bare via the resolved field view; `consent` stays; authenticated edge unchanged
+    - _Bug_Condition: isBugConditionR5 facet=KEYS_
+    - _Expected_Behavior: Property 9_
+    - _Preservation: Property 10 (authenticated 422 shape, success flow)_
+    - _Requirements: 14.1, 15.5_
+
+  - [x] 19.2 Single authority for required
+    - Fix the source of drift in `_serialize_public_field` / `_validate_application_required` with one shared helper; no duplicated rule
+    - _Bug_Condition: isBugConditionR5 facet=REQUIRED_PARITY_
+    - _Expected_Behavior: Property 9_
+    - _Preservation: Property 10 (record shape, consent)_
+    - _Requirements: 14.3, 15.1, 15.2_
+
+  - [x] 19.3 Script messages, marking, no overwrite, focus, visible-only
+    - In `application_form_render.py`: Dutch code map, no `detail`, `has-error` + `aria-invalid`, fallback kept with summary, scroll/focus first error, client check skips hidden controls
+    - _Bug_Condition: isBugConditionR5 facet=SCRIPT_
+    - _Expected_Behavior: Property 9_
+    - _Preservation: Property 10 (Round 1–4 script behavior)_
+    - _Requirements: 14.2, 14.4, 15.6_
+
+  - [x] 19.4 Error and status CSS in LandingPageStyles
+    - Additive rules in `backend/src/services/landing_page_styles.py` (+ paired Flask tests per change-with-tests; sync the vendored Members copy as today)
+    - _Bug_Condition: isBugConditionR5 facet=CSS_
+    - _Expected_Behavior: Property 9_
+    - _Preservation: Property 10 (existing rules unchanged)_
+    - _Requirements: 14.5, 15.4_
+
+  - [x] 19.5 Verify Round-5 bug condition exploration test now passes
+    - **Property 9: Expected Behavior** - Errors are field-keyed, required is one authority, errors are readable
+    - Re-run the SAME test from task 17 - do NOT write a new test
+    - **EXPECTED OUTCOME**: Test PASSES
+    - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5_
+
+  - [x] 19.6 Verify Round-5 preservation tests still pass
+    - **Property 10: Preservation** - Success flow, consent, CORS, existing CSS and authenticated 422 unchanged
+    - Re-run the SAME tests from task 18 - do NOT write new tests
+    - **EXPECTED OUTCOME**: Tests PASS
+    - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6_
+
+- [x] 20. Round 5 Checkpoint - Ensure all tests pass
+  - Run `python -m pytest -c sam/pytest.ini sam/tests -q` (full SAM suite) and `cd backend && pytest tests/unit -k landing_page_styles`; regenerate the page-shell golden fixture only for intended diffs; ensure all pass. Ask the user if questions arise.

@@ -39,6 +39,7 @@ from sam.members.domain.fixed_fields import (
     MEMBER_NUMBER_FIELD_KEY,
     FieldType,
     FieldValidationError,
+    field_by_key,
     roles_for_option,
     validate_fixed_fields,
     validate_member_number_format,
@@ -47,6 +48,60 @@ from sam.members.domain.tenant_hooks import HookName
 from sam.members.repository.members_repository import (
     Member,
 )
+
+#: The dotted keys the PUBLIC application path requires regardless of tenant/platform config
+#: (R6.1/R6.1a). Single source for both the engine
+#: (:meth:`ValidationMixin._validate_application_required` step (b)) and
+#: :func:`effective_application_required`, so the form and the engine cannot drift.
+APPLICATION_REQUIRED_IDENTITY_KEYS: tuple[str, ...] = (
+    "personal.email",
+    "personal.last_name",
+    "personal.birth_date",
+)
+
+
+#: Membership keys a PUBLIC applicant may never set (stripped / forced server-side, R3.1/R4.7/R4.8).
+#: Single source for the application write path and :func:`effective_application_required`.
+APPLICATION_SERVER_SET_MEMBERSHIP_KEYS: frozenset[str] = frozenset(
+    {"status", "member_number", "created_at", "updated_at"}
+)
+
+
+def effective_application_required(field: ResolvedField) -> bool:
+    """Is ``field`` required on the PUBLIC form? The single authority for the form's ``required``.
+
+    Encodes exactly the union the ``create_application`` engine enforces for a field on the form:
+    platform ``required`` (fixed-registry / override / overlay: the base chain) OR the form-only
+    ``application_required`` (step (a)) OR a public-path identity key (step (b)). ``show_when``
+    gating is NOT folded in: a conditionally-shown field keeps its ``show_when`` metadata in the
+    public payload and the client enforces ``required`` only while the field is shown (the engine
+    drops/skips the requirement while the field is hidden).
+    """
+    dotted = field.dotted_key()
+    if dotted in APPLICATION_REQUIRED_IDENTITY_KEYS or field.application_required:
+        return True
+    return _platform_required_by_engine(field)
+
+
+def _platform_required_by_engine(field: ResolvedField) -> bool:
+    """Does the base validation chain reject a blank ``field`` as required (applicant-supplied)?
+
+    Mirrors the engine, not the resolved ``required`` flag: a FIXED field is enforced from the
+    platform registry (:func:`validate_fixed_fields`; a tenant override's ``required`` is not
+    enforced there), and a server-set field (``status`` forced, ``joined_date`` stamped, the
+    staff-owned keys stripped) is never demanded of the applicant. A VARIABLE (overlay) field is
+    enforced from its own ``required`` when visible (:meth:`_validate_required_overlay_fields`).
+    """
+    if field.origin is FieldOrigin.VARIABLE:
+        return bool(field.required and field.visible)
+    dotted = field.dotted_key()
+    bare_group, _, bare_key = dotted.partition(".")
+    if bare_group == "membership" and (
+        bare_key in APPLICATION_SERVER_SET_MEMBERSHIP_KEYS or bare_key == "joined_date"
+    ):
+        return False
+    registry_field = field_by_key(dotted)
+    return bool(registry_field is not None and registry_field.required)
 
 
 class ValidationMixin:
@@ -242,9 +297,7 @@ class ValidationMixin:
     #: registry covers it — it is listed here so the public-path contract is explicit and robust to
     #: a tenant override, never a weakening.
     _APPLICATION_REQUIRED_IDENTITY_KEYS: tuple[str, ...] = (
-        "personal.email",
-        "personal.last_name",
-        "personal.birth_date",
+        APPLICATION_REQUIRED_IDENTITY_KEYS
     )
 
     @staticmethod
@@ -508,9 +561,7 @@ class ValidationMixin:
         value = membership.get("membership_type")
         return str(value) if value is not None else None
 
-    def _resolved_membership_type_options(
-        self, tenant_id: str
-    ) -> Sequence[Any] | None:
+    def _resolved_membership_type_options(self, tenant_id: str) -> Sequence[Any] | None:
         """The ``membership_type`` field's resolved ENUM options (03b BU-2, Req 3.2/3.2a/3.4a).
 
         The unified model (Req 3.1): a selectable field carries its OWN vocabulary as rich
@@ -597,4 +648,3 @@ class ValidationMixin:
                     )
                 }
             )
-

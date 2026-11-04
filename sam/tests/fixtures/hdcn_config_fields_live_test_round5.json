@@ -1,0 +1,635 @@
+{
+ "fields": {
+  "additional_info": {
+   "functional_group": "administrative",
+   "label": {
+    "en": "Additional info",
+    "nl": "Aanvullende informatie"
+   },
+   "order": 15,
+   "required": false,
+   "type": "string"
+  },
+  "build_year": {
+   "application_visible": true,
+   "functional_group": "motor",
+   "label": {
+    "en": "build year",
+    "nl": "bouwjaar"
+   },
+   "order": 30,
+   "required": false,
+   "type": "string",
+   "visible": true
+  },
+  "deregistration_date": {
+   "application_visible": false,
+   "functional_group": "membership",
+   "label": {
+    "en": "Deregistration date",
+    "nl": "Afmelding"
+   },
+   "order": 60,
+   "required": false,
+   "type": "date"
+  },
+  "iban": {
+   "application_visible": true,
+   "functional_group": "financial",
+   "label": {
+    "en": "IBAN",
+    "nl": "IBAN"
+   },
+   "order": 20,
+   "type": "string"
+  },
+  "license_plate": {
+   "application_visible": true,
+   "functional_group": "motor",
+   "label": {
+    "en": "License Plate",
+    "nl": "Kenteken"
+   },
+   "order": 40,
+   "required": false,
+   "type": "string",
+   "visible": true
+  },
+  "magazine_pref": {
+   "application_required": true,
+   "application_visible": true,
+   "functional_group": "membership",
+   "label": {
+    "en": "magazine",
+    "nl": "Clubblad"
+   },
+   "options": [
+    {
+     "label": {
+      "en": "Paper",
+      "nl": "Papier"
+     },
+     "value": "papier"
+    },
+    {
+     "label": {
+      "en": "Digital",
+      "nl": "Digitaal"
+     },
+     "value": "digitaal"
+    },
+    {
+     "label": {
+      "en": "None",
+      "nl": "Geen"
+     },
+     "value": "geen"
+    }
+   ],
+   "order": 0,
+   "required": false,
+   "type": "enum",
+   "visible": true
+  },
+  "motor_brand": {
+   "application_visible": true,
+   "functional_group": "motor",
+   "options": [
+    {
+     "label": {
+      "en": "Harley Davidson",
+      "nl": "Harley Davidson"
+     },
+     "value": "harley"
+    },
+    {
+     "label": {
+      "en": "Indian",
+      "nl": "Indian"
+     },
+     "value": "indian"
+    },
+    {
+     "label": {
+      "en": "Buell",
+      "nl": "Buell"
+     },
+     "value": "buell"
+    },
+    {
+     "label": {
+      "en": "self",
+      "nl": "Eigenbouw"
+     },
+     "value": "self"
+    }
+   ],
+   "order": 10,
+   "required": false,
+   "type": "enum",
+   "visible": true
+  },
+  "motor_type": {
+   "application_visible": true,
+   "functional_group": "motor",
+   "label": {
+    "en": "Type",
+    "nl": "Type"
+   },
+   "order": 20,
+   "required": false,
+   "type": "string",
+   "visible": true
+  },
+  "newsletter_pref": {
+   "application_visible": true,
+   "functional_group": "membership",
+   "label": {
+    "en": "News letter",
+    "nl": "Nieuwsbrief"
+   },
+   "options": [
+    {
+     "label": {
+      "en": "Yes",
+      "nl": "Ja"
+     },
+     "value": "ja"
+    },
+    {
+     "label": {
+      "en": "No",
+      "nl": "Nee"
+     },
+     "value": "nee"
+    }
+   ],
+   "order": 0,
+   "type": "enum"
+  },
+  "notes": {
+   "functional_group": "administrative",
+   "label": {
+    "en": "Notes",
+    "nl": "Notities"
+   },
+   "order": 10,
+   "required": false,
+   "type": "string"
+  },
+  "payment_method": {
+   "application_visible": true,
+   "functional_group": "financial",
+   "label": {
+    "en": "Payment Method",
+    "nl": "Betaalmethode"
+   },
+   "options": [
+    {
+     "value": "incasso"
+    },
+    {
+     "value": "transfer"
+    }
+   ],
+   "order": 0,
+   "type": "enum"
+  },
+  "referral_source": {
+   "application_visible": true,
+   "functional_group": "membership",
+   "label": {
+    "en": "Referral source",
+    "nl": "Wie/wat/waar"
+   },
+   "options": [
+    {
+     "label": {
+      "en": "Bigtwin Bike Expo",
+      "nl": "Bigtwin Bike Expo"
+     },
+     "value": "bigtwin"
+    },
+    {
+     "label": {
+      "en": "Internet",
+      "nl": "Internet"
+     },
+     "value": "internet"
+    },
+    {
+     "label": {
+      "en": "Facebook",
+      "nl": "Facebook"
+     },
+     "value": "facebook"
+    },
+    {
+     "label": {
+      "en": "Instagram",
+      "nl": "Instagram"
+     },
+     "value": "instagram"
+    },
+    {
+     "label": {
+      "en": "Family",
+      "nl": "Familie"
+     },
+     "value": "family"
+    },
+    {
+     "label": {
+      "en": "H-DCN member",
+      "nl": "H-DCN lid"
+     },
+     "value": "member"
+    },
+    {
+     "label": {
+      "en": "Prior Member",
+      "nl": "Eerder Lid"
+     },
+     "value": "priormember"
+    },
+    {
+     "label": {
+      "en": "H-DCN event",
+      "nl": "H-DCN Evenement"
+     },
+     "value": "event"
+    },
+    {
+     "label": {
+      "en": "Young Ones",
+      "nl": "Young Ones"
+     },
+     "value": "youngones"
+    },
+    {
+     "label": {
+      "en": "H-DCN website",
+      "nl": "H-DCN Website"
+     },
+     "value": "website"
+    },
+    {
+     "label": {
+      "en": "Frinds",
+      "nl": "Vrienden"
+     },
+     "value": "vrienden"
+    }
+   ],
+   "order": 50,
+   "required": false,
+   "type": "enum",
+   "visible": true
+  },
+  "region": {
+   "application_visible": true,
+   "functional_group": "membership",
+   "label": {
+    "en": "Region",
+    "nl": "Regio"
+   },
+   "order": 0,
+   "required": true,
+   "scope": {
+    "enabled": true
+   },
+   "type": "enum",
+   "visible": true
+  },
+  "termination_date": {
+   "application_visible": false,
+   "functional_group": "membership",
+   "label": {
+    "en": "Termination date",
+    "nl": "Beëindiging"
+   },
+   "order": 70,
+   "required": false,
+   "type": "date"
+  }
+ },
+ "functional_groups": {
+  "address": {
+   "key": "address",
+   "label": {
+    "en": "Address",
+    "nl": "Adres"
+   },
+   "order": 20
+  },
+  "administrative": {
+   "key": "administrative",
+   "label": {
+    "en": "Administrative",
+    "nl": "Administratief"
+   },
+   "order": 60
+  },
+  "financial": {
+   "key": "financial",
+   "label": {
+    "en": "Financial",
+    "nl": "Financieel"
+   },
+   "order": 50
+  },
+  "membership": {
+   "key": "membership",
+   "label": {
+    "en": "Membership",
+    "nl": "Lidmaatschap"
+   },
+   "order": 30
+  },
+  "motor": {
+   "key": "motor",
+   "label": {
+    "en": "Motorcycle",
+    "nl": "Motor"
+   },
+   "order": 40
+  },
+  "personal": {
+   "key": "personal",
+   "label": {
+    "en": "Personal",
+    "nl": "Persoonlijk"
+   },
+   "order": 10
+  }
+ },
+ "overrides": {
+  "membership.member_number": {
+   "functional_group": "membership"
+  },
+  "membership.membership_type": {
+   "application_visible": true,
+   "functional_group": "membership",
+   "label": {
+    "en": "Membership type",
+    "nl": "Lidmaatschapstype"
+   },
+   "options": [
+    {
+     "allowed": true,
+     "label": {
+      "en": "Regular member",
+      "nl": "Gewoon lid"
+     },
+     "order": 10,
+     "value": "gewoon_lid"
+    },
+    {
+     "allowed": true,
+     "label": {
+      "en": "Family member",
+      "nl": "Gezinslid"
+     },
+     "order": 15,
+     "value": "gezins_lid"
+    },
+    {
+     "allowed": false,
+     "label": {
+      "en": "Honorary member",
+      "nl": "Erelid"
+     },
+     "order": 20,
+     "value": "erelid"
+    },
+    {
+     "allowed": true,
+     "label": {
+      "en": "Donor",
+      "nl": "Donateur"
+     },
+     "order": 30,
+     "value": "donateur"
+    },
+    {
+     "allowed": true,
+     "label": {
+      "en": "Family donor",
+      "nl": "Gezinsdonateur"
+     },
+     "order": 35,
+     "value": "gezins_donateur"
+    },
+    {
+     "allowed": true,
+     "label": {
+      "en": "Sponsor",
+      "nl": "Sponsor"
+     },
+     "order": 40,
+     "value": "sponsor"
+    },
+    {
+     "allowed": true,
+     "label": {
+      "en": "Other",
+      "nl": "Overig"
+     },
+     "order": 50,
+     "value": "overig"
+    }
+   ],
+   "order": 30,
+   "required": true,
+   "type": "reference"
+  },
+  "membership.status": {
+   "application_choices": [
+    "aanmelding"
+   ],
+   "application_visible": true,
+   "functional_group": "membership",
+   "label": {
+    "en": "Status",
+    "nl": "Status"
+   },
+   "options": [
+    {
+     "label": {
+      "en": "Application",
+      "nl": "Aanmelding"
+     },
+     "value": "aanmelding"
+    },
+    {
+     "label": {
+      "en": "Pending",
+      "nl": "In behandeling"
+     },
+     "value": "inbehandeling"
+    },
+    {
+     "label": {
+      "en": "Active",
+      "nl": "Actief"
+     },
+     "value": "actief"
+    },
+    {
+     "label": {
+      "en": "Suspended",
+      "nl": "Geschorst"
+     },
+     "value": "geschorst"
+    },
+    {
+     "label": {
+      "en": "Lapsed",
+      "nl": "Verlopen"
+     },
+     "value": "verlopen"
+    },
+    {
+     "label": {
+      "en": "Left",
+      "nl": "Uitgeschreven"
+     },
+     "value": "uitgeschreven"
+    },
+    {
+     "label": {
+      "en": "Passed Away",
+      "nl": "Overleden"
+     },
+     "value": "overleden"
+    }
+   ],
+   "order": 20,
+   "required": true,
+   "type": "enum"
+  },
+  "personal.birth_date": {
+   "application_visible": true
+  },
+  "personal.city": {
+   "application_visible": true,
+   "functional_group": "address",
+   "label": {
+    "en": "City",
+    "nl": "Woonplaats"
+   },
+   "order": 110,
+   "required": true,
+   "type": "string"
+  },
+  "personal.country": {
+   "application_visible": true,
+   "functional_group": "address",
+   "label": {
+    "en": "Country",
+    "nl": "Land"
+   },
+   "order": 120,
+   "required": true,
+   "type": "string"
+  },
+  "personal.email": {
+   "application_visible": true,
+   "functional_group": "personal",
+   "label": {
+    "en": "Email",
+    "nl": "E-mail"
+   },
+   "order": 70,
+   "required": true,
+   "type": "string"
+  },
+  "personal.first_name": {
+   "application_visible": true,
+   "functional_group": "personal",
+   "label": {
+    "en": "First name",
+    "nl": "Voornaam"
+   },
+   "order": 10,
+   "required": true,
+   "type": "string",
+   "visible": true
+  },
+  "personal.gender": {
+   "application_visible": true,
+   "functional_group": "personal",
+   "label": {
+    "en": "Gender",
+    "nl": "Geslacht"
+   },
+   "label_en": "Gender",
+   "label_nl": "Geslacht",
+   "options": [
+    {
+     "label": {
+      "en": "man",
+      "nl": "man"
+     },
+     "value": "man"
+    },
+    {
+     "label": {
+      "en": "vrouw",
+      "nl": "vrouw"
+     },
+     "value": "vrouw"
+    }
+   ],
+   "order": 60,
+   "required": true,
+   "type": "enum"
+  },
+  "personal.initials": {
+   "application_visible": true
+  },
+  "personal.last_name": {
+   "application_visible": true
+  },
+  "personal.name_infix": {
+   "application_visible": true
+  },
+  "personal.phone": {
+   "application_visible": true,
+   "functional_group": "personal",
+   "label": {
+    "en": "Phone",
+    "nl": "Telefoon"
+   },
+   "order": 80,
+   "required": true,
+   "type": "string"
+  },
+  "personal.postal_code": {
+   "application_visible": true,
+   "functional_group": "address",
+   "label": {
+    "en": "Postal code",
+    "nl": "Postcode"
+   },
+   "order": 100,
+   "required": true,
+   "type": "string"
+  },
+  "personal.street": {
+   "application_visible": true,
+   "functional_group": "address",
+   "label": {
+    "en": "Street",
+    "nl": "Straat"
+   },
+   "label_en": "Street",
+   "label_nl": "Straat",
+   "order": 90,
+   "required": true,
+   "type": "string",
+   "visible": true
+  }
+ },
+ "tenant_id": "h-dcn"
+}
