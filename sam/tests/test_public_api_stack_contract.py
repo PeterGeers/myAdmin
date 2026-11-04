@@ -196,9 +196,13 @@ def test_public_function_registers_exactly_the_two_public_routes(template):
         name: e["Properties"] for name, e in events.items() if e["Type"] == "Api"
     }
     routes = {(p["Method"], p["Path"]) for p in api_events.values()}
+    # Round 4: each public path additionally carries an OPTIONS (preflight) event so the Lambda
+    # answers the CORS preflight per origin; no other path/method is registered.
     assert routes == {
         ("GET", "/public/members/{tenant_slug}/field-config"),
         ("POST", "/public/members/{tenant_slug}/applications"),
+        ("options", "/public/members/{tenant_slug}/field-config"),
+        ("options", "/public/members/{tenant_slug}/applications"),
     }
 
 
@@ -231,13 +235,12 @@ def test_authenticated_function_does_not_serve_the_public_routes(template):
 
 def test_public_api_cors_is_not_a_wildcard(template):
     """R10.4: the public POST must not be callable cross-origin from any site — no `'*'` origin."""
-    cors = template["Resources"]["MembersPublicApi"]["Properties"]["Cors"]
-    allow_origin = cors["AllowOrigin"]
-    # The authenticated API answers `'*'` (token-gated); the public one must NOT.
-    assert allow_origin != "'*'"
-    # It is derived from the first configured form origin (a !Sub over a !Select/!Split), never a
-    # literal wildcard.
-    assert isinstance(allow_origin, _CfnTag) and allow_origin.tag == "Sub"
+    # Round 4: the static API-level `Cors` mock is GONE (it could never echo the per-slug host);
+    # OPTIONS is routed to the Lambda and decided per origin by `public_app._apply_cors_origin`.
+    props = template["Resources"]["MembersPublicApi"]["Properties"]
+    cors = props.get("Cors")
+    assert cors is None or cors.get("AllowOrigin") != "'*'"
+    assert "Cors" not in props
 
 
 def test_authenticated_api_cors_is_still_wildcard(template):

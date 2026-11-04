@@ -454,5 +454,97 @@ verified against live TEST. Same exploration-first discipline, kept tight: tasks
     - **EXPECTED OUTCOME**: Tests PASS
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
-- [ ] 12. Round 3 Checkpoint - Ensure all tests pass
+- [x] 12. Round 3 Checkpoint - Ensure all tests pass
   - Run `python -m pytest -c sam/pytest.ini sam/tests -q` (full SAM suite) and the frontend builder tests if `ApplicationFormBuilder.tsx` was touched; ensure all pass. Ask the user if questions arise.
+
+---
+
+## Round 4 — slug-marker IAM and per-origin preflight
+
+Branch: `bugfix/published-form-submit-round4` (off origin/test at 88eb9cb80, incl. PR #202). Two defects
+(10, 11) verified against live TEST. Same exploration-first discipline, kept tight: tasks 13–16.
+
+### Round 4 Task Dependency Graph
+
+```json
+{
+  "waves": [
+    {
+      "wave": 1,
+      "tasks": ["13", "14"],
+      "description": "Round-4 exploration test (fails on current code) and preservation tests (pass on current code), written first."
+    },
+    {
+      "wave": 2,
+      "tasks": ["15.1", "15.2"],
+      "description": "Split the IAM statement; route OPTIONS to the Lambda, drop the static Cors, add the handler branch. Independent; both depend on 13 and 14."
+    },
+    {
+      "wave": 3,
+      "tasks": ["15.3", "15.4"],
+      "description": "Verify exploration test passes and preservation tests still pass. Depend on 15.1 and 15.2."
+    },
+    {
+      "wave": 4,
+      "tasks": ["16"],
+      "description": "Round-4 checkpoint: full SAM suite and sam validate --lint. Depends on all of task 15."
+    }
+  ]
+}
+```
+
+### Round 4 Tasks
+
+- [x] 13. Write Round-4 bug condition exploration test
+  - **Property 7: Bug Condition** - Slug markers are readable and the preflight is decided per origin
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - Reuse the CFN-tag-tolerant YAML loader from `sam/tests/test_public_api_stack_contract.py`; put the new test under `sam/tests/`
+  - **IAM**: no `MembersPublicFunction` Policies statement has `s3:GetObject` together with a Condition on `s3:prefix`; `s3:GetObject` on `_slugs/*` is granted by an unconditioned statement
+  - **PREFLIGHT_ROUTE**: OPTIONS events exist on `MembersPublicFunction` for `/public/members/{tenant_slug}/field-config` and `/public/members/{tenant_slug}/applications`; `MembersPublicApi` has no static `Cors` AllowOrigin
+  - **PREFLIGHT_HANDLER**: drive the real `public_app.handler` with OPTIONS from `https://hdcn-aanmelden.jabaki.nl` and the fake slug store; assert 204 (or 200), ACAO equals the origin, and allow-methods/headers present
+  - Run on UNFIXED code; **EXPECTED OUTCOME**: FAILS; document counterexamples
+  - _Bug_Condition: isBugConditionR4 facets IAM, PREFLIGHT_
+  - _Requirements: 10.1, 10.2_
+
+- [x] 14. Write Round-4 preservation property tests (BEFORE implementing fix)
+  - **Property 8: Preservation** - Authenticated CORS, real-request CORS and other IAM unchanged
+  - **IMPORTANT**: Follow observation-first methodology
+  - Foreign origin gets no ACAO on GET and POST (real `public_app.handler`)
+  - `MembersApi` `Cors` block equals its current value
+  - `MembersPublicFunction` other IAM statements: exact Sid/Action/Resource set, excluding the slug-marker statement(s)
+  - **EXPECTED OUTCOME**: Tests PASS on unfixed code
+  - _Requirements: 12.1, 12.2, 12.3, 12.5_
+
+- [x] 15. Fix for slug-marker IAM and per-origin preflight
+
+  - [x] 15.1 Split the slug-marker IAM statement
+    - In `sam/members/template.yaml` replace `PublicReadSlugMarkers` with an unconditioned `s3:GetObject` statement on `arn:aws:s3:::${LandingPagesBucket}/_slugs/*` and a separate `s3:ListBucket` statement on the bucket ARN with `s3:prefix: _slugs/*`
+    - Fix the misleading "GetObject ignores it" comment
+    - _Bug_Condition: isBugConditionR4 facet=IAM_
+    - _Expected_Behavior: Property 7_
+    - _Preservation: Property 8 (other IAM statements unchanged)_
+    - _Requirements: 11.1, 12.3_
+
+  - [x] 15.2 Route OPTIONS to the Lambda and answer it per origin
+    - Add `Method: OPTIONS` events for both public paths on `MembersPublicFunction`; remove the `Cors` block from `MembersPublicApi`
+    - In `public_app.handler` add the OPTIONS branch: resolve slug, `_apply_cors_origin`, 204 with allow-methods/headers, `Access-Control-Max-Age: 600`, `Vary: Origin`; no ACAO when unresolved or foreign; never `*`; bypass honeypot/payload cap; no PII logged
+    - _Bug_Condition: isBugConditionR4 facet=PREFLIGHT_
+    - _Expected_Behavior: Property 7_
+    - _Preservation: Property 8 (MembersApi Cors, real GET/POST CORS unchanged)_
+    - _Requirements: 11.2, 11.3, 12.1, 12.2, 12.4_
+
+  - [x] 15.3 Verify Round-4 bug condition exploration test now passes
+    - **Property 7: Expected Behavior** - Slug markers are readable and the preflight is decided per origin
+    - Re-run the SAME test from task 13 - do NOT write a new test
+    - **EXPECTED OUTCOME**: Test PASSES
+    - _Requirements: 11.1, 11.2, 11.3_
+
+  - [x] 15.4 Verify Round-4 preservation tests still pass
+    - **Property 8: Preservation** - Authenticated CORS, real-request CORS and other IAM unchanged
+    - Re-run the SAME tests from task 14 - do NOT write new tests
+    - **EXPECTED OUTCOME**: Tests PASS
+    - _Requirements: 12.1, 12.2, 12.3, 12.5_
+
+- [x] 16. Round 4 Checkpoint - Ensure all tests pass
+  - Run `python -m pytest -c sam/pytest.ini sam/tests -q` (full SAM suite) and `sam validate --lint` on `sam/members/template.yaml` if available; ensure all pass. Ask the user if questions arise.
