@@ -252,3 +252,76 @@ add only `text` alongside the existing `version` and SHALL NOT expose any raw re
 6.5 WHEN the request `Origin` is not the resolved form's own host, not in the static baseline, and
 not in the tenant's `application_embed_origins` THEN CORS SHALL CONTINUE TO be fail-closed (drop the
 header, never `*`) exactly as today — no foreign `*.jabaki.nl` site is permitted.
+
+---
+
+# Round 3 — production wiring, CORS on error responses, silent errors, publish state
+
+Verified against live TEST: the published `hdcn-aanmelden/index.html` (re-published after the
+Round-2 deploy) has NO consent notice text, NO consent checkbox and NO `data-notice-version`, and a
+submit still shows the generic "Je aanmelding kon niet worden verwerkt". Round-2 tests passed
+because they always injected a consent provider directly. Round 3 continues the numbering:
+Current Behavior (7), Expected Behavior (8), Unchanged Behavior (9).
+
+## Bug Analysis — Round 3
+
+### Current Behavior (Defect) — Round 3
+
+7.1 WHEN the production service is built by `sam/members/handler/app.py::_get_membership_service`
+THEN `MembershipService(...)` is constructed WITHOUT a `consent_notice_provider`, so it defaults to
+an empty `StaticConsentNoticeProvider()`; publish, the public field-config GET and submit all see no
+notice, so the page renders no notice text and no checkbox, posts `consent:{}` and gets 422
+`CONSENT_REQUIRED`, and the server consent stamp records version `None` (the builder still shows
+the version because it reads `mail_config` via the separately wired `_ProjectionMailConfigProvider`).
+
+7.2 WHEN the public submit raises a `MemberValidationError` (422) or an unexpected error (500) after
+the slug resolved THEN `public_app.py` applies CORS WITHOUT the resolved slug/tenant (only the 200
+and 501 branches pass them), so from `https://{slug}.jabaki.nl` the browser blocks the error body,
+the fetch rejects, and the reason never reaches the applicant.
+
+7.3 WHEN the submit script receives a 422 entry whose target element (`[data-field="consent"]` or
+the field wrapper) is absent THEN the message has nowhere to go and the applicant sees nothing
+specific (a silent error).
+
+7.4 WHEN a form is published THEN `application_publish.py` returns `published_version` /
+`published_at` but never persists them onto `config#fields`, so after reload the builder sees
+"never published", "Draft has unpublished changes" never clears, and `_next_published_version`
+always returns 1.
+
+### Expected Behavior (Correct) — Round 3
+
+8.1 WHEN the production `MembershipService` is built THEN the system SHALL wire a consent-notice
+provider backed by the projection reader (`MembersProjectionReader`: `get_consent_notice` +
+`get_consent_notice_version`) through a stable per-call indirection like
+`_ProjectionMailConfigProvider` (fresh reader per call, test-override seam), so publish renders the
+notice text + checkbox and the consent stamp records the real version.
+
+8.2 WHEN the public submit returns 422 or 500 after the slug resolved THEN the system SHALL apply
+CORS with the resolved slug and tenant exactly like the 200 branch (the form's OWN slug host ∪
+tenant embed origins ∪ static baseline), staying fail-closed, never `*`, no wildcard; the
+abuse-guard 400 and unknown-route 404 (no slug resolved) SHALL stay as they are.
+
+8.3 WHEN a 422 entry's target element is missing THEN the submit script SHALL show the message in
+the form-level message area, so an error is never silent.
+
+8.4 WHEN a publish succeeds (artifact written) THEN the system SHALL persist `published_version`
+and `published_at` onto `config#fields` via a single-path, version-conditional Change-Op
+`update_item` (steering 39; mirroring `set_form_slug` in `config_fields_crud_service.py`, NOT a
+whole-record put), so the builder clears "unpublished changes" and a second publish yields
+version 2.
+
+### Unchanged Behavior (Regression Prevention) — Round 3
+
+9.1 WHEN a submit reaches the consent gate THEN the system SHALL CONTINUE TO require
+`accepted is True` (fail-closed) and stamp `consent = {version, accepted_at, locale}` in the same
+shape as today.
+
+9.2 WHEN the request `Origin` is not the resolved slug host, the baseline, or a tenant embed
+origin (incl. a foreign `*.jabaki.nl` host) THEN CORS SHALL CONTINUE TO be fail-closed on 200, 422
+and 500 alike.
+
+9.3 WHEN a tenant has no consent notice THEN the render, field config and submit SHALL CONTINUE TO
+behave as today (empty-is-valid).
+
+9.4 WHEN Round 1–2 behavior runs (submit script, format checks, notice text render, inline 422
+mapping, slug-host CORS on 200) THEN it SHALL CONTINUE TO pass its existing tests unchanged.

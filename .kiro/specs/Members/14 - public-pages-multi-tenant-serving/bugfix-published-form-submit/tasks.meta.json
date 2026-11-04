@@ -12,6 +12,19 @@
     "7.6 Verify Round-2 preservation tests still pass": {
       "status": "passed",
       "lastRunTimestamp": 1793735585629
+    },
+    "9. Write Round-3 bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "WIRING: h-dcn config#mail consent_notice {version:'2026-01',text:{nl,en}} -> served notice={'version': None}. CORS_ERROR: Origin https://hdcn-aanmelden.jabaki.nl, 422 -> ACAO=None. FALLBACK: showFieldError `if (!wrap) {return;}` drops the message. PUBLISH_STATE: stored config#fields keys=['slug','tenant_id'] after publish (v1 not persisted).",
+      "lastRunTimestamp": 1793782398238
+    },
+    "11.5 Verify Round-3 bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1793783484214
+    },
+    "11.6 Verify Round-3 preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1793783527164
     }
   },
   "executionHistory": {
@@ -271,6 +284,161 @@
         "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
         "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
         "timestamp": 1793735958907
+      }
+    ],
+    "9. Write Round-3 bug condition exploration test": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968103
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781980221
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782420124
+      }
+    ],
+    "10. Write Round-3 preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968225
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781981143
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782420207
+      }
+    ],
+    "11.1 Wire the consent-notice provider in app.py": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968323
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782430797
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782521861
+      }
+    ],
+    "11.2 CORS on 422/500 with the resolved slug": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968411
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782527509
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782624898
+      }
+    ],
+    "11.3 Submit-script fallback to the form-level message": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968496
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782630230
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782795332
+      }
+    ],
+    "11.4 Persist publish state via a version-conditional Change-Op": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968588
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782800686
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783351536
+      }
+    ],
+    "11.5 Verify Round-3 bug condition exploration test now passes": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968685
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783358535
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783500481
+      }
+    ],
+    "11.6 Verify Round-3 preservation tests still pass": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968770
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783501415
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783541642
+      }
+    ],
+    "12. Round 3 Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968853
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783547137
+      }
+    ],
+    "11. Fix for Round-3 defects (consent wiring, CORS on 422/500, silent errors, publish state)": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783541817
       }
     ]
   }

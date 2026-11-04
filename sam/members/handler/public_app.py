@@ -786,7 +786,9 @@ def _submission_consent(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return None
 
 
-def _dispatch_public(request: ParsedRequest) -> Any:
+def _dispatch_public(
+    request: ParsedRequest, resolved: dict[str, str] | None = None
+) -> Any:
     """Delegate a recognised public route to the domain — resolving the slug from the marker first.
 
     This is the single downward seam from the thin public edge to the application domain.
@@ -823,6 +825,12 @@ def _dispatch_public(request: ParsedRequest) -> Any:
     edge never authenticates.
     """
     slug = _slug_from_path(request)
+    # Per-request holder (a LOCAL dict owned by `handler`, never module state — Lambda reuse): once
+    # the slug resolves to a tenant it is recorded here BEFORE the service runs, so the handler's
+    # 422/500 branches can admit the form's OWN slug host in CORS (Round 3, R9.1) even though the
+    # service raised. Left empty when resolution fails → those branches add nothing (fail-closed).
+    if resolved is None:
+        resolved = {}
 
     # ── GET …/field-config: the public read path (task 3.1) ──────────────────────────
     if request.method == "GET":
@@ -830,6 +838,7 @@ def _dispatch_public(request: ParsedRequest) -> Any:
         if tenant_id is None:
             # No marker / cross-plane / cross-kind → non-probeable 404 (R5.3, Property 2/3/5).
             raise PublicTenantNotFound(slug)
+        resolved.update(tenant_id=tenant_id, resolved_slug=slug)
         try:
             # REUSE the one filter authority — the EXPLICIT applicant whitelist (R5.2 / SEC-1).
             # The authority is the allowlist (``application_visible`` gate, default HIDDEN) and
@@ -883,6 +892,7 @@ def _dispatch_public(request: ParsedRequest) -> Any:
     tenant_id = _resolve_sam_form_tenant(slug)
     if tenant_id is None:
         raise PublicTenantNotFound(slug)
+    resolved.update(tenant_id=tenant_id, resolved_slug=slug)
 
     # The write is SCOPED to the marker-resolved ``tenant_id`` (steering 39: the tenant comes from
     # the verified marker, never the request body) — the service strips any body ``tenant_id`` and
@@ -970,8 +980,9 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
 
     # 3) Delegate to the application domain (the slug resolver + service seam, tasks 1.2 / 1.3 /
     #    Phase 2 / Phase 4). Shape the response; CORS is applied to EVERY branch (R10.3).
+    resolved: dict[str, str] = {}
     try:
-        result = _dispatch_public(request)
+        result = _dispatch_public(request, resolved)
     except PublicTenantNotFound:
         # The slug did not resolve to an allow-listed tenant → the SAME non-probeable 404 an
         # unrecognised path returns, so a real-but-unknown slug cannot be told from "no such
@@ -1024,6 +1035,8 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
                 errors=_field_errors_array(exc.errors),
             ),
             request,
+            tenant_id=resolved.get("tenant_id"),
+            resolved_slug=resolved.get("resolved_slug"),
         )
     except Exception:
         # Any UNANTICIPATED error becomes a BODIED 500 — never an empty 502 the SPA can only
@@ -1037,7 +1050,10 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             request_id,
         )
         return _apply_cors_origin(
-            _error(500, "Internal error", code="errors.api.serverError"), request
+            _error(500, "Internal error", code="errors.api.serverError"),
+            request,
+            tenant_id=resolved.get("tenant_id"),
+            resolved_slug=resolved.get("resolved_slug"),
         )
 
     # A completed read/write result → 200 with the shared envelope. The GET field-config read

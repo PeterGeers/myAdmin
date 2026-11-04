@@ -384,6 +384,43 @@ class _ProjectionMailConfigProvider:
 _MAIL_CONFIG_PROVIDER: MailConfigProvider = _ProjectionMailConfigProvider()
 
 
+#: Test-only override for the consent-notice provider (``None`` in production → fresh reader).
+#: Mirrors :data:`_MAIL_CONFIG_PROVIDER_OVERRIDE` — a test injects a ``StaticConsentNoticeProvider``
+#: (or a ``MembersProjectionReader`` over a fake table) so the publish / public field-config /
+#: submit consent stamp can be driven without an AWS round-trip.
+_CONSENT_NOTICE_PROVIDER_OVERRIDE: Any | None = None
+
+
+class _ProjectionConsentNoticeProvider:
+    """A thin consent-notice provider indirection over a per-call fresh reader.
+
+    Round 3 (bugfix-published-form-submit, WIRING): ``_get_membership_service`` previously built
+    the service WITHOUT a ``consent_notice_provider``, so the empty static default was used in
+    production and publish, the public field-config GET and the submit consent stamp all saw no
+    notice. EXACTLY mirrors :class:`_ProjectionMailConfigProvider`: every call delegates to a
+    FRESH :class:`MembersProjectionReader` (or the test override) so a re-projected
+    ``config#mail`` ``consent_notice`` is reflected without rebuilding the service singleton.
+    Empty-is-valid (no notice → ``None``) is owned by the reader. ``_new_projection_reader`` is
+    looked up by module global at call time.
+    """
+
+    def _source(self) -> Any:
+        if _CONSENT_NOTICE_PROVIDER_OVERRIDE is not None:
+            return _CONSENT_NOTICE_PROVIDER_OVERRIDE
+        return _new_projection_reader()
+
+    def get_consent_notice_version(self, tenant_id: str) -> str | None:
+        return self._source().get_consent_notice_version(tenant_id)
+
+    def get_consent_notice(self, tenant_id: str) -> dict | None:
+        return self._source().get_consent_notice(tenant_id)
+
+
+#: The consent-notice provider handed to the domain service — a stable indirection that reads a
+#: fresh projection each call (see :class:`_ProjectionConsentNoticeProvider`).
+_CONSENT_NOTICE_PROVIDER = _ProjectionConsentNoticeProvider()
+
+
 class _ProjectionConfigStatusProvider:
     """A thin :class:`ConfigStatusProvider` indirection over a per-call fresh reader.
 
@@ -458,6 +495,13 @@ class _ProjectionFormSlugProvider:
         ):
             return _OVERLAY_PROVIDER_OVERRIDE.get_public_prefix(tenant_id)
         return _new_projection_reader().get_public_prefix(tenant_id)
+
+    def get_published_state(self, tenant_id: str):
+        if _OVERLAY_PROVIDER_OVERRIDE is not None and hasattr(
+            _OVERLAY_PROVIDER_OVERRIDE, "get_published_state"
+        ):
+            return _OVERLAY_PROVIDER_OVERRIDE.get_published_state(tenant_id)
+        return _new_projection_reader().get_published_state(tenant_id)
 
 
 #: The form-slug / public-prefix provider handed to the domain service — a stable indirection that
@@ -1179,6 +1223,7 @@ def _get_membership_service() -> MembershipService:
             scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
             mail_gate_provider=_MAIL_GATE_PROVIDER,
             mail_config_provider=_MAIL_CONFIG_PROVIDER,
+            consent_notice_provider=_CONSENT_NOTICE_PROVIDER,
             config_status_provider=_CONFIG_STATUS_PROVIDER,
             default_page_size_provider=_DEFAULT_PAGE_SIZE_PROVIDER,
             form_slug_provider=_FORM_SLUG_PROVIDER,
