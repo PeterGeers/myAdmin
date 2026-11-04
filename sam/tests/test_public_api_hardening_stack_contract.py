@@ -222,6 +222,7 @@ def test_public_fn_iam_is_exactly_the_four_scoped_grants(template):
         "PublicReadGovernanceProjection",
         "PublicEnqueueMailSend",
         "PublicReadSlugMarkers",
+        "PublicListSlugMarkers",
     }
 
 
@@ -230,20 +231,28 @@ def test_public_fn_slug_marker_grant_is_scoped_read_only_no_write(template):
     GetObject on `_slugs/*` + ListBucket prefix-conditioned to `_slugs/*` (so a MISSING marker is
     a clean NoSuchKey/404, not AccessDenied → enumeration-safe), ARNs from `${LandingPagesBucket}`,
     and NO PutObject/DeleteObject on the public edge (claiming/renaming is the authenticated fn)."""
-    stmt = _by_sid(template["Resources"]["MembersPublicFunction"])[
-        "PublicReadSlugMarkers"
-    ]
-    actions = set(stmt["Action"])
-    # BOTH READ actions, nothing more. GetObject reads the marker body; ListBucket makes a missing
-    # marker surface as NoSuchKey instead of AccessDenied.
-    assert actions == {"s3:GetObject", "s3:ListBucket"}
+    stmts = _by_sid(template["Resources"]["MembersPublicFunction"])
+    get_stmt = stmts["PublicReadSlugMarkers"]
+    stmt = stmts["PublicListSlugMarkers"]
+    # TWO statements: the s3:prefix Condition has no meaning for GetObject (IAM would deny it),
+    # so GetObject is its own condition-free statement and ListBucket carries the Condition.
+    assert set(get_stmt["Action"]) == {"s3:GetObject"}
+    assert "Condition" not in get_stmt
+    assert set(stmt["Action"]) == {"s3:ListBucket"}
+    actions = set(get_stmt["Action"]) | set(stmt["Action"])
     # No WRITE on the public edge — it only resolves markers, never claims/renames them.
     assert "s3:PutObject" not in actions
     assert "s3:DeleteObject" not in actions
     # ARNs built from the LandingPagesBucket param — never a hardcode.
     subs = [
-        r.value for r in stmt["Resource"] if isinstance(r, _CfnTag) and r.tag == "Sub"
+        r.value
+        for r in get_stmt["Resource"] + stmt["Resource"]
+        if isinstance(r, _CfnTag) and r.tag == "Sub"
     ]
+    assert [r.value for r in get_stmt["Resource"]] == [
+        "arn:aws:s3:::${LandingPagesBucket}/_slugs/*"
+    ]
+    assert [r.value for r in stmt["Resource"]] == ["arn:aws:s3:::${LandingPagesBucket}"]
     # GetObject is object-scoped to the `_slugs/*` marker prefix.
     assert any(s == "arn:aws:s3:::${LandingPagesBucket}/_slugs/*" for s in subs)
     # ListBucket targets the bucket itself (object-prefix lives in the Condition, not the ARN).
