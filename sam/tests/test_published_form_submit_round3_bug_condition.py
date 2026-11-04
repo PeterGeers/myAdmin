@@ -60,6 +60,7 @@ import json
 import os
 import re
 import sys
+from html.parser import HTMLParser
 
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -207,7 +208,9 @@ class _FakeEmbedOriginReader:
 class _RaisingApplicationService:
     """`ApplicationService` stand-in whose submit raises the consent `MemberValidationError` (422)."""
 
-    def create_application(self, tenant_id, body, session_key, *, locale=None, consent=None):
+    def create_application(
+        self, tenant_id, body, session_key, *, locale=None, consent=None
+    ):
         raise MemberValidationError({"consent": "Consent is required"})
 
 
@@ -218,7 +221,12 @@ def _post_event(path: str, origin: str) -> dict:
         "headers": {"Origin": origin, "Content-Type": "application/json"},
         "queryStringParameters": None,
         "body": json.dumps(
-            {"fields": {"email": "a@b.nl"}, "locale": "nl", "consent": {}, "website": ""}
+            {
+                "fields": {"email": "a@b.nl"},
+                "locale": "nl",
+                "consent": {},
+                "website": "",
+            }
         ),
         "isBase64Encoded": False,
     }
@@ -269,7 +277,9 @@ def test_cors_422_echoes_origin_for_the_resolved_slug_host(resolved_slug, monkey
         _post_event(f"/public/members/{resolved_slug}/applications", origin)
     )
 
-    assert resp["statusCode"] == 422, f"precondition: expected a 422, got {resp['statusCode']}"
+    assert resp["statusCode"] == 422, (
+        f"precondition: expected a 422, got {resp['statusCode']}"
+    )
     acao = resp.get("headers", {}).get("Access-Control-Allow-Origin")
     assert acao == origin, (
         "BUG (CORS_ERROR facet): the 422 response drops Access-Control-Allow-Origin for the "
@@ -312,11 +322,24 @@ def _render_without_notice() -> str:
 
 def _no_wrapper_branch(artifact: str) -> str | None:
     """Return the body of the `if (!wrap) { ... }` block inside `showFieldError`, or None."""
-    fn = re.search(r"function showFieldError\(name, message\) \{(.*?)\n  \}\n", artifact, re.S)
+    fn = re.search(
+        r"function showFieldError\(name, message\) \{(.*?)\n  \}\n", artifact, re.S
+    )
     if not fn:
         return None
     branch = re.search(r"if \(!wrap\) \{(.*?)\}", fn.group(1), re.S)
     return branch.group(1) if branch else None
+
+
+class _StartTagCollector(HTMLParser):
+    """Record the attribute dict of every start tag (script bodies are never parsed as tags)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.tags: list[dict[str, str | None]] = []
+
+    def handle_starttag(self, tag, attrs):
+        self.tags.append(dict(attrs))
 
 
 def test_fallback_unmatched_422_entry_goes_to_the_form_level_message():
@@ -330,13 +353,17 @@ def test_fallback_unmatched_422_entry_goes_to_the_form_level_message():
     artifact = _render_without_notice()
 
     # Precondition: this really is the no-target case — no rendered consent CONTROL element. The
-    # embedded <script> COMMENTS mention `data-field="consent"`, so inspect the markup OUTSIDE the
-    # script blocks only.
-    markup = re.sub(r"<script\b.*?</script>", "", artifact, flags=re.S)
-    assert (
-        'data-field="consent"' not in markup
-    ), "precondition: notice-less render has no consent control"
-    assert "form-status" in artifact, "precondition: the form-level message area exists"
+    # embedded <script> COMMENTS mention `data-field="consent"`; HTMLParser treats script bodies as
+    # CDATA, so only real elements' attributes are recorded.
+    collector = _StartTagCollector()
+    collector.feed(artifact)
+    collector.close()
+    assert not any(attrs.get("data-field") == "consent" for attrs in collector.tags), (
+        "precondition: notice-less render has no consent control"
+    )
+    assert any(
+        "form-status" in (attrs.get("class") or "").split() for attrs in collector.tags
+    ), "precondition: the form-level message area exists"
 
     branch = _no_wrapper_branch(artifact)
     assert branch is not None, "precondition: showFieldError has an `if (!wrap)` branch"
@@ -422,7 +449,9 @@ def _build_publish_service(store: _FakeFieldsStore):
     )
 
 
-def test_publish_state_is_persisted_on_config_fields_and_second_publish_is_v2(monkeypatch):
+def test_publish_state_is_persisted_on_config_fields_and_second_publish_is_v2(
+    monkeypatch,
+):
     """PUBLISH_STATE facet: after publish the stored row carries `published_version` /
     `published_at`, and a second publish yields version 2.
 
@@ -438,7 +467,9 @@ def test_publish_state_is_persisted_on_config_fields_and_second_publish_is_v2(mo
     svc = _build_publish_service(store)
 
     first = svc.publish(_TENANT)
-    assert first["success"] is True and first["published_version"] == 1, "precondition: first publish"
+    assert first["success"] is True and first["published_version"] == 1, (
+        "precondition: first publish"
+    )
 
     assert store.row.get("published_version") == first["published_version"], (
         "BUG (PUBLISH_STATE facet): the stored config#fields row lacks published_version after a "
