@@ -786,6 +786,38 @@ def _submission_consent(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return None
 
 
+def _public_field_key(engine_key: Any) -> str:
+    """Map an engine error key to the BARE key the published form names its control by.
+
+    The engine keys errors by physical identity (``personal.last_name``, ``membership.membership_type``,
+    ``overlay.region``); the public field config emits the bare ``key`` (``last_name`` ...) and the
+    form's controls carry that name. Steering 39: no dotted ``{group}.{key}`` crosses the public
+    boundary. The bare key IS the last dotted segment (the group / ``overlay`` prefix is the
+    physical placement), so this is derived from the key alone: no extra read, no boto3. A key
+    with no dot (``consent``) is returned unchanged. For an unrecognised shape the last segment is
+    still used, so a message is never dropped.
+    """
+    key = str(engine_key)
+    return key.rsplit(".", 1)[-1] or key
+
+
+def _public_field_errors_array(errors: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The shared per-field ``errors`` array with ``field`` rewritten to the bare public key.
+
+    Entry shape is unchanged (``{field, code, detail, params?}``). When two engine keys collapse
+    to the same bare key, the FIRST entry wins (no duplicates).
+    """
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for entry in _field_errors_array(errors):
+        bare = _public_field_key(entry.get("field"))
+        if bare in seen:
+            continue
+        seen.add(bare)
+        out.append({**entry, "field": bare})
+    return out
+
+
 def _dispatch_public(
     request: ParsedRequest, resolved: dict[str, str] | None = None
 ) -> Any:
@@ -1100,7 +1132,7 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
                 422,
                 "Validation failed",
                 code="errors.validation.failed",
-                errors=_field_errors_array(exc.errors),
+                errors=_public_field_errors_array(exc.errors),
             ),
             request,
             tenant_id=resolved.get("tenant_id"),

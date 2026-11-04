@@ -25,6 +25,9 @@ from sam.members.domain.applicant_locale import (
     locale_record_patch,
     normalize_locale,
 )
+from sam.members.domain._membership_writes_validation import (
+    APPLICATION_SERVER_SET_MEMBERSHIP_KEYS,
+)
 from sam.members.domain.application_choices import (
     validate_application_choice,
 )
@@ -191,8 +194,8 @@ class ApplicationWritesMixin:
     #: verify-before-trust). ``status`` is forced to ``application`` server-side (R3.1) so a body
     #: status is dropped; ``member_number`` / ``created_at`` / ``updated_at`` are staff-owned
     #: (R4.3). These live under the ``membership`` bucket; the create spine never trusts them.
-    _APPLICATION_PRIVILEGED_MEMBERSHIP_KEYS: frozenset[str] = frozenset(
-        {"status", "member_number", "created_at", "updated_at"}
+    _APPLICATION_PRIVILEGED_MEMBERSHIP_KEYS: frozenset[str] = (
+        APPLICATION_SERVER_SET_MEMBERSHIP_KEYS
     )
 
     #: Stable keyword appended to ``overlay.additional_info`` when the public applicant's
