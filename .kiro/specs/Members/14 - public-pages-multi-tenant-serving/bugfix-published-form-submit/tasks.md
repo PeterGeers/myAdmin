@@ -353,3 +353,106 @@ run on the UNFIXED (Round-1-shipped) code BEFORE the Round-2 fix (task 7); task 
 - Prove the notice round-trip against the REAL `config#mail` / `get_consent_notice` shape (`h-dcn`),
   not a hand-built fixture (steering 39). "Tests pass" alone is not sufficient evidence.
 - Backend tests: `python -m pytest -c sam/pytest.ini <paths> -q`.
+
+---
+
+## Round 3 — production consent wiring, CORS on 422/500, silent-error fallback, publish state
+
+Branch: `bugfix/published-form-submit-round3` (off origin/test incl. PR #201). Four defects (7–10)
+verified against live TEST. Same exploration-first discipline, kept tight: tasks 9–12.
+
+### Round 3 Task Dependency Graph
+
+```json
+{
+  "waves": [
+    {
+      "wave": 1,
+      "tasks": ["9", "10"],
+      "description": "Round-3 exploration test (fails on current code) and preservation tests (pass on current code), written first."
+    },
+    {
+      "wave": 2,
+      "tasks": ["11.1", "11.2", "11.3", "11.4"],
+      "description": "Wire consent provider, CORS on 422/500, script fallback, persist publish state. Independent of each other; all depend on 9 and 10."
+    },
+    {
+      "wave": 3,
+      "tasks": ["11.5", "11.6"],
+      "description": "Verify exploration test passes and preservation tests still pass. Depend on 11.1-11.4."
+    },
+    {
+      "wave": 4,
+      "tasks": ["12"],
+      "description": "Round-3 checkpoint: full SAM suite (+ frontend builder tests if touched). Depends on all of task 11."
+    }
+  ]
+}
+```
+
+### Round 3 Tasks
+
+- [x] 9. Write Round-3 bug condition exploration test
+  - **Property 5: Bug Condition** - Notice is wired, errors are readable and never silent, publish state persists
+  - **CRITICAL**: This test MUST FAIL on current code - failure confirms the Round-3 bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - **GOAL**: Surface counterexamples across four facets (`python -m pytest -c sam/pytest.ini <paths> -q`):
+    - WIRING: build the REAL service via `app._get_membership_service()` with a fake projection table holding a real h-dcn `config#mail` row with `consent_notice`; assert `get_public_field_config` notice has version + text (patch only the reader's table/override seam, not the service)
+    - CORS_422: drive the real `public_app.handler` POST submit from Origin `https://hdcn-aanmelden.jabaki.nl` raising `MemberValidationError`; assert `Access-Control-Allow-Origin` is echoed
+    - FALLBACK: the rendered script routes an unmatched 422 entry to the form-level message area
+    - PUBLISH_STATE: after publish the stored `config#fields` row carries `published_version` / `published_at`; a second publish yields version 2
+  - Run on current code; **EXPECTED OUTCOME**: Test FAILS (proves the bug exists); document counterexamples
+  - _Requirements: 7.1, 7.2, 7.3, 7.4_
+
+- [x] 10. Write Round-3 preservation property tests (BEFORE implementing fix)
+  - **Property 6: Preservation** - Consent gate, stamp shape, CORS fail-closed and other branches unchanged
+  - **IMPORTANT**: Follow observation-first methodology on current code
+  - Assert preserved: consent gate (`accepted is True`, fail-closed) and stamp shape; CORS rejects a foreign `*.jabaki.nl` origin on 422 and 500; 400 abuse-guard and 404 unknown-route branches unchanged; notice-less tenant render unchanged
+  - Run on current code; **EXPECTED OUTCOME**: Tests PASS
+  - _Requirements: 9.1, 9.2, 9.3, 9.4_
+
+- [x] 11. Fix for Round-3 defects (consent wiring, CORS on 422/500, silent errors, publish state)
+
+  - [x] 11.1 Wire the consent-notice provider in app.py
+    - Add a `_ProjectionConsentNoticeProvider` (fresh `MembersProjectionReader` per call, test-override seam, like `_ProjectionMailConfigProvider`) exposing `get_consent_notice` + `get_consent_notice_version`; pass it as `consent_notice_provider` in `_get_membership_service`
+    - _Bug_Condition: isBugConditionR3 facet=WIRING_
+    - _Expected_Behavior: Property 5_
+    - _Preservation: Property 6 (notice-less tenants unchanged, stamp shape unchanged)_
+    - _Requirements: 8.1, 9.1, 9.3_
+
+  - [x] 11.2 CORS on 422/500 with the resolved slug
+    - In `public_app.py` thread resolved `tenant_id`/`resolved_slug` into the `MemberValidationError` and generic 500 branches and pass them to `_apply_cors_origin`; leave 400/404 as-is; fail-closed, no `*`, no wildcard
+    - _Bug_Condition: isBugConditionR3 facet=CORS_ERROR_
+    - _Expected_Behavior: Property 5_
+    - _Preservation: Property 6 (foreign origins rejected)_
+    - _Requirements: 8.2, 9.2_
+
+  - [x] 11.3 Submit-script fallback to the form-level message
+    - In `application_form_render.py`, route any 422 entry whose target element is missing to the form-level message area
+    - _Bug_Condition: isBugConditionR3 facet=FALLBACK_
+    - _Expected_Behavior: Property 5_
+    - _Preservation: Property 6 (Round 1–2 inline mapping unchanged)_
+    - _Requirements: 8.3, 9.4_
+
+  - [x] 11.4 Persist publish state via a version-conditional Change-Op
+    - After the artifact write succeeds, persist `published_version`/`published_at` on `config#fields` via a single-path version-conditional `update_item` mirroring `set_form_slug` in `config_fields_crud_service.py` (steering 39, no whole-record put); `_next_published_version` reads it
+    - Touch `ApplicationFormBuilder.tsx` only if a test shows `everPublished` needs it
+    - _Bug_Condition: isBugConditionR3 facet=PUBLISH_STATE_
+    - _Expected_Behavior: Property 5_
+    - _Preservation: Property 6 (other config#fields content untouched)_
+    - _Requirements: 8.4, 9.4_
+
+  - [x] 11.5 Verify Round-3 bug condition exploration test now passes
+    - **Property 5: Expected Behavior** - Notice is wired, errors are readable and never silent, publish state persists
+    - Re-run the SAME test from task 9 - do NOT write a new test
+    - **EXPECTED OUTCOME**: Test PASSES
+    - _Requirements: 8.1, 8.2, 8.3, 8.4_
+
+  - [x] 11.6 Verify Round-3 preservation tests still pass
+    - **Property 6: Preservation** - Consent gate, stamp shape, CORS fail-closed and other branches unchanged
+    - Re-run the SAME tests from task 10 - do NOT write new tests
+    - **EXPECTED OUTCOME**: Tests PASS
+    - _Requirements: 9.1, 9.2, 9.3, 9.4_
+
+- [ ] 12. Round 3 Checkpoint - Ensure all tests pass
+  - Run `python -m pytest -c sam/pytest.ini sam/tests -q` (full SAM suite) and the frontend builder tests if `ApplicationFormBuilder.tsx` was touched; ensure all pass. Ask the user if questions arise.

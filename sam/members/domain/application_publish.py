@@ -58,6 +58,7 @@ boto3/HTTP/DynamoDB directly. The tenant is always the verified ``tenant_id`` th
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Mapping
 from datetime import datetime, timezone
 from enum import Enum
@@ -75,6 +76,8 @@ from sam.members.domain.form_slug import (
     validate_slug_prefix_ownership,
 )
 from sam.members.repository.slug_marker_store import SlugMarker, SlugTaken
+
+_LOG = logging.getLogger(__name__)
 
 __all__ = [
     "FormSlugReader",
@@ -224,6 +227,22 @@ class PublicPageArtifactWriter(Protocol):
         self, slug: str, *, index_html: str, form_json: bytes
     ) -> None:
         """Write ``{slug}/index.html`` + ``{slug}/form.json`` then best-effort invalidate."""
+        ...
+
+
+@runtime_checkable
+class PublishStateWriter(Protocol):
+    """Persist the publish-state metadata onto the tenant's ``config#fields`` row.
+
+    Production: a thin adapter over :meth:`ConfigFieldsCrudService.set_publish_state` (a single
+    version-conditional Change-Op that SETs ONLY ``published_version`` / ``published_at``). OPTIONAL
+    on :class:`ApplicationPublishService` — absent, publish behaves exactly as before.
+    """
+
+    def record_publish(
+        self, tenant_id: str, *, published_version: int, published_at: str
+    ) -> None:
+        """Persist ``published_version`` / ``published_at`` (raises on a failed write)."""
         ...
 
 
@@ -388,6 +407,7 @@ class ApplicationPublishService:
         slug_marker_store: SlugMarkerClaimer | None = None,
         prefix_reader: PublicPrefixReader | None = None,
         artifact_writer: PublicPageArtifactWriter | None = None,
+        publish_state_writer: PublishStateWriter | None = None,
     ) -> None:
         self._slug_reader = slug_reader
         self._readiness = readiness_provider
@@ -395,6 +415,7 @@ class ApplicationPublishService:
         self._marker_store = slug_marker_store
         self._prefix_reader = prefix_reader
         self._artifact_writer = artifact_writer
+        self._publish_state_writer = publish_state_writer
 
     def _require_ready(self, tenant_id: str) -> str:
         """Enforce the publish readiness gate, or raise the typed refusal (R5.4 / D15 / R6).
@@ -637,11 +658,30 @@ class ApplicationPublishService:
         )
 
         # Bump the publish-state metadata the frontend caller reads back (R5). `published_version`
-        # advances monotonically; `published_at` is set to now. (The config#fields persistence of
-        # these is carried through by the config write service, Task 1.1 / spec 12 §Data Models;
-        # here we return the authoritative values the publish produced.)
+        # advances monotonically; `published_at` is set to now.
         published_version = self._next_published_version(tenant_id)
         published_at = datetime.now(timezone.utc).isoformat()
+
+        # Persist the publish state on `config#fields` (Round 3 Defect 4) via the injected
+        # version-conditional Change-Op writer, so the builder's `everPublished` becomes true and
+        # the next publish reads version N+1. Runs only AFTER the artifact write succeeded.
+        # Failure policy: the artifact IS already live, so a persistence failure must NOT turn the
+        # publish into a 500 — we log a warning (no PII: tenant + exception type only) and still
+        # return success; the next publish re-attempts the write. No writer wired → unchanged.
+        if self._publish_state_writer is not None:
+            try:
+                self._publish_state_writer.record_publish(
+                    tenant_id,
+                    published_version=published_version,
+                    published_at=published_at,
+                )
+            except Exception as exc:  # noqa: BLE001 - artifact is live; never fail the publish
+                _LOG.warning(
+                    "publish state not persisted after a successful artifact write "
+                    "(tenant=%s, error=%s)",
+                    tenant_id,
+                    type(exc).__name__,
+                )
         return {
             "success": True,
             "slug": slug,
@@ -659,6 +699,10 @@ class ApplicationPublishService:
         UTF-8 JSON.
         """
         payload = dict(config) if isinstance(config, Mapping) else {}
+        # Publish-state is admin metadata (read for `_next_published_version`), not form schema —
+        # keep it out of the served public artifact.
+        payload.pop("published_version", None)
+        payload.pop("published_at", None)
         return json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
 
     def _next_published_version(self, tenant_id: str) -> int:

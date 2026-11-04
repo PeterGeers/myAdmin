@@ -728,3 +728,119 @@ against the REAL `config#mail` `get_consent_notice` shape (e.g. h-dcn), not a ha
   `public_app` CORS decision with a resolved slug + per-env apex; a TEST end-to-end that the
   published `{slug}.jabaki.nl` submit response is readable, the notice text is shown, consent is
   accepted, and a consent-required 422 surfaces clearly.
+
+---
+
+# Round 3 — production wiring, CORS on error responses, silent errors, publish state
+
+## Round 3 Overview
+
+Round 2 deployed but TEST is unchanged for the applicant. Four root causes, all verified against
+code and live TEST:
+
+1. **Wiring (primary).** `app.py::_get_membership_service` builds `MembershipService(...)` with no
+   `consent_notice_provider` → empty `StaticConsentNoticeProvider()`. Publish
+   (`_dispatch_services.py`), the public field-config GET and submit
+   (`public_app._application_service`) all go through it, so none sees the notice. Tests passed
+   because they inject a provider directly.
+2. **CORS on errors.** In `public_app.py` only the 200 `_PublicResult` and 501 branches pass
+   `tenant_id`/`resolved_slug` to `_apply_cors_origin`; the `MemberValidationError` 422 and generic
+   500 branches do not.
+3. **Silent errors.** The script places a 422 message next to `[data-field="consent"]` / the field
+   wrapper only; with no such element the message is dropped.
+4. **Publish state.** `application_publish.py` (~line 639) computes `published_version` /
+   `published_at` but never persists them to `config#fields`.
+
+## Round 3 Bug Details
+
+```
+FUNCTION isBugConditionR3(input)
+  INPUT: input of type PublishedFormRound3Interaction
+         { facet: WIRING | CORS_ERROR | FALLBACK | PUBLISH_STATE, ... }
+  OUTPUT: boolean
+
+  RETURN
+    (facet = WIRING AND tenant has config#mail consent_notice
+       AND production service (app._get_membership_service()) yields no notice text/version)
+    OR (facet = CORS_ERROR AND slug resolved AND response status IN {422, 500}
+       AND request_origin = "https://" + resolved_slug + "." + apex
+       AND NOT acao_echoed(request_origin))
+    OR (facet = FALLBACK AND 422 entry has key with no matching DOM target
+       AND NOT message_shown_in_form_level_area)
+    OR (facet = PUBLISH_STATE AND publish succeeded
+       AND config#fields lacks published_version/published_at)
+END FUNCTION
+```
+
+Examples: h-dcn published page has no notice/checkbox (WIRING); 422 from
+`https://hdcn-aanmelden.jabaki.nl` has no ACAO header (CORS_ERROR); a 422 keyed `consent` on a page
+without the consent element shows nothing (FALLBACK); after publishing twice the builder still says
+"unpublished changes" and version stays 1 (PUBLISH_STATE).
+
+## Round 3 Hypothesized Root Cause
+
+Confirmed by reading code: (1) missing constructor argument in `_get_membership_service`;
+(2) the two except-branches call `_apply_cors_origin(..., request)` without `tenant_id` /
+`resolved_slug`, and the resolved slug/tenant are not in scope there; (3) the script has a single
+target lookup with no fallback; (4) publish returns the values but has no persistence step.
+
+## Round 3 Correctness Properties
+
+Property 5: Bug Condition (Round 3) - Notice is wired, errors are readable and never silent, publish state persists
+
+_For any_ interaction where isBugConditionR3 holds: the production service built via
+`app._get_membership_service()` SHALL expose the tenant's notice `{version, text}` through the
+public field config (and the consent stamp SHALL record that version); the 422 and 500 responses
+after slug resolution SHALL echo `Access-Control-Allow-Origin` for the form's own slug host exactly
+like the 200 branch; a 422 entry with a missing target element SHALL be shown in the form-level
+message area; and a successful publish SHALL persist `published_version` / `published_at` on
+`config#fields` so a second publish yields version 2.
+
+**Validates: Requirements 8.1, 8.2, 8.3, 8.4**
+
+Property 6: Preservation (Round 3) - Consent gate, stamp shape, CORS fail-closed and other branches unchanged
+
+_For any_ input where isBugConditionR3 does NOT hold, the fixed system SHALL behave as before: the
+consent gate (`accepted is True`, fail-closed) and stamp shape, CORS rejection of foreign origins
+(incl. foreign `*.jabaki.nl`) on 200/422/500, the 400 abuse-guard and 404 unknown-route branches,
+notice-less tenants, and the Round 1–2 behavior.
+
+**Validates: Requirements 9.1, 9.2, 9.3, 9.4**
+
+## Round 3 Fix Implementation
+
+- **`sam/members/handler/app.py`**: add a `_ProjectionConsentNoticeProvider` (same pattern as
+  `_ProjectionMailConfigProvider`: fresh `MembersProjectionReader` per call, test-override seam)
+  exposing `get_consent_notice` + `get_consent_notice_version`; pass it as
+  `consent_notice_provider` in `_get_membership_service`.
+- **`sam/members/handler/public_app.py`**: thread the resolved `tenant_id` / `resolved_slug` from
+  dispatch to the `MemberValidationError` (422) and generic (500) branches and pass them to
+  `_apply_cors_origin`. 400 and 404 stay unchanged. Fail-closed, no `*`, no wildcard.
+- **`sam/members/domain/application_form_render.py`**: in the submit script, when a 422 entry's
+  target element is missing, append its message to the form-level message area.
+- **`sam/members/domain/application_publish.py`** (+ the fields CRUD service): after the artifact
+  write succeeds, persist `published_version` / `published_at` with a single-path
+  version-conditional Change-Op `update_item` on `config#fields`, mirroring `set_form_slug`
+  (steering 39; never a whole-record put). `_next_published_version` then reads the stored value.
+- **Frontend**: `ApplicationFormBuilder.tsx` `everPublished` already reads these fields; touch it
+  only if a test shows it does not.
+
+## Round 3 Testing Strategy
+
+Exploration (must FAIL on current code), one test module with four facets:
+
+- **WIRING**: build the REAL service via `app._get_membership_service()` with a fake projection
+  table holding a real h-dcn `config#mail` row with `consent_notice`; assert
+  `get_public_field_config` returns a notice with version + text. Patch only the reader's
+  table/override seam, never the service.
+- **CORS_422**: drive the real `public_app.handler` POST submit from Origin
+  `https://hdcn-aanmelden.jabaki.nl` with a service raising `MemberValidationError`; assert ACAO is
+  echoed.
+- **FALLBACK**: the rendered script routes an unmatched 422 entry to the form-level message.
+- **PUBLISH_STATE**: after publish the stored `config#fields` row has `published_version` /
+  `published_at`; a second publish yields version 2.
+
+Preservation (must PASS on current code): consent gate/stamp, foreign-origin rejection on 422/500,
+400/404 unchanged, notice-less render unchanged. Fix checking and preservation checking reuse the
+same tests after the fix. Checkpoint: `python -m pytest -c sam/pytest.ini sam/tests -q` plus the
+frontend builder tests if touched.
