@@ -379,3 +379,70 @@ Sid/Action/Resource set, except for the slug-marker split.
 (honeypot, payload cap) SHALL NOT run on it, and no PII SHALL be logged.
 
 12.5 WHEN Round 1–3 behavior runs THEN it SHALL CONTINUE TO pass its existing tests unchanged.
+
+---
+
+# Round 5 — field-keyed errors, required parity, readable error UX
+
+## Bug Analysis — Round 5
+
+Verified on live TEST after Round 4: a complete, valid submit from `https://hdcn-aanmelden.jabaki.nl`
+succeeds. Submitting with EMPTY fields shows only "Controleer de gemarkeerde velden." — no field is marked
+and no reason is shown. The 422 carries five errors (`personal.last_name`, `membership.membership_type`,
+`overlay.region`, `personal.email`, `personal.birth_date`), while the form marks only `magazine_pref` as
+`required`, which the server does not require.
+
+### Current Behavior (Defect) — Round 5
+
+13.1 WHEN the public submit returns 422 THEN `errors[].field` carries physical dotted keys
+(`personal.last_name`, `overlay.region`) while the published form names its controls by bare key
+(`last_name`, `region`), so no field wrapper is found and each message falls back to the status line.
+
+13.2 WHEN the submit script has mapped the 422 entries THEN it replaces the status text with the generic
+"Controleer de gemarkeerde velden.", wiping the fallback messages shown for unmatched entries.
+
+13.3 WHEN the published form is rendered THEN its `required` flags (only `magazine_pref`) differ from the set
+the validation engine enforces for the public application (last_name, email, birth_date, membership_type,
+region), so the browser lets empty required fields through and blocks on a field the server does not require.
+
+13.4 WHEN an error is shown THEN there is no error styling (no CSS for `.field-error`, `.form-status`,
+`.form-status-error`), no `aria-invalid`, no focus on the first error, and the text is the server's English
+`detail`.
+
+### Expected Behavior (Correct) — Round 5
+
+14.1 WHEN the public submit returns 422 THEN every `errors[].field` SHALL be the bare field key the published
+form uses (resolved from the resolved field view; `consent` stays `consent`), and no dotted key SHALL cross
+the public boundary.
+
+14.2 WHEN the script has mapped the 422 entries THEN the status summary SHALL NOT overwrite inline or fallback
+messages; fallback entries SHALL be listed in the status area together with the summary.
+
+14.3 WHEN the published form is rendered THEN its `required` flags SHALL equal the set the validation engine
+enforces for the public application, from ONE authority (no duplicated rule) — for every field.
+
+14.4 WHEN an error is shown THEN the script SHALL map known codes to Dutch messages (required / mustNotBeBlank
+→ "Dit veld is verplicht."; invalid email → "Vul een geldig e-mailadres in."; invalid IBAN → "Vul een geldig
+IBAN in."; enum / other → "Ongeldige waarde."), never render the server `detail`, show the message inline,
+add an error class (`has-error`) on the field wrapper and `aria-invalid="true"` on the control, scroll/focus
+the first error, and skip the client-side check for controls not visible to the user.
+
+14.5 WHEN the page is styled THEN the shared `LandingPageStyles` SHALL define `.field-error`,
+`.form-field.has-error` controls, `.form-status`, `.form-status-error` and `.form-status-success` (honouring
+the theme's light/dark handling if present), as the single CSS source.
+
+### Unchanged Behavior (Regression Prevention) — Round 5
+
+15.1 WHEN a valid submit succeeds THEN the record written and the success flow SHALL CONTINUE TO be unchanged.
+
+15.2 WHEN consent is missing or given THEN the consent gate and stamp SHALL CONTINUE TO be unchanged.
+
+15.3 WHEN a preflight or real request arrives THEN the Round-4 CORS behavior SHALL CONTINUE TO be unchanged.
+
+15.4 WHEN Flask landing pages render with `LandingPageStyles` THEN they SHALL CONTINUE TO render unchanged
+apart from the added rules (additive CSS only).
+
+15.5 WHEN the authenticated `MembersApi` returns a 422 THEN its shape SHALL CONTINUE TO be unchanged (unless
+the same mapper is shared safely and its tests stay green).
+
+15.6 WHEN Round 1–4 behavior runs THEN it SHALL CONTINUE TO pass its existing tests unchanged.

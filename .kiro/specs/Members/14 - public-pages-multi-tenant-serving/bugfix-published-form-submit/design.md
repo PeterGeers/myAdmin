@@ -936,3 +936,104 @@ store: 204 with ACAO == origin and allow-methods/headers).
 Preservation (must PASS now): foreign origin gets no ACAO on GET/POST; `MembersApi` `Cors` unchanged; other
 public IAM statements unchanged. Checkpoint: `python -m pytest -c sam/pytest.ini sam/tests -q` and
 `sam validate --lint` on the template if available.
+
+---
+
+# Round 5 — field-keyed errors, required parity, readable error UX
+
+## Round 5 Overview
+
+Empty-field submit shows only a generic line. Four causes: dotted error keys vs bare control names, a status
+overwrite, two sources of "required", and no error styling / Dutch text. Fix at the public boundary and the
+render, keeping `get_public_field_config` the single field authority.
+
+## Round 5 Bug Details
+
+```
+FUNCTION isBugConditionR5(input)
+  INPUT: input of type {facet, submit}
+  OUTPUT: boolean
+
+  RETURN (facet = KEYS AND submit is 422 AND any errors[].field contains ".")
+      OR (facet = REQUIRED_PARITY AND renderedRequired(config) != engineRequired(config))
+      OR (facet = SCRIPT AND script overwrites status after inline mapping
+          OR script shows entry.detail OR script never sets aria-invalid)
+      OR (facet = CSS AND LandingPageStyles lacks .field-error / .form-status-error)
+END FUNCTION
+
+FUNCTION expectedBehaviorR5(result)
+  RETURN every errors[].field is a bare key present in the form's control names
+     AND renderedRequired == engineRequired
+     AND Dutch inline messages, has-error + aria-invalid, summary keeps fallback text, first error focused
+     AND LandingPageStyles defines the error/status rules
+END FUNCTION
+```
+
+Examples: empty submit returns `personal.last_name` (expected `last_name`); form requires `magazine_pref` only
+(expected: last_name, email, birth_date, membership_type, region); status ends as the generic line while the
+fallback texts are gone.
+
+## Round 5 Hypothesized Root Cause
+
+13. **Raw-shape leak (steering 39)**: the 422 entries come from the membership engine with
+    `{group}.{key}` field keys and are passed to the public response as-is. The published form is keyed by the
+    bare key from `get_public_field_config`.
+14. **Status overwrite**: the embedded script ends the 422 branch with `neutral("Controleer de gemarkeerde
+    velden.")`, replacing the text set by the Round-3 `statusAppend` fallback.
+15. **Two sources of required**: `_serialize_public_field` emits `required = field.application_required`
+    (form-only overlay flag) while `create_application` enforces platform/spine `required` (validation engine)
+    plus `application_required` (`_validate_application_required`). Fixed fields that are platform-required
+    therefore render optional. Why `magazine_pref` is flagged on the form but not enforced must be confirmed in
+    the exploration run (likely an overlay `application_required` with a `show_when`, or a stale overlay flag).
+16. **No styling, English text**: `LandingPageStyles` has no error/status rules; the script echoes `detail`.
+
+## Round 5 Correctness Properties
+
+Property 9: Bug Condition (Round 5) - Errors are field-keyed, required is one authority, errors are readable
+
+_For any_ input where isBugConditionR5 holds, the fixed public edge and render SHALL return bare field keys in
+the public 422, render `required` exactly for the fields the engine enforces, show Dutch inline messages with
+`has-error` and `aria-invalid` without overwriting fallback text, and ship the error/status CSS in
+`LandingPageStyles`.
+
+**Validates: Requirements 14.1, 14.2, 14.3, 14.4, 14.5**
+
+Property 10: Preservation (Round 5) - Success flow, consent, CORS, existing CSS and authenticated 422 unchanged
+
+_For any_ input where isBugConditionR5 does NOT hold, the fixed code SHALL behave as before: the created
+record shape, the consent gate and stamp, the Round-4 preflight, the existing `LandingPageStyles` rules and the
+authenticated 422 shape.
+
+**Validates: Requirements 15.1, 15.2, 15.3, 15.4, 15.5, 15.6**
+
+## Round 5 Fix Implementation
+
+1. **Bare keys (public only)**: in `sam/members/handler/public_app.py` map each `MemberValidationError` entry's
+   dotted field to the bare key via the resolved field view (same resolution as the field config); `consent`
+   stays. The mapper lives in the public edge; the authenticated `MembersApi` is left unchanged (choice: not
+   shared, so its 422 shape cannot drift).
+2. **Required parity**: derive the published `required` in `_serialize_public_field` from the same resolved
+   field the engine uses (effective required = platform/spine `required` OR `application_required`, honouring
+   `show_when` as the engine does), via a single helper used by both `get_public_field_config` and
+   `_validate_application_required`. No duplicated rule.
+3. **Script** (`application_form_render.py`): code-to-Dutch map; never read `entry.detail`; set `has-error`
+   and `aria-invalid="true"`; list fallback entries in the status area with the summary (no replacing
+   `neutral(` after mapping; marker: the 422 branch calls `statusAppend` and the summary via a non-replacing
+   call); focus/scroll to the first error; client `required` check skips hidden controls.
+4. **CSS** (`backend/src/services/landing_page_styles.py`): additive rules for `.field-error`,
+   `.form-field.has-error input/select/textarea`, `.form-status`, `.form-status-error`, `.form-status-success`,
+   with the theme's light/dark handling if present. Vendored into the Members layer as today.
+
+## Round 5 Testing Strategy
+
+Exploration (must FAIL now), facets: **KEYS** (real `public_app.handler`, empty POST through the real
+membership engine for an h-dcn-shaped config, existing repo/overlay fakes; every `errors[].field` is a bare key
+in the rendered control names, no "."), **REQUIRED_PARITY** (controls rendered `required` == fields the engine
+rejects as required when blank), **SCRIPT** (no replacing `neutral(` after inline mapping; Dutch text for
+`errors.validation.required`; no `entry.detail` to the UI; `aria-invalid` set), **CSS** (`.field-error` and
+`.form-status-error` present in `LandingPageStyles` output).
+
+Preservation (must PASS now): successful `create_application` record shape; consent gate; Round-4 preflight
+headers; existing CSS is a prefix/subset of the new output; authenticated `MembersApi` 422 shape. Checkpoint:
+full SAM suite, `cd backend && pytest tests/unit -k landing_page_styles`, page-shell golden fixture regenerated
+only for intended diffs.
