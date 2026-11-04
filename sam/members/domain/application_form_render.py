@@ -307,7 +307,9 @@ def _render_consent_control(
     # The localized notice body (nl fallback) is config-origin DATA — HTML-escaped before it enters
     # markup. An absent/blank body degrades to no paragraph; the checkbox still renders so consent
     # can be given (the version is the binding, the text is the human-readable explanation).
-    notice_text = _notice_text_for(notice, locale) if isinstance(notice, Mapping) else ""
+    notice_text = (
+        _notice_text_for(notice, locale) if isinstance(notice, Mapping) else ""
+    )
     notice_paragraph = (
         f'  <p class="consent-notice-text">{_html.escape(notice_text)}</p>\n'
         if notice_text
@@ -556,11 +558,65 @@ _SUBMIT_SCRIPT = """<script>
     return form.querySelector('[data-field="' + name + '"]');
   }
 
+  // Dutch message by error CODE (the server's English text is never shown). `invalidFormat`
+  // is shared by EMAIL / IBAN / other formats, so it is disambiguated by the control's
+  // `data-format` token.
+  var MSG_REQUIRED = "Dit veld is verplicht.";
+  var MSG_DEFAULT = "Ongeldige waarde.";
+  var MSG_CONSENT = "Je moet akkoord gaan om je aanmelding te versturen.";
+  var CODE_MESSAGES = {
+    "errors.validation.required": MSG_REQUIRED,
+    "errors.validation.mustNotBeBlank": MSG_REQUIRED,
+    "errors.validation.mustBeOneOf": "Kies een geldige waarde.",
+    "errors.validation.invalidDate": "Vul een geldige datum in."
+  };
+  var FORMAT_MESSAGES = {
+    EMAIL: "Vul een geldig e-mailadres in.",
+    IBAN: "Vul een geldig IBAN in."
+  };
+  function messageFor(code, name) {
+    if (code === "errors.validation.invalidFormat") {
+      var el = form.querySelector('[name="' + name + '"]');
+      var token = el ? el.getAttribute("data-format") : null;
+      return (token && FORMAT_MESSAGES[token]) || MSG_DEFAULT;
+    }
+    return CODE_MESSAGES[code] || MSG_DEFAULT;
+  }
+
+  // A control the applicant cannot see/interact with is not validated client-side.
+  function isVisible(el) {
+    if (el.disabled || el.type === "hidden") { return false; }
+    if (el.closest && el.closest("[hidden]")) { return false; }
+    return el.offsetParent !== null;
+  }
+
+  var firstErrored = null;
+  var errorSeq = 0;
+
   function clearErrors() {
     Array.prototype.slice
       .call(form.querySelectorAll(".field-error"))
       .forEach(function (n) { n.parentNode.removeChild(n); });
+    Array.prototype.slice
+      .call(form.querySelectorAll(".has-error"))
+      .forEach(function (n) { n.classList.remove("has-error"); });
+    Array.prototype.slice
+      .call(form.querySelectorAll("[aria-invalid]"))
+      .forEach(function (n) {
+        n.removeAttribute("aria-invalid");
+        n.removeAttribute("aria-describedby");
+      });
+    firstErrored = null;
+    errorSeq = 0;
     if (status) { status.textContent = ""; status.className = "form-status"; }
+  }
+
+  function focusFirstError() {
+    if (!firstErrored) { return; }
+    try {
+      if (firstErrored.scrollIntoView) { firstErrored.scrollIntoView({ block: "center" }); }
+      if (firstErrored.focus) { firstErrored.focus({ preventScroll: true }); }
+    } catch (e) { /* old browsers: leave the page where it is */ }
   }
 
   // Fallback for an error entry with no target element: append to the form-level message area
@@ -577,9 +633,20 @@ _SUBMIT_SCRIPT = """<script>
     var msg = document.createElement("div");
     msg.className = "field-error";
     msg.setAttribute("role", "alert");
-    // textContent — NEVER innerHTML — so a server detail string cannot inject markup.
+    // textContent — NEVER innerHTML — so no message can inject markup.
     msg.textContent = message;
     wrap.appendChild(msg);
+    // Mark the wrapper and the control (accessible description -> the message element).
+    if (wrap.classList) { wrap.classList.add("has-error"); }
+    var control = form.querySelector('[name="' + name + '"]') ||
+      wrap.querySelector("input, select, textarea");
+    if (control) {
+      errorSeq += 1;
+      msg.id = "field-error-" + errorSeq;
+      control.setAttribute("aria-invalid", "true");
+      control.setAttribute("aria-describedby", msg.id);
+      if (!firstErrored) { firstErrored = control; }
+    }
   }
 
   function neutral(message) {
@@ -589,9 +656,10 @@ _SUBMIT_SCRIPT = """<script>
   function clientValidate() {
     var errors = {};
     controls().forEach(function (el) {
+      if (!isVisible(el)) { return; }
       var value = el.value == null ? "" : String(el.value);
       if (el.hasAttribute("required") && !value.trim()) {
-        errors[el.name] = "Dit veld is verplicht.";
+        errors[el.name] = MSG_REQUIRED;
         return;
       }
       if (!value.trim()) { return; }
@@ -657,6 +725,7 @@ _SUBMIT_SCRIPT = """<script>
     if (names.length) {
       names.forEach(function (name) { showFieldError(name, clientErrors[name]); });
       neutral("Controleer de gemarkeerde velden.");
+      focusFirstError();
       return;
     }
 
@@ -682,7 +751,8 @@ _SUBMIT_SCRIPT = """<script>
           // (handler `_field_errors_array`). Map EACH entry inline next to its control by its
           // `field` key; the consent reject arrives on the synthetic `CONSENT_REQUIRED` field
           // key (`consent`) and lands near the consent control (`[data-field="consent"]`). The
-          // server `detail` is shown via textContent only (never innerHTML) — no markup inject.
+          // The message is chosen by the entry's CODE (Dutch, via messageFor), never the server
+          // text: e.g. errors.validation.required -> "Dit veld is verplicht." (textContent only).
           return response.json().then(function (data) {
             var arr = (data && data.errors) || [];
             if (Array.isArray(arr) && arr.length) {
@@ -692,19 +762,18 @@ _SUBMIT_SCRIPT = """<script>
                 if (entry.field === CONSENT_REQUIRED) {
                   // Consent-required: a clear, consent-adjacent message near the checkbox.
                   sawConsent = true;
-                  showFieldError(
-                    CONSENT_REQUIRED,
-                    entry.detail || "Je moet akkoord gaan om je aanmelding te versturen."
-                  );
+                  showFieldError(CONSENT_REQUIRED, MSG_CONSENT);
                 } else {
-                  showFieldError(entry.field, entry.detail || "Ongeldige waarde.");
+                  showFieldError(entry.field, messageFor(entry.code, entry.field));
                 }
               });
-              neutral(
+              // APPEND the summary so fallback texts already shown stay visible.
+              statusAppend(
                 sawConsent
                   ? "Ga akkoord met de voorwaarden en controleer de gemarkeerde velden."
                   : "Controleer de gemarkeerde velden."
               );
+              focusFirstError();
             } else {
               // A 422 with no usable per-field array — treat as a neutral validation nudge.
               neutral("Controleer je gegevens en probeer het opnieuw.");

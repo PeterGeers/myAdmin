@@ -38,6 +38,23 @@
     "15.3 Verify Round-4 bug condition exploration test now passes": {
       "status": "passed",
       "lastRunTimestamp": 1793802258470
+    },
+    "17. Write Round-5 bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "All 7 facet tests FAIL on unfixed code (bug confirmed). KEYS: empty submit 422 errors[].field=['personal.last_name','membership.membership_type','overlay.region','overlay.magazine_pref','personal.email','personal.birth_date'] (all dotted, none a rendered control name). REQUIRED_PARITY: rendered required={'magazine_pref'} vs engine required={'birth_date','email','last_name','magazine_pref','membership_type','region'}. SCRIPT: 422 branch has no errors.validation.required->'Dit veld is verplicht.' map; 'entry.detail' is rendered; no 'aria-invalid'; 422 errors branch contains neutral( and no statusAppend(. CSS: LandingPageStyles lacks .field-error, .form-status-error, .has-error.",
+      "lastRunTimestamp": 1793806046145
+    },
+    "18. Write Round-5 preservation property tests (BEFORE implementing fix)": {
+      "status": "passed",
+      "lastRunTimestamp": 1793806491483
+    },
+    "19.5 Verify Round-5 bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1793808744046
+    },
+    "19.6 Verify Round-5 preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1793808783882
     }
   },
   "executionHistory": {
@@ -593,6 +610,166 @@
         "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
         "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
         "timestamp": 1793802275954
+      }
+    ],
+    "17. Write Round-5 bug condition exploration test": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803819839
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803832803
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793806538075
+      }
+    ],
+    "18. Write Round-5 preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820022
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803832915
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793806538249
+      }
+    ],
+    "19.1 Return bare field keys in the public 422": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820146
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793806561989
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793806788099
+      }
+    ],
+    "19.2 Single authority for required": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820254
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793806788236
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808436652
+      }
+    ],
+    "19.3 Script messages, marking, no overwrite, focus, visible-only": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820361
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808436749
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808607590
+      }
+    ],
+    "19.4 Error and status CSS in LandingPageStyles": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820500
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808607685
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808719999
+      }
+    ],
+    "19.5 Verify Round-5 bug condition exploration test now passes": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820607
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808720160
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808759853
+      }
+    ],
+    "19.6 Verify Round-5 preservation tests still pass": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820717
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808761292
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808805952
+      }
+    ],
+    "20. Round 5 Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820819
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808806930
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793809225772
+      }
+    ],
+    "19. Fix for field-keyed errors, required parity and readable error UX": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808806121
       }
     ]
   }

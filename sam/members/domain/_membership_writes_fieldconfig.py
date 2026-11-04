@@ -17,6 +17,9 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sam.members.domain import field_formats
+from sam.members.domain._membership_writes_validation import (
+    effective_application_required,
+)
 from sam.members.domain._membership_errors import (
     MEMBERSHIP_TYPE_FIELD_KEY,
 )
@@ -438,7 +441,9 @@ class FieldConfigSurfaceMixin:
             # persisted value instead of always computing 1. Absent when never published
             # (empty-is-valid) — `published_at` is admin-facing metadata, not part of the public
             # schema, and stays on the staff read only.
-            "published_version": self._published_state(tenant_id).get("published_version"),
+            "published_version": self._published_state(tenant_id).get(
+                "published_version"
+            ),
         }
 
     def _resolve_public_notice(self, tenant_id: str) -> dict[str, Any]:
@@ -487,8 +492,8 @@ class FieldConfigSurfaceMixin:
 
         - ``key`` (the dotted key the form flattens/un-flattens by) / ``group`` (storage bucket) /
           ``type`` / i18n ``label{nl,en}`` / ``functional_group`` (the display section) / ``order``;
-        - ``required`` — the **application-required** flag (R4b.6), the form's own requiredness,
-          NOT the staff ``required`` (an applicant's required set is the tenant's form config);
+        - ``required`` — :func:`effective_application_required`: platform ``required`` OR
+          ``application_required`` OR a public identity key, exactly what the engine enforces;
         - ``show_when`` (R4.12) when present — so the form renders/validates a conditional field
           only when actually shown (mirrored authoritatively server-side);
         - ``options`` — the ONE canonical vocabulary the read-assembly seam (design C4 / F8)
@@ -505,10 +510,8 @@ class FieldConfigSurfaceMixin:
             "key": field.key,
             "group": field.group,
             "type": field.type.value,
-            # The PUBLIC-FORM requiredness (R4b.6) — the application-required flag, not the staff
-            # `required`. A platform-required field is also application-required at enforcement
-            # (R4b.3), but what the form marks is this flag; the server stays authoritative.
-            "required": bool(field.application_required),
+            # PUBLIC-FORM requiredness: single authority shared with the engine (task 19.2).
+            "required": effective_application_required(field),
             "label": dict(field.label),
             "functional_group": field.functional_group or field.group,
             "order": int(field.order),

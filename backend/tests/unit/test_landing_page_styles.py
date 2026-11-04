@@ -485,3 +485,27 @@ class TestSanitizeGradient:
         assert "url(" not in result.lower()
         assert "expression(" not in result.lower()
         assert "javascript:" not in result.lower()
+
+
+class TestBuildPageCssFormErrorStatus:
+    """Round 5 (task 19.4): additive error/status + application-form base rules."""
+
+    def test_error_and_status_selectors_present(self):
+        css = LandingPageStyles.build_page_css("#111111", "#222222")
+        for selector in (
+            ".field-error {",
+            ".form-field.has-error input",
+            ".form-meta-field.has-error select",
+            ".form-field.has-error label {",
+            ".form-status {",
+            ".form-status-error {",
+            ".form-status-success {",
+            ".application-form .form-field {",
+            ".application-form input, .application-form select",
+        ):
+            assert selector in css
+        assert "#b42318" in css and "#027a48" in css
+
+    def test_existing_rules_precede_new_rules(self):
+        css = LandingPageStyles.build_page_css("#111111", "#222222")
+        assert css.index("footer a {") < css.index(".field-error {")

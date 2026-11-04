@@ -78,7 +78,7 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.application_form_render import (  # noqa: E402
+from sam.members.domain.application_form_render import (
     build_form_body_html,
     render_application_form_page,
 )
@@ -225,7 +225,10 @@ class TestRealHdcnRenderRoundTrip:
     @pytest.fixture(scope="class")
     def artifact(self, config):
         return render_application_form_page(
-            config, head_meta={"title": "Aanmelden"}, branding=_REAL_BRANDING, locale="nl"
+            config,
+            head_meta={"title": "Aanmelden"},
+            branding=_REAL_BRANDING,
+            locale="nl",
         )
 
     def test_real_config_is_the_resolved_shape_the_renderer_consumes(self, config):
@@ -240,10 +243,12 @@ class TestRealHdcnRenderRoundTrip:
         assert config["notice"]["version"] == "notice-v3"
 
     def test_required_attribute_emitted_for_application_required_field(self, body):
-        # R3.4: the application-required `iban` field renders a `required` input; the optional
-        # fields do not. Observed: exactly one `required` input (the IBAN field).
+        # R3.4: the application-required `iban` field renders a `required` input; optional
+        # fields do not. Round 5 (task 19.2): `required` is the engine's effective set, so the
+        # public identity key `email` (always required on the public path) is also required.
         assert re.search(r'<input[^>]*name="iban"[^>]*\srequired', body)
-        assert body.count(" required") == 1
+        assert re.search(r'<input[^>]*name="email"[^>]*\srequired', body)
+        assert body.count(" required") == 2
 
     def test_date_field_maps_to_native_date_input_type(self, body):
         # R3.4: a `date` field maps to the native `type="date"` control.
@@ -277,7 +282,9 @@ class TestRealHdcnRenderRoundTrip:
         assert "Cruiser &quot;X&quot;" in body
         assert "<Toer>" not in body  # the raw unescaped form never appears
 
-    def test_css_from_single_landing_page_styles_source_with_branded_colours(self, artifact):
+    def test_css_from_single_landing_page_styles_source_with_branded_colours(
+        self, artifact
+    ):
         # R3.4: the CSS is produced by the single `LandingPageStyles` source (its :root variable
         # block) and the branded primary/accent colours are threaded in.
         from services.landing_page_styles import LandingPageStyles
@@ -383,7 +390,7 @@ def test_preserve_label_falls_back_to_key_when_no_label(key):
 
 # A label value guaranteed to contain HTML-significant characters (XSS-escaping surface).
 _XSS = st.builds(
-    lambda inner: f'<{inner}>"&\'',
+    lambda inner: f"<{inner}>\"&'",
     st.text(alphabet="abcdefghijklmnopqrstuvwxyz ", min_size=1, max_size=8),
 )
 
@@ -417,7 +424,10 @@ def test_preserve_select_option_values_are_escaped(option_value):
     body = build_form_body_html(
         _config(
             fields=[
-                {"key": "sel", "options": [{"value": option_value, "label": {"nl": "L"}}]}
+                {
+                    "key": "sel",
+                    "options": [{"value": option_value, "label": {"nl": "L"}}],
+                }
             ]
         )
     )
@@ -503,9 +513,7 @@ def test_preserve_render_module_never_imports_flask_landing_plane(module_name):
     # Only what THIS import NEWLY pulled in — never the union with `before` (order-independent).
     newly = set(sys.modules) - before
     leaked = [
-        name
-        for name in newly
-        if any(frag in name for frag in _LANDING_PLANE_FRAGMENTS)
+        name for name in newly if any(frag in name for frag in _LANDING_PLANE_FRAGMENTS)
     ]
     assert leaked == [], (
         f"{module_name} must not import the Flask landing plane (R3.2 — landing untouched); "
@@ -533,9 +541,7 @@ def test_preserve_render_module_does_not_reach_backend_handler_or_spa(module_nam
     # Only what THIS import NEWLY pulled in — never the union with `before` (order-independent).
     newly = set(sys.modules) - before
     leaked = [
-        name
-        for name in newly
-        if any(frag in name for frag in _OUT_OF_SCOPE_FRAGMENTS)
+        name for name in newly if any(frag in name for frag in _OUT_OF_SCOPE_FRAGMENTS)
     ]
     assert leaked == [], (
         f"{module_name} must not reach the backend submit handler / in-app SPA path (R3.3 — out "

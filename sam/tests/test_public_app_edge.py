@@ -563,7 +563,7 @@ def test_submit_failing_validation_returns_422_with_per_field_errors_array(monke
     errors = body["errors"]
     assert isinstance(errors, list) and len(errors) >= 1
     entry = errors[0]
-    assert entry["field"] == "personal.email"
+    assert entry["field"] == "email"
     assert entry["code"] == "errors.validation.invalidFormat"
     assert isinstance(entry["detail"], str) and entry["detail"]
 

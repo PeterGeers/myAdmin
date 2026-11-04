@@ -253,9 +253,11 @@ def test_submit_script_maps_422_per_field_errors_and_neutral_states():
     assert "response.status === 422" in body
     assert "data.errors" in body
     assert "entry.field" in body
-    assert "entry.detail" in body
-    # Server detail is rendered via textContent (never assigned to innerHTML) — no markup
-    # injection of a server-provided string. (The word "innerHTML" may appear in a comment; what
+    # Round 5: the message is chosen by the entry's CODE (Dutch); server text is never rendered.
+    assert "entry.code" in body
+    assert "entry.detail" not in body
+    # Messages are rendered via textContent (never assigned to innerHTML) — no markup
+    # injection. (The word "innerHTML" may appear in a comment; what
     # matters is that no `.innerHTML =` SINK is used.)
     assert "textContent" in body
     assert ".innerHTML" not in body
@@ -357,7 +359,9 @@ def test_locale_selector_defaults_to_nl_when_locales_empty():
 
 def test_locale_codes_are_html_escaped_in_the_selector():
     """XSS: a config-origin locale code is HTML-escaped inside the `<option>` (never raw markup)."""
-    body = build_form_body_html(_config_with_notice("v1", locales=['nl', '"><img src=x>']))
+    body = build_form_body_html(
+        _config_with_notice("v1", locales=["nl", '"><img src=x>'])
+    )
     assert "&quot;&gt;&lt;img" in body
     assert '"><img src=x>' not in body.split("<script")[0]
 
@@ -381,7 +385,9 @@ def test_no_consent_control_when_notice_version_absent():
     # A notice that is entirely absent also degrades to no consent control.
     cfg_no_notice = _config()
     del cfg_no_notice["notice"]
-    assert 'name="consent"' not in build_form_body_html(cfg_no_notice).split("<script")[0]
+    assert (
+        'name="consent"' not in build_form_body_html(cfg_no_notice).split("<script")[0]
+    )
 
 
 def test_consent_notice_version_is_html_escaped():
@@ -390,7 +396,7 @@ def test_consent_notice_version_is_html_escaped():
     body = build_form_body_html(_config_with_notice('"><script>alert(1)</script>'))
     # The escaped form is present; the raw break-out never appears before the static submit script.
     assert "data-notice-version=" in body
-    assert '"><script>alert(1)</script>' not in body.split('<script>\n(function')[0]
+    assert '"><script>alert(1)</script>' not in body.split("<script>\n(function")[0]
 
 
 def test_consent_and_locale_reuse_shared_styling_classes():
@@ -416,7 +422,9 @@ def test_meta_controls_do_not_add_a_required_attribute():
     # A config with exactly one required field + the two meta controls -> still exactly one
     # ` required` substring (only the field's).
     body = build_form_body_html(
-        _config_with_notice("v1", fields=[{"key": "email", "type": "email", "required": True}])
+        _config_with_notice(
+            "v1", fields=[{"key": "email", "type": "email", "required": True}]
+        )
     )
     assert body.count(" required") == 1
 
