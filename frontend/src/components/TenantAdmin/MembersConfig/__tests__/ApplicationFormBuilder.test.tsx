@@ -532,26 +532,33 @@ describe('ApplicationFormBuilder — explicit Publish wiring (spec 12 task 6.2 /
     expect(mockPublishApplicationForm).not.toHaveBeenCalled();
   });
 
-  // A config whose email field is ALREADY on the form (served `application_visible: true` in the
-  // stored overlay) + a certified sender + slug, but NEVER published (no `published_version` /
-  // `published_at`). Readiness is fully satisfied → Publish is enabled, and because a ready form
-  // has never gone live, the builder treats it as having unpublished changes (the config exists
-  // but no live artifact does yet) — exactly the save≠publish state the hint surfaces.
+  // A config whose email field is ALREADY on the form (`application_visible: true`) + a certified
+  // sender + slug, but NEVER published (no `published_version` / `published_at`). Readiness is
+  // fully satisfied → Publish is enabled, and because a ready form has never gone live, the builder
+  // treats it as having unpublished changes (the config exists but no live artifact does yet) —
+  // exactly the save≠publish state the hint surfaces.
+  //
+  // overlay-seed bugfix (spec application-form-builder-overlay-seed): the on-form `email` field is
+  // expressed in the RESOLVED shape the real SAM GET serves — a top-level `fields[]` entry with
+  // `application_visible: true` (+ `origin: 'variable'`, `functional_group`, `type`, `label`) plus
+  // the matching top-level `functional_groups` entry. The retired raw `field_overlay` key is NO
+  // LONGER served/read (steering 39); the builder reconstructs the authoring overlay from this
+  // resolved config via `flatViewToOverlay`, so seeding the on-form field through `field_overlay`
+  // no longer works — the resolved `fields[]` entry is what drives readiness.
   const READY_NEVER_PUBLISHED: FieldConfig = {
     ...FIELD_CONFIG,
-    field_overlay: {
-      functional_groups: [{ key: 'personal', label_en: 'Personal', label_nl: 'Persoonlijk', order: 1 }],
-      fields: {
-        email: {
-          type: 'string',
-          label_en: 'Email',
-          functional_group: 'personal',
-          visible: true,
-          application_visible: true,
-        },
+    fields: [
+      {
+        key: 'email',
+        functional_group: 'personal',
+        origin: 'variable',
+        provenance: 'tenant_added',
+        type: 'string',
+        label: { en: 'Email', nl: 'E-mail' },
+        application_visible: true,
       },
-      fixed_overrides: {},
-    },
+    ],
+    functional_groups: [{ key: 'personal', order: 1 }],
   };
 
   // The SAME config after a successful publish: the row now carries a `published_version` /

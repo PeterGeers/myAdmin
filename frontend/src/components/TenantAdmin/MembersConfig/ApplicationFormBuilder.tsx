@@ -53,6 +53,7 @@ import {
   saveFieldConfigChangeOps,
 } from '../../../services/membersConfigService';
 import { deriveFieldConfigChangeOps } from './fieldConfigChangeOps';
+import { flatViewToOverlay } from './flatViewToOverlay';
 import {
   publishApplicationForm,
   setApplicationFormSlug,
@@ -129,18 +130,22 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
     // restarts from the loaded publish stamp.
     setSavedSincePublish(false);
     try {
-      // Load the resolved field config FIRST — it carries the RAW stored `config#fields`
-      // overlay (`field_overlay`) the builder seeds + writes back (spec 11 bugfix). GET and PUT
+      // Load the resolved field config FIRST — the SAM read resolves the stored `config#fields`
+      // overlay INTO each `fields[]` entry (`application_required`, `format`, `functional_group`,
+      // `origin`, …) and no longer surfaces the raw `field_overlay` key (steering 39). GET and PUT
       // are the SAME SAM row, so a save is loss-free. A failed fetch resolves to null (panels
       // show "unavailable") and NEVER blocks authoring. The retired Flask `members.field_overlay`
       // param is no longer read here — SAM `config#fields` is the single source of truth.
       const cfg = await getMembersFieldConfig();
       setFieldConfig(cfg);
-      // Seed the ONE working overlay from the authoritative SAM row. The reader serves the
-      // overlay in the AUTHORING WIRE shape already (`fields` / `fixed_overrides` /
-      // `functional_groups`, the one-key contract), so the overlay model reads + writes it with
-      // NO client-side translation — GET and PUT are symmetric by construction.
-      const overlayValue = (cfg?.field_overlay as MembersConfigValue) ?? {};
+      // Seed the ONE working overlay from the RESOLVED field config. Task 5.3 (steering 39)
+      // stopped the backend surfacing the raw `field_overlay` key, so we reconstruct the
+      // authoring-wire overlay (`fields` / `fixed_overrides` / `functional_groups`) from the
+      // resolved `fields[]` / `functional_groups` the response DOES carry, via
+      // `flatViewToOverlay(cfg)` — mirroring `MembersConfigEditor`. Baseline == the same seed, so
+      // a clean load is NOT dirty and the diff-based save emits an op only for an identity the
+      // user actually edits.
+      const overlayValue = flatViewToOverlay(cfg);
       setOverlay(overlayValue);
       setBaseline(JSON.stringify(overlayValue));
       // The public slug is sourced from the SAM `config#fields.slug` served on the field-config
