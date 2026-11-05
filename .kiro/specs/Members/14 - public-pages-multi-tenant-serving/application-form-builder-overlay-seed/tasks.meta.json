@@ -1,0 +1,120 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "Counterexample (bug confirmed on UNFIXED ApplicationFormBuilder.load):\n\nResolved config served by getMembersFieldConfig() with NO `field_overlay` key and fields[]:\n  - iban:  origin='variable', application_visible=true, application_required=true, format={checker:'IBAN'}, functional_group='financial'\n  - payment_method: origin='variable', application_visible=true, application_required=true\n\nOpening the IBAN per-field modal:\n  - expected required toggle checked=true  -> ACTUAL false  (AssertionError: expected false to be true, test line 172)\n  - expected format select value='IBAN'    -> (not reached; first assert failed)\nOpening the payment_method per-field modal:\n  - expected required toggle checked=true  -> ACTUAL false  (AssertionError: expected false to be true, test line 193)\n\nRoot cause demonstrated: load() does `const overlayValue = (cfg?.field_overlay as MembersConfigValue) ?? {}`. Because the current SAM module read leaves cfg.field_overlay undefined, the working overlay + baseline seed to {}, so ApplicationFieldModal finds no authored entry and every per-field panel falls back to platform defaults (required unchecked, format empty) even though the attributes are stored and served inside fields[].\n\nBoth exploration assertions FAIL on unfixed code = SUCCESS for the exploration test (the bug is proven). Fix (task 3.1): seed via flatViewToOverlay(cfg), mirroring MembersConfigEditor.",
+      "lastRunTimestamp": 1793821899197
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793821656001
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793821761425
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793821927954
+      }
+    ],
+    "2. Write preservation tests (BEFORE implementing fix)": [
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793821656114
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793821935067
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793823838134
+      }
+    ],
+    "3.1 Seed the working overlay + baseline via flatViewToOverlay and fix the stale comment": [
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793821656212
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793823843263
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793824124816
+      }
+    ],
+    "3.2 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793821656306
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793824129947
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793824204637
+      }
+    ],
+    "3.3 Verify preservation tests still pass": [
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793821656419
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793824209006
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793824277099
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793821656516
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793824281929
+      },
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793865165511
+      }
+    ],
+    "3. Fix for Application Form Builder overlay seeding": [
+      {
+        "executionId": "8d288010-fb32-4131-af12-3134c4650e96",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793824277224
+      }
+    ]
+  }
+}
