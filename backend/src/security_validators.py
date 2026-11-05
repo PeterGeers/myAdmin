@@ -42,7 +42,7 @@ def validate_input(
     # Check for common injection patterns
     injection_patterns = [
         r"[\'\";\\]",
-        r"<script.*?>.*?</script>",
+        r"<script\b[^>]*>[\s\S]*?</script\s*>",
         r"javascript:",
         r"&#x?[0-9a-f]+;",
         r"/\*.*?\*/",
