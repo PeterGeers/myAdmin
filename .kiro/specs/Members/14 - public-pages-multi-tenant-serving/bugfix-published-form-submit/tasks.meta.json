@@ -55,6 +55,11 @@
     "19.6 Verify Round-5 preservation tests still pass": {
       "status": "passed",
       "lastRunTimestamp": 1793808783882
+    },
+    "21. Write Round-6 bug condition exploration test": {
+      "status": "unexpected_pass",
+      "failingExample": "FORM_IS_BOSS facet on `personal.gender` PASSES unexpectedly on unfixed code. Probe over the REAL h-dcn fixture: resolved personal.gender has required=True (override) BUT effective_application_required(gender)=False and _platform_required_by_engine(gender)=False. Omitting gender in create_application SUCCEEDS (status=application). Reason: for a FIXED field, _platform_required_by_engine reads the PLATFORM REGISTRY via field_by_key(\"personal.gender\") where gender.required=False — the tenant OVERRIDE required:true never reaches the public floor. The floor union only fires for VARIABLE/overlay fields whose resolved `required` flows directly into the floor. The genuine reproduction is `region` (overlay, platform required:true, NO application_required): RENDER_PARITY facet FAILS with counterexample rendered-only/engine-only = {'region'} (region is demanded of an applicant though the tenant never marked it application_required). So: 3 facets pass (gender FORM_IS_BOSS unexpectedly, FORM_REQUIRED_ENFORCED, SERVER_STAMPED_EXCLUDED), 1 fails as expected (RENDER_PARITY catches the real floor-union bug via region).",
+      "lastRunTimestamp": 1793877771535
     }
   },
   "executionHistory": {
@@ -770,6 +775,121 @@
         "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
         "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
         "timestamp": 1793808806121
+      }
+    ],
+    "21. Write Round-6 bug condition exploration test": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793877470415
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879106600
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879329994
+      }
+    ],
+    "22. Write Round-6 preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879336800
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879625713
+      }
+    ],
+    "23.1 Engine - drop the platform-floor union from the public rule": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879630835
+      }
+    ],
+    "23.1 Engine render authority - drop the platform-floor union from effective_application_required": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879985677
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793880243536
+      }
+    ],
+    "23.1b Public enforcement prune - stop demanding a floor-only overlay field on the public path": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793880250719
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793880743262
+      }
+    ],
+    "23.2 Builder - drop floor coupling, hide toggle for server-stamped fields": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793880749296
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881308801
+      }
+    ],
+    "23.3 Verify Round-6 bug condition exploration test now passes": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881315036
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881412022
+      }
+    ],
+    "23.4 Verify Round-6 preservation tests still pass": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881316111
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881412885
+      }
+    ],
+    "23. Fix: form-required is the sole public-form requiredness rule": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881428212
+      }
+    ],
+    "24. Round 6 Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881433338
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793882179958
       }
     ]
   }

@@ -985,6 +985,13 @@ fallback texts are gone.
     plus `application_required` (`_validate_application_required`). Fixed fields that are platform-required
     therefore render optional. Why `magazine_pref` is flagged on the form but not enforced must be confirmed in
     the exploration run (likely an overlay `application_required` with a `show_when`, or a stale overlay flag).
+    > **Round-6 reconciliation (task 23.1):** the earlier claim that the render authority `ORs the
+    > platform required floor` is RETIRED. `effective_application_required` (the render authority, called
+    > only by `_serialize_public_field`) now encodes the SOLE public-form rule — `True` iff identity key
+    > OR `application_required`, `False` for server-stamped keys — and no longer unions
+    > `_platform_required_by_engine` (that helper was dead after the change and was removed). The
+    > matching engine-side prune lands in task 23.1b, after which render-required == engine-required
+    > (RENDER_PARITY).
 16. **No styling, English text**: `LandingPageStyles` has no error/status rules; the script echoes `detail`.
 
 ## Round 5 Correctness Properties
@@ -1037,3 +1044,104 @@ Preservation (must PASS now): successful `create_application` record shape; cons
 headers; existing CSS is a prefix/subset of the new output; authenticated `MembersApi` 422 shape. Checkpoint:
 full SAM suite, `cd backend && pytest tests/unit -k landing_page_styles`, page-shell golden fixture regenerated
 only for intended diffs.
+
+# Round 6 Design — form-required is the SOLE public-form requiredness rule (config is the boss)
+
+## Round 6 Root Cause + direction (confirmed against real row + engine + builder)
+
+- `_validate_application_required` step (a) already enforces `application_required` for ANY resolved
+  field; step (b) the identity keys; `_apply_application_membership_type` owns membership_type;
+  `status` default is stamped server-side. Every server non-negotiable is handled on its OWN path.
+- The ONLY thing the floor union (`effective_application_required` → `_platform_required_by_engine`)
+  adds is demanding a platform-`required` field the tenant did NOT mark `application_required`.
+  CORRECTED origin asymmetry (proven): `_platform_required_by_engine` reads the RESOLVED
+  `field.required` for OVERLAY/VARIABLE fields (so the floor union bites — `region` reproduces the
+  bug) but the PLATFORM REGISTRY for FIXED fields (so a fixed-field override `required:true` like
+  `gender` NEVER reaches the public floor — already optional today).
+- Builder (`ApplicationFieldModal.tsx`) ALREADY writes `application_required` (origin-aware), not the
+  override `required`. The earlier "builder writes the wrong axis" defect is withdrawn.
+
+Decision: on the PUBLIC form, required IFF `application_required` (plus identity keys), for ANY
+origin — drop the floor union. Staff/members-table enforcement untouched.
+
+## Round 6 Correctness Properties
+
+Property 11: Bug Condition (Round 6) - form-required is the sole public rule; the floor is not
+unioned for any origin; identity + server-stamped + membership_type handled on their own paths.
+_For any_ input where isBugConditionR6 holds, the fixed engine SHALL require a field on the public
+form IFF the tenant marked it `application_required` (plus identity keys): a floor-only OVERLAY field
+(`region`) SHALL be accepted blank, the rendered-required set SHALL equal the engine-enforced set
+under the sole-rule, and a server-stamped field (`status`) SHALL be neither required nor offerable.
+**Validates: Requirements 16.1, 16.2, 16.3, 17.1, 17.3, 17.4, 17.5**
+
+Property 12: Preservation (Round 6) - staff floor, membership_type, identity, server stamping,
+resolver axes and Rounds 1–5 unchanged.
+_For any_ input where isBugConditionR6 does NOT hold, the fixed code SHALL behave as before: the
+authenticated staff `required` floor still rejects a blank platform-required field; membership_type
+exposed/default unchanged; identity keys stay required; server-stamped stripped+stamped; the two
+resolver axes stay distinct; Rounds 1–5 and the authenticated 422 are unchanged (bar Round-5 parity
+tests re-pointed at the sole-rule).
+**Validates: Requirements 18.1, 18.2, 18.3, 18.4, 18.5, 18.6, 18.7**
+
+## Round 6 Fix Implementation
+
+CORRECTION (proven by instrumenting the real chain in task 23.1): the public `region` demand is
+TWO-SIDED. `effective_application_required` is called ONLY by `_serialize_public_field` (RENDER) —
+it is NOT on the enforce path. The engine's `overlay.region` 422 comes from the SHARED
+`_collect_member_record_errors` → `_validate_required_overlay_fields`, which BOTH `create_application`
+(public) and `_validate_member_record` (staff) route through. So a render-only change cannot satisfy
+the engine-side facets, and public vs staff must diverge on the shared chain without weakening the
+staff floor (preservation 18.1). The fix is therefore two halves:
+
+1a. **Render authority** — `sam/members/domain/_membership_writes_validation.py`: redefine
+    `effective_application_required(field)` as `True` iff identity key OR `field.application_required`,
+    and `False` for server-stamped keys; REMOVE the `_platform_required_by_engine` floor OR (it is
+    render-only, not shared). Keep `show_when`. This fixes the RENDER side (a floor-only overlay
+    field like `region` stops rendering `required`). Reconcile the `effective_application_required`
+    + `_platform_required_by_engine` docstrings and Round-5 design note #15.
+
+1b. **Public enforcement prune** — give `_collect_member_record_errors` a `public_form: bool = False`
+    flag threaded from `create_application` (the public path) only. On the PUBLIC path, a FINAL
+    "public-form prune" step (`_prune_public_floor_required_errors`) DROPS a `VALIDATION_REQUIRED`
+    error for any resolved field the sole public-form rule `effective_application_required` does NOT
+    require — i.e. a platform-floor-only field the tenant never marked `application_required` (e.g.
+    the OVERLAY `region`). It mirrors `_drop_hidden_required_errors`' "drop, never invent" contract
+    (relax only). The STAFF path passes `public_form=False` and `_validate_required_overlay_fields`
+    runs UNCHANGED — the members-table floor stays (18.1). Result: public `region` accepted blank;
+    staff `region` still required.
+
+    **Single predicate (render ⇄ enforce):** because RENDER_PARITY requires rendered-required ==
+    engine-required == {identity ∪ `application_required` ∪ `membership_type`}, the exposed-
+    `membership_type` D21/R11 rule is folded INTO `effective_application_required` itself (it
+    returns `True` for `membership_type` when `application_visible`). Both the render serializer and
+    the prune then lean on the ONE predicate, so they cannot drift. The prune additionally guards
+    `membership_type` by its dotted key (belt-and-braces) so its required/reference errors are never
+    dropped. `effective_application_required` (render) and the public-pruned enforce set agree →
+    RENDER_PARITY holds.
+
+2. **Builder (small, cosmetic)** — `ApplicationFieldModal.tsx`: keep writing `application_required`
+   (unchanged). Drop the forced-on+disabled coupling of the "Verplicht op formulier" toggle to the
+   platform floor for the PUBLIC-form axis (the public rule no longer reads the floor), and do NOT
+   offer the toggle for a server-stamped field (`status`, `member_number`, timestamps). Update
+   paired frontend tests. (No change to how the toggle persists.)
+
+3. **membership_type untouched** — `_apply_application_membership_type` keeps its D21/R11 rule.
+
+## Round 6 Testing Strategy
+
+Exploration (must FAIL now), facets of isBugConditionR6:
+- **FORM_IS_BOSS**: real `create_application` over the real h-dcn row where the OVERLAY field
+  `region` is resolved platform-`required:true` with NO `application_required`, submitted BLANK
+  (consent accepted, identity keys + the `application_required` field `magazine_pref` supplied) →
+  EXPECT NO `overlay.region` error. On unfixed code the floor union demands it → FAILS. (NOTE:
+  `gender`, a FIXED override, is already accepted today — it is NOT the reproduction; use `region`.)
+- **FORM_REQUIRED_ENFORCED**: `magazine_pref` (`application_required`) blank → `VALIDATION_REQUIRED`
+  422 (kept behaviour, pinned).
+- **RENDER_PARITY**: rendered-required == engine-required == identity keys + `application_required`
+  fields + membership_type, under the sole-rule (so `region`/`gender`/`status` are in NEITHER set).
+- **SERVER_STAMPED_EXCLUDED**: `membership.status` rendered NOT required and not engine-demanded.
+Preservation (must PASS now): the authenticated staff path still rejects a blank platform-required
+field; membership_type exposed-required + not-exposed default unchanged; identity keys required;
+server-stamped stripped+stamped; resolver axes distinct; Rounds 1–5 green. Prove against REAL data
+(steering 39). Checkpoint: full SAM suite `python -m pytest -c sam/pytest.ini sam/tests -q`; frontend
+`cd frontend && npx vitest run src/components/TenantAdmin/MembersConfig`.
