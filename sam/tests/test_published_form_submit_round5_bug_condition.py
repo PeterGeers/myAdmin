@@ -185,7 +185,9 @@ def _controls(artifact: str) -> _ControlCollector:
 
 
 def _script(artifact: str) -> str:
-    match = re.search(r"<script>(.*?)</script>", artifact, re.DOTALL)
+    match = re.search(
+        r"<script\b[^>]*>(.*?)</script\s*>", artifact, re.DOTALL | re.IGNORECASE
+    )
     assert match, "precondition: the artifact embeds the submit script"
     return match.group(1)
 
