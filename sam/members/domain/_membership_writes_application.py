@@ -368,7 +368,7 @@ class ApplicationWritesMixin:
         # email is required+valid, IBAN is mod-97'd WHEN incasso is shown (the FieldFormat step,
         # gated by show_when) — all merged into the single 422 `errors[]` (R6/R6.6, task 2.4).
         errors: dict[str, FieldError] = self._collect_member_record_errors(
-            tenant_id, record, partial=False, caller_roles=()
+            tenant_id, record, partial=False, caller_roles=(), public_form=True
         )
         # Public-form required-ness: application-required overlay (R4b) + identity (R6.1/R6.1a).
         self._validate_application_required(config, record, errors)

@@ -492,8 +492,9 @@ class FieldConfigSurfaceMixin:
 
         - ``key`` (the dotted key the form flattens/un-flattens by) / ``group`` (storage bucket) /
           ``type`` / i18n ``label{nl,en}`` / ``functional_group`` (the display section) / ``order``;
-        - ``required`` — :func:`effective_application_required`: platform ``required`` OR
-          ``application_required`` OR a public identity key, exactly what the engine enforces;
+        - ``required`` — :func:`effective_application_required`: the sole public-form rule —
+          ``application_required`` OR a public identity key (server-stamped keys never required);
+          the platform ``required`` floor is NOT unioned in (R6, "the form is the boss");
         - ``show_when`` (R4.12) when present — so the form renders/validates a conditional field
           only when actually shown (mirrored authoritatively server-side);
         - ``options`` — the ONE canonical vocabulary the read-assembly seam (design C4 / F8)
@@ -510,7 +511,8 @@ class FieldConfigSurfaceMixin:
             "key": field.key,
             "group": field.group,
             "type": field.type.value,
-            # PUBLIC-FORM requiredness: single authority shared with the engine (task 19.2).
+            # PUBLIC-FORM requiredness: the sole-rule RENDER authority (task 23.1). The engine's
+            # PUBLIC enforcement is pruned to the same rule separately (task 23.1b) so the two agree.
             "required": effective_application_required(field),
             "label": dict(field.label),
             "functional_group": field.functional_group or field.group,
