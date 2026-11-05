@@ -653,3 +653,57 @@ Branch: `bugfix/published-form-submit-round5` (off origin/test at 215c61ec8, inc
 
 - [x] 20. Round 5 Checkpoint - Ensure all tests pass
   - Run `python -m pytest -c sam/pytest.ini sam/tests -q` (full SAM suite) and `cd backend && pytest tests/unit -k landing_page_styles`; regenerate the page-shell golden fixture only for intended diffs; ensure all pass. Ask the user if questions arise.
+
+### Round 6 Tasks
+- [x] 21. Write Round-6 bug condition exploration test
+  - **Property 11: Bug Condition** - form-required is the sole public rule; floor not unioned (any origin); identity + server-stamped + membership_type on their own paths
+  - **CRITICAL**: This test MUST FAIL on unfixed code - failure confirms the bug exists
+  - **DO NOT attempt to fix the test or the code when it fails**
+  - Under `sam/tests/`, `python -m pytest -c sam/pytest.ini <paths> -q`; reuse the Round-5 harness + the REAL stored h-dcn `config#fields` row (steering 39)
+  - **FORM_IS_BOSS**: drive real `create_application` with the OVERLAY field `region` resolved platform-`required:true` but NO `application_required`, submitted BLANK (consent accepted, identity keys + `magazine_pref` supplied) → assert NO `overlay.region` error. On unfixed code the floor union demands it → FAILS. (`gender`, a FIXED override, is already accepted today — do NOT use it as the reproduction)
+  - **FORM_REQUIRED_ENFORCED**: `magazine_pref` (`application_required`) left blank → `VALIDATION_REQUIRED` 422 (kept behaviour, pinned)
+  - **RENDER_PARITY**: rendered-required == engine-required == identity keys + `application_required` fields + membership_type, under the sole-rule
+  - **SERVER_STAMPED_EXCLUDED**: `membership.status` rendered NOT required AND not engine-demanded
+  - Run on UNFIXED code; **EXPECTED OUTCOME**: FAILS; document counterexamples
+  - _Bug_Condition: isBugConditionR6 facets FORM_IS_BOSS, FORM_REQUIRED_ENFORCED, RENDER_PARITY, SERVER_STAMPED_EXCLUDED_
+  - _Requirements: 16.1, 16.2, 16.3_
+- [x] 22. Write Round-6 preservation property tests (BEFORE implementing fix)
+  - **Property 12: Preservation** - staff floor, membership_type, identity, server stamping, resolver axes and Rounds 1–5 unchanged
+  - **IMPORTANT**: Follow observation-first methodology
+  - The authenticated staff write path still REJECTS a blank platform-required field (floor intact off the public rule)
+  - `membership_type` exposed → application-required; not exposed → tenant-default stamped — unchanged
+  - Identity keys stay required on the public path; server-stamped fields stripped from a forged body and stamped (`status="application"`)
+  - The two resolver axes stay distinct; the authenticated `MembersApi` staff 422 shape unchanged
+  - **EXPECTED OUTCOME**: Tests PASS on unfixed code
+  - _Requirements: 18.1, 18.2, 18.3, 18.4, 18.5, 18.6, 18.7_
+- [x] 23. Fix: form-required is the sole public-form requiredness rule
+  - [x] 23.1 Engine render authority - drop the platform-floor union from effective_application_required
+    - CORRECTED (proven in the first 23.1 attempt): `effective_application_required` is called ONLY by `_serialize_public_field` (RENDER), not the enforce path. In `sam/members/domain/_membership_writes_validation.py`, redefine `effective_application_required(field)` to `True` iff identity key OR `field.application_required`, `False` for server-stamped keys; REMOVE the `_platform_required_by_engine` floor OR (render-only, so this is safe); keep `show_when`. This fixes the RENDER side only. Reconcile the `effective_application_required` + `_platform_required_by_engine` docstrings and Round-5 design note #15. (The engine-side fix is task 23.1b.)
+    - _Bug_Condition: isBugConditionR6 facet=FORM_IS_BOSS, FORM_REQUIRED_ENFORCED, RENDER_PARITY_
+    - _Expected_Behavior: Property 11_
+    - _Preservation: Property 12 (staff floor, identity, membership_type, resolver axes, Rounds 1–5)_
+    - _Requirements: 16.1, 16.2, 17.1, 17.3, 17.4, 17.6_
+  - [x] 23.1b Public enforcement prune - stop demanding a floor-only overlay field on the public path
+    - In `sam/members/domain/_membership_writes_validation.py`, thread a `public_form: bool = False` into `_collect_member_record_errors` from `create_application` (public) only. On the PUBLIC path, DROP a `VALIDATION_REQUIRED` error for an OVERLAY field that is required-by-floor but NOT `application_required` and NOT an identity key (a new public-form prune step mirroring `_drop_hidden_required_errors` - drop-never-invent). The STAFF path passes `public_form=False` so `_validate_required_overlay_fields` runs UNCHANGED (members-table floor stays, 18.1). Repoint the Round-5 parity test (rendered==engine) to the sole-rule in the same change; do NOT weaken a staff-floor assertion
+    - _Bug_Condition: isBugConditionR6 facet=FORM_IS_BOSS, RENDER_PARITY_
+    - _Expected_Behavior: Property 11_
+    - _Preservation: Property 12 (staff floor 18.1, identity, membership_type, Rounds 1-5)_
+    - _Requirements: 16.1, 16.2, 17.1, 17.3_
+  - [x] 23.2 Builder - drop floor coupling, hide toggle for server-stamped fields
+    - In `frontend/src/components/TenantAdmin/MembersConfig/ApplicationFieldModal.tsx`, keep writing `application_required` (unchanged); drop the forced-on+disabled coupling of the required toggle to the platform floor for the public-form axis; do NOT offer the toggle for a server-stamped field (`status`, `member_number`, timestamps); update paired frontend tests
+    - _Bug_Condition: isBugConditionR6 facet=SERVER_STAMPED_EXCLUDED_
+    - _Expected_Behavior: Property 11_
+    - _Preservation: Property 12 (staff plane, application_required write unchanged)_
+    - _Requirements: 16.3, 17.2, 17.5_
+  - [x] 23.3 Verify Round-6 bug condition exploration test now passes
+    - **Property 11: Expected Behavior** - form-required is the sole public rule
+    - Re-run the SAME test from task 21 - do NOT write a new test
+    - **EXPECTED OUTCOME**: Test PASSES
+    - _Requirements: 16.1, 16.2, 16.3, 17.1, 17.3, 17.4, 17.5_
+  - [x] 23.4 Verify Round-6 preservation tests still pass
+    - **Property 12: Preservation** - staff floor, membership_type, identity, server stamping, resolver axes, Rounds 1–5 unchanged
+    - Re-run the SAME tests from task 22 - do NOT write new tests
+    - **EXPECTED OUTCOME**: Tests PASS
+    - _Requirements: 18.1, 18.2, 18.3, 18.4, 18.5, 18.6, 18.7_
+- [x] 24. Round 6 Checkpoint - Ensure all tests pass
+  - Run `python -m pytest -c sam/pytest.ini sam/tests -q` (full SAM suite) and `cd frontend && npx vitest run src/components/TenantAdmin/MembersConfig`; exercise the fix against the REAL stored `h-dcn` region/gender/status rows (steering 39), not only a fixture; ensure all pass. Ask the user if questions arise.

@@ -306,10 +306,19 @@ def test_keys_empty_submit_422_carries_bare_keys_that_match_rendered_controls(
 def test_required_parity_rendered_required_equals_engine_required():
     """REQUIRED_PARITY facet: controls rendered `required` == fields the engine enforces as required.
 
-    CURRENT: the form renders `required` from `application_required` only; the engine enforces
-    platform `required` (fixed + overlay) as well -> the sets differ -> FAILS.
+    REPOINTED (Round 6, task 23.1b — "the form is the boss"): parity now holds under the SOLE
+    public-form rule, NOT the old platform-floor union. The form renders `required` from
+    :func:`effective_application_required` (identity keys ∪ `application_required` fields ∪ an
+    exposed `membership_type`) and the engine's PUBLIC enforcement is pruned to the SAME predicate
+    (`public_form=True` in `_collect_member_record_errors`), so a floor-only field like `region`
+    is in NEITHER set. Both sides must therefore equal the sole-rule set — asserted EXPLICITLY, not
+    as incidental equality, so a future regression on either side is caught (change-with-tests).
 
-    Validates (bugfix): Requirement 13.3 / 14.3
+    Before Round 6 this FAILED: the form rendered from `application_required` only while the engine
+    enforced the platform `required` floor too, so the engine demanded `region`/`membership_type`
+    the form did not render. The Round-6 fix makes render and enforce lean on the one predicate.
+
+    Validates (bugfix): Requirement 13.3 / 14.3 (parity), 16.1 / 17.1 / 17.3 (Round-6 sole-rule)
     """
     service = _hdcn_service()
     rendered_required = _controls(_render(service)).required
@@ -330,13 +339,20 @@ def test_required_parity_rendered_required_equals_engine_required():
         if err.code == VALIDATION_REQUIRED
     }
 
-    assert rendered_required == engine_required, (
-        "BUG (REQUIRED_PARITY facet): the form's `required` set differs from the engine's. "
-        f"rendered required={sorted(rendered_required)!r}; engine required (all-blank submit)="
-        f"{sorted(engine_required)!r}; rendered-only={sorted(rendered_required - engine_required)!r}; "
-        f"engine-only={sorted(engine_required - rendered_required)!r}. Counterexample: the browser "
-        "lets empty last_name/email/birth_date/membership_type/region through while the server "
-        "rejects them."
+    # The sole public-form rule: the public identity keys + the tenant's `application_required`
+    # fields + the exposed `membership_type`. The floor-only OVERLAY field `region` (resolved
+    # platform `required:true`, NO `application_required`) and the server-stamped `status` are in
+    # NEITHER set under "the form is the boss".
+    expected = {"last_name", "email", "birth_date", "membership_type", "magazine_pref"}
+
+    assert rendered_required == engine_required == expected, (
+        "REQUIRED_PARITY under the sole-rule: the form's rendered `required` set and the engine's "
+        "enforced `required` set must both equal the identity keys + application_required fields + "
+        f"membership_type. rendered required={sorted(rendered_required)!r}; engine required "
+        f"(all-blank submit)={sorted(engine_required)!r}; expected={sorted(expected)!r}; "
+        f"rendered-only={sorted(rendered_required - expected)!r}; "
+        f"engine-only={sorted(engine_required - expected)!r}. A floor-only field like `region` must "
+        "be in NEITHER set now that render and enforce lean on the one predicate."
     )
 
 
