@@ -446,3 +446,157 @@ apart from the added rules (additive CSS only).
 the same mapper is shared safely and its tests stay green).
 
 15.6 WHEN Round 1–4 behavior runs THEN it SHALL CONTINUE TO pass its existing tests unchanged.
+
+---
+
+# Round 6 — the application form is the boss: form-required is the SOLE requiredness rule on the public form
+
+## Bug Analysis — Round 6
+
+Verified against the real `h-dcn` TEST `config#fields` row + the SAM engine + the builder code
+this session (root cause re-investigated, not inferred), and RECONCILED with the direction of
+`retire-members-status-lifecycle-engine` (`.kiro/specs/Members/01 - members-config-projection-and-
+cleanup/Parameter redesign/`): **config is the boss, keep the human responsible, minimise engine
+gatekeeping.**
+
+Decision (user, this session): **the application form is the boss.** On the PUBLIC application form,
+a field is required **iff the tenant marked it `application_required`** — the single, config-owned
+requiredness axis the human controls in the builder. The platform-registry "required floor" is NOT
+unioned into the public-form rule. The server keeps ONLY the few non-negotiables it already enforces
+on their OWN dedicated paths, independent of requiredness:
+
+- the public-path IDENTITY keys (`personal.email`, `personal.last_name`, `personal.birth_date`,
+  `APPLICATION_REQUIRED_IDENTITY_KEYS`) — the server needs them to recognise/dedupe an applicant;
+- `membership_type` — its own D21/R11 rule (application-required WHEN exposed; tenant-default
+  STAMPED when not exposed) — unchanged;
+- server-stamped defaults: `status = "application"` (preserved by the retirement spec) and the other
+  `APPLICATION_SERVER_SET_MEMBERSHIP_KEYS` (`member_number`, timestamps) — stripped from a forged
+  body and set server-side; an applicant never supplies them.
+
+### Where the floor union actually bites (corrected, proven against the real row + engine)
+
+`effective_application_required` → `_platform_required_by_engine` combines the two axes DIFFERENTLY
+by field origin, so the bug reproduces for OVERLAY (VARIABLE) fields, NOT fixed fields:
+
+- **OVERLAY / VARIABLE field** — `_platform_required_by_engine` returns `field.required and
+  field.visible` (the RESOLVED flag). So an overlay field with the platform `required:true` but NO
+  `application_required` IS demanded of the applicant via the floor union. The real reproduction is
+  **`region`** (overlay, resolved `required:true`, no `application_required`): omitting it on a
+  public submit yields a `VALIDATION_REQUIRED` 422 for `overlay.region`, though the tenant never
+  marked it required on the form. THIS is the Round-6 bug.
+- **FIXED field** — `_platform_required_by_engine` reads the PLATFORM REGISTRY (`field_by_key`),
+  which does NOT see a tenant OVERRIDE's `required`. So a fixed-field override `required:true` (the
+  stored `personal.gender` row) never reaches the public floor — gender is ALREADY optional and
+  accepted blank on the public form today. (Earlier drafts named `gender` as the reproduction; that
+  was inaccurate — corrected here. Gender stays the illustrative "already correct" case.)
+
+Ground truth from the stored `h-dcn` row (read-only `get-item`, this session) + engine probe:
+
+- `overrides.personal.gender` (FIXED): override `required:true`, NO `application_required` →
+  resolved `required=True`, floor=**False** (registry read), effective=False → omitting gender
+  SUCCEEDS today. Already sole-rule-correct.
+- `region` (OVERLAY): resolved `required:true`, NO `application_required` → floor=**True**,
+  effective=True → omitting region → 422 `overlay.region`. The floor union demanding a field the
+  tenant did not mark required on the form — the bug.
+- `fields.magazine_pref` (overlay): `application_required:true` → required on the form. Correct.
+- `overrides.membership.status` (FIXED, server-stamped): never applicant-supplied → not required,
+  not offerable.
+
+### Builder already writes the right axis (corrected)
+
+`frontend/src/components/TenantAdmin/MembersConfig/ApplicationFieldModal.tsx` ALREADY persists the
+"Verplicht op formulier" toggle as `application_required` (origin-aware `upsertField`), and for a
+platform-required field the toggle is FORCED ON + disabled (no-relax). So the earlier claim that the
+builder writes the OVERRIDE `required` for fixed fields is INACCURATE and is dropped. Round 6 is
+therefore an ENGINE-side fix (drop the floor union from the public rule); the one builder nuance
+worth addressing is cosmetic: with the floor union gone, the forced-on+disabled coupling of the
+toggle to the platform floor is no longer semantically load-bearing for the PUBLIC form (the public
+rule reads only `application_required`), and server-stamped fields should not offer the toggle.
+
+### Current Behavior (Defect) — Round 6
+
+16.1 WHEN the public submit engine computes requiredness for an OVERLAY field that is resolved
+platform-`required:true` but NOT `application_required` (e.g. `region`) THEN
+`_platform_required_by_engine` unions that platform floor into the public rule and the engine
+DEMANDS the field of the applicant (a blank value yields a `VALIDATION_REQUIRED` 422), even though
+the tenant never marked it required on the form — automated gatekeeping the human did not author.
+
+16.2 WHEN `get_public_field_config` renders the public schema THEN it derives `required` from the
+SAME `effective_application_required`, so a floor-only overlay field (`region`) is RENDERED required
+too — the rendered-required set includes fields the tenant did not mark `application_required`,
+matching the over-strict engine (render⇄engine agree, but on the wrong rule).
+
+16.3 WHEN the Application Form Builder renders the per-field "Verplicht op formulier" control for a
+server-stamped field (`status`, `member_number`, timestamps) THEN it offers a required toggle for a
+field the applicant can never supply, so "required on form" for such a field is meaningless yet
+shown.
+
+### Expected Behavior (Correct) — Round 6
+
+17.1 WHEN the public submit engine computes requiredness for a field on the application form THEN a
+field SHALL be required IFF the tenant marked it `application_required` (the SOLE, config-owned
+rule) — the platform-registry/resolved floor SHALL NOT be unioned into the public-form requiredness
+for ANY origin (fixed OR overlay). So a blank `region` (floor-only, not `application_required`) SHALL
+be ACCEPTED on the public form.
+
+17.2 WHEN a tenant marks ANY offerable field "Verplicht op formulier" THEN the builder SHALL persist
+that intent as `application_required` (the single public-form requiredness axis) — which it already
+does uniformly for fixed and overlay fields; Round 6 SHALL keep that write behaviour, only removing
+the now-unnecessary forced-on+disabled coupling to the platform floor on the PUBLIC-form axis.
+
+17.3 WHEN requiredness is computed for the public form THEN there SHALL be ONE authority shared by
+`get_public_field_config` (`_serialize_public_field`) and the submit validator
+(`_validate_application_required`) — `effective_application_required` — now defined as
+`application_required` plus the fixed identity-key set (17.4), honouring `show_when` as today; so the
+rendered `required`, the client check and the server enforcement are the SAME set for every field
+(Round-5 parity preserved over the simplified rule).
+
+17.4 WHEN the public-path identity keys (`personal.email`, `personal.last_name`,
+`personal.birth_date`) are validated THEN they SHALL CONTINUE TO be required on the public path
+regardless of tenant config — the ONLY requiredness the server adds beyond the tenant's
+`application_required`, because the server needs them to recognise/deduplicate an applicant.
+
+17.5 WHEN a field is server-stamped (`status`, `member_number`, `created_at`, `updated_at` — the
+`APPLICATION_SERVER_SET_MEMBERSHIP_KEYS`) THEN `effective_application_required` SHALL return false
+for it, the published form SHALL NOT render it required, and the Application Form Builder SHALL NOT
+offer a "Verplicht op formulier" toggle for it — while the server SHALL CONTINUE to stamp it
+authoritatively (`status = "application"` default preserved).
+
+17.6 WHEN `membership_type` requiredness is evaluated THEN it SHALL CONTINUE TO be governed by its
+OWN D21/R11 rule (application-required WHEN exposed on the form; tenant-default STAMPED when not
+exposed) — Round 6 SHALL NOT fold `membership_type` into the generic floor union it removes.
+
+### Unchanged Behavior (Regression Prevention) — Round 6
+
+18.1 WHEN the authenticated staff write path (`MembersApi` create/edit, `_validate_member_record`
+over the fixed-field registry + overlay `required`) runs THEN the members-table platform `required`
+floor SHALL CONTINUE TO be enforced EXACTLY as today — Round 6 changes ONLY the PUBLIC application
+form's requiredness rule, never the staff/members-table enforcement. A platform-required field a
+staff user leaves blank SHALL still be rejected.
+
+18.2 WHEN a field is not `application_required` and is not an identity key THEN a blank value on the
+PUBLIC form SHALL be accepted — including a floor-only OVERLAY field (`region`) and a floor-only
+FIXED field (`gender`, already accepted today).
+
+18.3 WHEN `membership_type` is exposed/not-exposed on the form THEN its application-required-when-
+exposed check and its tenant-default stamp when not exposed SHALL CONTINUE TO behave exactly as today
+(`_apply_application_membership_type`).
+
+18.4 WHEN the server stamps a server-set field THEN `status` / `member_number` / timestamps SHALL
+CONTINUE TO be stripped from a forged body and set server-side exactly as today — Round 6 only stops
+them being OFFERED/rendered as applicant-required.
+
+18.5 WHEN the resolver resolves a field THEN `required` (members-table/staff floor) and
+`application_required` (public-form flag) SHALL CONTINUE TO be two independent axes on the resolved
+field (`TestPlatformRequiredAndApplicationRequiredAreIndependentAxes`) — Round 6 simply stops the
+PUBLIC engine from consulting the floor axis; the data model keeping them distinct is unchanged.
+
+18.6 WHEN Round 1–5 behavior runs (submit script, format checks, notice text, inline 422 mapping,
+bare field keys, slug-host CORS/preflight, error CSS, render⇄engine parity) THEN it SHALL CONTINUE
+TO pass its existing tests, with the Round-5 parity tests updated IN THE SAME CHANGE to the
+simplified requiredness rule where they asserted the platform-floor union (change-with-tests).
+
+18.7 WHEN this change lands THEN it SHALL be reconciled with the `retire-members-status-lifecycle-
+engine` direction (config is the boss, minimal engine gatekeeping) — no docstring/spec left
+asserting a platform-floor union on the public form (incl. Round-5 design note #15 and the
+`_platform_required_by_engine` docstring).

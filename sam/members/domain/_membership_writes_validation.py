@@ -39,7 +39,6 @@ from sam.members.domain.fixed_fields import (
     MEMBER_NUMBER_FIELD_KEY,
     FieldType,
     FieldValidationError,
-    field_by_key,
     roles_for_option,
     validate_fixed_fields,
     validate_member_number_format,
@@ -68,40 +67,53 @@ APPLICATION_SERVER_SET_MEMBERSHIP_KEYS: frozenset[str] = frozenset(
 
 
 def effective_application_required(field: ResolvedField) -> bool:
-    """Is ``field`` required on the PUBLIC form? The single authority for the form's ``required``.
+    """Is ``field`` required on the PUBLIC form? The SOLE public-form requiredness predicate.
 
-    Encodes exactly the union the ``create_application`` engine enforces for a field on the form:
-    platform ``required`` (fixed-registry / override / overlay: the base chain) OR the form-only
-    ``application_required`` (step (a)) OR a public-path identity key (step (b)). ``show_when``
-    gating is NOT folded in: a conditionally-shown field keeps its ``show_when`` metadata in the
-    public payload and the client enforces ``required`` only while the field is shown (the engine
-    drops/skips the requirement while the field is hidden).
+    The SOLE public-form rule (R6, "the form is the boss"): a field is required IFF it is
+
+    * a public-path identity key (:data:`APPLICATION_REQUIRED_IDENTITY_KEYS`), OR
+    * the tenant marked it ``application_required``, OR
+    * it is ``membership_type`` and the tenant EXPOSED it on the form
+      (``application_visible``) — its OWN D21/R11 rule: an exposed ``membership_type`` is
+      application-required (a blank is rejected), while a NOT-exposed one is stamped
+      server-side with the tenant default and never demanded of the applicant.
+
+    A server-stamped key (the membership keys in
+    :data:`APPLICATION_SERVER_SET_MEMBERSHIP_KEYS`, plus ``joined_date``) is NEVER required —
+    it is stamped/forced server-side, never demanded of the applicant. The platform-registry
+    "required floor" is deliberately NOT unioned in: a field that is platform-``required`` but
+    neither identity, ``application_required`` nor an exposed ``membership_type`` (e.g. a
+    floor-only OVERLAY field like ``region``) is NOT required on the public form.
+
+    ``show_when`` gating is NOT folded in: a conditionally-shown field keeps its ``show_when``
+    metadata in the public payload and the client enforces ``required`` only while the field is
+    shown (the engine drops/skips the requirement while the field is hidden).
+
+    This is the SINGLE predicate BOTH public paths lean on, so render and enforce cannot drift:
+    the RENDER side (:meth:`_serialize_public_field`, the public field-config serializer) emits
+    ``required`` from it, and the engine's PUBLIC enforcement prune
+    (:meth:`_collect_member_record_errors` with ``public_form=True``) keeps exactly the
+    ``VALIDATION_REQUIRED`` errors this predicate marks required — so rendered-required ==
+    engine-required under the sole-rule (RENDER_PARITY).
     """
     dotted = field.dotted_key()
     if dotted in APPLICATION_REQUIRED_IDENTITY_KEYS or field.application_required:
         return True
-    return _platform_required_by_engine(field)
-
-
-def _platform_required_by_engine(field: ResolvedField) -> bool:
-    """Does the base validation chain reject a blank ``field`` as required (applicant-supplied)?
-
-    Mirrors the engine, not the resolved ``required`` flag: a FIXED field is enforced from the
-    platform registry (:func:`validate_fixed_fields`; a tenant override's ``required`` is not
-    enforced there), and a server-set field (``status`` forced, ``joined_date`` stamped, the
-    staff-owned keys stripped) is never demanded of the applicant. A VARIABLE (overlay) field is
-    enforced from its own ``required`` when visible (:meth:`_validate_required_overlay_fields`).
-    """
-    if field.origin is FieldOrigin.VARIABLE:
-        return bool(field.required and field.visible)
-    dotted = field.dotted_key()
-    bare_group, _, bare_key = dotted.partition(".")
-    if bare_group == "membership" and (
-        bare_key in APPLICATION_SERVER_SET_MEMBERSHIP_KEYS or bare_key == "joined_date"
-    ):
-        return False
-    registry_field = field_by_key(dotted)
-    return bool(registry_field is not None and registry_field.required)
+    # membership_type keeps its OWN D21/R11 rule: exposed on the form → application-required;
+    # not exposed → stamped server-side (never demanded). This is the one field whose
+    # requiredness is driven by exposure rather than the application_required flag, folded into
+    # the single predicate so render and enforce agree on it (and the prune need not special-case
+    # the dotted key separately — though it does, belt-and-braces, so membership_type can never
+    # be dropped).
+    if dotted == MEMBERSHIP_TYPE_FIELD_KEY and field.application_visible:
+        return True
+    # Everything else is NOT required on the public form. This explicitly includes the
+    # server-stamped keys (membership keys in APPLICATION_SERVER_SET_MEMBERSHIP_KEYS, plus
+    # ``joined_date``) — they are stamped/forced server-side, never demanded of the applicant —
+    # and any floor-only field that is platform-``required`` but neither identity,
+    # ``application_required`` nor an exposed ``membership_type`` (the platform floor is no
+    # longer unioned in).
+    return False
 
 
 class ValidationMixin:
@@ -158,6 +170,7 @@ class ValidationMixin:
         *,
         partial: bool,
         caller_roles: Sequence[str] = (),
+        public_form: bool = False,
     ) -> dict[str, FieldError]:
         """Run the full authoritative validation chain, COLLECTING every error (never raising).
 
@@ -167,6 +180,15 @@ class ValidationMixin:
         identity tightening) can merge this chain's errors INTO one map and raise a SINGLE
         :class:`MemberValidationError` (R6.5: every problem at once, not one-at-a-time). The
         authenticated callers keep the raise-if-any behaviour through the thin wrapper above.
+
+        ``public_form`` (R6, "the form is the boss"): the PUBLIC ``create_application`` path passes
+        ``True``; every authenticated/staff caller leaves it ``False`` (the default). On the PUBLIC
+        path only, a FINAL prune (:meth:`_prune_public_floor_required_errors`) drops every
+        ``VALIDATION_REQUIRED`` error for a field the sole public-form rule
+        (:func:`effective_application_required`) does NOT require — i.e. a platform-floor-only
+        field the tenant never marked ``application_required`` (e.g. the OVERLAY ``region``). The
+        STAFF path skips the prune, so :meth:`_validate_required_overlay_fields` /
+        :func:`validate_fixed_fields` keep the full members-table floor (18.1) UNCHANGED.
         """
         config = self._field_resolver.resolve(
             tenant_id, scope_vocab=self._scope_vocab(tenant_id)
@@ -210,6 +232,14 @@ class ValidationMixin:
             for k, v in hook_errors.items():
                 errors[str(k)] = _as_field_error(v)
 
+        # (2f) PUBLIC-FORM floor prune (R6, "the form is the boss"). The staff/authenticated path
+        # leaves ``public_form=False`` so the full members-table floor above is authoritative
+        # (18.1). On the PUBLIC path only, relax the floor DOWN to the sole public-form rule:
+        # drop a required error for any field the form does not require. Done LAST so it can only
+        # relax the collected map ("drop, never invent", mirroring _drop_hidden_required_errors).
+        if public_form:
+            self._prune_public_floor_required_errors(config, errors)
+
         return errors
 
     @staticmethod
@@ -251,6 +281,48 @@ class ValidationMixin:
             existing = errors.get(dotted)
             if existing is not None and existing.code == VALIDATION_REQUIRED:
                 del errors[dotted]
+
+    @staticmethod
+    def _prune_public_floor_required_errors(
+        config: ResolvedFieldConfig,
+        errors: dict[str, FieldError],
+    ) -> None:
+        """PUBLIC-path only: drop a ``VALIDATION_REQUIRED`` error the form does not require (R6).
+
+        "The form is the boss": on the PUBLIC application form a field is required IFF the sole
+        rule :func:`effective_application_required` says so — an identity key, a tenant
+        ``application_required`` field, or an exposed ``membership_type``. The shared chain
+        (:func:`validate_fixed_fields` + :meth:`_validate_required_overlay_fields`) enforces the
+        full platform/members-table "required floor", which is CORRECT for the authenticated
+        staff write but TOO STRICT for the public form: a platform-floor-only field the tenant
+        never put as required ON THE FORM (e.g. the OVERLAY ``region``, resolved
+        ``required:true`` with no ``application_required``) must be accepted blank by an applicant.
+
+        So for every resolved field whose collected error is a ``VALIDATION_REQUIRED`` that the
+        sole public-form rule does NOT require, DROP it. This mirrors
+        :meth:`_drop_hidden_required_errors`' "drop, never invent" contract — it can ONLY relax
+        the map, never add — and runs ONLY when the caller passed ``public_form=True``, so the
+        staff floor is untouched (18.1).
+
+        Belt-and-braces: ``membership_type`` is never dropped even if the predicate missed it —
+        it is the one field whose requiredness is driven by exposure (D21/R11), handled by the
+        separate ``_apply_application_membership_type`` + reference check, so a defensive guard
+        on its dotted key keeps its required/reference errors intact regardless. Identity keys
+        and ``application_required`` fields are kept because the predicate returns ``True`` for
+        them; only the floor-only requireds are relaxed.
+        """
+        for field in config.fields:
+            dotted = field.dotted_key()
+            existing = errors.get(dotted)
+            if existing is None or existing.code != VALIDATION_REQUIRED:
+                continue
+            # Never relax membership_type (its own D21/R11 rule) or anything the sole public-form
+            # rule requires — only drop a floor-only required the form does not demand.
+            if dotted == MEMBERSHIP_TYPE_FIELD_KEY:
+                continue
+            if effective_application_required(field):
+                continue
+            del errors[dotted]
 
     @staticmethod
     def _validate_required_overlay_fields(
