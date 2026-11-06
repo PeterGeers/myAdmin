@@ -331,12 +331,51 @@ def _render_consent_control(
     )
 
 
+def _render_logo_img(logo: str) -> str:
+    """Render the tenant logo ``<img>`` for the top of the form body (bugfix Task 6.1 / R2.3).
+
+    ``logo`` is a values-only asset REFERENCE (a URL/path — DD-C1, never a binary upload), so it is
+    HTML-escaped before it enters the ``src`` attribute and can never break out of markup (steering
+    39 — config-origin values escaped). The ``alt`` is a fixed, non-config string. An empty/blank
+    reference renders NOTHING (returns ``""``), so a tenant with no logo renders byte-identically to
+    today (preservation, bugfix 3.2).
+
+    The ``<img>`` carries a ``form-logo`` class so the application-form CSS block (Task 5.1) can
+    size/position it; this function emits only the element, the CSS is owned by ``page_styles``.
+    """
+    if not logo or not logo.strip():
+        return ""
+    src = _html.escape(logo.strip())
+    return f'<img class="form-logo" src="{src}" alt="" />'
+
+
+def _render_form_heading(header_title: str) -> str:
+    """Render the VISIBLE form heading for the top of the ``.application-form`` (Task 6.1 / R2.4).
+
+    ``header_title`` is free text (values-only); it is HTML-escaped before it enters the element so
+    a stray value can never break out of markup (XSS-safe, same contract as field labels). An
+    empty/blank title renders NOTHING (returns ``""``), so a tenant with no title renders
+    byte-identically to today (preservation, bugfix 3.2).
+
+    The heading is an ``<h1>`` carrying a ``form-title`` class so the application-form CSS block
+    (Task 5.1) can apply the brand colour to it (the bug-condition predicate checks
+    ``.application-form h1`` / ``.application-form .form-title``). It sits INSIDE the
+    ``.application-form`` markup (emitted by the caller) so that CSS can theme it.
+    """
+    if not header_title or not header_title.strip():
+        return ""
+    text = _html.escape(header_title.strip())
+    return f'<h1 class="form-title">{text}</h1>'
+
+
 def build_form_body_html(
     public_field_config: Mapping[str, Any],
     *,
     locale: str = "nl",
     header_html: str = "",
     footer_html: str = "",
+    logo: str = "",
+    header_title: str = "",
     slug: str = "",
     public_api_base: str = "",
 ) -> str:
@@ -357,6 +396,14 @@ def build_form_body_html(
         locale: the applicant locale for labels (default ``nl``, R5.3/R6b).
         header_html / footer_html: optional already-composed, trusted fragments the caller
             (publish service) supplies; emitted verbatim around the form.
+        logo: OPTIONAL tenant logo asset REFERENCE (a URL/path — bugfix-published-form-styling Task
+            6.1 / R2.3). When supplied it renders an HTML-escaped ``<img class="form-logo">`` at the
+            TOP of the form body; empty/blank renders NOTHING so the body is byte-identical to today
+            (preservation, bugfix 3.2). It is a values-only reference (DD-C1), never a binary upload.
+        header_title: OPTIONAL visible form title/heading text (Task 6.1 / R2.4). When supplied it
+            renders an HTML-escaped ``<h1 class="form-title">`` INSIDE the ``.application-form``
+            markup (so the Task-5.1 CSS can theme it); empty/blank renders NOTHING (byte-identical,
+            bugfix 3.2).
         slug: the form's public slug — the single path segment the submit script posts to
             (``POST {public_api_base}/public/members/{slug}/applications``). Threaded through
             from the publish step (bugfix ``bugfix-published-form-submit`` Task 3.1) so a LATER
@@ -458,8 +505,23 @@ def build_form_body_html(
     # screen reader announces the outcome). Empty at render; populated only by JS on response.
     status_region = '<div class="form-status" role="status" aria-live="polite"></div>'
 
+    # bugfix-published-form-styling Task 6.1 / R2.3, R2.4 — the logo + visible heading. BOTH are
+    # emitted ONLY when supplied (values-only, HTML-escaped) and BOTH sit at the TOP of the form,
+    # INSIDE `.application-form`, so the Task-5.1 application-form CSS block can theme the heading
+    # (`.application-form .form-title` / `.application-form h1`) and size the logo (`.form-logo`).
+    # When both are absent each helper returns "" and the assembled markup is byte-IDENTICAL to
+    # today (the preservation contract, bugfix 3.2 — a tenant with no logo/title renders unchanged).
+    logo_img = _render_logo_img(logo)
+    form_heading = _render_form_heading(header_title)
+    header_block = "\n".join(p for p in (logo_img, form_heading) if p)
+    form_opening = (
+        f"{submit_endpoint}\n{header_block}\n{form_inner}"
+        if header_block
+        else f"{submit_endpoint}\n{form_inner}"
+    )
+
     form_html = (
-        f"<main>\n{submit_endpoint}\n{form_inner}\n{status_region}\n"
+        f"<main>\n{form_opening}\n{status_region}\n"
         f'<button type="submit">Verstuur</button>\n</form>\n'
         f"{_SUBMIT_SCRIPT}\n</main>"
     )
@@ -806,6 +868,8 @@ def render_application_form_page(
     locale: str = "nl",
     header_html: str = "",
     footer_html: str = "",
+    logo: str = "",
+    header_title: str = "",
     slug: str = "",
     public_api_base: str = "",
 ) -> str:
@@ -832,6 +896,12 @@ def render_application_form_page(
             slice never replaces the previously published form (Req 5.5).
         locale: the applicant locale for field/group labels (default ``nl``).
         header_html / footer_html: optional trusted fragments wrapped around the form body.
+        logo: OPTIONAL tenant logo asset reference (bugfix-published-form-styling Task 6.1 / R2.3)
+            — an HTML-escaped ``<img class="form-logo">`` at the top of the form body when supplied;
+            empty renders byte-identically to today (preservation, bugfix 3.2).
+        header_title: OPTIONAL visible form title/heading text (Task 6.1 / R2.4) — an HTML-escaped
+            ``<h1 class="form-title">`` inside ``.application-form`` when supplied (so the Task-5.1
+            CSS themes it); empty renders byte-identically to today (bugfix 3.2).
         slug: the form's public slug the submit script posts to — threaded through to
             :func:`build_form_body_html` so a LATER task (3.2) can target
             ``POST {public_api_base}/public/members/{slug}/applications``. Empty here is
@@ -848,6 +918,14 @@ def render_application_form_page(
         body — the live S3 write of it stays gated, spec 14 Tasks 8/9).
     """
     brand = dict(branding) if branding else {}
+    # bugfix-published-form-styling Task 6.1 — `logo` / `header_title` are RENDERER-consumed
+    # values-only attributes (emitted as an escaped `<img>` / `<h1>`), NOT CSS the Layer-2
+    # generator produces. Strip them from the mapping handed to `render_page_styles` so the
+    # generator (whose supported set does not include them until Task 8) never sees a key it would
+    # reject — the renderer reads them via the explicit `logo` / `header_title` params below. The
+    # seven styling attributes (and `columns`, once Task 8 lands) still flow to Layer 2 unchanged.
+    brand.pop("logo", None)
+    brand.pop("header_title", None)
 
     # Layer 2 — the SAM-OWNED CSS generator (`sam.shared.page_styles.render_page_styles`) is now
     # the single source of the published form's CSS (spec 15 / DD-1, task 7.2). This CUTS OVER the
@@ -869,6 +947,8 @@ def render_application_form_page(
         locale=locale,
         header_html=header_html,
         footer_html=footer_html,
+        logo=logo,
+        header_title=header_title,
         slug=slug,
         public_api_base=public_api_base,
     )

@@ -61,10 +61,17 @@ _VALUE_POOL = {
     "base_spacing": st.sampled_from(["compact", "normal", "relaxed"]),
     "border_radius_global": st.sampled_from(["sharp", "rounded", "pill"]),
     "shadow_style": st.sampled_from(["none", "subtle", "medium", "dramatic"]),
+    # bugfix bugfix-published-form-styling (Task 8): the three new values-only attributes are
+    # now supported, so the defaults/omission property must cover them too (each has a SAM-owned
+    # default the omission path falls back to — columns -> multi-column default, logo /
+    # header_title -> empty). Valid "present" values below.
+    "columns": st.sampled_from([1, 2, 3, 4]),
+    "logo": st.sampled_from(["https://assets.example.org/logo.png", "logo.svg"]),
+    "header_title": st.sampled_from(["Aanmelden", "Join us"]),
 }
 
-# Sanity: the pool covers EXACTLY the seven supported attributes, so if the supported set ever
-# changes this test fails loudly rather than silently under-covering.
+# Sanity: the pool covers EXACTLY the supported attributes (now ten), so if the supported set
+# ever changes this test fails loudly rather than silently under-covering.
 assert set(_VALUE_POOL) == set(SUPPORTED_ATTRIBUTES)
 
 

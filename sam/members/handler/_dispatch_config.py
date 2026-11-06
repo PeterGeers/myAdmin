@@ -43,8 +43,35 @@ from sam.members.handler._http import ParsedRequest
 from sam.members.handler.routes import RouteSpec
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from sam.members.domain.look_and_feel_settings_service import (
+        LookAndFeelSettingsService,
+    )
     from sam.members.domain.membership_service import MembershipService
     from sam.members.handler.app import RequestContext
+
+
+def _with_resolved_settings(
+    laf_service: LookAndFeelSettingsService,
+    tenant_id: str,
+    page_id: str,
+    write_result: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Shape a look-and-feel WRITE response so PUT shares the GET contract (DD-D1, R-B).
+
+    After a ``set_setting`` / ``copy_settings`` Change-Op succeeds, re-resolve the VERIFIED
+    tenant's current look-and-feel VALUES — the SAME resolved view ``get_look_and_feel`` returns on
+    GET — and fold them into the response under ``settings``, alongside the Change-Op write-result
+    fields (``version`` / ``idempotent_replay``). GET and PUT then share ONE response contract, so
+    the frontend's ``setLookAndFeel(res.settings ?? {})`` re-seed shows the authored value with no
+    reload (bugfix R-B / defect 1.8) instead of blanking the optimistic edit against an absent key.
+
+    ``tenant_id`` is AUTHORITATIVE from the verified context (steering 39); the resolve is
+    VALUES-only (never generated CSS). The write-result fields are preserved — ``settings`` is
+    additive — and a write result key named ``settings`` would be overridden by the resolved view
+    on purpose (the resolved view is the contract), but no write result carries that key today.
+    """
+    resolved = dict(laf_service.get_settings(tenant_id, page_id))
+    return {**dict(write_result), "settings": resolved}
 
 
 def dispatch_config(
@@ -218,13 +245,14 @@ def dispatch_config(
             # source is rejected (403), never silently honoured.
             source_page = body.get("source_page") or DEFAULT_PAGE_ID
             target_page = body.get("target_page") or DEFAULT_PAGE_ID
-            return laf_service.copy_settings(
+            write_result = laf_service.copy_settings(
                 tenant_id,
                 source_page,
                 target_page,
                 source_tenant_id=body.get("source_tenant_id"),
                 client_op_id=body.get("client_op_id"),
             )
+            return _with_resolved_settings(laf_service, tenant_id, target_page, write_result)
 
         # Default action: author ONE attribute value. An ABSENT `attribute` key is a malformed
         # request (the one thing this action carries) — surface a caller-safe 422 via the service's
@@ -235,12 +263,13 @@ def dispatch_config(
                 "clear), or {op: 'copy'} to snapshot another page's values"
             )
         page_id = body.get("page") or DEFAULT_PAGE_ID
-        return laf_service.set_setting(
+        write_result = laf_service.set_setting(
             tenant_id,
             page_id,
             body.get("attribute"),
             body.get("value"),
             client_op_id=body.get("client_op_id"),
         )
+        return _with_resolved_settings(laf_service, tenant_id, page_id, write_result)
 
     return UNHANDLED

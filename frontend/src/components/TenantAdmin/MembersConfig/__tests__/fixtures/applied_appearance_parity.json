@@ -1,0 +1,67 @@
+{
+  "$comment": [
+    "SHARED, CANONICAL applied-appearance parity fixture for the bugfix",
+    "`bugfix-published-form-styling` (Phase 5 / Task 20). It is the ONE source of resolved",
+    "Look_And_Feel_Settings attributes that BOTH render paths are driven from so the two",
+    "provably use the SAME input:",
+    "",
+    "  - the PUBLISHED Python-rendered HTML (sam/shared/page_styles + application_form_render),",
+    "    asserted by sam/tests/test_published_form_applied_styling_parity.py, and",
+    "  - the React admin PREVIEW (ApplicationFormPreview.tsx + pageStyles.ts), asserted by",
+    "    frontend/.../__tests__/ApplicationFormPreview.appliedParity.test.tsx.",
+    "",
+    "CRITICAL (design E / Task 20): each test asserts the APPLIED RESULT on its path — the",
+    "brand colour reaches the form heading/submit/focus, the `columns` value produces the",
+    "SAME multi-column layout, and the logo + header title appear — NEVER merely that the two",
+    "generators emit the same string. The spec-15 task-13.2 string fixture",
+    "(page_styles_parity.json) is INSUFFICIENT and is part of this bug; this fixture is the",
+    "applied-appearance companion, not a replacement.",
+    "",
+    "ONE file is canonical: sam/tests/fixtures/applied_appearance_parity.json. The frontend",
+    "test root carries a byte-identical vendored copy at",
+    "frontend/src/components/TenantAdmin/MembersConfig/__tests__/fixtures/applied_appearance_parity.json;",
+    "a guard test on EACH plane asserts the two copies are byte-for-byte identical so both",
+    "planes provably read the SAME attributes.",
+    "",
+    "Every case carries distinct values (a brand colour differing from the SAM default, a",
+    "multi-column `columns`, a logo reference, and a header_title) so 'applied' is observable",
+    "on both paths. `default_primary` is #2D5F8A (sam/shared/page_styles._DEFAULTS /",
+    "pageStyles.ts DEFAULTS): a case's color_primary MUST differ from it."
+  ],
+  "default_primary": "#2D5F8A",
+  "cases": [
+    {
+      "name": "crimson_three_columns",
+      "description": "A vivid crimson brand colour, a three-column layout, a PNG logo, and a Dutch join heading.",
+      "input": {
+        "color_primary": "#C01030",
+        "color_accent": "#E8A33D",
+        "columns": "3",
+        "logo": "https://cdn.jabaki.nl/h-dcn/logo.png",
+        "header_title": "Word lid van DCN"
+      }
+    },
+    {
+      "name": "violet_two_columns",
+      "description": "A violet brand colour, a two-column layout, an SVG logo, and a 2026 enrolment heading.",
+      "input": {
+        "color_primary": "#7B2CBF",
+        "color_accent": "#2D5F8A",
+        "columns": "2",
+        "logo": "https://assets.example.org/brand/mark.svg",
+        "header_title": "Inschrijfformulier 2026"
+      }
+    },
+    {
+      "name": "forest_four_columns",
+      "description": "A forest-green brand colour, a four-column layout, a webp logo, and a registration heading.",
+      "input": {
+        "color_primary": "#0A7E3F",
+        "color_accent": "#D62828",
+        "columns": "4",
+        "logo": "https://cdn.jabaki.nl/tenant/emblem.webp",
+        "header_title": "Aanmelden ledenadministratie"
+      }
+    }
+  ]
+}

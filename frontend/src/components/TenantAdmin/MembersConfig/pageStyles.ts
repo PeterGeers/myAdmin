@@ -31,9 +31,27 @@
  */
 
 /**
- * The exactly-seven supported attributes (Req 3.2) — mirrors the Python
- * `SUPPORTED_ATTRIBUTES` frozenset. A key outside this set is unsupported and causes
- * {@link renderPageStyles} to reject the request (Req 3.4).
+ * The supported attributes — now TEN — mirrors the Python `SUPPORTED_ATTRIBUTES` frozenset.
+ * A key outside this set is unsupported and causes {@link renderPageStyles} to reject the
+ * request (Req 3.4).
+ *
+ * The first SEVEN are the original spec-15 contract (colours / fonts / spacing / radius /
+ * shadow). The bugfix `bugfix-published-form-styling` (Req 2.2 / 2.7, design §C) extends the
+ * set with THREE new values-only attributes — a deliberate, DOCUMENTED extension of the
+ * exactly-seven set (bugfix 3.4):
+ *
+ *  - `columns`      — the number of layout columns for the form's field groups; DRIVES the
+ *                     application-form grid `grid-template-columns` track count (clamped 1..4
+ *                     here, mirroring the Python generator — the authoritative out-of-range
+ *                     rejection lives at the edge/service plane).
+ *  - `logo`         — a URL/asset reference to the tenant logo; CARRIED as a supported value
+ *                     but NOT emitted as CSS — the renderer/preview consumes it.
+ *  - `header_title` — the form header/title text; likewise CARRIED for the renderer/preview,
+ *                     not emitted as CSS.
+ *
+ * `logo` / `header_title` are accepted so {@link renderPageStyles} does not reject them as
+ * unsupported, but they produce NO CSS of their own. `columns` is the only new attribute that
+ * affects the generated CSS. Any key OUTSIDE these ten is still rejected (Req 3.4).
  */
 export const SUPPORTED_ATTRIBUTES = [
   'color_primary',
@@ -43,6 +61,11 @@ export const SUPPORTED_ATTRIBUTES = [
   'base_spacing',
   'border_radius_global',
   'shadow_style',
+  // bugfix bugfix-published-form-styling (Req 2.2 / 2.7) — the three new values-only
+  // attributes; a documented extension of the original seven (bugfix 3.4).
+  'columns',
+  'logo',
+  'header_title',
 ] as const;
 
 export type SupportedAttribute = (typeof SUPPORTED_ATTRIBUTES)[number];
@@ -50,8 +73,23 @@ export type SupportedAttribute = (typeof SUPPORTED_ATTRIBUTES)[number];
 const SUPPORTED_SET: ReadonlySet<string> = new Set(SUPPORTED_ATTRIBUTES);
 
 /**
+ * Default / ceiling for the application-form multi-column grid (bugfix DD-B1) — mirrors the
+ * Python `_DEFAULT_FORM_COLUMNS` / `_MAX_FORM_COLUMNS`. The `columns` attribute drives the
+ * grid track count; an unset value falls back to the default, and the generator clamps to a
+ * sane 1..4 range so a stray value never emits a broken track list (the authoritative
+ * out-of-range rejection lives at the edge/service plane).
+ */
+const DEFAULT_FORM_COLUMNS = 2;
+const MAX_FORM_COLUMNS = 4;
+
+/**
  * SAM-owned defaults (Req 1.3, 3.3) — mirrors the Python `_DEFAULTS` map EXACTLY. A missing
  * (or `null`/`undefined`) attribute resolves to the default below.
+ *
+ * The three bugfix attributes default so a tenant that never authored them renders exactly as
+ * today: `columns` to the sensible multi-column count the form grid already used, and `logo` /
+ * `header_title` to EMPTY (no logo / no heading — the renderer treats an empty value as
+ * "absent").
  */
 export const DEFAULTS: Readonly<Record<SupportedAttribute, string>> = {
   color_primary: '#2D5F8A',
@@ -61,6 +99,11 @@ export const DEFAULTS: Readonly<Record<SupportedAttribute, string>> = {
   base_spacing: 'normal',
   border_radius_global: 'rounded',
   shadow_style: 'subtle',
+  // bugfix bugfix-published-form-styling (Req 2.2 / 2.7 / 3.3) — defaults for the three new
+  // attributes; mirrors the Python `_DEFAULTS`.
+  columns: String(DEFAULT_FORM_COLUMNS),
+  logo: '',
+  header_title: '',
 };
 
 /** Spacing enum map — mirrors the Python `_SPACING_MAP`. */
@@ -178,6 +221,8 @@ function resolveCssVariableEntries(
   baseSpacing: string,
   borderRadiusGlobal: string,
   shadowStyle: string,
+  colorPrimary: string,
+  colorAccent: string,
 ): Array<[string, string]> {
   const headingFamily =
     fontHeading.toLowerCase() !== 'system'
@@ -202,6 +247,12 @@ function resolveCssVariableEntries(
     ['--radius-lg', radii.lg],
     ['--shadow-card', shadows.card],
     ['--shadow-hover', shadows.hover],
+    // bugfix DD-B1: the two brand colours as :root variables (sanitised), appended AFTER the
+    // existing variable lines so the pre-fix block survives as an ordered subsequence — the
+    // new application-form block applies them to the form's OWN elements. Mirrors the Python
+    // `_build_css_variables`.
+    ['--color-primary', sanitize(colorPrimary)],
+    ['--color-accent', sanitize(colorAccent)],
   ];
 }
 
@@ -256,7 +307,11 @@ function buildFontLinks(fontHeading: string, fontBody: string): string {
  * same colours (task 13.2 parity fixture). Keep the leading indentation and line order
  * exactly as the Python side emits them.
  */
-function buildPageCss(colorPrimaryRaw: string, colorAccentRaw: string): string {
+function buildPageCss(
+  colorPrimaryRaw: string,
+  colorAccentRaw: string,
+  columns: number | string = DEFAULT_FORM_COLUMNS,
+): string {
   const colorPrimary = sanitize(colorPrimaryRaw);
   const colorAccent = sanitize(colorAccentRaw);
   return `    * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -350,7 +405,50 @@ function buildPageCss(colorPrimaryRaw: string, colorAccentRaw: string): string {
     .form-field.has-error label { color: #b42318; }
     .form-status { margin: 1rem 0; min-height: 1.2em; }
     .form-status-error { color: #b42318; font-weight: 600; }
-    .form-status-success { color: #027a48; font-weight: 600; }`;
+    .form-status-success { color: #027a48; font-weight: 600; }
+${buildApplicationFormCss(colorPrimary, colorAccent, columns)}`;
+}
+
+/**
+ * Build the application-form CSS block — mirrors the Python `_build_application_form_css`
+ * (bugfix `bugfix-published-form-styling` DD-B1). This is the ADDITIVE block that makes the
+ * form genuinely carry the tenant's look-and-feel on the form's OWN elements:
+ *
+ *  - brand colours on the form heading/title, the submit button (+ accent hover), and the
+ *    input/select/textarea `:focus` state (bugfix 2.1), and
+ *  - a multi-column grid driven by `columns` that collapses to a single column below the
+ *    small-screen breakpoint (bugfix 2.2).
+ *
+ * The resolved brand colours are inlined DIRECTLY into these rules (not referenced via the
+ * `--color-*` variables) so the parity output byte-matches the Python side, where the colour
+ * is inlined into the form rules too. Keep the leading indentation and line order exactly as
+ * the Python `_build_application_form_css` emits them (task 13.2 parity fixture).
+ */
+function buildApplicationFormCss(
+  colorPrimary: string,
+  colorAccent: string,
+  columns: number | string,
+): string {
+  // Clamp to a sane range so a stray/out-of-range value can never emit a broken track list —
+  // mirrors the Python defensive floor/ceiling (the authoritative validation is at the
+  // edge/service plane). A non-numeric value falls back to the default.
+  let trackCount = Number.parseInt(String(columns), 10);
+  if (Number.isNaN(trackCount)) {
+    trackCount = DEFAULT_FORM_COLUMNS;
+  }
+  trackCount = Math.max(1, Math.min(trackCount, MAX_FORM_COLUMNS));
+
+  return `    .application-form h1, .application-form .form-title { font-family: var(--font-heading); color: ${colorPrimary}; margin-bottom: var(--spacing-element); }
+    .application-form h2 { font-family: var(--font-heading); color: ${colorPrimary}; margin-bottom: var(--spacing-element); }
+    .application-form .form-logo { max-height: 96px; width: auto; margin-bottom: var(--spacing-element); }
+    .application-form .form-group { display: grid; grid-template-columns: repeat(${trackCount}, 1fr); gap: var(--spacing-element); border: none; margin-bottom: var(--spacing-section); }
+    .application-form .form-group > h2 { grid-column: 1 / -1; }
+    .application-form input:focus, .application-form select:focus, .application-form textarea:focus { outline: 2px solid ${colorPrimary}; outline-offset: 1px; border-color: ${colorPrimary}; }
+    .application-form button[type="submit"] { background: ${colorPrimary}; color: #fff; border: none; padding: 0.75rem 1.5rem; border-radius: var(--radius-sm); font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .application-form button[type="submit"]:hover { background: ${colorAccent}; }
+    @media (max-width: 480px) {
+      .application-form .form-group { grid-template-columns: 1fr; }
+    }`;
 }
 
 /**
@@ -384,6 +482,12 @@ export function renderPageStyles(settings: LookAndFeelSettings): PageStyles {
   const baseSpacing = resolve(settings, 'base_spacing');
   const borderRadiusGlobal = resolve(settings, 'border_radius_global');
   const shadowStyle = resolve(settings, 'shadow_style');
+  // bugfix bugfix-published-form-styling: resolve the authored `columns` value and thread it
+  // into the application-form grid. An unset value resolves to the multi-column default, so
+  // the generated CSS is unchanged for a tenant that never authored columns (preservation).
+  // `buildApplicationFormCss` clamps defensively; `logo` / `header_title` are SUPPORTED values
+  // the renderer/preview consumes and are intentionally NOT read here — they emit no CSS.
+  const columns = resolve(settings, 'columns');
 
   const varEntries = resolveCssVariableEntries(
     fontHeading,
@@ -391,12 +495,14 @@ export function renderPageStyles(settings: LookAndFeelSettings): PageStyles {
     baseSpacing,
     borderRadiusGlobal,
     shadowStyle,
+    colorPrimary,
+    colorAccent,
   );
 
   return {
     cssVariables: buildCssVariables(varEntries),
     cssVariableMap: Object.fromEntries(varEntries),
-    pageCss: buildPageCss(colorPrimary, colorAccent),
+    pageCss: buildPageCss(colorPrimary, colorAccent, columns),
     fontLinks: buildFontLinks(fontHeading, fontBody),
   };
 }

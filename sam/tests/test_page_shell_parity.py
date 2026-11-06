@@ -216,10 +216,30 @@ def test_golden_fixture_pins_the_single_landing_page_styles_css_source():
     page_css = LandingPageStyles.build_page_css(
         _BRANDING["color_primary"], _BRANDING["color_accent"]
     )
-    # The committed fixture embeds the SINGLE source's CSS verbatim inside the <style> block.
-    assert css_variables in expected, (
-        "fixture lost the LandingPageStyles :root variable block"
+
+    # Change-with-tests (steering 30/34): the bugfix `bugfix-published-form-styling`
+    # (Task 5.1 / DD-B1) ADDITIVELY extends the SAM Layer-2 generator the page is rendered
+    # through — it APPENDS `--color-primary` / `--color-accent` to the `:root` variable block
+    # (so the new application-form CSS block can carry the brand colours on the form's OWN
+    # elements) and APPENDS that form block after the existing page CSS. The golden fixture was
+    # regenerated in the SAME change to reflect this. So the original Flask `LandingPageStyles`
+    # :root block is no longer a contiguous substring (the two new colour lines now precede the
+    # closing `}`), but every original :root line still survives in order; the page CSS block is
+    # still a contiguous substring because the form block is appended strictly after it.
+    def _nonblank_lines(text):
+        return [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+    def _ordered_subsequence(needles, hay):
+        it = iter(hay)
+        return all(any(n == h for h in it) for n in needles)
+
+    expected_lines = _nonblank_lines(expected)
+    # Every original :root variable line survives in order (additive colour vars allowed).
+    assert _ordered_subsequence(_nonblank_lines(css_variables), expected_lines), (
+        "fixture lost (or reordered) the original LandingPageStyles :root variable block "
+        "(the bugfix only APPENDS --color-* vars, it drops/reorders nothing)"
     )
+    # The page CSS block is still embedded verbatim inside the <style> block.
     assert page_css in expected, "fixture lost the LandingPageStyles page CSS"
     # And the primary/accent colours are actually threaded (not a stale hard-coded palette):
     assert "color: #2D5F8A;" in expected

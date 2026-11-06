@@ -298,8 +298,30 @@ def test_permitted_enum_sets_match_generator_lookup_maps():
 
 
 def test_every_supported_attribute_has_a_permitted_value_rule():
-    # Every one of the seven supported attributes must be accepted for SOME value (so a valid
-    # author never trips the defensive "no permitted-value rule" guard).
+    # Every attribute the SERVICE validates must be accepted for SOME value (so a valid author
+    # never trips the defensive "no permitted-value rule" guard) — and, after the bugfix
+    # ``bugfix-published-form-styling`` Task 10, the SERVICE validates EXACTLY the ten the
+    # GENERATOR's ``SUPPORTED_ATTRIBUTES`` supports: the original seven plus ``columns`` / ``logo``
+    # / ``header_title`` (each with its permitted-value rule added on the service plane).
+    from sam.members.domain.look_and_feel_settings_service import (
+        _COLOUR_ATTRIBUTES,
+        _COLUMNS_ATTRIBUTE,
+        _FONT_ATTRIBUTES,
+        _HEADER_TITLE_ATTRIBUTE,
+        _LOGO_ATTRIBUTE,
+        _PERMITTED_VALUES,
+    )
+
+    service_validated = (
+        set(_PERMITTED_VALUES)
+        | set(_COLOUR_ATTRIBUTES)
+        | set(_FONT_ATTRIBUTES)
+        | {_COLUMNS_ATTRIBUTE, _LOGO_ATTRIBUTE, _HEADER_TITLE_ATTRIBUTE}
+    )
+    # Task 10: the service now validates the FULL generator set — no attribute is left without a
+    # permitted-value rule (no gap that would trip the defensive guard for a valid author).
+    assert service_validated == set(SUPPORTED_ATTRIBUTES)
+
     svc, _reader, writer = _service()
     valid_by_attr = {
         "color_primary": "#2D5F8A",
@@ -309,8 +331,115 @@ def test_every_supported_attribute_has_a_permitted_value_rule():
         "base_spacing": "normal",
         "border_radius_global": "rounded",
         "shadow_style": "subtle",
+        # The bugfix extension (Task 10) — one valid value per new attribute.
+        "columns": 3,
+        "logo": "https://assets.example.org/logo.png",
+        "header_title": "Membership application",
     }
-    assert set(valid_by_attr) == set(SUPPORTED_ATTRIBUTES)
+    assert set(valid_by_attr) == service_validated
     for attr, value in valid_by_attr.items():
         svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, attr, value)
-    assert len(writer.calls) == len(SUPPORTED_ATTRIBUTES)
+    assert len(writer.calls) == len(service_validated)
+
+
+# ── set_setting — the THREE NEW attributes (bugfix Task 10): valid values accepted ──────
+
+
+@pytest.mark.parametrize(
+    "attribute,value",
+    [
+        ("columns", 1),
+        ("columns", 4),
+        ("columns", "2"),  # integer-valued string (the edge may carry it as text)
+        ("logo", "https://assets.example.org/brand/logo.png"),
+        ("logo", "/assets/logo.svg"),  # site-relative reference
+        ("header_title", "Apply to join"),
+        ("header_title", "x" * 200),  # exactly the length ceiling
+    ],
+)
+def test_set_setting_new_attribute_valid_value_issues_single_set_op(attribute, value):
+    svc, _reader, writer = _service()
+    result = svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, attribute, value)
+    assert result == {"version": "v-next", "idempotent_replay": False}
+    assert len(writer.calls) == 1, "a valid set must issue exactly ONE scoped Change-Op"
+    assert writer.last["op"] == "set"
+    assert writer.last["attribute"] == attribute
+    assert writer.last["value"] == value
+
+
+# ── set_setting — the THREE NEW attributes: out-of-range rejected, stored values unchanged ──
+
+
+@pytest.mark.parametrize(
+    "attribute,bad_value",
+    [
+        # columns — a BOUNDED integer; out-of-range / non-integer / bool rejected.
+        ("columns", 0),  # below floor
+        ("columns", 5),  # above ceiling
+        ("columns", -1),  # negative
+        ("columns", 2.5),  # non-integer
+        ("columns", "two"),  # non-numeric string
+        ("columns", True),  # bool is an int subclass but not a real column count
+        # logo — a well-formed URL/asset reference; malformed / injection-shaped rejected.
+        ("logo", "javascript:alert(1)"),
+        ("logo", "data:image/png;base64,AAAA"),
+        ("logo", 'url("evil")'),
+        ("logo", "ftp://example.org/logo.png"),  # unsupported scheme
+        ("logo", "logo.png"),  # not absolute/site-relative
+        ("logo", "https://example.org/a b.png"),  # whitespace
+        ("logo", "https://example.org/<svg>"),  # angle brackets
+        ("logo", 123),  # non-string
+        ("logo", "https://example.org/" + "a" * 2048),  # over length
+        # header_title — length-bounded non-blank text; blank / over-length / non-string rejected.
+        ("header_title", ""),  # blank
+        ("header_title", "   "),  # whitespace only
+        ("header_title", "x" * 201),  # over the length ceiling
+        ("header_title", 42),  # non-string
+    ],
+)
+def test_set_setting_new_attribute_invalid_value_rejected_no_write(attribute, bad_value):
+    svc, _reader, writer = _service()
+    with pytest.raises(LookAndFeelValidationError) as exc:
+        svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, attribute, bad_value)
+    # The rejected attribute is identified (caller-safe), and NO Change-Op was issued → stored
+    # values are unchanged by construction (Req 4.5 / bugfix 3.4).
+    assert attribute in str(exc.value)
+    assert writer.calls == [], "an out-of-range value must not reach the writer"
+
+
+def test_new_attribute_invalid_value_leaves_resolved_read_unchanged():
+    # A rejected set of a NEW attribute does not perturb what a subsequent get resolves.
+    stored = {"columns": "2", "header_title": "Keep me", "color_primary": "#2D5F8A"}
+    reader = FakeReader({_TENANT: stored})
+    svc, _reader, writer = _service(reader=reader)
+
+    with pytest.raises(LookAndFeelValidationError):
+        svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, "columns", 99)
+
+    assert writer.calls == []
+    assert svc.get_settings(_TENANT) == stored
+
+
+def test_set_setting_new_attribute_none_value_clears_via_remove_op():
+    # The steering-39 clear-vs-unchanged contract applies to the new attributes too: an explicit
+    # None REMOVEs (revert to the Layer-2 default) with NO value validation.
+    svc, _reader, writer = _service()
+    svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, "logo", None)
+    assert writer.last == {
+        "op": "remove",
+        "tenant_id": _TENANT,
+        "attribute": "logo",
+        "client_op_id": None,
+    }
+
+
+def test_columns_permitted_bound_matches_generator_grid_clamp():
+    # Parity: the service's accepted columns ceiling matches the Layer-2 generator's grid clamp, so
+    # a value the service accepts is a value the generator renders meaningfully (bugfix DD-C1).
+    from sam.members.domain.look_and_feel_settings_service import (
+        _MAX_COLUMNS,
+        _MIN_COLUMNS,
+    )
+
+    assert _MIN_COLUMNS == 1
+    assert _MAX_COLUMNS == page_styles._MAX_FORM_COLUMNS

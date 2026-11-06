@@ -56,6 +56,36 @@ import {
 export type LookAndFeelValues = Partial<Record<SupportedAttribute, string | null>>;
 
 /**
+ * The three VALUES-ONLY attributes the bugfix `bugfix-published-form-styling` adds (bugfix 3.4 /
+ * design §C) — authored here but kept SEPARATE from the seven {@link SupportedAttribute} the
+ * preview path renders (`pageStyles.renderPageStyles` only knows the seven until that plane is
+ * extended, so routing these three through the preview map would reject). They persist via the
+ * SAME values-only `setLookAndFeelSetting` Change-Op path as the seven — never CSS, never a whole
+ * record (steering 39):
+ *
+ *  - `logo`         — a URL / asset reference to the tenant logo;
+ *  - `header_title` — the form header/title text (length-bounded, HTML-escaped on render); and
+ *  - `columns`      — a bounded column-count (1..4, matching the service/generator clamp).
+ */
+export type ExtraAttribute = 'logo' | 'header_title' | 'columns';
+
+/** The VALUES for the three new attributes (values-only; never CSS). */
+export type ExtraLookAndFeelValues = Partial<Record<ExtraAttribute, string | null>>;
+
+/** SAM-owned defaults for the three new attributes — mirror of the Python `_DEFAULTS`. */
+const EXTRA_DEFAULTS: Readonly<Record<ExtraAttribute, string>> = {
+  logo: '',
+  header_title: '',
+  columns: '2',
+};
+
+/** Permitted column counts — mirror of the service/generator clamp (`1 .. _MAX_FORM_COLUMNS`). */
+const COLUMN_OPTIONS = ['1', '2', '3', '4'] as const;
+
+/** The upper bound on the header/title length — mirror of the service `_MAX_HEADER_TITLE_LENGTH`. */
+const MAX_HEADER_TITLE_LENGTH = 200;
+
+/**
  * One enum attribute's permitted option set, sourced from the same enum maps `pageStyles.ts`
  * uses so the editor can only ever offer a value the Layer-2 generator accepts. Keys are the
  * permitted values; the bilingual label renders the choice.
@@ -120,6 +150,20 @@ export interface LookAndFeelEditorProps {
    * envelope (422/403/409) as a toast. `null` clears the attribute.
    */
   onSave: (attribute: SupportedAttribute, value: string | null) => void;
+  /**
+   * The current WORKING values for the three NEW attributes (`logo`/`header_title`/`columns`).
+   * Kept SEPARATE from {@link values} because the preview path renders only the seven today; an
+   * absent attribute shows its SAM-owned default so the control never renders blank.
+   */
+  extraValues?: ExtraLookAndFeelValues;
+  /** Lift a changed NEW-attribute VALUE up to the builder (values-only). `null` clears it. */
+  onExtraChange?: (attribute: ExtraAttribute, value: string | null) => void;
+  /**
+   * Persist ONE NEW attribute VALUE via the authoring client (values-only Change-Op) — the SAME
+   * `setLookAndFeelSetting` path as {@link onSave}. The builder surfaces the caller-safe error
+   * envelope (422/403/409) as a toast. `null` clears the attribute.
+   */
+  onExtraSave?: (attribute: ExtraAttribute, value: string | null) => void;
   /** Whether a look-and-feel persist is in flight (disables the controls + shows a loading state). */
   saving?: boolean;
   lang: 'nl' | 'en';
@@ -138,6 +182,9 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
   values,
   onChange,
   onSave,
+  extraValues,
+  onExtraChange,
+  onExtraSave,
   saving,
   lang,
 }) => {
@@ -147,6 +194,31 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
   const edit = (attribute: SupportedAttribute, value: string | null) => {
     onChange(attribute, value);
     onSave(attribute, value);
+  };
+
+  /**
+   * Resolve a NEW-attribute control's display value: the working value when set, else its
+   * SAM-owned default (so the control never renders blank).
+   */
+  const currentExtra = (attribute: ExtraAttribute): string => {
+    const v = extraValues?.[attribute];
+    return v === undefined || v === null ? EXTRA_DEFAULTS[attribute] : String(v);
+  };
+
+  /**
+   * Apply + persist one NEW-attribute edit via the SAME values-only Change-Op path as `edit`.
+   * The three new attributes do NOT feed the preview map today (that plane renders only the
+   * seven), so only the extra working map + the persist are driven here. An empty string on
+   * `logo`/`header_title` CLEARS the attribute (persist `null`) so the control can revert to the
+   * SAM-owned default; `columns` always carries a bounded value.
+   */
+  const editExtra = (attribute: ExtraAttribute, raw: string) => {
+    const value =
+      (attribute === 'logo' || attribute === 'header_title') && raw.trim() === ''
+        ? null
+        : raw;
+    onExtraChange?.(attribute, value);
+    onExtraSave?.(attribute, value);
   };
 
   /** A labelled enum <select> for one attribute (shared across spacing/radius/shadow/font). */
@@ -241,6 +313,67 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
       {renderEnum('base_spacing', 'Witruimte', 'Spacing', SPACING_OPTIONS)}
       {renderEnum('border_radius_global', 'Hoekafronding', 'Corner rounding', RADIUS_OPTIONS)}
       {renderEnum('shadow_style', 'Schaduw', 'Shadow', SHADOW_OPTIONS)}
+
+      {/*
+        The three VALUES-ONLY attributes the bugfix `bugfix-published-form-styling` adds
+        (bugfix 3.4 / design §C): a tenant logo (URL/asset reference), a form header/title, and
+        the number of columns. They persist via the SAME values-only `setLookAndFeelSetting`
+        Change-Op path as the seven above — never CSS, never a whole record (steering 39). The
+        logo/title default to EMPTY (= absent → no logo / no heading) and clear when blanked.
+      */}
+      <FormControl>
+        <FormLabel htmlFor="lookandfeel-logo" fontSize="sm" color="gray.300">
+          {t('Logo (URL)', 'Logo (URL)')}
+        </FormLabel>
+        <Input
+          id="lookandfeel-logo"
+          data-testid="lookandfeel-logo"
+          size="sm"
+          type="url"
+          inputMode="url"
+          placeholder="https://…/logo.png"
+          value={currentExtra('logo')}
+          isDisabled={saving}
+          onChange={(e) => editExtra('logo', e.target.value)}
+          aria-label={t('Logo-URL', 'Logo URL')}
+        />
+      </FormControl>
+
+      <FormControl>
+        <FormLabel htmlFor="lookandfeel-header_title" fontSize="sm" color="gray.300">
+          {t('Koptekst / titel', 'Header / title')}
+        </FormLabel>
+        <Input
+          id="lookandfeel-header_title"
+          data-testid="lookandfeel-header_title"
+          size="sm"
+          maxLength={MAX_HEADER_TITLE_LENGTH}
+          value={currentExtra('header_title')}
+          isDisabled={saving}
+          onChange={(e) => editExtra('header_title', e.target.value)}
+          aria-label={t('Koptekst van het formulier', 'Form header title')}
+        />
+      </FormControl>
+
+      <FormControl>
+        <FormLabel htmlFor="lookandfeel-columns" fontSize="sm" color="gray.300">
+          {t('Aantal kolommen', 'Number of columns')}
+        </FormLabel>
+        <Select
+          id="lookandfeel-columns"
+          data-testid="lookandfeel-columns"
+          size="sm"
+          value={currentExtra('columns')}
+          isDisabled={saving}
+          onChange={(e) => editExtra('columns', e.target.value)}
+        >
+          {COLUMN_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </Select>
+      </FormControl>
 
       <Text color="gray.500" fontSize="xs">
         {t(

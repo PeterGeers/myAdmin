@@ -58,9 +58,28 @@ if _BACKEND_SRC not in sys.path:
 from sam.members.domain.look_and_feel_settings_service import (  # noqa: E402
     APPLICATION_FORM_PAGE_ID,
     LookAndFeelSettingsService,
+    _COLOUR_ATTRIBUTES,
+    _COLUMNS_ATTRIBUTE,
+    _FONT_ATTRIBUTES,
+    _HEADER_TITLE_ATTRIBUTE,
+    _LOGO_ATTRIBUTE,
+    _MAX_COLUMNS,
+    _MAX_HEADER_TITLE_LENGTH,
+    _MIN_COLUMNS,
     _PERMITTED_VALUES,
 )
 from sam.shared.page_styles import SUPPORTED_ATTRIBUTES  # noqa: E402
+
+# The attributes the SERVICE validates (enum + colour + font + the bugfix extension columns / logo
+# / header_title). The bugfix ``bugfix-published-form-styling`` Task 10 added the permitted-value
+# rules for the new three, so the service-driven value pool below covers EXACTLY the full generator
+# set of ten.
+_SERVICE_VALIDATED_ATTRS = (
+    set(_PERMITTED_VALUES)
+    | set(_COLOUR_ATTRIBUTES)
+    | set(_FONT_ATTRIBUTES)
+    | {_COLUMNS_ATTRIBUTE, _LOGO_ATTRIBUTE, _HEADER_TITLE_ATTRIBUTE}
+)
 
 _TENANT = "h-dcn"
 
@@ -130,8 +149,26 @@ _VALID_BY_ATTR = {
     "base_spacing": st.sampled_from(sorted(_PERMITTED_VALUES["base_spacing"])),
     "border_radius_global": st.sampled_from(sorted(_PERMITTED_VALUES["border_radius_global"])),
     "shadow_style": st.sampled_from(sorted(_PERMITTED_VALUES["shadow_style"])),
+    # bugfix ``bugfix-published-form-styling`` Task 10 — the three new values-only attributes, each
+    # drawn from its PERMITTED set so ``set_setting`` accepts them.
+    "columns": st.integers(min_value=_MIN_COLUMNS, max_value=_MAX_COLUMNS),
+    "logo": st.sampled_from(
+        [
+            "https://assets.example.org/logo.png",
+            "https://cdn.example.net/brand/mark.svg",
+            "/assets/logo.png",
+        ]
+    ),
+    "header_title": st.text(min_size=1, max_size=_MAX_HEADER_TITLE_LENGTH).filter(
+        lambda s: bool(s.strip())
+    ),
 }
-assert set(_VALID_BY_ATTR) == set(SUPPORTED_ATTRIBUTES)
+# These values are driven through ``set_setting``, so the pool must cover EXACTLY the attributes the
+# SERVICE validates. The bugfix ``bugfix-published-form-styling`` Task 10 (edge + service plane)
+# added the permitted-value rules for the new three (columns / logo / header_title), so this
+# copy-snapshot property now exercises the FULL generator set of ten.
+assert set(_VALID_BY_ATTR) == _SERVICE_VALIDATED_ATTRS
+assert _SERVICE_VALIDATED_ATTRS == set(SUPPORTED_ATTRIBUTES)
 
 
 @st.composite
@@ -146,8 +183,13 @@ def _values_slice(draw):
 
 @st.composite
 def _single_valid(draw):
-    """Draw one (attribute, valid value) pair for a subsequent mutation."""
-    attr = draw(st.sampled_from(sorted(SUPPORTED_ATTRIBUTES)))
+    """Draw one (attribute, valid value) pair for a subsequent mutation.
+
+    The mutation is applied via the SERVICE (``set_setting``), so the attribute is drawn from the
+    service-validated set — a subset of the generator's SUPPORTED_ATTRIBUTES until Task 10 adds the
+    new three's permitted-value rules.
+    """
+    attr = draw(st.sampled_from(sorted(_SERVICE_VALIDATED_ATTRS)))
     return attr, draw(_VALID_BY_ATTR[attr])
 
 

@@ -90,10 +90,15 @@ values → generator → render. No layer reads backward.
   member field attribute and not mixed into `fields` / `overrides`. Authored **values-only** via a
   single version-conditional **Change-Op** through the Members SAM edge
   (`MembersConfigWriteRepository.apply_ops`); `config#fields` is already in the closed writable set
-  `_WRITABLE_CONFIG_IDS`, so no guard widening. The seven supported attributes are `color_primary`,
+  `_WRITABLE_CONFIG_IDS`, so no guard widening. The **ten** supported attributes are `color_primary`,
   `color_accent`, `font_heading`, `font_body`, `base_spacing`, `border_radius_global`,
-  `shadow_style`. A write is authored by **domain identity** (which page, which attribute, new
-  value) — never a whole record, never generated CSS.
+  `shadow_style`, `logo`, `header_title`, `columns`. The last three are a deliberate, documented
+  extension of the original seven, added by the `bugfix-published-form-styling` bugfix under
+  `.kiro/specs/Members/15 - sam-page-look-and-feel/`; like the others they are **values-only** —
+  `logo` is a URL / asset reference (never an inline binary upload into the slice), `header_title`
+  is escaped heading text, and `columns` is a bounded enum / integer (1..4) that drives the
+  layout — **never raw CSS and never a binary**. A write is authored by **domain identity** (which
+  page, which attribute, new value) — never a whole record, never generated CSS.
 - **Layer 2 — the SAM-owned CSS generator (`Styling_Logic`).** A pure, deterministic,
   **page-type-agnostic** function (`render_page_styles(values) -> PageStyles` in
   `sam/shared/page_styles/`) that turns the stored values into CSS. It reads only the supplied
