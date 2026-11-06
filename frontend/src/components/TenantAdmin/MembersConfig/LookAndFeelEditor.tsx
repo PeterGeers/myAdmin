@@ -38,7 +38,6 @@ import {
   Box,
   Button,
   FormControl,
-  FormHelperText,
   FormLabel,
   HStack,
   Heading,
@@ -243,12 +242,12 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
       {renderEnum('border_radius_global', 'Hoekafronding', 'Corner rounding', RADIUS_OPTIONS)}
       {renderEnum('shadow_style', 'Schaduw', 'Shadow', SHADOW_OPTIONS)}
 
-      <FormHelperText color="gray.500" fontSize="xs" mt={0}>
+      <Text color="gray.500" fontSize="xs">
         {t(
           'Een wijziging wordt meteen opgeslagen voor dit formulier.',
           'A change is saved for this form immediately.',
         )}
-      </FormHelperText>
+      </Text>
 
       <HStack justify="flex-end">
         {saving && (
