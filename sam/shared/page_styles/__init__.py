@@ -16,9 +16,13 @@ Design contract (spec 15 design, C1 / C2):
 - **Page-type-agnostic** — reads ONLY the supplied values mapping; holds no
   Application_Form-specific (or any page-specific) state. The same function styles the
   application form today and a future SAM landing page (Req 1.1, 1.4, 6.1, 6.2, 6.3).
-- **Exactly seven supported attributes** (Req 3.2): ``color_primary``, ``color_accent``,
-  ``font_heading``, ``font_body``, ``base_spacing``, ``border_radius_global``,
-  ``shadow_style``.
+- **Ten supported attributes** — the original spec-15 SEVEN (``color_primary``,
+  ``color_accent``, ``font_heading``, ``font_body``, ``base_spacing``,
+  ``border_radius_global``, ``shadow_style``) PLUS the three the bugfix
+  ``bugfix-published-form-styling`` added as a deliberate, documented extension (bugfix 3.4):
+  ``columns`` (drives the application-form grid track count), ``logo`` and ``header_title``
+  (carried as supported VALUES the renderer consumes — they emit no CSS of their own). Any
+  key outside the ten is rejected (Req 3.4). See :data:`SUPPORTED_ATTRIBUTES`.
 - **Absent attribute -> SAM-owned default** for that attribute (Req 1.3, 3.3, 4.4, 5.4).
 - **Unsupported attribute -> raise** :class:`UnsupportedAttributeError` and produce NO
   styling (Req 3.4).
@@ -45,9 +49,28 @@ __all__ = [
     "render_page_styles",
 ]
 
-# ─── The exactly-seven supported attributes (Req 3.2) ──────────────────────────────────
+# ─── The supported attributes — now TEN (Req 3.2 + bugfix 3.4 extension) ────────────────
 # The attribute set the SAM-owned styling logic consumes. Any key outside this set is
 # unsupported and causes render_page_styles to reject the request (Req 3.4).
+#
+# The first SEVEN are the original spec-15 contract (colours / fonts / spacing / radius /
+# shadow). The bugfix ``bugfix-published-form-styling`` (Req 2.2 / 2.7, design §C) extends
+# the set with THREE new values-only attributes — a deliberate, DOCUMENTED extension of the
+# exactly-seven set (bugfix 3.4 names this as an allowed extension):
+#
+#   * ``columns``      — the number of layout columns for the form's field groups; DRIVES
+#                        the application-form grid ``grid-template-columns`` track count
+#                        (clamped 1..4 here; authoritative out-of-range rejection at the
+#                        edge/service plane, Task 10).
+#   * ``logo``         — a URL/asset reference to the tenant logo; CARRIED as a supported
+#                        value but NOT emitted as CSS — the renderer (Task 6) consumes it.
+#   * ``header_title`` — the form header/title text; likewise CARRIED for the renderer, not
+#                        emitted as CSS.
+#
+# ``logo`` / ``header_title`` are accepted so ``render_page_styles`` does not reject them as
+# unsupported, but they produce NO CSS of their own (the renderer reads them from the stored
+# slice). ``columns`` is the only new attribute that affects the generated CSS. Any key
+# OUTSIDE these ten is still rejected (Req 3.4).
 SUPPORTED_ATTRIBUTES: Final[frozenset[str]] = frozenset(
     {
         "color_primary",
@@ -57,8 +80,21 @@ SUPPORTED_ATTRIBUTES: Final[frozenset[str]] = frozenset(
         "base_spacing",
         "border_radius_global",
         "shadow_style",
+        # bugfix bugfix-published-form-styling (Req 2.2 / 2.7) — the three new values-only
+        # attributes; a documented extension of the original seven (bugfix 3.4).
+        "columns",
+        "logo",
+        "header_title",
     }
 )
+
+# Default / ceiling for the application-form multi-column grid (bugfix DD-B1). The `columns`
+# attribute (now a supported attribute) drives the grid track count; an unset value falls
+# back to this sensible multi-column default. The ceiling is a defensive clamp so the
+# generator always emits a well-formed track list — the authoritative out-of-range rejection
+# lives at the edge/service plane (Task 10).
+_DEFAULT_FORM_COLUMNS: Final[int] = 2
+_MAX_FORM_COLUMNS: Final[int] = 4
 
 # ─── SAM-owned defaults (Req 1.3, 3.3) ─────────────────────────────────────────────────
 # A missing attribute resolves to the default below. These match the fallbacks the Flask
@@ -74,6 +110,16 @@ _DEFAULTS: Final[dict[str, str]] = {
     "base_spacing": "normal",
     "border_radius_global": "rounded",
     "shadow_style": "subtle",
+    # bugfix bugfix-published-form-styling (Req 2.2 / 2.7 / 3.3) — defaults for the three new
+    # attributes. An unset attribute resolves to the default below exactly like the original
+    # seven (Req 1.3 / 3.3). ``columns`` defaults to the sensible multi-column count the
+    # application-form grid already used before the attribute was authorable; ``logo`` /
+    # ``header_title`` default to EMPTY (no logo / no heading rendered) so a tenant that never
+    # authored them renders byte-identically to today (preservation 3.3). These are stored as
+    # strings alongside the other values; the renderer treats an empty value as "absent".
+    "columns": str(_DEFAULT_FORM_COLUMNS),
+    "logo": "",
+    "header_title": "",
 }
 
 # ─── Lookup maps for the CSS-variable attributes (relocated from LandingPageStyles) ─────
@@ -175,8 +221,18 @@ def _build_css_variables(
     base_spacing: str,
     border_radius_global: str,
     shadow_style: str,
+    color_primary: str = _DEFAULTS["color_primary"],
+    color_accent: str = _DEFAULTS["color_accent"],
 ) -> str:
-    """Build the ``:root`` variables block (relocated from ``build_css_variables``)."""
+    """Build the ``:root`` variables block (relocated from ``build_css_variables``).
+
+    The bugfix ``bugfix-published-form-styling`` (DD-B1) ADDS ``--color-primary`` /
+    ``--color-accent`` to the existing font/spacing/radius/shadow variables so the new
+    application-form CSS block can reference the two brand colours by variable (the colours
+    were previously inlined ONLY into the landing-page rules). The addition is purely
+    ADDITIVE: the existing variable lines are emitted unchanged and in order (bugfix 3.4),
+    the two colour lines appended just before the closing ``}``.
+    """
     lines: list[str] = [":root {"]
 
     heading_family = (
@@ -204,6 +260,13 @@ def _build_css_variables(
     shadows = _SHADOW_MAP.get(shadow_style, _SHADOW_MAP["subtle"])
     lines.append(f"  --shadow-card: {shadows['card']};")
     lines.append(f"  --shadow-hover: {shadows['hover']};")
+
+    # bugfix DD-B1: the two brand colours as :root variables (sanitised), so the new
+    # application-form block below can apply them to the form's OWN elements by variable.
+    # Appended AFTER the existing variable lines so the pre-fix variable block survives as
+    # an ordered subsequence (preservation guard 3.4).
+    lines.append(f"  --color-primary: {_sanitize(color_primary)};")
+    lines.append(f"  --color-accent: {_sanitize(color_accent)};")
 
     lines.append("}")
     return "\n".join(lines)
@@ -233,11 +296,20 @@ def _build_font_links(font_heading: str, font_body: str) -> str:
     )
 
 
-def _build_page_css(color_primary: str, color_accent: str) -> str:
+def _build_page_css(
+    color_primary: str,
+    color_accent: str,
+    columns: int | str = _DEFAULT_FORM_COLUMNS,
+) -> str:
     """Build the page CSS from the two brand colours (relocated from ``build_page_css``).
 
     Uses the CSS variables defined by :func:`_build_css_variables` (``--font-body`` etc.);
-    colour theming is inlined via the two sanitised brand colours.
+    the LANDING-PAGE colour theming is inlined via the two sanitised brand colours exactly
+    as before (unchanged — bugfix 3.7). The bugfix ``bugfix-published-form-styling`` (DD-B1)
+    APPENDS an application-form CSS block (:func:`_build_application_form_css`) after all the
+    existing rules — it references the ``--color-*`` variables and the ``columns`` track
+    count; it does not alter any pre-fix rule. ``columns`` defaults so existing callers (and
+    the preservation golden, which calls this with only the two colours) are unaffected.
     """
     color_primary = _sanitize(color_primary)
     color_accent = _sanitize(color_accent)
@@ -332,7 +404,78 @@ def _build_page_css(color_primary: str, color_accent: str) -> str:
     .form-field.has-error label {{ color: #b42318; }}
     .form-status {{ margin: 1rem 0; min-height: 1.2em; }}
     .form-status-error {{ color: #b42318; font-weight: 600; }}
-    .form-status-success {{ color: #027a48; font-weight: 600; }}"""
+    .form-status-success {{ color: #027a48; font-weight: 600; }}
+{_build_application_form_css(color_primary, color_accent, columns)}"""
+
+
+def _build_application_form_css(
+    color_primary: str, color_accent: str, columns: int | str
+) -> str:
+    """Build the application-form CSS block (bugfix ``bugfix-published-form-styling`` DD-B1).
+
+    This is the ADDITIVE block that makes the PUBLISHED form genuinely carry the tenant's
+    look-and-feel on the form's OWN elements — the fix for the spec-15 defect where the
+    look-and-feel only ever themed landing-page classes the form markup never uses.
+
+    It is emitted AFTER the whole existing page CSS (landing-page rules + the original
+    ``.application-form`` field/label/error rules), so every pre-fix rule survives
+    byte-identical and in order — the key Option-1 regression guard (bugfix 3.7, pinned by
+    ``test_published_form_styling_preservation_props``). Nothing above this block is touched.
+
+    What it adds, referencing the ``--color-primary`` / ``--color-accent`` ``:root``
+    variables introduced in :func:`_build_css_variables`:
+
+    - **Brand colours on the form's OWN elements** (bugfix 2.1): the visible form heading /
+      title (``.application-form h1`` / ``.application-form .form-title`` — the renderer,
+      Task 6.1, emits a visible heading element), the submit ``<button type="submit">``, and
+      the input / select / textarea ``:focus`` state. A colour change is now observable on
+      the form itself, not only on unused landing classes. The resolved brand colour is
+      inlined DIRECTLY into these form rules (mirroring how the landing rules inline their
+      colours) so the colour genuinely reaches the form's own elements — and is traceable to
+      them — rather than hiding behind a variable the artifact never resolves at test time.
+      The matching ``--color-primary`` / ``--color-accent`` ``:root`` variables (DD-B1) are
+      ALSO emitted (see :func:`_build_css_variables`) so the one SAM-owned style source
+      exposes the brand colours as variables for the preview path to read (design §E).
+    - **A multi-column, collapsing grid** (bugfix 2.2): the field containers inside each
+      ``.form-group`` are laid out in a grid of ``columns`` tracks, collapsing to a single
+      column below the small-screen breakpoint — mirroring the existing
+      ``@media (max-width: 480px)`` single-column collapse the landing-page gallery grids use.
+      ``columns`` is driven later by the new ``columns`` attribute (Task 8); for now a
+      sensible multi-column default applies.
+
+    Args:
+        color_primary: the resolved, already-sanitised primary brand colour — inlined into
+            the form heading / submit / focus rules (and also exposed as ``--color-primary``).
+        color_accent: the resolved, already-sanitised accent brand colour — inlined into the
+            submit-button hover (and also exposed as ``--color-accent``).
+        columns: the number of layout columns for the form's field groups (clamped to a
+            sane 1..4 range; a single column emits the collapsing grid as a no-op so the
+            markup/behaviour stays consistent).
+
+    Returns:
+        The application-form CSS block (indented to match the surrounding page CSS), with a
+        leading newline-free join handled by the caller's f-string.
+    """
+    # Clamp to a sane range so a stray/out-of-range value can never emit a broken track list
+    # (the authoritative validation lives at the edge/service plane — Task 10 — this is a
+    # defensive floor/ceiling so the generator always emits well-formed CSS).
+    try:
+        track_count = int(columns)
+    except (TypeError, ValueError):
+        track_count = _DEFAULT_FORM_COLUMNS
+    track_count = max(1, min(track_count, _MAX_FORM_COLUMNS))
+
+    return f"""    .application-form h1, .application-form .form-title {{ font-family: var(--font-heading); color: {color_primary}; margin-bottom: var(--spacing-element); }}
+    .application-form h2 {{ font-family: var(--font-heading); color: {color_primary}; margin-bottom: var(--spacing-element); }}
+    .application-form .form-logo {{ max-height: 96px; width: auto; margin-bottom: var(--spacing-element); }}
+    .application-form .form-group {{ display: grid; grid-template-columns: repeat({track_count}, 1fr); gap: var(--spacing-element); border: none; margin-bottom: var(--spacing-section); }}
+    .application-form .form-group > h2 {{ grid-column: 1 / -1; }}
+    .application-form input:focus, .application-form select:focus, .application-form textarea:focus {{ outline: 2px solid {color_primary}; outline-offset: 1px; border-color: {color_primary}; }}
+    .application-form button[type="submit"] {{ background: {color_primary}; color: #fff; border: none; padding: 0.75rem 1.5rem; border-radius: var(--radius-sm); font-size: 1rem; font-weight: 600; cursor: pointer; }}
+    .application-form button[type="submit"]:hover {{ background: {color_accent}; }}
+    @media (max-width: 480px) {{
+      .application-form .form-group {{ grid-template-columns: 1fr; }}
+    }}"""
 
 
 def render_page_styles(settings: Mapping[str, Any]) -> PageStyles:
@@ -345,8 +488,10 @@ def render_page_styles(settings: Mapping[str, Any]) -> PageStyles:
 
     Args:
         settings: the Page's Look_And_Feel_Settings VALUES. Recognised keys are exactly the
-            seven in :data:`SUPPORTED_ATTRIBUTES`. An absent (or ``None``) attribute falls
-            back to its SAM-owned default (Req 1.3/3.3/4.4/5.4).
+            ten in :data:`SUPPORTED_ATTRIBUTES` (the original seven plus ``columns`` /
+            ``logo`` / ``header_title``). An absent (or ``None``) attribute falls back to its
+            SAM-owned default (Req 1.3/3.3/4.4/5.4). ``columns`` drives the application-form
+            grid; ``logo`` / ``header_title`` are carried for the renderer and emit no CSS.
 
     Returns:
         A :class:`PageStyles` carrying the ``:root`` variables block, the page CSS, and the
@@ -370,6 +515,13 @@ def render_page_styles(settings: Mapping[str, Any]) -> PageStyles:
     base_spacing = _resolve(settings, "base_spacing")
     border_radius_global = _resolve(settings, "border_radius_global")
     shadow_style = _resolve(settings, "shadow_style")
+    # bugfix bugfix-published-form-styling (Task 8): resolve the authored `columns` value and
+    # thread it into the application-form grid. An unset/None value resolves to the
+    # multi-column default (via `_DEFAULTS["columns"]`), so the generated CSS is unchanged for
+    # a tenant that never authored columns (preservation 3.4). `_build_application_form_css`
+    # clamps the value defensively; `logo` / `header_title` are SUPPORTED values the renderer
+    # consumes (Task 6) and are intentionally NOT read here — they emit no CSS.
+    columns = _resolve(settings, "columns")
 
     return PageStyles(
         css_variables=_build_css_variables(
@@ -378,7 +530,9 @@ def render_page_styles(settings: Mapping[str, Any]) -> PageStyles:
             base_spacing=base_spacing,
             border_radius_global=border_radius_global,
             shadow_style=shadow_style,
+            color_primary=color_primary,
+            color_accent=color_accent,
         ),
-        page_css=_build_page_css(color_primary, color_accent),
+        page_css=_build_page_css(color_primary, color_accent, columns),
         font_links=_build_font_links(font_heading, font_body),
     )

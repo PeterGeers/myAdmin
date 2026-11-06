@@ -45,7 +45,13 @@ _FULL_SETTINGS = {
 
 
 def test_supported_attributes_are_exactly_the_seven():
-    """Req 3.2: the capability supports EXACTLY the seven named attributes."""
+    """Req 3.2 + bugfix 3.4: the capability supports EXACTLY the ten named attributes.
+
+    The original spec-15 contract was exactly seven; the bugfix ``bugfix-published-form-styling``
+    (Task 8) extended it with three values-only attributes — ``columns`` (drives the
+    application-form grid), ``logo`` and ``header_title`` (carried for the renderer) — a
+    deliberate, documented extension (bugfix 3.4). The set is now exactly these ten.
+    """
     assert SUPPORTED_ATTRIBUTES == frozenset(
         {
             "color_primary",
@@ -55,6 +61,10 @@ def test_supported_attributes_are_exactly_the_seven():
             "base_spacing",
             "border_radius_global",
             "shadow_style",
+            # bugfix bugfix-published-form-styling (Task 8) — the documented extension.
+            "columns",
+            "logo",
+            "header_title",
         }
     )
 

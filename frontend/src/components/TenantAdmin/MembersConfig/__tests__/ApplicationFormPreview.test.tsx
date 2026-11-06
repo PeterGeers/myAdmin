@@ -231,3 +231,113 @@ describe('ApplicationFormPreview — look-and-feel (spec 15, task 13.1; Req 4.2/
     expect(after).toBe(renderPageStyles({ base_spacing: 'relaxed' }).cssVariables);
   });
 });
+
+/**
+ * The three NEW look-and-feel attributes (bugfix `bugfix-published-form-styling` Task 12, Req 2.6):
+ * the preview REFLECTS `logo` (an <img>), `header_title` (a visible heading), and `columns` (the
+ * field-group grid track count) so the admin preview matches the published form. An absent/empty
+ * value renders nothing (no logo / no heading), mirroring the published default. These three feed
+ * through the SAME unified `lookAndFeel` prop as the seven, so the preview and editor cannot diverge.
+ */
+describe('ApplicationFormPreview — logo / header_title / columns (bugfix Task 12; Req 2.6)', () => {
+  const onFormConfig = () => configWith([field('email', 'personal', { application_visible: true })]);
+
+  it('renders no logo and no heading when the three new values are absent (published default)', () => {
+    render(<ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" />);
+
+    expect(screen.queryByTestId('application-form-preview-logo')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-preview-title')).not.toBeInTheDocument();
+    // Columns fall back to the SAM-owned default (2).
+    expect(
+      screen.getByTestId('application-form-preview-render').getAttribute('data-lookandfeel-columns'),
+    ).toBe('2');
+  });
+
+  it('renders the tenant logo as an <img> when a logo reference is supplied (Req 2.3/2.6)', () => {
+    render(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ logo: 'https://cdn.example.org/logo.png' }}
+      />,
+    );
+
+    const logo = screen.getByTestId('application-form-preview-logo');
+    expect(logo).toBeInTheDocument();
+    expect(logo).toHaveAttribute('src', 'https://cdn.example.org/logo.png');
+  });
+
+  it('renders the header/title as a visible heading when supplied (Req 2.4/2.6)', () => {
+    render(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ header_title: 'Join our association' }}
+      />,
+    );
+
+    const title = screen.getByTestId('application-form-preview-title');
+    expect(title).toBeInTheDocument();
+    expect(title).toHaveTextContent('Join our association');
+  });
+
+  it('drives the field-group grid column count from the `columns` value (Req 2.2/2.6)', () => {
+    render(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ columns: '3' }}
+      />,
+    );
+
+    expect(
+      screen.getByTestId('application-form-preview-render').getAttribute('data-lookandfeel-columns'),
+    ).toBe('3');
+  });
+
+  it('clamps an out-of-range `columns` value to the sane 1..4 range (defensive, matches Layer-2)', () => {
+    render(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ columns: '9' }}
+      />,
+    );
+
+    expect(
+      screen.getByTestId('application-form-preview-render').getAttribute('data-lookandfeel-columns'),
+    ).toBe('4');
+  });
+
+  it('reflects an UNSAVED new-attribute edit live — logo/title/columns re-render with no round-trip', () => {
+    const { rerender } = render(
+      <ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" lookAndFeel={{}} />,
+    );
+    // Nothing rendered for the three new attributes yet.
+    expect(screen.queryByTestId('application-form-preview-logo')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-preview-title')).not.toBeInTheDocument();
+
+    // The admin authors a logo, a title, and a column count (an UNSAVED in-memory edit) → the
+    // preview reflects all three on the very next render, no save and no server round-trip.
+    rerender(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ logo: 'https://cdn.example.org/mark.svg', header_title: 'Apply now', columns: '3' }}
+      />,
+    );
+    expect(screen.getByTestId('application-form-preview-logo')).toHaveAttribute(
+      'src',
+      'https://cdn.example.org/mark.svg',
+    );
+    expect(screen.getByTestId('application-form-preview-title')).toHaveTextContent('Apply now');
+    expect(
+      screen.getByTestId('application-form-preview-render').getAttribute('data-lookandfeel-columns'),
+    ).toBe('3');
+  });
+});

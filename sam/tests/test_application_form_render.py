@@ -485,3 +485,201 @@ def test_meta_controls_are_not_counted_as_config_fields():
         _config_with_notice("v1", fields=[{"key": "a"}, {"key": "b"}])
     )
     assert body.count('class="form-field"') == 2  # only the two config fields
+
+
+# ── bugfix bugfix-published-form-styling Task 6.2 — logo + visible heading paired tests ───────
+#
+# Pairs with Task 6.1 (`application_form_render.py`): `build_form_body_html` now accepts optional
+# `logo` / `header_title` kwargs. When supplied, the body emits — at the TOP of the form, INSIDE
+# the `.application-form` markup so the Task-5.1 CSS can theme them:
+#   * a logo  `<img class="form-logo" src="{escaped}" alt="" />`   (`_render_logo_img`)
+#   * a heading `<h1 class="form-title">{escaped}</h1>`            (`_render_form_heading`)
+# Both are values-only, HTML-escaped (logo is a URL/asset REFERENCE, DD-C1 — never raw-interpolated;
+# header_title is free text, escaped like a field label). When BOTH are absent the body is
+# BYTE-IDENTICAL to today (preservation contract, bugfix 3.2 — a tenant with no logo/title renders
+# unchanged).
+#
+# Validates: Requirements 2.3 (logo rendered), 2.4 (heading rendered), 3.2 (byte-identical when absent)
+
+from hypothesis import given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+
+def test_logo_img_emitted_inside_application_form_when_supplied():
+    """R2.3: a supplied `logo` renders a `<img class="form-logo">` INSIDE the `.application-form`.
+
+    The element must sit between the form's opening tag and the first field group so the Task-5.1
+    application-form CSS block (`.form-logo`) can size/position it.
+    """
+    body = build_form_body_html(
+        _config(fields=[{"key": "name"}]),
+        logo="https://assets.example.test/h-dcn/logo.png",
+    )
+    assert (
+        '<img class="form-logo" src="https://assets.example.test/h-dcn/logo.png" alt="" />'
+        in body
+    )
+    # Placed inside the form, before the first field group (so the form CSS can theme it):
+    assert body.index('class="application-form"') < body.index('class="form-logo"')
+    assert body.index('class="form-logo"') < body.index('class="form-field"')
+
+
+def test_form_heading_emitted_inside_application_form_when_supplied():
+    """R2.4: a supplied `header_title` renders a visible `<h1 class="form-title">` INSIDE the form.
+
+    The bug-condition predicate checks `.application-form h1` / `.application-form .form-title`, so
+    the heading must sit inside the form markup (where the Task-5.1 CSS applies the brand colour).
+    """
+    body = build_form_body_html(
+        _config(fields=[{"key": "name"}]),
+        header_title="Aanmelden bij H-DCN",
+    )
+    assert '<h1 class="form-title">Aanmelden bij H-DCN</h1>' in body
+    # Inside the form, before the first field group:
+    assert body.index('class="application-form"') < body.index('class="form-title"')
+    assert body.index('class="form-title"') < body.index('class="form-field"')
+
+
+def test_logo_and_heading_both_emitted_with_logo_before_heading():
+    """R2.3 + R2.4: when BOTH are supplied, both are emitted at the top of the form, logo first.
+
+    `build_form_body_html` assembles `header_block` as `[logo_img, form_heading]` joined by a
+    newline, so the logo precedes the heading, and both precede the field groups.
+    """
+    body = build_form_body_html(
+        _config(fields=[{"key": "name"}]),
+        logo="https://assets.example.test/logo.svg",
+        header_title="Word lid",
+    )
+    assert '<img class="form-logo"' in body
+    assert '<h1 class="form-title">Word lid</h1>' in body
+    assert body.index('class="form-logo"') < body.index('class="form-title"')
+    assert body.index('class="form-title"') < body.index('class="form-field"')
+
+
+def test_logo_src_is_html_escaped_no_breakout_from_the_attribute():
+    """XSS (R2.3 / steering 39): a hostile `logo` reference is HTML-escaped in the `src` attribute
+    and can never break out of the attribute into markup. The logo is a values-only reference, so
+    it is treated as config-origin DATA and escaped — never raw-interpolated.
+    """
+    hostile = '"><script>alert(1)</script>'
+    body = build_form_body_html(
+        _config(fields=[{"key": "name"}]),
+        logo=hostile,
+    )
+    # The raw break-out form never appears in the rendered markup (before the static submit script):
+    markup = body.split("<script")[0]
+    assert '"><script>alert(1)</script>' not in markup
+    # The escaped form is present inside the src attribute:
+    assert "&quot;&gt;&lt;script&gt;" in body
+    # The logo <img> is still emitted (the escaped reference, not dropped):
+    assert '<img class="form-logo" src="' in body
+
+
+def test_header_title_is_html_escaped_no_breakout_from_the_heading():
+    """XSS (R2.4 / steering 39): a hostile `header_title` is HTML-escaped inside the `<h1>` and can
+    never inject markup — same escaping contract as a field label.
+    """
+    body = build_form_body_html(
+        _config(fields=[{"key": "name"}]),
+        header_title='<img src=x onerror="alert(1)">',
+    )
+    markup = body.split("<script")[0]
+    assert '<img src=x onerror="alert(1)">' not in markup
+    assert "&lt;img src=x onerror=&quot;alert(1)&quot;&gt;" in body
+    # The heading element itself is still emitted (escaped text inside it):
+    assert '<h1 class="form-title">' in body
+
+
+def test_body_byte_identical_when_logo_and_header_title_absent():
+    """Preservation (bugfix 3.2): with BOTH logo and header_title absent, the body is byte-identical
+    to the call that omits them entirely — a tenant with no logo/title renders exactly as today.
+
+    Covers all three "absent" spellings: omitted kwargs, empty strings, and whitespace-only values
+    (`_render_logo_img` / `_render_form_heading` return "" for blank/whitespace input).
+    """
+    cfg = _config_with_notice("v1", fields=[{"key": "email", "type": "email"}])
+    baseline = build_form_body_html(cfg, slug="s", public_api_base="https://api.test")
+
+    # Explicit empty strings must produce the SAME bytes as omitting the kwargs:
+    empty = build_form_body_html(
+        cfg, slug="s", public_api_base="https://api.test", logo="", header_title=""
+    )
+    assert empty == baseline
+
+    # Whitespace-only values are treated as absent (helpers strip-and-blank-check):
+    whitespace = build_form_body_html(
+        cfg,
+        slug="s",
+        public_api_base="https://api.test",
+        logo="   ",
+        header_title="\t \n",
+    )
+    assert whitespace == baseline
+
+    # And none of the new markers leak into the preserved body:
+    assert 'class="form-logo"' not in baseline
+    assert 'class="form-title"' not in baseline
+
+
+# ── Property-based coverage for the escaping + absent invariants (Hypothesis ≥100 iterations) ──
+
+
+# HTML-significant characters that MUST be escaped if interpolated raw — drawn so Hypothesis
+# exercises the break-out space, not just benign ASCII.
+_HOSTILE_CHARS = st.sampled_from(list("<>\"'&")) | st.characters(
+    blacklist_categories=("Cs",)
+)
+_HOSTILE_TEXT = st.text(alphabet=_HOSTILE_CHARS, min_size=1, max_size=40)
+
+
+@settings(max_examples=150)
+@given(logo=_HOSTILE_TEXT)
+def test_prop_logo_src_never_breaks_out_of_the_attribute(logo):
+    """Property (R2.3): for ANY non-blank logo reference, no raw `<`, `>`, `"` or `&` from the value
+    survives un-escaped in the rendered markup — the logo can never break out of the `src` attribute.
+    """
+    import html as _html
+
+    body = build_form_body_html(_config(fields=[{"key": "name"}]), logo=logo)
+    stripped = logo.strip()
+    if stripped:
+        escaped = _html.escape(stripped)
+        # The ONLY form the value may take in the markup is the fully-escaped src attribute. If the
+        # raw (un-escaped) value differs from the escaped form, the raw form must NOT appear at all.
+        assert f'<img class="form-logo" src="{escaped}" alt="" />' in body
+        if stripped != escaped:
+            assert f'src="{stripped}"' not in body
+
+
+@settings(max_examples=150)
+@given(title=_HOSTILE_TEXT)
+def test_prop_header_title_never_injects_markup(title):
+    """Property (R2.4): for ANY non-blank header_title, the rendered `<h1>` contains only the
+    HTML-escaped text — no raw markup from the value survives.
+    """
+    import html as _html
+
+    body = build_form_body_html(
+        _config(fields=[{"key": "name"}]), header_title=title
+    )
+    if title.strip():
+        escaped = _html.escape(title.strip())
+        assert f'<h1 class="form-title">{escaped}</h1>' in body
+
+
+@settings(max_examples=150)
+@given(
+    blank_logo=st.sampled_from(["", "   ", "\t", "\n", "  \t\n "]),
+    blank_title=st.sampled_from(["", " ", "\t\t", "\n ", "   "]),
+)
+def test_prop_blank_logo_and_title_render_byte_identical(blank_logo, blank_title):
+    """Property (bugfix 3.2): for ANY blank/whitespace logo + header_title, the body is byte-identical
+    to omitting them — the preservation invariant holds across all "effectively absent" spellings.
+    """
+    cfg = _config(fields=[{"key": "name"}])
+    baseline = build_form_body_html(cfg)
+    with_blanks = build_form_body_html(
+        cfg, logo=blank_logo, header_title=blank_title
+    )
+    assert with_blanks == baseline

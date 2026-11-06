@@ -253,6 +253,10 @@ _value_pool = {
     "base_spacing": st.sampled_from(["compact", "normal", "relaxed"]),
     "border_radius_global": st.sampled_from(["sharp", "rounded", "pill"]),
     "shadow_style": st.sampled_from(["none", "subtle", "medium", "dramatic"]),
+    # bugfix bugfix-published-form-styling (Task 8): the three new values-only attributes.
+    "columns": st.sampled_from([1, 2, 3, 4]),
+    "logo": st.sampled_from(["https://assets.example.org/logo.png", "logo.svg"]),
+    "header_title": st.sampled_from(["Aanmelden", "Join us"]),
 }
 assert set(_value_pool) == set(SUPPORTED_ATTRIBUTES)
 

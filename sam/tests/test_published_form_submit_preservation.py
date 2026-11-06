@@ -285,15 +285,44 @@ class TestRealHdcnRenderRoundTrip:
     def test_css_from_single_landing_page_styles_source_with_branded_colours(
         self, artifact
     ):
-        # R3.4: the CSS is produced by the single `LandingPageStyles` source (its :root variable
-        # block) and the branded primary/accent colours are threaded in.
+        # R3.4: the CSS still comes from the single shared styling source with the branded
+        # primary/accent colours threaded in.
+        #
+        # Change-with-tests (steering 30/34): the bugfix `bugfix-published-form-styling`
+        # (Task 5.1 / DD-B1) ADDITIVELY extends the SAM Layer-2 generator — it appends
+        # `--color-primary` / `--color-accent` to the `:root` variable block (so the new
+        # application-form CSS block can carry the brand colours on the form's OWN elements)
+        # and appends that form block after the existing page CSS. That is a DELIBERATE output
+        # change, so this preservation assertion is aligned to it: every EXISTING Flask
+        # `LandingPageStyles` line must still be present and in order (the generator did not
+        # drop or reorder any pre-existing rule), rather than the whole `:root` block being a
+        # frozen verbatim substring (the two new trailing `:root` colour lines now sit before
+        # the closing `}`, so the old block is no longer a contiguous substring — but every
+        # original line survives). The page CSS block remains a contiguous substring because
+        # the form block is appended strictly AFTER it. The assertion is NOT weakened: it still
+        # proves the single source's output is carried through, just acknowledging the additive
+        # colour-variable extension.
         from services.landing_page_styles import LandingPageStyles
 
         css_variables = LandingPageStyles.build_css_variables(_REAL_BRANDING)
         page_css = LandingPageStyles.build_page_css(
             _REAL_BRANDING["color_primary"], _REAL_BRANDING["color_accent"]
         )
-        assert css_variables in artifact
+
+        def _nonblank_lines(text):
+            return [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+        def _ordered_subsequence(needles, hay):
+            it = iter(hay)
+            return all(any(n == h for h in it) for n in needles)
+
+        artifact_lines = _nonblank_lines(artifact)
+        # Every original :root variable line survives, in order (additive colour vars allowed).
+        assert _ordered_subsequence(_nonblank_lines(css_variables), artifact_lines), (
+            "the original LandingPageStyles :root variable block must survive in order "
+            "(the bugfix only APPENDS --color-* vars, it drops/reorders nothing)"
+        )
+        # The page CSS block is still carried verbatim (the form block is appended after it).
         assert page_css in artifact
         assert "#2D5F8A" in artifact and "#F4A261" in artifact
         assert artifact.count("<style>") == 1 and artifact.count("</style>") == 1

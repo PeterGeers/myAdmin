@@ -218,6 +218,10 @@ def render_page_styles(settings: Mapping[str, Any]) -> PageStyles:
   attributes `LandingPageStyles` already consumes (`build_css_variables` reads `font_heading`,
   `font_body`, `base_spacing`, `border_radius_global`, `shadow_style`; `build_page_css` takes
   `color_primary`, `color_accent`).
+  > **Extended to ten:** the `bugfix-published-form-styling` bugfix deliberately extended this
+  > closed set to ten, adding the values-only attributes `logo`, `header_title`, and `columns`
+  > (see `bugfix-published-form-styling/design.md` §C). The "exactly" / unsupported-attribute
+  > rejection semantics are unchanged — they now bound the ten-attribute set.
 
 ### C2 — `Styling_Logic` becomes SAM-owned — Layer 2 (Req 3)
 

@@ -30,20 +30,22 @@ import type { FieldConfig } from '../../../../types/members';
 /* ================================================================== */
 import { LookAndFeelEditor } from '../LookAndFeelEditor';
 
-describe('LookAndFeelEditor — the seven-attribute preferences editor (Req 3.2)', () => {
+describe('LookAndFeelEditor — the look-and-feel preferences editor (Req 3.2 + bugfix 3.4)', () => {
   beforeEach(() => {
     i18n.changeLanguage('en');
   });
 
-  it('renders exactly one control for each of the seven supported attributes', () => {
+  it('renders exactly one control for each of the ten supported attributes', () => {
     render(
       <LookAndFeelEditor values={{}} onChange={vi.fn()} onSave={vi.fn()} lang="en" />,
     );
-    // Every supported attribute has a labelled control keyed by its attribute name.
+    // Every supported attribute has a labelled control keyed by its attribute name — the original
+    // seven plus the three the bugfix `bugfix-published-form-styling` added (`logo` /
+    // `header_title` / `columns`, bugfix 3.4), each surfaced via its own `lookandfeel-${attr}` control.
     for (const attr of SUPPORTED_ATTRIBUTES) {
       expect(screen.getByTestId(`lookandfeel-${attr}`)).toBeInTheDocument();
     }
-    expect(SUPPORTED_ATTRIBUTES).toHaveLength(7);
+    expect(SUPPORTED_ATTRIBUTES).toHaveLength(10);
   });
 
   it('renders the full editor (incl. the help caption) without throwing — regression for the\n      FormHelperText-outside-FormControl crash that white-screened the builder (task 12.2 bug)', () => {
@@ -111,6 +113,152 @@ describe('LookAndFeelEditor — the seven-attribute preferences editor (Req 3.2)
     expect(value).toBe('#123456');
     expect(String(value)).not.toContain(':root');
     expect(String(value)).not.toContain('--');
+  });
+});
+
+/* ========================================================================= */
+/*  Part A2 — the three NEW values-only controls (bugfix-published-form-      */
+/*  styling, Task 11): logo / header_title / columns (defect 1.7 / Req 2.7)  */
+/* ========================================================================= */
+
+describe('LookAndFeelEditor — logo / header_title / columns controls (bugfix Req 2.7)', () => {
+  beforeEach(() => {
+    i18n.changeLanguage('en');
+  });
+
+  it('renders a data-entry control for each of the three new attributes', () => {
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{}}
+        onExtraChange={vi.fn()}
+        onExtraSave={vi.fn()}
+        lang="en"
+      />,
+    );
+    expect(screen.getByTestId('lookandfeel-logo')).toBeInTheDocument();
+    expect(screen.getByTestId('lookandfeel-header_title')).toBeInTheDocument();
+    expect(screen.getByTestId('lookandfeel-columns')).toBeInTheDocument();
+  });
+
+  it('seeds each new control from its value, falling back to the SAM-owned default', () => {
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{ header_title: 'Join us', columns: '3' }}
+        onExtraChange={vi.fn()}
+        onExtraSave={vi.fn()}
+        lang="en"
+      />,
+    );
+    expect((screen.getByTestId('lookandfeel-header_title') as HTMLInputElement).value).toBe(
+      'Join us',
+    );
+    expect((screen.getByTestId('lookandfeel-columns') as HTMLSelectElement).value).toBe('3');
+    // An unset new attribute shows its default (logo → empty; columns → 2), never blank-but-wrong.
+    expect((screen.getByTestId('lookandfeel-logo') as HTMLInputElement).value).toBe('');
+  });
+
+  it('the columns selector offers exactly the bounded 1..4 range (matches the service/generator clamp)', () => {
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{}}
+        onExtraChange={vi.fn()}
+        onExtraSave={vi.fn()}
+        lang="en"
+      />,
+    );
+    const options = Array.from(
+      (screen.getByTestId('lookandfeel-columns') as HTMLSelectElement).options,
+    ).map((o) => o.value);
+    expect(options).toEqual(['1', '2', '3', '4']);
+  });
+
+  it('a logo edit lifts the VALUE up (onExtraChange) AND persists it values-only (onExtraSave)', () => {
+    const onExtraChange = vi.fn();
+    const onExtraSave = vi.fn();
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{}}
+        onExtraChange={onExtraChange}
+        onExtraSave={onExtraSave}
+        lang="en"
+      />,
+    );
+    fireEvent.change(screen.getByTestId('lookandfeel-logo'), {
+      target: { value: 'https://cdn.example.org/logo.png' },
+    });
+    expect(onExtraChange).toHaveBeenCalledWith('logo', 'https://cdn.example.org/logo.png');
+    expect(onExtraSave).toHaveBeenCalledWith('logo', 'https://cdn.example.org/logo.png');
+    // The persisted value is a bare reference string — not a `:root {` block or any CSS.
+    const [, value] = onExtraSave.mock.calls[0];
+    expect(String(value)).not.toContain(':root');
+    expect(String(value)).not.toContain('--');
+  });
+
+  it('a header_title edit persists the bare text value (values-only)', () => {
+    const onExtraSave = vi.fn();
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{}}
+        onExtraChange={vi.fn()}
+        onExtraSave={onExtraSave}
+        lang="en"
+      />,
+    );
+    fireEvent.change(screen.getByTestId('lookandfeel-header_title'), {
+      target: { value: 'Membership application' },
+    });
+    expect(onExtraSave).toHaveBeenCalledWith('header_title', 'Membership application');
+  });
+
+  it('a columns edit persists the chosen bounded count (values-only)', () => {
+    const onExtraSave = vi.fn();
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{}}
+        onExtraChange={vi.fn()}
+        onExtraSave={onExtraSave}
+        lang="en"
+      />,
+    );
+    fireEvent.change(screen.getByTestId('lookandfeel-columns'), {
+      target: { value: '3' },
+    });
+    expect(onExtraSave).toHaveBeenCalledWith('columns', '3');
+  });
+
+  it('clearing the logo / header_title text persists null (revert to the SAM-owned default)', () => {
+    const onExtraSave = vi.fn();
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{ logo: 'https://cdn.example.org/logo.png', header_title: 'Join' }}
+        onExtraChange={vi.fn()}
+        onExtraSave={onExtraSave}
+        lang="en"
+      />,
+    );
+    fireEvent.change(screen.getByTestId('lookandfeel-logo'), { target: { value: '' } });
+    expect(onExtraSave).toHaveBeenCalledWith('logo', null);
   });
 });
 
@@ -196,7 +344,17 @@ describe('ApplicationFormBuilder — look-and-feel editor wiring (task 12.2)', (
     vi.clearAllMocks();
     mockToast.mockClear();
     mockGetLookAndFeel.mockResolvedValue({ settings: { color_primary: '#111111' } });
-    mockSetLookAndFeel.mockResolvedValue({ settings: { color_primary: '#111111', shadow_style: 'dramatic' } });
+    // THE REAL PUT CONTRACT (bugfix Task 14.1 / DD-D1): `write_look_and_feel` returns the resolved
+    // `{settings}` (the same shape GET returns) FOLDED IN WITH the Change-Op write-result fields —
+    // `{ version, idempotent_replay, settings: { <resolved> } }` (`_with_resolved_settings`). The
+    // pre-fix bare `{ settings: ... }` mock (no write-result fields) was a false-green that hid R-B
+    // — the shipped edge produced no `settings` at all. Mock the REAL shape so the re-seed
+    // (`setLookAndFeel(res.settings ?? {})`) exercises the true contract.
+    mockSetLookAndFeel.mockResolvedValue({
+      version: 'v2',
+      idempotent_replay: false,
+      settings: { color_primary: '#111111', shadow_style: 'dramatic' },
+    });
   });
 
   it('seeds the editor from the SAM look_and_feel slice (getLookAndFeelSettings) on load', async () => {
@@ -277,5 +435,97 @@ describe('ApplicationFormBuilder — look-and-feel editor wiring (task 12.2)', (
     expect(toastArg.status).toBe('error');
     // Generic — never leaks whether the other tenant / page exists.
     expect(toastArg.description).toBe('Forbidden');
+  });
+});
+
+/* ========================================================================= */
+/*  Part B2 — the three NEW controls wired into the builder (Task 11):       */
+/*  values-only Change-Ops + caller-safe edge-error surfacing                 */
+/* ========================================================================= */
+
+describe('ApplicationFormBuilder — logo / header_title / columns wiring (bugfix Task 11/12)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockToast.mockClear();
+    // The slice seeds BOTH the original seven AND the three new attributes. As of Task 12 the
+    // builder feeds ALL TEN to the preview (the seven + the three), since `renderPageStyles` now
+    // accepts the full set — so the new keys reach the preview rather than being split away.
+    mockGetLookAndFeel.mockResolvedValue({
+      settings: { color_primary: '#111111', columns: '3', header_title: 'Join' },
+    });
+    // THE REAL PUT CONTRACT (bugfix Task 14.1 / DD-D1): the resolved `{settings}` is folded in WITH
+    // the Change-Op write-result fields — GET and PUT share one `{settings}` contract. The new
+    // attributes (`columns`/`header_title`) resolve back under `settings`, so the client re-seeds
+    // from the true post-fix shape (not the pre-fix bare `{settings}` false-green).
+    mockSetLookAndFeel.mockResolvedValue({
+      version: 'v2',
+      idempotent_replay: false,
+      settings: { color_primary: '#111111', columns: '3', header_title: 'Join' },
+    });
+  });
+
+  it('seeds the new controls from the SAM look_and_feel slice AND reflects them in the preview (Task 12)', async () => {
+    await renderBuilder();
+    // The new controls reflect the stored values…
+    await waitFor(() =>
+      expect((screen.getByTestId('lookandfeel-columns') as HTMLSelectElement).value).toBe('3'),
+    );
+    expect((screen.getByTestId('lookandfeel-header_title') as HTMLInputElement).value).toBe('Join');
+    // …and the builder did NOT white-screen — the preview renders with all ten attributes, and now
+    // REFLECTS the three new ones (Task 12 unified the preview feed): the seeded header_title shows
+    // as the preview heading and the column count drives the grid (Req 2.6).
+    expect(await screen.findByTestId('application-form-preview-render')).toBeInTheDocument();
+    expect(await screen.findByTestId('application-form-preview-title')).toHaveTextContent('Join');
+    expect(
+      screen
+        .getByTestId('application-form-preview-render')
+        .getAttribute('data-lookandfeel-columns'),
+    ).toBe('3');
+  });
+
+  it('a columns edit persists via setLookAndFeelSetting with a VALUES-ONLY payload — never CSS, never a record', async () => {
+    await renderBuilder();
+    fireEvent.change(screen.getByTestId('lookandfeel-columns'), { target: { value: '4' } });
+    await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledTimes(1));
+    expect(mockSetLookAndFeel).toHaveBeenCalledWith('columns', '4');
+    const args = mockSetLookAndFeel.mock.calls[0];
+    expect(args).toHaveLength(2);
+    expect(JSON.stringify(args)).not.toContain(':root');
+  });
+
+  it('a logo edit persists a values-only reference via setLookAndFeelSetting', async () => {
+    await renderBuilder();
+    fireEvent.change(screen.getByTestId('lookandfeel-logo'), {
+      target: { value: 'https://cdn.example.org/logo.png' },
+    });
+    await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledTimes(1));
+    expect(mockSetLookAndFeel).toHaveBeenCalledWith('logo', 'https://cdn.example.org/logo.png');
+    expect(JSON.stringify(mockSetLookAndFeel.mock.calls[0])).not.toContain(':root');
+  });
+
+  it('a header_title edit persists the bare text value via setLookAndFeelSetting', async () => {
+    await renderBuilder();
+    fireEvent.change(screen.getByTestId('lookandfeel-header_title'), {
+      target: { value: 'Membership application' },
+    });
+    await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledTimes(1));
+    expect(mockSetLookAndFeel).toHaveBeenCalledWith('header_title', 'Membership application');
+  });
+
+  it('a 422 rejection on a new attribute surfaces the caller-safe message WITHOUT leaking internals (Req 4.5)', async () => {
+    await renderBuilder();
+    mockSetLookAndFeel.mockRejectedValueOnce(
+      new ApiError(422, {
+        error: "invalid value '9' for 'columns': expected an integer in 1..4",
+        code: 'errors.validation.failed',
+      }),
+    );
+    fireEvent.change(screen.getByTestId('lookandfeel-columns'), { target: { value: '4' } });
+    await waitFor(() => expect(mockToast).toHaveBeenCalled());
+    const toastArg = mockToast.mock.calls.at(-1)![0] as { status?: string; description?: string };
+    expect(toastArg.status).toBe('error');
+    expect(toastArg.description).toContain("for 'columns'");
+    // No internal detail leaks (no stack frame / Python traceback marker / str(e)).
+    expect(toastArg.description ?? '').not.toMatch(/Traceback|File "|str\(e\)/);
   });
 });
