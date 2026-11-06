@@ -338,6 +338,58 @@ ROUTES: tuple[RouteSpec, ...] = (
             "via an identity Change-Op. Gate: members:admin (Tenant_Admin)."
         ),
     ),
+    # ── Page look-and-feel — Layer-1 authoring (get / set / copy) (spec 15 Task 8) ───
+    #
+    # The Layer-1 `Look_And_Feel_Capability` authoring surface (design C3 / C6, DD-2): the admin
+    # reads and authors the application-form PAGE's presentation VALUES — the distinct named
+    # `look_and_feel` slice on `config#fields` — never generated CSS (that is Layer 2). Two thin
+    # routes back it:
+    #   * GET  /members/look-and-feel — resolve the tenant's current stored VALUES (absent slice
+    #     / key → empty map; Layer 2 then applies its own SAM-owned defaults, Req 3.3/4.4/5.4);
+    #   * PUT  /members/look-and-feel — author ONE attribute value OR copy a page's values onto
+    #     another (one body carries the action: `{attribute, value}` to set/clear, `{op:"copy",
+    #     source_page, target_page}` to snapshot). The write is a single version-conditional
+    #     Change-Op via `LookAndFeelSettingsService` → the shared `config#fields` `apply_ops`
+    #     seam, so untouched attributes / unrelated slices survive by construction (steering 39).
+    #
+    # The literal `/members/look-and-feel` path (one segment past `/members/`) is disjoint from
+    # `/members/{member_id}` and from every other `/members/...` literal (application-form /
+    # config / analytics-sets / templates / schedules / mail / field-config / column-preferences
+    # / me / search / export), so there is no (method, path) collision or shadowing. DECLARED
+    # BEFORE the `{member_id}` routes so the literal prefix matches first (the router returns the
+    # first matching route in declaration order for a method).
+    #
+    # Gate: members:admin (Tenant_Admin), same as write_config / slug / prefix — authoring a
+    # tenant's page presentation is an administrative concern, never self-service. `tenant_id` is
+    # AUTHORITATIVE from the verified token, NEVER the body (verify-before-trust, steering 39); a
+    # rogue body tenant can never redirect the read/author target. The GET is admin-gated too (the
+    # authoring surface, not the applicant-facing published page — that is served by publish).
+    RouteSpec(
+        name="get_look_and_feel",
+        method=HttpMethod.GET,
+        path="/members/look-and-feel",
+        group=RouteGroup.MEMBER,
+        capability=CAP_MEMBERS_ADMIN,
+        self_service=False,
+        summary=(
+            "Resolve the application-form page's stored look-and-feel VALUES (the look_and_feel "
+            "slice on config#fields; absent → empty = Layer-2 defaults). VALUES only, never CSS. "
+            "Gate: members:admin (Tenant_Admin), verified tenant."
+        ),
+    ),
+    RouteSpec(
+        name="write_look_and_feel",
+        method=HttpMethod.PUT,
+        path="/members/look-and-feel",
+        group=RouteGroup.MEMBER,
+        capability=CAP_MEMBERS_ADMIN,
+        self_service=False,
+        summary=(
+            "Author ONE look-and-feel attribute value ({attribute, value}; null clears) OR copy "
+            "({op:'copy', source_page, target_page}) via a single version-conditional Change-Op "
+            "into the look_and_feel slice. Gate: members:admin (Tenant_Admin), verified tenant."
+        ),
+    ),
     # ── Column preferences — per-user overview columns (session-columns R6) ──────────
     #
     # The per-user chosen-column list for the Members overview, mirroring the preferred-list

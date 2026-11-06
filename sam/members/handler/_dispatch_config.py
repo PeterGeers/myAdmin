@@ -24,7 +24,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from collections.abc import Mapping
+
 from sam.members.domain.config_write_service import ConfigWriteValidationError
+from sam.members.domain.look_and_feel_settings_service import (
+    DEFAULT_PAGE_ID,
+    LookAndFeelValidationError,
+)
 
 from sam.members.handler._dispatch_services import (
     UNHANDLED,
@@ -173,5 +179,68 @@ def dispatch_config(
                 "request body must carry a 'prefix' value (a string to author, or null to clear)"
             )
         return crud_service.set_public_prefix(tenant_id, body.get("prefix"))
+
+    # ── Page look-and-feel — Layer-1 authoring GET (resolve current VALUES) (spec 15 Task 8) ──
+    #
+    # The edge has already verified the JWT, resolved `tenant_id` from the verified token (NEVER
+    # the body — verify-before-trust, steering 39), and enforced the members:admin gate BEFORE
+    # reaching here. This branch delegates to the standalone LookAndFeelSettingsService (design
+    # C3), which reads the resolved `look_and_feel` slice for the VERIFIED tenant — VALUES only,
+    # never generated CSS; an absent slice/key resolves to an empty map so Layer 2 applies its
+    # SAM-owned defaults. `tenant_id` is AUTHORITATIVE from the verified context; this GET carries
+    # no body and no tenant can be supplied by the client.
+    if name == "get_look_and_feel":
+        laf_service = _dispatch_mod.get_look_and_feel_settings_service()
+        return {"settings": dict(laf_service.get_settings(tenant_id))}
+
+    # ── Page look-and-feel — Layer-1 authoring WRITE (set one value / copy) (spec 15 Task 8) ──
+    #
+    # The edge has verified the JWT, resolved `tenant_id` from the token (NEVER the body), and
+    # enforced members:admin BEFORE here. ONE body carries the action:
+    #   * `{op:"copy", source_page, target_page}` → a one-time snapshot copy within the verified
+    #     tenant (Req 9). A source from another tenant raises CrossTenantCopyError (→ 403); an
+    #     unknown page id raises LookAndFeelValidationError (→ 422).
+    #   * `{attribute, value}` (the default action) → author ONE attribute value (an explicit
+    #     `null` value CLEARS it). An unsupported attribute or an out-of-set value raises
+    #     LookAndFeelValidationError (→ 422) BEFORE any write, so the stored values are unchanged.
+    # Both delegate to LookAndFeelSettingsService → the shared config#fields Change-Op seam, a
+    # single version-conditional `update_item` (a stale row surfaces as StaleVersionError → 409).
+    # The edge is THIN: it only lifts the body action; the service owns ALL validation/placement.
+    # `tenant_id` is AUTHORITATIVE from the verified context — a rogue body tenant is ignored.
+    if name == "write_look_and_feel":
+        laf_service = _dispatch_mod.get_look_and_feel_settings_service()
+        body = request.body if isinstance(request.body, Mapping) else {}
+
+        if body.get("op") == "copy":
+            # A one-time snapshot copy (Req 9). The page ids default to the single SAM-owned page
+            # (the application form) today; an unknown id is rejected by the service. The verified
+            # tenant scopes both read and write — `source_tenant_id` is carried so a cross-tenant
+            # source is rejected (403), never silently honoured.
+            source_page = body.get("source_page") or DEFAULT_PAGE_ID
+            target_page = body.get("target_page") or DEFAULT_PAGE_ID
+            return laf_service.copy_settings(
+                tenant_id,
+                source_page,
+                target_page,
+                source_tenant_id=body.get("source_tenant_id"),
+                client_op_id=body.get("client_op_id"),
+            )
+
+        # Default action: author ONE attribute value. An ABSENT `attribute` key is a malformed
+        # request (the one thing this action carries) — surface a caller-safe 422 via the service's
+        # own rejection rather than guessing. `page` defaults to the application form today.
+        if "attribute" not in body:
+            raise LookAndFeelValidationError(
+                "request body must carry an 'attribute' to author (and a 'value', or null to "
+                "clear), or {op: 'copy'} to snapshot another page's values"
+            )
+        page_id = body.get("page") or DEFAULT_PAGE_ID
+        return laf_service.set_setting(
+            tenant_id,
+            page_id,
+            body.get("attribute"),
+            body.get("value"),
+            client_op_id=body.get("client_op_id"),
+        )
 
     return UNHANDLED
