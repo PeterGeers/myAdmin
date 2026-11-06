@@ -35,6 +35,7 @@ Properties: 6
 """
 
 import os
+import re
 import sys
 
 from hypothesis import assume, given, settings
@@ -52,9 +53,18 @@ from sam.members.domain.look_and_feel_settings_service import (  # noqa: E402
     LookAndFeelSettingsService,
     LookAndFeelValidationError,
     _COLOUR_ATTRIBUTES,
+    _COLUMNS_ATTRIBUTE,
     _FONT_ATTRIBUTES,
     _FONT_NAME_PATTERN,
+    _HEADER_TITLE_ATTRIBUTE,
     _HEX_COLOUR_PATTERN,
+    _LOGO_ATTRIBUTE,
+    _LOGO_REFERENCE_PATTERN,
+    _LOGO_UNSAFE_PATTERN,
+    _MAX_COLUMNS,
+    _MAX_HEADER_TITLE_LENGTH,
+    _MAX_LOGO_LENGTH,
+    _MIN_COLUMNS,
     _PERMITTED_VALUES,
 )
 from sam.shared.page_styles import SUPPORTED_ATTRIBUTES  # noqa: E402
@@ -81,8 +91,34 @@ _VALID_BY_ATTR = {
         sorted(_PERMITTED_VALUES["border_radius_global"])
     ),
     "shadow_style": st.sampled_from(sorted(_PERMITTED_VALUES["shadow_style"])),
+    # bugfix ``bugfix-published-form-styling`` Task 10 — the three new values-only attributes, each
+    # drawn from its PERMITTED set so the service accepts them (bounded columns / well-formed logo
+    # reference / non-blank bounded header text).
+    "columns": st.integers(min_value=_MIN_COLUMNS, max_value=_MAX_COLUMNS),
+    "logo": st.sampled_from(
+        [
+            "https://assets.example.org/logo.png",
+            "https://cdn.example.net/brand/mark.svg",
+            "/assets/logo.png",
+        ]
+    ),
+    "header_title": st.text(min_size=1, max_size=_MAX_HEADER_TITLE_LENGTH).filter(
+        lambda s: bool(s.strip())
+    ),
 }
-assert set(_VALID_BY_ATTR) == set(SUPPORTED_ATTRIBUTES)
+# The VALID stored slice (and the rejected-set drivers below) go through the SERVICE, so this pool
+# must cover exactly the attributes the service validates. The bugfix
+# ``bugfix-published-form-styling`` Task 10 (edge + service plane) extended the SERVICE's
+# permitted-value rules to the full generator set of ten (columns / logo / header_title alongside
+# the original seven), so this property now exercises ALL ten.
+_SERVICE_VALIDATED_ATTRS = (
+    set(_PERMITTED_VALUES)
+    | set(_COLOUR_ATTRIBUTES)
+    | set(_FONT_ATTRIBUTES)
+    | {_COLUMNS_ATTRIBUTE, _LOGO_ATTRIBUTE, _HEADER_TITLE_ATTRIBUTE}
+)
+assert set(_VALID_BY_ATTR) == _SERVICE_VALIDATED_ATTRS
+assert _SERVICE_VALIDATED_ATTRS == set(SUPPORTED_ATTRIBUTES)
 
 
 @st.composite
@@ -143,6 +179,49 @@ _font_invalid = st.one_of(
     st.just("a" * 65),  # too long (max 64 chars)
 )
 
+# columns: a bounded integer in _MIN_COLUMNS.._MAX_COLUMNS. Out-of-range ints, non-integers, bools,
+# and non-numeric strings are invalid (an integer-valued string in range is VALID — filtered out).
+_columns_invalid = st.one_of(
+    st.integers(max_value=_MIN_COLUMNS - 1),  # below floor (incl. negatives / zero)
+    st.integers(min_value=_MAX_COLUMNS + 1),  # above ceiling
+    st.booleans(),  # bool is an int subclass but not a real column count
+    st.floats(allow_nan=False, allow_infinity=False),
+    st.text(),  # arbitrary text (filtered below)
+    st.just("two"),
+    st.just("1.5"),
+    st.lists(st.integers()),
+)
+
+# logo: a well-formed, bounded https:// / site-relative reference with no injection payload.
+_logo_invalid = st.one_of(
+    st.text(),  # arbitrary text (filtered below)
+    st.integers(),
+    st.booleans(),
+    st.lists(st.text()),
+    st.just("javascript:alert(1)"),
+    st.just("data:image/png;base64,AAAA"),
+    st.just('url("evil")'),
+    st.just("expression(alert(1))"),
+    st.just("ftp://example.org/logo.png"),  # unsupported scheme
+    st.just("logo.png"),  # not absolute / site-relative
+    st.just("http://example.org/logo.png"),  # not https (and not site-relative)
+    st.just("https://example.org/a b.png"),  # whitespace
+    st.just("https://example.org/<svg>"),  # angle brackets
+    st.just('https://example.org/"q"'),  # quote
+    st.just("https://example.org/" + "a" * _MAX_LOGO_LENGTH),  # over length
+)
+
+# header_title: non-blank, length-bounded text. Blank / whitespace-only / over-length / non-string.
+_header_title_invalid = st.one_of(
+    st.integers(),
+    st.booleans(),
+    st.lists(st.text()),
+    st.just(""),  # blank
+    st.just("   "),  # whitespace only
+    st.just("\t\n"),  # whitespace only
+    st.text(min_size=_MAX_HEADER_TITLE_LENGTH + 1),  # over length
+)
+
 
 def _invalid_value_strategy(attribute):
     """A strategy producing values OUTSIDE ``attribute``'s permitted set (never the clear sentinel).
@@ -156,7 +235,13 @@ def _invalid_value_strategy(attribute):
         base = _colour_invalid
     elif attribute in _FONT_ATTRIBUTES:
         base = _font_invalid
-    else:  # pragma: no cover - the three branches above cover all seven supported attributes
+    elif attribute == _COLUMNS_ATTRIBUTE:
+        base = _columns_invalid
+    elif attribute == _LOGO_ATTRIBUTE:
+        base = _logo_invalid
+    elif attribute == _HEADER_TITLE_ATTRIBUTE:
+        base = _header_title_invalid
+    else:  # pragma: no cover - the branches above cover the service-validated attributes
         raise AssertionError(f"no invalid-value strategy for {attribute!r}")
     return base.filter(lambda v: v is not None)
 
@@ -174,6 +259,29 @@ def _is_actually_invalid(attribute, value):
         return not (isinstance(value, str) and _HEX_COLOUR_PATTERN.match(value))
     if attribute in _FONT_ATTRIBUTES:
         return not (isinstance(value, str) and _FONT_NAME_PATTERN.match(value))
+    if attribute == _COLUMNS_ATTRIBUTE:
+        if isinstance(value, bool):
+            return True
+        if isinstance(value, int):
+            column_count = value
+        elif isinstance(value, str) and re.fullmatch(r"-?\d+", value.strip()):
+            column_count = int(value.strip())
+        else:
+            return True
+        return not (_MIN_COLUMNS <= column_count <= _MAX_COLUMNS)
+    if attribute == _LOGO_ATTRIBUTE:
+        return not (
+            isinstance(value, str)
+            and len(value) <= _MAX_LOGO_LENGTH
+            and _LOGO_REFERENCE_PATTERN.match(value)
+            and not _LOGO_UNSAFE_PATTERN.search(value)
+        )
+    if attribute == _HEADER_TITLE_ATTRIBUTE:
+        return not (
+            isinstance(value, str)
+            and bool(value.strip())
+            and len(value) <= _MAX_HEADER_TITLE_LENGTH
+        )
     raise AssertionError(f"unknown attribute {attribute!r}")
 
 
@@ -185,7 +293,9 @@ def _is_actually_invalid(attribute, value):
 @settings(max_examples=200)
 @given(
     data=st.data(),
-    attribute=st.sampled_from(sorted(SUPPORTED_ATTRIBUTES)),
+    # All TEN service-validated attributes (enum + colour + font + the Task-10 extension
+    # columns / logo / header_title, each with its permitted-value rule).
+    attribute=st.sampled_from(sorted(_SERVICE_VALIDATED_ATTRS)),
     stored=_stored_slice(),
 )
 def test_invalid_value_is_rejected_and_stored_values_preserved(data, attribute, stored):

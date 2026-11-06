@@ -676,6 +676,26 @@ class ApplicationPublishService:
             else None
         )
 
+        # ── Logo + header title → renderer (bugfix-published-form-styling Task 6.1 / R2.3, R2.4) ──
+        # The published form previously rendered NO tenant logo and NO visible body heading
+        # (defect 1.3 / 1.4) because publish passed no header fragment. Resolve the two values-only
+        # presentation attributes from the SAME SAM-owned `look_and_feel` slice (`branding`) and
+        # pass them to the renderer, which emits an HTML-escaped `<img class="form-logo">` + an
+        # `<h1 class="form-title">` at the top of `.application-form` (so the Task-5.1 CSS can theme
+        # them). These are DATA read off the resolved slice — a logo is a URL/reference (DD-C1),
+        # never CSS or a binary. Absent values (no reader, no slice, or an unset key) resolve to ""
+        # and the renderer emits nothing, so the body is byte-identical to today (preservation,
+        # bugfix 3.2) — backward compatible with every tenant that never authored them.
+        logo = ""
+        header_title = ""
+        if isinstance(branding, Mapping):
+            raw_logo = branding.get("logo")
+            if isinstance(raw_logo, str):
+                logo = raw_logo
+            raw_header_title = branding.get("header_title")
+            if isinstance(raw_header_title, str):
+                header_title = raw_header_title
+
         self._rendered_html = render_application_form_page(
             config,
             head_meta={
@@ -684,6 +704,8 @@ class ApplicationPublishService:
                 "site_name": slug,
             },
             branding=branding,
+            logo=logo,
+            header_title=header_title,
             slug=slug,
             public_api_base=public_api_base,
         )

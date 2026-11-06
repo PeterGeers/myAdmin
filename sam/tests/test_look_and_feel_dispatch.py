@@ -229,6 +229,40 @@ def test_handler_set_dispatches_with_verified_tenant_and_body_attribute(spy):
     ]
 
 
+def test_handler_put_returns_resolved_settings_plus_write_result(spy):
+    # DD-D1 / R-B: a successful PUT returns the SAME `{settings}` shape the GET returns (the
+    # tenant's re-resolved current values) ALONGSIDE the Change-Op write-result fields, so the
+    # frontend's `setLookAndFeel(res.settings ?? {})` re-seed shows the authored value with NO
+    # reload (defect 1.8). GET and PUT share ONE response contract.
+    spy._get_result = {"color_primary": "#2D5F8A"}
+    spy._write_result = {"version": "v-next", "idempotent_replay": False}
+    resp = app.handler(
+        _event(body={"attribute": "color_primary", "value": "#2D5F8A"})
+    )
+    assert resp["statusCode"] == 200
+    data = _envelope(resp)["data"]
+    # The resolved current values, keyed exactly as the GET contract returns them.
+    assert data["settings"] == {"color_primary": "#2D5F8A"}
+    # The write-result fields are PRESERVED on the PUT response (not replaced by `settings`).
+    assert data["version"] == "v-next"
+    assert data["idempotent_replay"] is False
+    # The settings are re-resolved for the VERIFIED tenant + authored page (never the body).
+    assert spy.get_calls[-1] == {"tenant_id": _TENANT, "page_id": "application_form"}
+
+
+def test_handler_copy_returns_resolved_settings_plus_write_result(spy):
+    # The copy action shares the same DD-D1 contract: re-resolved `{settings}` + write-result.
+    spy._get_result = {"color_accent": "#C6522E"}
+    spy._write_result = {"version": "v-copy", "idempotent_replay": True}
+    resp = app.handler(_event(body={"op": "copy"}))
+    assert resp["statusCode"] == 200
+    data = _envelope(resp)["data"]
+    assert data["settings"] == {"color_accent": "#C6522E"}
+    assert data["version"] == "v-copy"
+    assert data["idempotent_replay"] is True
+    assert spy.get_calls[-1] == {"tenant_id": _TENANT, "page_id": "application_form"}
+
+
 def test_handler_tenant_is_verified_not_body(spy):
     # A rogue body `tenant_id` can never redirect the author target — the dispatch uses the
     # VERIFIED tenant only (verify-before-trust, steering 39).

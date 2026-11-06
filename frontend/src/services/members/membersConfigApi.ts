@@ -274,10 +274,15 @@ export async function setApplicationFormPrefix(
 // ============================================================================
 
 /**
- * The exactly-seven supported look-and-feel attributes (Req 3.2). Mirrors the SAM-owned
- * `SUPPORTED_ATTRIBUTES` (Python `sam/shared/page_styles/`, TS `pageStyles.ts`). The authoring
- * UI only ever sends ONE of these as the `attribute` of a set/clear Change-Op — it NEVER sends
- * generated CSS and NEVER a whole record (Layer 1 is values-only, design §C3 / steering 39).
+ * The supported look-and-feel attributes the authoring client may send as the `attribute` of a
+ * set/clear Change-Op. Mirrors the SAM-owned `SUPPORTED_ATTRIBUTES`
+ * (Python `sam/shared/page_styles/`): the original seven (Req 3.2) PLUS the three the bugfix
+ * `bugfix-published-form-styling` added as a deliberate, documented extension (bugfix 3.4 /
+ * design §C) — `columns` / `logo` / `header_title`. The authoring UI only ever sends ONE of
+ * these as the `attribute` — it NEVER sends generated CSS and NEVER a whole record (Layer 1 is
+ * values-only, design §C3 / steering 39). `columns` / `logo` / `header_title` are carried as
+ * VALUES-ONLY exactly like the seven: a bounded column count, a URL/asset reference, and
+ * length-bounded header text — never CSS, never a binary upload.
  */
 export type LookAndFeelAttribute =
   | 'color_primary'
@@ -286,7 +291,10 @@ export type LookAndFeelAttribute =
   | 'font_body'
   | 'base_spacing'
   | 'border_radius_global'
-  | 'shadow_style';
+  | 'shadow_style'
+  | 'columns'
+  | 'logo'
+  | 'header_title';
 
 /**
  * The resolved look-and-feel VALUES for the application-form page (the `look_and_feel` slice on
