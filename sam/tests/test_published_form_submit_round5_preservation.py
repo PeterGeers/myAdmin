@@ -213,6 +213,12 @@ def test_preserve_styles_sam_render_embeds_existing_rules(snap):
 
 def test_preserve_styles_flask_caller_gets_existing_rules(snap, monkeypatch):
     """The Flask-plane caller (landing page publish) embeds the same existing rules."""
+    # This assertion exercises the FLASK plane (services.landing_page_publish_service), which
+    # transitively needs `markdown`. The SAM CI job does not install the Flask plane's deps, so
+    # skip cleanly there and still run where the Flask plane is present. (Before spec 15 this
+    # passed only incidentally: the SAM renderer used to import the Flask styling chain first;
+    # spec-15 task 7.2 cut that import, exposing this test's own cross-plane dependency.)
+    pytest.importorskip("markdown")
     import types
 
     # The SAM plane forbids importing mysql.connector. The Flask service only needs

@@ -211,6 +211,15 @@ class _FieldOverlayReadMixin:
         for attr in ("slug", "published_at", "published_version"):
             if attr in row:
                 wire[attr] = row.get(attr)
+        # Look-and-feel slice (spec 15, DD-2): carry the stored ``look_and_feel`` map THROUGH
+        # on the raw write-path snapshot so the Change-Op writer can see whether the parent map
+        # already exists (and its current sibling values) when placing a single-attribute SET.
+        # A nested ``SET look_and_feel.<attr>`` is INVALID on a row whose parent map is absent
+        # (a LEGACY pre-task-4.1 row never got the skeleton seed), so the writer must branch on
+        # presence — it needs this slice in the snapshot to do so. Only surfaced when STORED;
+        # a never-authored/legacy row omits it (the writer then seeds the whole slice).
+        if isinstance(row.get("look_and_feel"), Mapping):
+            wire["look_and_feel"] = dict(row["look_and_feel"])
         return wire
 
     @staticmethod
