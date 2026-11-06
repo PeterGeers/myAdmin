@@ -65,6 +65,12 @@ export interface ApplicationFormRendererProps {
   errors?: Record<string, string>;
   /** Optional id prefix so multiple forms on a page keep unique control ids. Default `app-field`. */
   idPrefix?: string;
+  /**
+   * Max number of layout columns for the field groups (the authored look-and-feel `columns`,
+   * 1..4). The grid is WIDTH-DRIVEN: it shows as many ~16rem columns as fit and reflows down to 1
+   * on narrow screens, never exceeding this cap. Absent -> the default cap (2).
+   */
+  columns?: number;
 }
 
 /**
@@ -82,8 +88,12 @@ export const ApplicationFormRenderer: React.FC<ApplicationFormRendererProps> = (
   onChange,
   errors,
   idPrefix = 'app-field',
+  columns,
 }) => {
   const lang = resolveLocale(locale);
+  // Width-driven column CAP (1..4): the grid fits as many ~16rem columns as the width
+  // allows, never exceeding this. Absent/invalid -> default cap 2 (preserves prior layout).
+  const columnCap = Math.max(1, Math.min(Number.isFinite(columns as number) ? (columns as number) : 2, 4));
   const groups = groupFieldsByFunctionalGroup(config.fields ?? [], config.functional_groups);
 
   return (
@@ -122,9 +132,15 @@ export const ApplicationFormRenderer: React.FC<ApplicationFormRendererProps> = (
                 focusing the right control (R4.4 / HC2). Driven purely by Chakra's responsive
                 `columns` object — no viewport sniffing (R4.3). */}
             <SimpleGrid
-              columns={{ base: 1, md: 2 }}
               spacing={4}
               data-testid={`group-grid-${group.key}`}
+              data-columns-cap={columnCap}
+              sx={{
+                // Width-driven: as many ~16rem columns as fit, down to 1 on narrow screens,
+                // never more than the authored cap (via a max-width of cap x 20rem).
+                gridTemplateColumns: 'repeat(auto-fit, minmax(16rem, 1fr))',
+                maxWidth: `calc(${columnCap} * 20rem + ${columnCap - 1} * 1rem)`,
+              }}
             >
               {visibleFields.map((field) => (
                 <FieldControl

@@ -59,7 +59,7 @@ describe('LookAndFeelEditor — the look-and-feel preferences editor (Req 3.2 + 
       ),
     ).not.toThrow();
     expect(
-      screen.getByText('A change is saved for this form immediately.'),
+      screen.getByText('Changes appear instantly in the preview. Click Save to store them for this form.'),
     ).toBeInTheDocument();
   });
 
@@ -85,7 +85,7 @@ describe('LookAndFeelEditor — the look-and-feel preferences editor (Req 3.2 + 
     );
   });
 
-  it('an enum edit lifts the VALUE up (onChange) AND persists it values-only (onSave)', () => {
+  it('an enum edit lifts the VALUE up (onChange) for live preview — it does NOT persist on change', () => {
     const onChange = vi.fn();
     const onSave = vi.fn();
     render(
@@ -94,22 +94,24 @@ describe('LookAndFeelEditor — the look-and-feel preferences editor (Req 3.2 + 
     fireEvent.change(screen.getByTestId('lookandfeel-shadow_style'), {
       target: { value: 'dramatic' },
     });
-    // The VALUE (not CSS, not a record) is lifted up for the live preview AND persisted.
+    // The VALUE is lifted for the live preview — serverless-friendly: NO per-change network write.
     expect(onChange).toHaveBeenCalledWith('shadow_style', 'dramatic');
-    expect(onSave).toHaveBeenCalledWith('shadow_style', 'dramatic');
+    expect(onSave).not.toHaveBeenCalled();
   });
 
-  it('a colour edit authors the hex value only (values-only — never generated CSS)', () => {
+  it('a colour edit lifts the hex value up (values-only — never generated CSS), no persist on change', () => {
+    const onChange = vi.fn();
     const onSave = vi.fn();
     render(
-      <LookAndFeelEditor values={{}} onChange={vi.fn()} onSave={onSave} lang="en" />,
+      <LookAndFeelEditor values={{}} onChange={onChange} onSave={onSave} lang="en" />,
     );
     fireEvent.change(screen.getByTestId('lookandfeel-color_primary-hex'), {
       target: { value: '#123456' },
     });
-    expect(onSave).toHaveBeenCalledWith('color_primary', '#123456');
-    // The persisted value is a bare hex string — not a `:root {` block or any CSS.
-    const [, value] = onSave.mock.calls[0];
+    expect(onChange).toHaveBeenCalledWith('color_primary', '#123456');
+    expect(onSave).not.toHaveBeenCalled();
+    // The lifted value is a bare hex string — not a `:root {` block or any CSS.
+    const [, value] = onChange.mock.calls[0];
     expect(value).toBe('#123456');
     expect(String(value)).not.toContain(':root');
     expect(String(value)).not.toContain('--');
@@ -199,14 +201,16 @@ describe('LookAndFeelEditor — logo / header_title / columns controls (bugfix R
       target: { value: 'https://cdn.example.org/logo.png' },
     });
     expect(onExtraChange).toHaveBeenCalledWith('logo', 'https://cdn.example.org/logo.png');
-    expect(onExtraSave).toHaveBeenCalledWith('logo', 'https://cdn.example.org/logo.png');
-    // The persisted value is a bare reference string — not a `:root {` block or any CSS.
-    const [, value] = onExtraSave.mock.calls[0];
+    // Serverless-friendly: editing lifts the value for live preview but does NOT persist on change.
+    expect(onExtraSave).not.toHaveBeenCalled();
+    // The lifted value is a bare reference string — not a `:root {` block or any CSS.
+    const [, value] = onExtraChange.mock.calls[0];
     expect(String(value)).not.toContain(':root');
     expect(String(value)).not.toContain('--');
   });
 
-  it('a header_title edit persists the bare text value (values-only)', () => {
+  it('a header_title edit lifts the bare text value up (values-only), no persist on change', () => {
+    const onExtraChange = vi.fn();
     const onExtraSave = vi.fn();
     render(
       <LookAndFeelEditor
@@ -214,7 +218,7 @@ describe('LookAndFeelEditor — logo / header_title / columns controls (bugfix R
         onChange={vi.fn()}
         onSave={vi.fn()}
         extraValues={{}}
-        onExtraChange={vi.fn()}
+        onExtraChange={onExtraChange}
         onExtraSave={onExtraSave}
         lang="en"
       />,
@@ -222,10 +226,12 @@ describe('LookAndFeelEditor — logo / header_title / columns controls (bugfix R
     fireEvent.change(screen.getByTestId('lookandfeel-header_title'), {
       target: { value: 'Membership application' },
     });
-    expect(onExtraSave).toHaveBeenCalledWith('header_title', 'Membership application');
+    expect(onExtraChange).toHaveBeenCalledWith('header_title', 'Membership application');
+    expect(onExtraSave).not.toHaveBeenCalled();
   });
 
-  it('a columns edit persists the chosen bounded count (values-only)', () => {
+  it('a columns edit lifts the chosen bounded count up (values-only), no persist on change', () => {
+    const onExtraChange = vi.fn();
     const onExtraSave = vi.fn();
     render(
       <LookAndFeelEditor
@@ -233,7 +239,7 @@ describe('LookAndFeelEditor — logo / header_title / columns controls (bugfix R
         onChange={vi.fn()}
         onSave={vi.fn()}
         extraValues={{}}
-        onExtraChange={vi.fn()}
+        onExtraChange={onExtraChange}
         onExtraSave={onExtraSave}
         lang="en"
       />,
@@ -241,10 +247,12 @@ describe('LookAndFeelEditor — logo / header_title / columns controls (bugfix R
     fireEvent.change(screen.getByTestId('lookandfeel-columns'), {
       target: { value: '3' },
     });
-    expect(onExtraSave).toHaveBeenCalledWith('columns', '3');
+    expect(onExtraChange).toHaveBeenCalledWith('columns', '3');
+    expect(onExtraSave).not.toHaveBeenCalled();
   });
 
-  it('clearing the logo / header_title text persists null (revert to the SAM-owned default)', () => {
+  it('clearing the logo / header_title text lifts null (revert to the SAM-owned default), no persist', () => {
+    const onExtraChange = vi.fn();
     const onExtraSave = vi.fn();
     render(
       <LookAndFeelEditor
@@ -252,13 +260,91 @@ describe('LookAndFeelEditor — logo / header_title / columns controls (bugfix R
         onChange={vi.fn()}
         onSave={vi.fn()}
         extraValues={{ logo: 'https://cdn.example.org/logo.png', header_title: 'Join' }}
-        onExtraChange={vi.fn()}
+        onExtraChange={onExtraChange}
         onExtraSave={onExtraSave}
         lang="en"
       />,
     );
     fireEvent.change(screen.getByTestId('lookandfeel-logo'), { target: { value: '' } });
-    expect(onExtraSave).toHaveBeenCalledWith('logo', null);
+    expect(onExtraChange).toHaveBeenCalledWith('logo', null);
+    expect(onExtraSave).not.toHaveBeenCalled();
+  });
+
+  it('shows a preview thumbnail of the currently-stored logo (the S3 reference)', () => {
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{ logo: 'https://assets.example.org/h-dcn/logo.png' }}
+        onExtraChange={vi.fn()}
+        onExtraSave={vi.fn()}
+        lang="en"
+      />,
+    );
+    const preview = screen.getByTestId('lookandfeel-logo-preview') as HTMLImageElement;
+    expect(preview).toBeInTheDocument();
+    expect(preview.getAttribute('src')).toBe('https://assets.example.org/h-dcn/logo.png');
+  });
+
+  it('no preview is shown when no logo is set', () => {
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{}}
+        onExtraChange={vi.fn()}
+        onExtraSave={vi.fn()}
+        lang="en"
+      />,
+    );
+    expect(screen.queryByTestId('lookandfeel-logo-preview')).not.toBeInTheDocument();
+  });
+
+  it('the Upload button stores a new image via onUploadLogo and sets the logo to the stored URL', async () => {
+    const onUploadLogo = vi
+      .fn()
+      .mockResolvedValue('https://assets.example.org/h-dcn/new-logo.png');
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{}}
+        onExtraChange={vi.fn()}
+        onExtraSave={vi.fn()}
+        onUploadLogo={onUploadLogo}
+        lang="en"
+      />,
+    );
+    const file = new File(['img-bytes'], 'logo.png', { type: 'image/png' });
+    const input = screen.getByTestId('lookandfeel-logo-file') as HTMLInputElement;
+    // Simulate the user picking a file (the Upload button triggers this hidden input).
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(onUploadLogo).toHaveBeenCalledTimes(1));
+    expect(onUploadLogo).toHaveBeenCalledWith(file);
+  });
+
+  it('a failed upload surfaces an inline error without throwing', async () => {
+    const onUploadLogo = vi.fn().mockRejectedValue(new Error('file too large'));
+    render(
+      <LookAndFeelEditor
+        values={{}}
+        onChange={vi.fn()}
+        onSave={vi.fn()}
+        extraValues={{}}
+        onExtraChange={vi.fn()}
+        onExtraSave={vi.fn()}
+        onUploadLogo={onUploadLogo}
+        lang="en"
+      />,
+    );
+    const file = new File(['x'], 'big.png', { type: 'image/png' });
+    fireEvent.change(screen.getByTestId('lookandfeel-logo-file'), { target: { files: [file] } });
+    await waitFor(() =>
+      expect(screen.getByTestId('lookandfeel-logo-error')).toHaveTextContent('file too large'),
+    );
   });
 });
 
@@ -373,13 +459,14 @@ describe('ApplicationFormBuilder — look-and-feel editor wiring (task 12.2)', (
     fireEvent.change(screen.getByTestId('lookandfeel-shadow_style'), {
       target: { value: 'dramatic' },
     });
-    await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledTimes(1));
-    // The client is called with exactly (attribute, value) — one supported attribute + its value.
-    expect(mockSetLookAndFeel).toHaveBeenCalledWith('shadow_style', 'dramatic');
-    const args = mockSetLookAndFeel.mock.calls[0];
-    // No extra args smuggling a whole record / CSS blob into the call.
-    expect(args).toHaveLength(2);
-    expect(JSON.stringify(args)).not.toContain(':root');
+    // Serverless model: editing does NOT persist. Click the single bottom Save button.
+    expect(mockSetLookAndFeel).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledWith('shadow_style', 'dramatic'));
+    // Each call is exactly (attribute, value) — one supported attribute + its value, no CSS/record.
+    const call = mockSetLookAndFeel.mock.calls.find((c) => c[0] === 'shadow_style')!;
+    expect(call).toHaveLength(2);
+    expect(JSON.stringify(call)).not.toContain(':root');
   });
 
   it('the preview reflects an UNSAVED look-and-feel edit live (Req 7.2) — no server round-trip needed', async () => {
@@ -413,6 +500,7 @@ describe('ApplicationFormBuilder — look-and-feel editor wiring (task 12.2)', (
     fireEvent.change(screen.getByTestId('lookandfeel-shadow_style'), {
       target: { value: 'none' },
     });
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
     // The caller-safe envelope surfaces as an error toast naming the client's OWN setting; the
     // description carries NO internal detail (no stack frame / Python traceback marker).
     await waitFor(() => expect(mockToast).toHaveBeenCalled());
@@ -430,6 +518,7 @@ describe('ApplicationFormBuilder — look-and-feel editor wiring (task 12.2)', (
     fireEvent.change(screen.getByTestId('lookandfeel-color_accent-hex'), {
       target: { value: '#abcdef' },
     });
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
     await waitFor(() => expect(mockToast).toHaveBeenCalled());
     const toastArg = mockToast.mock.calls.at(-1)![0] as { status?: string; description?: string };
     expect(toastArg.status).toBe('error');
@@ -486,11 +575,12 @@ describe('ApplicationFormBuilder — logo / header_title / columns wiring (bugfi
   it('a columns edit persists via setLookAndFeelSetting with a VALUES-ONLY payload — never CSS, never a record', async () => {
     await renderBuilder();
     fireEvent.change(screen.getByTestId('lookandfeel-columns'), { target: { value: '4' } });
-    await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledTimes(1));
-    expect(mockSetLookAndFeel).toHaveBeenCalledWith('columns', '4');
-    const args = mockSetLookAndFeel.mock.calls[0];
-    expect(args).toHaveLength(2);
-    expect(JSON.stringify(args)).not.toContain(':root');
+    expect(mockSetLookAndFeel).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledWith('columns', '4'));
+    const call = mockSetLookAndFeel.mock.calls.find((c) => c[0] === 'columns')!;
+    expect(call).toHaveLength(2);
+    expect(JSON.stringify(call)).not.toContain(':root');
   });
 
   it('a logo edit persists a values-only reference via setLookAndFeelSetting', async () => {
@@ -498,9 +588,13 @@ describe('ApplicationFormBuilder — logo / header_title / columns wiring (bugfi
     fireEvent.change(screen.getByTestId('lookandfeel-logo'), {
       target: { value: 'https://cdn.example.org/logo.png' },
     });
-    await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledTimes(1));
-    expect(mockSetLookAndFeel).toHaveBeenCalledWith('logo', 'https://cdn.example.org/logo.png');
-    expect(JSON.stringify(mockSetLookAndFeel.mock.calls[0])).not.toContain(':root');
+    expect(mockSetLookAndFeel).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    await waitFor(() =>
+      expect(mockSetLookAndFeel).toHaveBeenCalledWith('logo', 'https://cdn.example.org/logo.png'),
+    );
+    const logoCall = mockSetLookAndFeel.mock.calls.find((c) => c[0] === 'logo')!;
+    expect(JSON.stringify(logoCall)).not.toContain(':root');
   });
 
   it('a header_title edit persists the bare text value via setLookAndFeelSetting', async () => {
@@ -508,8 +602,11 @@ describe('ApplicationFormBuilder — logo / header_title / columns wiring (bugfi
     fireEvent.change(screen.getByTestId('lookandfeel-header_title'), {
       target: { value: 'Membership application' },
     });
-    await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledTimes(1));
-    expect(mockSetLookAndFeel).toHaveBeenCalledWith('header_title', 'Membership application');
+    expect(mockSetLookAndFeel).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    await waitFor(() =>
+      expect(mockSetLookAndFeel).toHaveBeenCalledWith('header_title', 'Membership application'),
+    );
   });
 
   it('a 422 rejection on a new attribute surfaces the caller-safe message WITHOUT leaking internals (Req 4.5)', async () => {
@@ -521,6 +618,7 @@ describe('ApplicationFormBuilder — logo / header_title / columns wiring (bugfi
       }),
     );
     fireEvent.change(screen.getByTestId('lookandfeel-columns'), { target: { value: '4' } });
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
     await waitFor(() => expect(mockToast).toHaveBeenCalled());
     const toastArg = mockToast.mock.calls.at(-1)![0] as { status?: string; description?: string };
     expect(toastArg.status).toBe('error');

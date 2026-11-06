@@ -54,6 +54,7 @@ import {
 } from '../../../services/membersConfigService';
 import { deriveFieldConfigChangeOps } from './fieldConfigChangeOps';
 import { flatViewToOverlay } from './flatViewToOverlay';
+import { uploadImage } from '../../../services/landingPageApi';
 import {
   publishApplicationForm,
   setApplicationFormSlug,
@@ -173,6 +174,10 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   // CSS, never a whole record, steering 39) and are seeded from the same `getLookAndFeelSettings`
   // slice on load.
   const [extraLookAndFeel, setExtraLookAndFeel] = useState<ExtraLookAndFeelValues>({});
+  // Baseline of the look-and-feel working maps at the last load/save, so the builder's single Save
+  // can tell whether look-and-feel is dirty (same model as `baseline` for fields). JSON of
+  // { seven, extra } captured on load and after a successful save.
+  const [lookAndFeelBaseline, setLookAndFeelBaseline] = useState<string>('{"seven":{},"extra":{}}');
 
   // bugfix bugfix-published-form-styling Task 12 — the UNIFIED look-and-feel map fed to the
   // preview. The editor still authors the seven (`lookAndFeel`) and the three new attributes
@@ -244,9 +249,11 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
         const { seven, extra } = splitLookAndFeel(lf.settings ?? {});
         setLookAndFeel(seven);
         setExtraLookAndFeel(extra);
+        setLookAndFeelBaseline(JSON.stringify({ seven, extra }));
       } catch {
         setLookAndFeel({});
         setExtraLookAndFeel({});
+        setLookAndFeelBaseline(JSON.stringify({ seven: {}, extra: {} }));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -264,6 +271,49 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
     () => JSON.stringify(shell) !== JSON.stringify(shellBaseline),
     [shell, shellBaseline],
   );
+  // Look-and-feel is dirty when the working maps differ from the last-saved baseline — drives the
+  // SINGLE builder Save (no separate look-and-feel Save button; one deliberate save for the form).
+  const lookAndFeelDirty = useMemo(
+    () => JSON.stringify({ seven: lookAndFeel, extra: extraLookAndFeel }) !== lookAndFeelBaseline,
+    [lookAndFeel, extraLookAndFeel, lookAndFeelBaseline],
+  );
+
+  /**
+   * Upload a new logo image and set the `logo` look-and-feel value to the stored reference. Reuses
+   * the existing tenant-scoped S3 upload path (`uploadImage` -> `POST /api/landing/images/upload`)
+   * rather than a new subsystem: the server stores the file under the tenant prefix and returns a
+   * public `url`, which we lift into the working `extraLookAndFeel.logo` (so it shows in the preview
+   * immediately and is persisted by the single bottom Save, like any other look-and-feel value).
+   * Returns the stored URL (or throws a caller-safe error the control surfaces).
+   */
+  const handleUploadLogo = async (file: File): Promise<string> => {
+    const { url } = await uploadImage(file);
+    handleExtraLookAndFeelChange('logo', url);
+    return url;
+  };
+
+  /**
+   * Persist ALL current look-and-feel values in the builder's single bottom Save button (same model as fields: edits are in-memory, one Save persists). The
+   * per-field blur persist stays as a convenience, but this is the clear, deliberate action an
+   * admin can see and trigger. It walks the WORKING maps (the seven + the three extras) and issues
+   * one values-only Change-Op per attribute via the same `setLookAndFeelSetting` path, then
+   * surfaces one success / error toast. No response write-back (the optimistic working map is the
+   * source of truth), so it is free of the overlapping-response race.
+   */
+  const persistLookAndFeel = async () => {
+    const sevenEntries = Object.entries(lookAndFeel) as [SupportedAttribute, string | null][];
+    const extraEntries = Object.entries(extraLookAndFeel) as [ExtraAttribute, string | null][];
+    for (const [attribute, value] of sevenEntries) {
+      await setLookAndFeelSetting(attribute, value);
+    }
+    for (const [attribute, value] of extraEntries) {
+      await setLookAndFeelSetting(attribute, value);
+    }
+    // Clear the dirty flag: the working maps are now the saved baseline.
+    setLookAndFeelBaseline(
+      JSON.stringify({ seven: lookAndFeel, extra: extraLookAndFeel }),
+    );
+  };
 
   /**
    * The single `field_overlay` commit (design §3.1): one Save → one `PUT /members/config/fields`.
@@ -273,6 +323,12 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   const handleSaveFields = async () => {
     setSaving(true);
     try {
+      // The SINGLE builder Save (serverless-friendly): persist the look-and-feel working maps in one
+      // batched pass FIRST (values-only Change-Ops), then the field_overlay diff — there is no
+      // separate look-and-feel Save button. Look-and-feel errors surface via the shared catch below.
+      if (lookAndFeelDirty) {
+        await persistLookAndFeel();
+      }
       // Phase 5 (spec 03): the per-field application attributes commit by IDENTITY via the
       // Change-Op path, not the whole overlay. Derive the ops from the loaded baseline → the edited
       // working overlay — a form-builder edit is a `set_field_application` by the BARE field key
@@ -495,10 +551,13 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   ) => {
     setSettingLookAndFeel(true);
     try {
-      const res = await setLookAndFeelSetting(attribute, value);
-      // The write IS the authored state: re-seed from the resolved values the edge returns so the
-      // editor + preview reflect the persisted slice (not just the optimistic local edit).
-      setLookAndFeel(res.settings ?? {});
+      await setLookAndFeelSetting(attribute, value);
+      // Persist ONLY. The optimistic local edit (applied by handleLookAndFeelChange on change) is
+      // the authoritative draft and already feeds the preview; the load-time GET is the seed. We do
+      // NOT re-seed the working maps from the PUT response: each response carries the slice resolved
+      // AT THAT REQUEST'S MOMENT, so when edits overlap (type title, then logo, before the first PUT
+      // resolves) an older-but-later-arriving response would overwrite the newer edit and snap a
+      // control back to its previous value. Writing nothing back on success removes that race.
     } catch (e) {
       // Caller-safe: the backend already returns a generic, caller-safe envelope (the structured
       // ApiError message names the client's OWN rejected setting on a 422, a generic "Forbidden"
@@ -539,11 +598,10 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   ) => {
     setSettingLookAndFeel(true);
     try {
-      const res = await setLookAndFeelSetting(attribute, value);
-      // Re-seed the SEPARATE extra map from the resolved values the edge returns (the three new
-      // attributes only — the seven preview-rendered attributes are owned by `lookAndFeel`).
-      const { extra } = splitLookAndFeel(res.settings ?? {});
-      setExtraLookAndFeel(extra);
+      await setLookAndFeelSetting(attribute, value);
+      // Persist ONLY — no re-seed from the response (same overlap race as handleSetLookAndFeel): the
+      // optimistic local edit is the authoritative draft, so an older-but-later-arriving PUT response
+      // must never overwrite a newer edit. The load-time GET remains the authoritative seed.
     } catch (e) {
       // Caller-safe: the backend already returns a generic, caller-safe envelope (the structured
       // ApiError message names the client's OWN rejected setting on a 422, a generic "Forbidden"
@@ -757,6 +815,7 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
               extraValues={extraLookAndFeel}
               onExtraChange={handleExtraLookAndFeelChange}
               onExtraSave={handleSetExtraLookAndFeel}
+              onUploadLogo={handleUploadLogo}
               saving={settingLookAndFeel}
               lang={lang}
             />
@@ -800,8 +859,8 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
           <Button
             colorScheme="orange"
             onClick={handleSaveFields}
-            isLoading={saving}
-            isDisabled={!dirty}
+            isLoading={saving || settingLookAndFeel}
+            isDisabled={!dirty && !lookAndFeelDirty}
             loadingText={t('Opslaan…', 'Saving…')}
             data-testid="application-form-builder-save"
           >

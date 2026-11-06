@@ -217,26 +217,33 @@ def _has_collapsing_multi_column_grid(html):
         ".application-form",
     )
     has_multi_col = False
+    has_collapse = False
     for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", norm):
         selector, body = match.group(1), match.group(2)
         if "grid-template-columns" not in body:
             continue
         if not any(sel in selector for sel in form_container_selectors):
             continue
-        # A multi-column track list: repeat(N, ...) with N>1, or >=2 explicit tracks.
+        # Width-driven capped auto-fit: multi-column-CAPABLE iff the calc() cap denominator is >1,
+        # and it INHERENTLY reflows to one column (auto-fit + a rem/px floor) with no breakpoint.
+        cap = re.search(r"max-width:\s*calc\(\s*(\d+)\s*\*\s*20rem", body)
+        if "auto-fit" in body and re.search(r"minmax\(\s*\d+(?:\.\d+)?(?:rem|px)", body):
+            has_collapse = True
+            if cap and int(cap.group(1)) > 1:
+                has_multi_col = True
+        # Legacy fixed repeat(N>1, ...) multi-column.
         repeat_match = re.search(r"repeat\(\s*(\d+)", body)
         if repeat_match and int(repeat_match.group(1)) > 1:
             has_multi_col = True
-        elif "1fr 1fr" in body or "fr " in body.replace("1fr", "", 1):
-            has_multi_col = True
-    # A small-screen collapse to a single column for the SAME container.
-    has_collapse = bool(
-        re.search(
-            r"@media[^{]*max-width[^{]*\{[^}]*(1fr|grid-template-columns:\s*none|"
-            r"grid-template-columns:\s*1fr)",
-            norm,
+    # Legacy media-query collapse (back-compat).
+    if not has_collapse:
+        has_collapse = bool(
+            re.search(
+                r"@media[^{]*max-width[^{]*\{[^}]*(1fr|grid-template-columns:\s*none|"
+                r"grid-template-columns:\s*1fr)",
+                norm,
+            )
         )
-    )
     return has_multi_col and has_collapse
 
 

@@ -193,9 +193,6 @@ export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
           // (mirroring the published `@media (max-width: 480px)` collapse).
           sx={{
             ...pageStyles.cssVariableMap,
-            '& [data-testid^="group-grid-"]': {
-              gridTemplateColumns: { base: '1fr', md: `repeat(${columns}, 1fr)` },
-            },
           }}
           data-lookandfeel-vars={pageStyles.cssVariables}
           data-lookandfeel-columns={columns}
@@ -235,6 +232,7 @@ export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
             values={{}}
             onChange={() => { }}
             idPrefix="application-preview"
+            columns={columns}
           />
         </Box>
       )}
