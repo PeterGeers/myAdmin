@@ -713,11 +713,31 @@ class ConfigFieldsCrudService:
         attr = self._require_look_and_feel_attribute(attribute)
 
         def derive(snapshot):
+            # CREATE-vs-UPDATE by parent-map existence (same discipline as the field CREATE
+            # path, Must-fix #1): a nested ``SET look_and_feel.<attr>`` is INVALID when the
+            # ``look_and_feel`` parent map does not yet exist on the row — DynamoDB rejects it
+            # with a ValidationException ("document path ... invalid for update"). A LEGACY
+            # pre-task-4.1 ``config#fields`` row never received the skeleton seed, so its parent
+            # map is absent. When absent, SEED the whole slice in one op (``SET look_and_feel =
+            # {attr: value}``) — which creates the parent map with this one attribute; when it
+            # already exists, emit the minimal nested ``SET look_and_feel.<attr>`` so sibling
+            # attributes are left physically untouched. Either way a SINGLE op naming only the
+            # ``look_and_feel`` path (other slices survive by construction).
+            existing = snapshot.get(_LOOK_AND_FEEL_MAP) if isinstance(snapshot, Mapping) else None
+            if isinstance(existing, Mapping):
+                return [
+                    {
+                        "action": SET,
+                        "path": [_LOOK_AND_FEEL_MAP, attr],
+                        "value": value,
+                    }
+                ]
+            # Parent map absent (legacy/never-authored row) — seed the whole slice.
             return [
                 {
                     "action": SET,
-                    "path": [_LOOK_AND_FEEL_MAP, attr],
-                    "value": value,
+                    "path": [_LOOK_AND_FEEL_MAP],
+                    "value": {attr: value},
                 }
             ]
 

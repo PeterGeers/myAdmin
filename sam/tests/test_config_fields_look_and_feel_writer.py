@@ -63,6 +63,37 @@ def _service(repo=None):
     return ConfigFieldsCrudService(repo), repo
 
 
+class _SeededLookAndFeelReader:
+    """A minimal resolved-view reader whose raw overlay carries a look_and_feel map.
+
+    Injected so the writer's snapshot shows the parent map ALREADY EXISTS — the normal
+    seeded-row case, where ``set_look_and_feel`` emits the minimal nested
+    ``SET look_and_feel.<attr>`` (preserving sibling attributes). An EMPTY map (``{}``) still
+    counts as present (a tenant-create skeleton seeds an empty map), so the nested SET is used.
+    """
+
+    def __init__(self, look_and_feel):
+        self._laf = dict(look_and_feel)
+
+    def get_raw_fields_overlay(self, tenant_id, *, consistent_read=False):
+        return {
+            "fields": {},
+            "fixed_overrides": {},
+            "functional_groups": {},
+            "look_and_feel": dict(self._laf),
+        }
+
+    def get_config_fields_version(self, tenant_id, consistent_read=False):
+        return (True, "v-1")
+
+
+def _service_seeded(look_and_feel=None):
+    """A service whose reader reports an EXISTING look_and_feel parent map (seeded row)."""
+    repo = RecordingFakeRepository()
+    reader = _SeededLookAndFeelReader(look_and_feel or {})
+    return ConfigFieldsCrudService(repo, reader=reader), repo
+
+
 # ── The ops EXIST as public methods ────────────────────────────────────────────────────
 
 
@@ -76,7 +107,8 @@ def test_look_and_feel_writer_methods_are_public():
 
 
 def test_set_look_and_feel_persists_single_path_scoped_set():
-    svc, repo = _service()
+    # Seeded row (parent map exists) → the minimal nested SET that preserves siblings.
+    svc, repo = _service_seeded({"font_body": "Inter"})
 
     result = svc.set_look_and_feel(_TENANT, "color_primary", "#2D5F8A")
 
@@ -95,7 +127,7 @@ def test_set_look_and_feel_persists_single_path_scoped_set():
 
 def test_set_look_and_feel_stores_value_verbatim_never_css():
     # The adapter stores the VALUE as-is — never a generated CSS string / block.
-    svc, repo = _service()
+    svc, repo = _service_seeded({"font_body": "Inter"})
     svc.set_look_and_feel(_TENANT, "base_spacing", "normal")
     op = repo.last["ops"][0]
     assert op["value"] == "normal"
@@ -134,9 +166,57 @@ def test_set_look_and_feel_rejects_blank_attribute_no_write(bad_attr):
 
 
 def test_set_look_and_feel_trims_attribute_segment():
-    svc, repo = _service()
+    svc, repo = _service_seeded({"font_body": "Inter"})
     svc.set_look_and_feel(_TENANT, "  font_heading  ", "Inter")
     assert repo.last["ops"][0]["path"] == ["look_and_feel", "font_heading"]
+
+
+# ── LEGACY row (no look_and_feel parent map) → seed the WHOLE slice (prod 500 regression) ──
+#
+# The production defect this pins: a LEGACY `config#fields` row (created BEFORE task 4.1 added
+# the `look_and_feel` parent map to the skeleton) has NO `look_and_feel` attribute. A nested
+# `SET look_and_feel.<attr>` against such a row is rejected by DynamoDB with a ValidationException
+# ("The document path provided in the update expression is invalid for update") → unhandled → a
+# live 500 on PUT /members/look-and-feel (observed on deployed TEST for the h-dcn row). The writer
+# must therefore branch on parent-map existence: when ABSENT, seed the whole slice in one op
+# (`SET look_and_feel = {attr: value}`), which creates the parent map; when present, the minimal
+# nested SET. Both are a single op naming only the `look_and_feel` path. The RecordingFakeRepository
+# path (no reader) models the "snapshot cannot see a parent map" case → the seed form.
+
+
+def test_set_look_and_feel_seeds_whole_slice_when_parent_map_absent():
+    # Reader reports a row WITHOUT a look_and_feel map (legacy row) → seed the whole slice.
+    class _LegacyReader:
+        def get_raw_fields_overlay(self, tenant_id, *, consistent_read=False):
+            # A legacy row: fields/overrides present, but NO look_and_feel key at all.
+            return {"fields": {"nickname": {"type": "text"}}, "fixed_overrides": {}, "functional_groups": {}}
+
+        def get_config_fields_version(self, tenant_id, consistent_read=False):
+            return (True, "v-1")
+
+    repo = RecordingFakeRepository()
+    svc = ConfigFieldsCrudService(repo, reader=_LegacyReader())
+
+    svc.set_look_and_feel(_TENANT, "color_primary", "#2D5F8A")
+
+    # ONE op that SETs the WHOLE look_and_feel slice (creating the parent map), NOT a nested
+    # SET look_and_feel.color_primary (which would be invalid on a row with no parent map).
+    ops = repo.last["ops"]
+    assert ops == [
+        {"action": SET, "path": ["look_and_feel"], "value": {"color_primary": "#2D5F8A"}}
+    ]
+    # Still names ONLY the look_and_feel path — unrelated slices untouched by construction.
+    assert ops[0]["path"][0] == "look_and_feel"
+
+
+def test_set_look_and_feel_seeds_whole_slice_when_no_reader_snapshot():
+    # No reader wired → the snapshot is None (first-write placement). The writer cannot see a
+    # parent map, so it seeds the whole slice — safe for a legacy/never-authored row.
+    svc, repo = _service()  # RecordingFakeRepository, no reader
+    svc.set_look_and_feel(_TENANT, "shadow_style", "subtle")
+    assert repo.last["ops"] == [
+        {"action": SET, "path": ["look_and_feel"], "value": {"shadow_style": "subtle"}}
+    ]
 
 
 # ── REMOVE one attribute → REMOVE look_and_feel.<attr> ──────────────────────────────────
