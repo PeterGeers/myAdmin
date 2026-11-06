@@ -635,3 +635,142 @@ def test_real_repo_set_look_and_feel_stale_version_raises_and_persists_nothing()
     assert table.item["slug"] == "h-dcn/membership"
     assert table.item["published_version"] == "v-1"
     assert table.item["overrides"] == {"personal.gender": {"application_visible": True}}
+
+
+# ── Bugfix task 9 — the THREE NEW values ride the EXISTING Change-Op path ───────────────
+#
+# Spec: `.kiro/specs/Members/15 - sam-page-look-and-feel/bugfix-published-form-styling`,
+#       task 9 (Phase 2, R-A C — stored-slice plane).
+# Validates: Requirements 2.7; spec-15 Req 8.1, 8.3 (Change-Op write contract).
+#
+# R-A adds three NEW values-only look-and-feel attributes — `logo` (a URL/asset reference,
+# never a CSS/binary upload into the slice — DD-C1), `header_title` (escaped text), and
+# `columns` (a bounded enum/integer). This task is a STORAGE-SEAM confirmation: it pins that
+# the EXISTING path-scoped Change-Op writer already carries ARBITRARY values-only attributes
+# within the `look_and_feel` slice BY CONSTRUCTION — no schema change, no whole-record write,
+# and NO repository-layer attribute allow-list. The writer adapter (`set_look_and_feel`) only
+# requires a non-blank attribute string and stores the value verbatim; the supported-attribute /
+# permitted-value validation (`columns` range, `logo` reference shape, `header_title` length)
+# is the `LookAndFeelSettingsService` / edge's job (task 10), deliberately kept OUT of this
+# reusable storage adapter. So the three new keys need no storage-plane code change — this test
+# documents and PINS that invariant for them.
+#
+# For each new attribute, over the REAL `MembersConfigWriteRepository` + the in-memory
+# `_FakeTable` (no boto3), a `set_look_and_feel` SET:
+#   * lands the VALUE in the `look_and_feel` slice (stored verbatim, never CSS),
+#   * leaves `fields` / `overrides` / slug / publish-state PHYSICALLY UNTOUCHED (by construction —
+#     the op names only `look_and_feel.<attr>`, so DynamoDB's single-path `update_item` cannot
+#     write any attribute the op did not name, steering 39 / R4.1), and
+#   * bumps the record `version` (the version-conditional write advanced the optimistic lock).
+#
+# Reuses the task-4.5/4.6 helpers above (`_FakeTable` / `_real_repo` / `_FakeReader` /
+# `_skeleton_item_with_slug_and_publish_state`) — no duplication.
+
+
+@pytest.mark.parametrize(
+    "new_attribute,value",
+    [
+        # `columns` — a bounded enum/integer column count (the grid driver). Stored verbatim as a
+        # value; range validation lives at the service/edge (task 10), not this storage seam.
+        ("columns", 3),
+        # `logo` — a URL/asset REFERENCE string (DD-C1), never a CSS/binary upload into the slice.
+        ("logo", "https://assets.example.org/h-dcn/logo.png"),
+        # `header_title` — free text (HTML-escaped on render), length-bounded at the edge.
+        ("header_title", "Membership Application"),
+    ],
+)
+def test_real_repo_set_new_value_attribute_rides_existing_change_op_untouched_siblings(
+    new_attribute, value
+):
+    # A NEW R-A attribute SETs through the SAME path-scoped Change-Op as the existing seven —
+    # proving the storage seam carries arbitrary values-only attributes by construction (no
+    # schema change, no allow-list at the repository layer).
+    table = _FakeTable(_skeleton_item_with_slug_and_publish_state())
+    svc = ConfigFieldsCrudService(_real_repo(table), reader=_FakeReader(table))
+
+    result = svc.set_look_and_feel(_TENANT, new_attribute, value)
+
+    # The op that reached the repository named ONLY a `look_and_feel` path (nested SET — the
+    # parent map already exists on the seeded row), so unrelated slices cannot be touched.
+    # (The seeded row carries a `look_and_feel: {}` parent map, so the minimal nested SET is used.)
+
+    # The VALUE landed in the look_and_feel slice, stored VERBATIM (never a generated CSS string)…
+    assert table.item["look_and_feel"][new_attribute] == value
+    assert ":root" not in str(table.item["look_and_feel"][new_attribute])
+    assert "{" not in str(table.item["look_and_feel"][new_attribute])
+
+    # …`fields` / `overrides` / slug / publish-state survive PHYSICALLY UNTOUCHED (by construction)…
+    assert table.item["fields"] == {"nickname": {"type": "text"}}
+    assert table.item["overrides"] == {"personal.gender": {"application_visible": True}}
+    assert table.item["functional_groups"] == {"personal": {"label": "Personal"}}
+    assert table.item["slug"] == "h-dcn/membership"
+    assert table.item["published_version"] == "v-1"
+    assert table.item["published_at"] == "2026-01-01T00:00:00Z"
+
+    # …and the record VERSION was bumped by the version-conditional write (optimistic lock advanced).
+    assert table.item["version"] == "v-2"
+    assert result == {"version": "v-2", "idempotent_replay": False}
+
+
+class _LookAndFeelAwareReader(_FakeReader):
+    """A `_FakeReader` that also SURFACES the stored `look_and_feel` map in its overlay.
+
+    The base `_FakeReader` omits `look_and_feel` from `get_raw_fields_overlay`, so the service's
+    placement snapshot sees no parent map and takes the seed-whole-slice branch. A seeded row
+    whose `look_and_feel` parent map ALREADY EXISTS must drive the minimal NESTED
+    `SET look_and_feel.<attr>` (preserving sibling attributes) — this reader reports that map so
+    the nested-SET path is exercised, matching the real `MembersProjectionReader` overlay shape.
+    """
+
+    def get_raw_fields_overlay(self, tenant_id, consistent_read=False):
+        overlay = super().get_raw_fields_overlay(tenant_id, consistent_read=consistent_read)
+        item = self._table.item or {}
+        overlay["look_and_feel"] = dict(item.get("look_and_feel", {}))
+        return overlay
+
+
+def test_real_repo_set_new_value_attribute_preserves_existing_look_and_feel_siblings():
+    # Authoring a NEW attribute (`columns`) must preserve the EXISTING look-and-feel attributes
+    # already on the slice — the minimal nested `SET look_and_feel.columns` leaves sibling
+    # attributes (`color_primary`, `font_body`) physically untouched (by construction). The reader
+    # surfaces the existing `look_and_feel` map so the service emits the nested SET (not a reseed).
+    seed = _skeleton_item_with_slug_and_publish_state()
+    seed["look_and_feel"] = {"color_primary": "#2D5F8A", "font_body": "Inter"}
+    table = _FakeTable(seed)
+    svc = ConfigFieldsCrudService(_real_repo(table), reader=_LookAndFeelAwareReader(table))
+
+    svc.set_look_and_feel(_TENANT, "columns", 2)
+
+    assert table.item["look_and_feel"] == {
+        "color_primary": "#2D5F8A",
+        "font_body": "Inter",
+        "columns": 2,
+    }
+    assert table.item["version"] == "v-2"
+
+
+def test_set_new_value_attribute_emits_single_look_and_feel_scoped_op():
+    # At the adapter level (the RecordingFakeRepository, no reader → first-write placement),
+    # authoring any of the three NEW attributes emits exactly ONE op that names ONLY the
+    # `look_and_feel` path — the same shape the existing seven use. This pins that the storage
+    # seam needs no per-attribute branching for the new values.
+    for new_attribute, value in (
+        ("columns", 3),
+        ("logo", "https://assets.example.org/logo.svg"),
+        ("header_title", "Join us"),
+    ):
+        svc, repo = _service()  # RecordingFakeRepository, no reader
+        svc.set_look_and_feel(_TENANT, new_attribute, value)
+        ops = repo.last["ops"]
+        assert len(ops) == 1
+        assert ops[0]["action"] == SET
+        assert ops[0]["path"][0] == "look_and_feel"
+        # No whole-record replace, no schema-shaped container — a single values-only path op.
+        assert ops[0]["path"][0] not in {
+            "fields",
+            "overrides",
+            "functional_groups",
+            "slug",
+            "published_version",
+            "published_at",
+        }

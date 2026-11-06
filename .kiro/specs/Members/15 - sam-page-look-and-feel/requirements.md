@@ -44,6 +44,12 @@ Open Questions).
   the capability reads to produce styling). The attributes supported today by the styling logic are
   color_primary, color_accent, font_heading, font_body, base_spacing, border_radius_global, and
   shadow_style.
+  > **Note (extended to ten):** this set of seven was deliberately extended to **ten** by the
+  > `bugfix-published-form-styling` bugfix (see
+  > `.kiro/specs/Members/15 - sam-page-look-and-feel/bugfix-published-form-styling/`), which added
+  > three further values-only attributes — `logo` (URL / asset reference), `header_title` (escaped
+  > heading text), and `columns` (bounded enum / integer driving the layout). See that bugfix spec
+  > for the rationale and the all-planes rollout.
 - **Styling_Logic**: The CSS-generation logic that turns a styling-attribute set into CSS. It
   originates as the Flask landing-page logic (`LandingPageStyles`), today vendored into the SAM
   Members layer; this feature makes it SAM-owned (reimplemented or relocated) so it is no longer
@@ -93,7 +99,7 @@ Open Questions).
 #### Acceptance Criteria
 
 1. THE Styling_Logic used by the Look_And_Feel_Capability SHALL be owned on SAM_Plane (reimplemented or relocated to a SAM-owned location), and SHALL NOT depend on a Flask-plane module as its source of truth, including as a build-time vendored copy.
-2. THE Look_And_Feel_Capability SHALL support exactly the following styling attributes: color_primary, color_accent, font_heading, font_body, base_spacing, border_radius_global, and shadow_style.
+2. THE Look_And_Feel_Capability SHALL support exactly the following styling attributes: color_primary, color_accent, font_heading, font_body, base_spacing, border_radius_global, and shadow_style. *(Extended to ten by the `bugfix-published-form-styling` bugfix, which added the values-only attributes `logo`, `header_title`, and `columns`; see `bugfix-published-form-styling/`. The "exactly" closed-set / unsupported-attribute rejection of criterion 4 still holds — against the now-ten set.)*
 3. WHERE a Look_And_Feel_Settings attribute is absent, THE Look_And_Feel_Capability SHALL produce styling using the SAM-owned Styling_Logic's default value for that attribute.
 4. IF a provided Look_And_Feel_Settings attribute is not one of the supported attributes listed in criterion 2, THEN THE Look_And_Feel_Capability SHALL reject the request, SHALL return an error indicating the unsupported attribute, and SHALL produce no Page styling for that request.
 5. WHEN the Look_And_Feel_Capability produces a Page's styling, THE Look_And_Feel_Capability SHALL produce it entirely from SAM_Plane-owned code with no runtime call to the Flask plane.

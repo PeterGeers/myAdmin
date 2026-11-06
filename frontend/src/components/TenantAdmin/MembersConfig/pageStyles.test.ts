@@ -30,15 +30,21 @@ const RADIUS_VALUES = ['sharp', 'rounded', 'pill'] as const;
 const SHADOW_VALUES = ['none', 'subtle', 'medium', 'dramatic'] as const;
 
 describe('renderPageStyles — supported attributes + defaults (Req 3.2, 3.3)', () => {
-  it('supports exactly the seven attributes the Python generator supports (Req 3.2)', () => {
+  it('supports exactly the TEN attributes the Python generator supports (Req 3.2 + bugfix 3.4)', () => {
+    // The original seven PLUS the three the bugfix `bugfix-published-form-styling` added as a
+    // documented extension (`columns` / `logo` / `header_title`, bugfix 3.4) — mirrors the Python
+    // `SUPPORTED_ATTRIBUTES` frozenset exactly.
     expect([...SUPPORTED_ATTRIBUTES].sort()).toEqual(
       [
         'base_spacing',
         'border_radius_global',
         'color_accent',
         'color_primary',
+        'columns',
         'font_body',
         'font_heading',
+        'header_title',
+        'logo',
         'shadow_style',
       ].sort(),
     );
@@ -53,7 +59,46 @@ describe('renderPageStyles — supported attributes + defaults (Req 3.2, 3.3)', 
       base_spacing: 'normal',
       border_radius_global: 'rounded',
       shadow_style: 'subtle',
+      // bugfix bugfix-published-form-styling: the three new attributes default to the sensible
+      // multi-column count + empty logo/title (= absent → no logo / no heading), mirroring Python.
+      columns: '2',
+      logo: '',
+      header_title: '',
     });
+  });
+
+  it('drives the application-form grid track count from the `columns` attribute (bugfix 2.2)', () => {
+    // The default renders a 2-track grid; a distinct columns value changes the track count.
+    expect(renderPageStyles({}).pageCss).toContain(
+      '.application-form .form-group { display: grid; grid-template-columns: repeat(2, 1fr);',
+    );
+    expect(renderPageStyles({ columns: '3' }).pageCss).toContain(
+      '.application-form .form-group { display: grid; grid-template-columns: repeat(3, 1fr);',
+    );
+    // Out-of-range clamps to the sane 1..4 ceiling (defensive — authoritative reject at the edge).
+    expect(renderPageStyles({ columns: '9' }).pageCss).toContain(
+      'grid-template-columns: repeat(4, 1fr);',
+    );
+  });
+
+  it('applies the brand colours to the form OWN elements via the application-form block (bugfix 2.1)', () => {
+    const { pageCss, cssVariables } = renderPageStyles({ color_primary: '#C01030', color_accent: '#0A0B0C' });
+    // The two brand colours are exposed as :root variables (DD-B1).
+    expect(cssVariables).toContain('--color-primary: #C01030;');
+    expect(cssVariables).toContain('--color-accent: #0A0B0C;');
+    // ...and inlined onto the form's own heading / submit button / focus state.
+    expect(pageCss).toContain('.application-form button[type="submit"] { background: #C01030;');
+    expect(pageCss).toContain('.application-form button[type="submit"]:hover { background: #0A0B0C;');
+    expect(pageCss).toContain('outline: 2px solid #C01030;');
+  });
+
+  it('carries `logo` / `header_title` as supported values that emit NO CSS of their own (bugfix 3.4)', () => {
+    // They are accepted (no rejection) but do not alter the generated CSS — the renderer/preview
+    // consume them. Supplying them produces the same CSS as omitting them.
+    const withValues = renderPageStyles({ logo: 'https://x/l.png', header_title: 'Hi' });
+    const without = renderPageStyles({});
+    expect(withValues.pageCss).toBe(without.pageCss);
+    expect(withValues.cssVariables).toBe(without.cssVariables);
   });
 
   it('with NO settings, emits the default :root block (system fonts, normal/rounded/subtle)', () => {
@@ -323,7 +368,7 @@ describe('Feature: sam-page-look-and-feel, Property 4: absent attributes fall ba
 
 describe('Feature: sam-page-look-and-feel, Property 5: unsupported attribute is rejected and produces no styling', () => {
   // Validates: Requirements 3.4
-  it('any mapping carrying a key outside the seven supported attributes throws, producing no output', () => {
+  it('any mapping carrying a key outside the ten supported attributes throws, producing no output', () => {
     const unsupportedKey = fc
       .string({ minLength: 1, maxLength: 12 })
       .filter((k) => !(SUPPORTED_ATTRIBUTES as readonly string[]).includes(k) && k.trim() !== '');

@@ -63,6 +63,7 @@ import {
   type LookAndFeelSettingsValues,
 } from '../../../services/members/membersConfigApi';
 import type { SupportedAttribute } from './pageStyles';
+import type { ExtraAttribute, ExtraLookAndFeelValues } from './LookAndFeelEditor';
 import { computeReadiness } from './applicationReadiness';
 import type { MembersConfigValue } from '../../../types/membersConfig';
 import type { FieldConfig } from '../../../types/members';
@@ -81,6 +82,40 @@ import {
 
 interface Props {
   tenant: string;
+}
+
+/**
+ * The three NEW look-and-feel attributes the bugfix `bugfix-published-form-styling` adds
+ * (`logo`/`header_title`/`columns`; bugfix 3.4 / design §C). They are authored alongside the
+ * seven but ride a SEPARATE working map because the preview path (`renderPageStyles`) renders
+ * only the seven today.
+ */
+const EXTRA_LOOKANDFEEL_ATTRIBUTES: readonly ExtraAttribute[] = [
+  'logo',
+  'header_title',
+  'columns',
+];
+
+/**
+ * Split a resolved `look_and_feel` slice into the seven preview-rendered attributes and the three
+ * new values-only attributes. The seven feed the preview's `renderPageStyles` (which rejects any
+ * key outside the seven today); the three new ones feed the separate `extraLookAndFeel` working
+ * map. Values-only in both halves — never CSS.
+ */
+function splitLookAndFeel(settings: LookAndFeelSettingsValues): {
+  seven: LookAndFeelSettingsValues;
+  extra: ExtraLookAndFeelValues;
+} {
+  const seven: LookAndFeelSettingsValues = {};
+  const extra: ExtraLookAndFeelValues = {};
+  for (const [key, value] of Object.entries(settings)) {
+    if ((EXTRA_LOOKANDFEEL_ATTRIBUTES as readonly string[]).includes(key)) {
+      extra[key as ExtraAttribute] = value as string | null;
+    } else {
+      seven[key as keyof LookAndFeelSettingsValues] = value as string | null;
+    }
+  }
+  return { seven, extra };
 }
 
 export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
@@ -128,6 +163,28 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   // lookAndFeel` prop so an admin's stored + UNSAVED edits render live in the preview with no
   // server round-trip (Req 7.2) — closing the gap where the preview rendered with NO lookAndFeel.
   const [lookAndFeel, setLookAndFeel] = useState<LookAndFeelSettingsValues>({});
+
+  // The WORKING values for the three NEW look-and-feel attributes the bugfix
+  // `bugfix-published-form-styling` adds (`logo`/`header_title`/`columns`; bugfix 3.4 / design §C).
+  // They ride their own working map because the editor exposes them through dedicated controls,
+  // but as of Task 12 they are NOT isolated from the preview: the merged `previewLookAndFeel`
+  // (below) feeds all ten to `renderPageStyles`, which was extended (Task 8) to accept them. They
+  // persist via the SAME values-only `setLookAndFeelSetting` Change-Op path as the seven (never
+  // CSS, never a whole record, steering 39) and are seeded from the same `getLookAndFeelSettings`
+  // slice on load.
+  const [extraLookAndFeel, setExtraLookAndFeel] = useState<ExtraLookAndFeelValues>({});
+
+  // bugfix bugfix-published-form-styling Task 12 — the UNIFIED look-and-feel map fed to the
+  // preview. The editor still authors the seven (`lookAndFeel`) and the three new attributes
+  // (`extraLookAndFeel`) through their own controls, but the preview now consumes ALL TEN as one
+  // set: `renderPageStyles` was extended (Task 8) to accept `logo`/`header_title`/`columns`, so
+  // the preview reflects the three new values (grid columns, logo, heading) and matches the
+  // published form (Req 2.6). Merging here keeps ONE SAM-owned attribute set feeding BOTH planes —
+  // the seven/extra split is now purely an authoring-control detail, not a styling divergence.
+  const previewLookAndFeel = useMemo(
+    () => ({ ...lookAndFeel, ...extraLookAndFeel }),
+    [lookAndFeel, extraLookAndFeel],
+  );
 
   // The form-shell working values (slug/URL display, embed, consent — task 3.2). Seeded from the
   // loaded `config#mail` + the landing-page slug; committed once via `saveMembersMailConfig` →
@@ -180,9 +237,16 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       // read is values-only; it never carries CSS.
       try {
         const lf = await getLookAndFeelSettings();
-        setLookAndFeel(lf.settings ?? {});
+        // Split the resolved slice: the three NEW attributes (`logo`/`header_title`/`columns`)
+        // ride a SEPARATE working map (the preview path renders only the seven today — routing
+        // these three through its `renderPageStyles` map would reject). The seven preview-rendered
+        // attributes seed `lookAndFeel`; the three new ones seed `extraLookAndFeel`.
+        const { seven, extra } = splitLookAndFeel(lf.settings ?? {});
+        setLookAndFeel(seven);
+        setExtraLookAndFeel(extra);
       } catch {
         setLookAndFeel({});
+        setExtraLookAndFeel({});
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -451,6 +515,51 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   };
 
   /**
+   * Lift a NEW-attribute look-and-feel edit (`logo`/`header_title`/`columns`) into the
+   * `extraLookAndFeel` working map (bugfix `bugfix-published-form-styling`, Task 11/12). Pure +
+   * synchronous. As of Task 12 these three ARE reflected in the preview: the merged
+   * `previewLookAndFeel` feeds all ten to `renderPageStyles`, so an unsaved edit to logo/title/
+   * columns previews live on the very next render (Req 2.6/7.2), no server round-trip. An explicit
+   * `null` clears the attribute (preview reverts to the Layer-2 default). Values-only.
+   */
+  const handleExtraLookAndFeelChange = (attribute: ExtraAttribute, value: string | null) => {
+    setExtraLookAndFeel((prev) => ({ ...prev, [attribute]: value }));
+  };
+
+  /**
+   * Persist ONE NEW look-and-feel attribute VALUE via the SAME Layer-1 authoring client as the
+   * seven (`setLookAndFeelSetting`): a single values-only Change-Op — NEVER generated CSS, NEVER a
+   * whole record (steering 39). `null` clears the attribute. A failure surfaces the SAM edge's
+   * CALLER-SAFE error envelope as a toast (422 identifying the rejected setting, 403 cross-tenant,
+   * 409 stale version), exactly as the seven-attribute control does — no internals leak.
+   */
+  const handleSetExtraLookAndFeel = async (
+    attribute: ExtraAttribute,
+    value: string | null,
+  ) => {
+    setSettingLookAndFeel(true);
+    try {
+      const res = await setLookAndFeelSetting(attribute, value);
+      // Re-seed the SEPARATE extra map from the resolved values the edge returns (the three new
+      // attributes only — the seven preview-rendered attributes are owned by `lookAndFeel`).
+      const { extra } = splitLookAndFeel(res.settings ?? {});
+      setExtraLookAndFeel(extra);
+    } catch (e) {
+      // Caller-safe: the backend already returns a generic, caller-safe envelope (the structured
+      // ApiError message names the client's OWN rejected setting on a 422, a generic "Forbidden"
+      // on a 403, a reload-and-retry on a 409) — surface it without leaking internals.
+      toast({
+        title: 'Error',
+        description: e instanceof Error ? e.message : String(e),
+        status: 'error',
+        duration: 6000,
+      });
+    } finally {
+      setSettingLookAndFeel(false);
+    }
+  };
+
+  /**
    * Deliberately publish the application form (spec 12 R5 / OQ1 = option 1): the ONE explicit
    * go-live action. It calls `POST /members/application-form/publish` — NEVER triggered by a Save
    * (save ≠ publish). The SAM route re-renders the live artifact from the tenant's CURRENT stored
@@ -645,6 +754,9 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
               values={lookAndFeel}
               onChange={handleLookAndFeelChange}
               onSave={handleSetLookAndFeel}
+              extraValues={extraLookAndFeel}
+              onExtraChange={handleExtraLookAndFeelChange}
+              onExtraSave={handleSetExtraLookAndFeel}
               saving={settingLookAndFeel}
               lang={lang}
             />
@@ -661,10 +773,13 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
             fieldConfig={fieldConfig}
             overlay={overlay}
             lang={lang}
-            // spec 15 task 12.2 — feed the WORKING look-and-feel values into the preview so the
-            // admin's stored + UNSAVED look-and-feel renders live (Req 7.2), closing the gap where
-            // the builder rendered the preview with NO lookAndFeel prop.
-            lookAndFeel={lookAndFeel}
+            // bugfix bugfix-published-form-styling Task 12 — feed the UNIFIED look-and-feel values
+            // (the seven + the three new `logo`/`header_title`/`columns`) into the preview. Now
+            // that `renderPageStyles` accepts all ten (Task 8), the preview reflects the three new
+            // values too (`columns` drives the grid, `logo`/`header_title` render in the body), so
+            // the preview matches the published form (Req 2.6). The two working maps are merged
+            // here — the one SAM-owned attribute set feeds BOTH the editor and the preview.
+            lookAndFeel={previewLookAndFeel}
           />
         </GridItem>
       </Grid>
