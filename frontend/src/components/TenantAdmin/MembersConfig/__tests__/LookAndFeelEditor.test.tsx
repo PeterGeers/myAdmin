@@ -46,6 +46,21 @@ describe('LookAndFeelEditor — the seven-attribute preferences editor (Req 3.2)
     expect(SUPPORTED_ATTRIBUTES).toHaveLength(7);
   });
 
+  it('renders the full editor (incl. the help caption) without throwing — regression for the\n      FormHelperText-outside-FormControl crash that white-screened the builder (task 12.2 bug)', () => {
+    // The original editor placed <FormHelperText> directly in the VStack (no FormControl
+    // ancestor), so Chakra's useFormControlStyles threw at render and the whole Application
+    // Form panel white-screened in the live app. A full render here must NOT throw, and the
+    // caption text must be present — this fails if the help text is ever re-nested wrongly.
+    expect(() =>
+      render(
+        <LookAndFeelEditor values={{}} onChange={vi.fn()} onSave={vi.fn()} lang="en" />,
+      ),
+    ).not.toThrow();
+    expect(
+      screen.getByText('A change is saved for this form immediately.'),
+    ).toBeInTheDocument();
+  });
+
   it('seeds each control from the current values, falling back to the SAM-owned default', () => {
     render(
       <LookAndFeelEditor
