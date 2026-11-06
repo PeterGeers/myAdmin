@@ -81,6 +81,7 @@ _LOG = logging.getLogger(__name__)
 
 __all__ = [
     "FormSlugReader",
+    "LookAndFeelSettingsReader",
     "PublicFieldConfigReader",
     "PublicPrefixReader",
     "PublicPageArtifactWriter",
@@ -264,6 +265,33 @@ class PublicFieldConfigReader(Protocol):
         ...
 
 
+@runtime_checkable
+class LookAndFeelSettingsReader(Protocol):
+    """Resolve the tenant's SAM-owned application-form presentation VALUES — spec 15 §C4 (Req 5.1).
+
+    The Layer-3 wiring seam that feeds the stored ``Look_And_Feel_Settings`` into the Layer-2 CSS
+    generator (``render_page_styles``) at publish time, closing the Req 5 defect where changing a
+    look-and-feel setting had no observable effect on the published form. Mirrors the existing
+    reader seams in this module (:class:`FormSlugReader` / :class:`PublicPrefixReader` /
+    :class:`PublicFieldConfigReader`): tenant → resolved VALUES via the normal ``tenant_id``-pinned
+    resolved-view read.
+
+    Returns the resolved presentation VALUES only (the ``look_and_feel`` slice on ``config#fields``
+    — DD-2), never generated CSS and never a Flask ``landing_page`` value (Req 2.1): CSS is Layer 2's
+    job, and the capability reads exclusively SAM-owned state. Fail-safe / absent-is-valid: a tenant
+    with no stored slice (or a missing key within it) resolves to an EMPTY mapping, which Layer 2
+    turns into its SAM-owned defaults (Req 3.3 / 4.4 / 5.4) — an absent slice is never an error.
+
+    The service depends on this Protocol, never on where the values live; the SAM-plane concrete is
+    the projection reader's resolved-view read (it satisfies this by duck-typing), tests pass a
+    static one.
+    """
+
+    def get_look_and_feel(self, tenant_id: str) -> Mapping[str, Any]:
+        """Return the tenant's resolved presentation VALUES, or ``{}`` when absent (defaults)."""
+        ...
+
+
 class PublishNotReadyReason(str, Enum):
     """The TYPED, admin-facing reason a publish was refused (R5.4 "show, don't block").
 
@@ -397,6 +425,14 @@ class ApplicationPublishService:
             :meth:`get_public_field_config`). The on-form-field precondition counts the filtered
             ``fields`` list — reusing the one filter, never re-deriving which fields are on the
             form (R5.2, no drift).
+        look_and_feel_reader: OPTIONAL Layer-3 wiring seam (spec 15 §C4 / Req 5.1) — the
+            :class:`LookAndFeelSettingsReader` that resolves the tenant's SAM-owned presentation
+            VALUES so the publish render can feed them through Layer 2 (``render_page_styles``)
+            into ``branding=`` on the renderer, closing the Req 5 defect. Matches the optional-seam
+            style of ``slug_marker_store`` / ``prefix_reader`` / ``artifact_writer``: absent (the
+            default), publish behaves EXACTLY as before — the renderer uses its existing fallback
+            defaults — so adding it is backward compatible. The resolve→Layer-2→``branding=`` wiring
+            in :meth:`publish` is task 7.2; this param is the seam it will read.
     """
 
     def __init__(
@@ -408,6 +444,7 @@ class ApplicationPublishService:
         prefix_reader: PublicPrefixReader | None = None,
         artifact_writer: PublicPageArtifactWriter | None = None,
         publish_state_writer: PublishStateWriter | None = None,
+        look_and_feel_reader: LookAndFeelSettingsReader | None = None,
     ) -> None:
         self._slug_reader = slug_reader
         self._readiness = readiness_provider
@@ -416,6 +453,7 @@ class ApplicationPublishService:
         self._prefix_reader = prefix_reader
         self._artifact_writer = artifact_writer
         self._publish_state_writer = publish_state_writer
+        self._look_and_feel_reader = look_and_feel_reader
 
     def _require_ready(self, tenant_id: str) -> str:
         """Enforce the publish readiness gate, or raise the typed refusal (R5.4 / D15 / R6).
@@ -548,7 +586,11 @@ class ApplicationPublishService:
         Runs the readiness gate (:meth:`_require_ready`) FIRST — a not-ready tenant raises
         :class:`PublishNotReady` (the typed, admin-facing refusal) and NOTHING is rendered or
         written (R5.4). A READY tenant then RENDERS the artifact via the shared page shell (spec 14
-        Task 2.2), CLAIMS the ``_slugs/{slug}`` marker (spec 14 Task 8.1), and — when an
+        Task 2.2) — resolving the tenant's SAM-owned look-and-feel VALUES through the injected
+        :class:`LookAndFeelSettingsReader` (when present) and running them through Layer 2 into
+        ``branding=`` on the renderer, so the published form carries the tenant's look-and-feel
+        (spec 15 §C4 / Req 5; when no reader is injected the renderer uses its SAM-owned defaults,
+        backward compatible) — CLAIMS the ``_slugs/{slug}`` marker (spec 14 Task 8.1), and — when an
         :class:`PublicPageArtifactWriter` is injected (spec 14 Task 9.1) — performs the LIVE write:
         ``put_object`` of ``{slug}/index.html`` + ``{slug}/form.json`` under the served ``{slug}/``
         prefix, then a BEST-EFFORT CloudFront invalidation.
@@ -606,6 +648,34 @@ class ApplicationPublishService:
         # `POST {public_api_base}/public/members/{slug}/applications` per environment. No boto3 / no
         # plane-crossing — this is DATA resolved from env.
         public_api_base = resolve_public_api_base()
+
+        # ── Look-and-feel resolve → Layer 2 → branding= (spec 15 §C4 / Req 5, task 7.2) ──
+        # Close the Req 5 defect: a change to a look-and-feel setting had NO observable effect on
+        # the published form because publish rendered WITHOUT branding. When a
+        # `LookAndFeelSettingsReader` is injected, resolve the verified tenant's SAM-owned
+        # presentation VALUES (the `look_and_feel` slice on `config#fields` — never a Flask value,
+        # Req 2.1) and pass them straight into the renderer as `branding=`. The renderer runs
+        # Layer 2 (`render_page_styles`) on those values to generate the CSS the published artifact
+        # carries (Req 5.1/5.2), so changing a value changes the published styling (Req 5.3). The
+        # resolve is tenant-scoped (Req 2.4) — `tenant_id` is the verified value the edge passed
+        # in, never a client value.
+        #
+        # Backward compatible (Req 5.4): when NO reader is injected (the default), `branding` stays
+        # `None` and the renderer uses its SAM-owned defaults — identical to the pre-task-7.2
+        # behaviour. An absent slice / missing key also resolves to `{}` → the same defaults, so a
+        # tenant that never authored look-and-feel publishes exactly as before.
+        #
+        # Req 5.5 (failure preserves the previous artifact): Layer 2 runs INSIDE this render call,
+        # which happens BEFORE the slug claim and the live artifact write below. If Layer 2 fails
+        # (an unsupported attribute → `UnsupportedAttributeError`), the exception propagates out of
+        # `render_application_form_page` here, so NO artifact is written and the previously
+        # published form is left untouched — the publish returns a failure indication by raising.
+        branding = (
+            self._look_and_feel_reader.get_look_and_feel(tenant_id)
+            if self._look_and_feel_reader is not None
+            else None
+        )
+
         self._rendered_html = render_application_form_page(
             config,
             head_meta={
@@ -613,6 +683,7 @@ class ApplicationPublishService:
                 "canonical": f"https://{slug}.jabaki.nl/",
                 "site_name": slug,
             },
+            branding=branding,
             slug=slug,
             public_api_base=public_api_base,
         )

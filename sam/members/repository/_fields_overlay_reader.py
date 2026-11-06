@@ -36,6 +36,7 @@ from sam.members.repository._config_reader_base import (
     _CONFIG_ID_FIELDS,
     _normalize_functional_groups,
 )
+from sam.shared.page_styles import SUPPORTED_ATTRIBUTES
 
 
 def _coerce_option_order(raw) -> int | None:
@@ -622,6 +623,60 @@ class _FieldOverlayReadMixin:
         if not isinstance(prefix, str) or not prefix.strip():
             return None
         return prefix.strip()
+
+    # ── SAM-owned look-and-feel reader (config#fields.look_and_feel) ───────────────────
+
+    def get_look_and_feel(self, tenant_id: str) -> dict:
+        """Return the tenant's resolved ``Look_And_Feel_Settings`` VALUES (spec 15, task 4.2).
+
+        The RESOLVED-VIEW read of Layer-1's ``look_and_feel`` slice on the SAM-owned
+        ``config#fields`` row (spec 15 — SAM Page Look-and-Feel, DD-2 / Layer 1). The slice holds
+        the application-form PAGE's presentation **attribute values** (never generated CSS); task
+        4.1 seeds it as an empty parent map at tenant-create so the Change-Op path can
+        ``SET look_and_feel.#attr`` into a live map. This accessor serves those values back for
+        the publish-time resolve (``ApplicationPublishService`` → Layer 2 ``render_page_styles``)
+        and the Layer-1 authoring UI's ``get`` read.
+
+        Resolved-domain-view contract (steering 39): returns a plain ``{attribute: value}``
+        mapping of VALUES ONLY — it never crosses the boundary carrying the raw row shape, and it
+        surfaces **only** the seven supported attributes
+        (:data:`sam.shared.page_styles.SUPPORTED_ATTRIBUTES`). Any stray key stored alongside them
+        is dropped here, so a consumer never sees an unexpected/raw-shape key and Layer 2 is never
+        handed an unsupported attribute off the stored slice.
+
+        Tenant isolation (Req 2.4): reads only the ``tenant_id``-pinned partition (the same shared,
+        cached Query the sibling config reads use); another tenant's settings can never bleed in.
+
+        SAM-owned only — never Flask (Req 2.1, Property 7): the value comes exclusively from this
+        SAM-owned ``config#fields`` attribute. It does **not** read or merge any Flask
+        ``landing_page`` projection; there is no runtime path to the Flask plane here.
+
+        Empty-is-valid / defaults (Req 2.4, 3.3, 4.4, 5.4): a **missing** ``config#fields`` row, a
+        missing / non-mapping ``look_and_feel`` slice, or a slice with no recognised attribute all
+        resolve to an **empty mapping** — Layer 2 then applies its own SAM-owned default for each
+        unset attribute. Absent is never an error.
+
+        Args:
+            tenant_id: The tenant (partition key) whose look-and-feel values to resolve.
+
+        Returns:
+            A ``{attribute: value}`` mapping restricted to the supported attributes actually
+            stored (VALUES only); ``{}`` when the tenant has none (resolve to Layer-2 defaults).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        if row is None:
+            return {}
+        slice_ = row.get("look_and_feel")
+        if not isinstance(slice_, Mapping):
+            return {}
+        # VALUES-ONLY resolved view: surface only the seven supported attributes actually
+        # present, so no raw/unexpected key crosses the boundary and Layer 2 never receives an
+        # unsupported attribute off the stored slice. Absent attributes stay absent (-> defaults).
+        return {
+            attr: slice_[attr]
+            for attr in SUPPORTED_ATTRIBUTES
+            if attr in slice_ and slice_[attr] is not None
+        }
 
     def get_config_fields_version(
         self, tenant_id: str, *, consistent_read: bool = False

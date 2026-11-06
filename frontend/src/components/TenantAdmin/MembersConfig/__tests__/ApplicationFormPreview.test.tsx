@@ -32,6 +32,7 @@ import type { MembersConfigValue } from '../../../../types/membersConfig';
  */
 import * as membersConfigService from '../../../../services/membersConfigService';
 import * as membersApiService from '../../../../services/membersApiService';
+import { renderPageStyles } from '../pageStyles';
 
 /** A resolved field in the BARE `key` + `group` server shape (R2.3). */
 function field(key: string, group: string, extra: Partial<FieldConfigField> = {}): FieldConfigField {
@@ -138,5 +139,95 @@ describe('ApplicationFormPreview — empty state', () => {
 
     expect(screen.getByTestId('application-form-preview-empty')).toBeInTheDocument();
     expect(screen.queryByTestId('application-form-preview-render')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Look-and-feel parity (spec 15 — SAM Page Look-and-Feel, task 13.1; Req 4.2/4.3/7). The preview
+ * runs the browser-side Layer-2 mirror `renderPageStyles` over the working look-and-feel values and
+ * applies the resulting `:root` CSS variables to the preview container, so what the admin sees
+ * matches what publish bakes. The container exposes the produced variable string on a
+ * `data-lookandfeel-vars` attribute for assertion.
+ */
+describe('ApplicationFormPreview — look-and-feel (spec 15, task 13.1; Req 4.2/4.3/7)', () => {
+  const onFormConfig = () => configWith([field('email', 'personal', { application_visible: true })]);
+
+  it('applies the Layer-2 defaults when no look-and-feel is supplied (Req 7.3)', () => {
+    render(<ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" />);
+
+    const container = screen.getByTestId('application-form-preview-render');
+    // Mirrors exactly what the Python/TS Layer-2 generator emits for empty settings.
+    expect(container.getAttribute('data-lookandfeel-vars')).toBe(
+      renderPageStyles({}).cssVariables,
+    );
+  });
+
+  it('carries the SAME styling the publish Layer-2 would produce for the given values (Req 7)', () => {
+    const lookAndFeel = { color_primary: '#112233', base_spacing: 'relaxed', shadow_style: 'dramatic' };
+    render(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={lookAndFeel}
+      />,
+    );
+
+    const container = screen.getByTestId('application-form-preview-render');
+    // The container carries the exact Layer-2 `:root` block the publish path would bake.
+    expect(container.getAttribute('data-lookandfeel-vars')).toBe(
+      renderPageStyles(lookAndFeel).cssVariables,
+    );
+    // ...and that block carries the relaxed-spacing value the form consumes via var(--spacing-section).
+    expect(renderPageStyles(lookAndFeel).cssVariableMap['--spacing-section']).toBe('3rem');
+    expect(container.getAttribute('data-lookandfeel-vars')).toContain('--spacing-section: 3rem;');
+  });
+
+  it('identical values → identical styling across two renders (Req 4.3)', () => {
+    const lf = { color_primary: '#2D5F8A', border_radius_global: 'pill' };
+    const { unmount } = render(
+      <ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" lookAndFeel={lf} />,
+    );
+    const first = screen
+      .getByTestId('application-form-preview-render')
+      .getAttribute('data-lookandfeel-vars');
+    unmount();
+
+    render(
+      <ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" lookAndFeel={{ ...lf }} />,
+    );
+    const second = screen
+      .getByTestId('application-form-preview-render')
+      .getAttribute('data-lookandfeel-vars');
+    expect(second).toBe(first);
+  });
+
+  it('reflects an UNSAVED look-and-feel edit live — a changed value re-renders new styling (Req 4.2)', () => {
+    const { rerender } = render(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ base_spacing: 'compact' }}
+      />,
+    );
+    const before = screen
+      .getByTestId('application-form-preview-render')
+      .getAttribute('data-lookandfeel-vars');
+
+    rerender(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ base_spacing: 'relaxed' }}
+      />,
+    );
+    const after = screen
+      .getByTestId('application-form-preview-render')
+      .getAttribute('data-lookandfeel-vars');
+
+    expect(after).not.toBe(before);
+    expect(after).toBe(renderPageStyles({ base_spacing: 'relaxed' }).cssVariables);
   });
 });

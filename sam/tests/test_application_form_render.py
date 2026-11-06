@@ -4,10 +4,12 @@ Spec 14 Task 2.2 — SAM application-form SHELL RENDERER tests (design §C2/C3 /
 Pins the observable contract of
 :func:`sam.members.domain.application_form_render.render_application_form_page` — the SAM
 plane's wiring of the shared, plane-neutral page shell: it composes the applicant body from
-the public field config, produces the CSS from ``LandingPageStyles`` (the SINGLE CSS source),
-and hands head_meta + body + css to :func:`sam.shared.page_shell.render_page` (the shared
-shell owns the scaffold). "Share the mechanism, not the store" (R7.3): this is a library call,
-never a cross-plane runtime call.
+the public field config, produces the CSS from the SAM-owned Layer-2 generator
+``sam.shared.page_styles.render_page_styles`` (the SINGLE, SAM-owned CSS source — spec 15 /
+DD-1, task 7.2 cut it over from the former Flask ``LandingPageStyles`` import), and hands
+head_meta + body + css to :func:`sam.shared.page_shell.render_page` (the shared shell owns the
+scaffold). "Share the mechanism, not the store" (R7.3): this is a library call, never a
+cross-plane runtime call.
 
 Output PARITY against a real Flask-shell fixture is the SEPARATE task 2.3 — this file pins the
 WIRING: that the SAM form renders its shell THROUGH page_shell (R7.1), that the applicant body
@@ -69,16 +71,63 @@ def test_render_returns_full_document_composed_via_page_shell():
     assert 'type="email"' in out
 
 
-def test_css_comes_from_landing_page_styles_single_source():
-    """R7.1: CSS is produced by LandingPageStyles (the ONE source) and lands in the <style>."""
+def test_css_comes_from_sam_owned_page_styles_single_source():
+    """R7.1 / spec 15 §C4 (task 7.2): CSS is produced by the SAM-owned Layer-2 generator
+    (`sam.shared.page_styles.render_page_styles`) — now the ONE CSS source — and lands in the
+    <style>. This is the cutover from the former Flask `LandingPageStyles` import on the render
+    path (spec 15 / DD-1): styling is produced entirely from SAM-owned code (Req 3.5).
+    """
     out = render_application_form_page(
         _config(fields=[{"key": "name"}]),
         head_meta={"title": "x"},
         branding={"color_primary": "#123456", "color_accent": "#abcdef"},
     )
-    # LandingPageStyles.build_css_variables emits a :root block; build_page_css uses the colours.
+    # render_page_styles emits a :root variables block (css_variables); the page CSS threads the
+    # primary colour — both land verbatim inside the single <style> block page_shell wraps.
     assert ":root {" in out
-    assert "#123456" in out  # the primary colour threaded into the single CSS source
+    assert "#123456" in out  # the primary colour threaded into the SAM-owned CSS source
+
+
+def test_render_uses_sam_owned_generator_not_flask_landing_page_styles(monkeypatch):
+    """spec 15 / DD-1 (task 7.2): the render path calls the SAM-owned `render_page_styles`, NOT
+    the Flask `services.landing_page_styles.LandingPageStyles`. Patch the SAM generator to a
+    sentinel and assert its output is what reaches the <style> — proving the cutover is wired to
+    the SAM-owned source (no runtime read of the Flask plane, Req 2.2/3.5).
+    """
+    import sam.members.domain.application_form_render as render_mod
+    from sam.shared.page_styles import PageStyles
+
+    sentinel = PageStyles(
+        css_variables=":root { --sam-owned-sentinel: 1; }",
+        page_css=".sam-owned-sentinel { color: #abc; }",
+        font_links="",
+    )
+    monkeypatch.setattr(render_mod, "render_page_styles", lambda settings: sentinel)
+    out = render_application_form_page(
+        _config(fields=[{"key": "name"}]),
+        head_meta={"title": "x"},
+        branding={"color_primary": "#123456"},
+    )
+    assert "--sam-owned-sentinel: 1;" in out
+    assert ".sam-owned-sentinel { color: #abc; }" in out
+
+
+def test_unsupported_branding_attribute_rejects_the_render(monkeypatch):
+    """Req 3.4 on the render path: a branding values mapping carrying an unsupported attribute is
+    rejected by Layer 2 (`UnsupportedAttributeError`) and NO page styling is produced — the render
+    raises rather than silently dropping the bad key. On the publish path this surfaces before the
+    artifact write, so a bad slice never replaces the previously published form (Req 5.5).
+    """
+    import pytest
+
+    from sam.shared.page_styles import UnsupportedAttributeError
+
+    with pytest.raises(UnsupportedAttributeError):
+        render_application_form_page(
+            _config(fields=[{"key": "name"}]),
+            head_meta={"title": "x"},
+            branding={"color_primary": "#123456", "not_a_real_attribute": "boom"},
+        )
 
 
 def test_body_renders_only_whitelisted_fields_from_the_public_schema():

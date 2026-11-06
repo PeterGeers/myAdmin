@@ -120,7 +120,12 @@ class FakeFieldConfigReader:
 
 
 def _service(
-    *, slug="hdcn-application-form", certified=True, domain="h-dcn.nl", fields=1
+    *,
+    slug="hdcn-application-form",
+    certified=True,
+    domain="h-dcn.nl",
+    fields=1,
+    look_and_feel=None,
 ):
     """Build a publish service over fully in-memory seams.
 
@@ -128,12 +133,20 @@ def _service(
     knocks out ONE precondition to exercise its refusal. ``certified``/``domain`` feed the SAME
     fail-closed ``StaticMailReadinessProvider`` the submit readiness gate uses, so the publish
     "certified sender" check is the authoritative ``is_send_ready`` predicate, not a re-impl.
+
+    ``look_and_feel`` (spec 15 §C4 / task 7.2): when a values mapping is passed, a
+    ``FakeLookAndFeelReader`` is injected so the publish render path resolves those VALUES and
+    threads them through Layer 2 into ``branding=``. Left ``None`` (the default), NO reader is
+    injected — the backward-compatible path where the renderer uses its SAM-owned defaults.
     """
     readiness = StaticMailReadinessProvider({_TENANT: (certified, domain)})
     return ApplicationPublishService(
         slug_reader=FakeSlugReader(slug),
         readiness_provider=readiness,
         field_config_reader=FakeFieldConfigReader(fields),
+        look_and_feel_reader=(
+            FakeLookAndFeelReader(look_and_feel) if look_and_feel is not None else None
+        ),
     )
 
 
@@ -242,6 +255,56 @@ def test_publish_threads_slug_and_resolved_api_base_into_the_render(monkeypatch)
         svc.publish(_TENANT)
     assert captured.get("slug") == "hdcn-application-form"
     assert captured.get("public_api_base") == "https://api.example.test"
+
+
+# ── spec 15 §C4 / task 7.2 — look-and-feel resolve → Layer 2 → branding= into the render ──
+
+
+def test_publish_threads_resolved_look_and_feel_values_into_branding(monkeypatch):
+    # spec 15 Req 5.1/5.2 (change-with-tests): when a `LookAndFeelSettingsReader` is injected, the
+    # publish render step resolves the verified tenant's SAM-owned look-and-feel VALUES and passes
+    # them straight into `render_application_form_page` as `branding=` (Layer 2 runs inside the
+    # renderer on those values). Assert the renderer is called with EXACTLY the resolved values as
+    # `branding` — the wiring that closes the Req 5 defect.
+    import sam.members.domain.application_publish as publish_mod
+
+    real_render = publish_mod.render_application_form_page
+    captured = {}
+
+    def _spy_render(config, **kwargs):
+        captured.update(kwargs)
+        return real_render(config, **kwargs)
+
+    monkeypatch.setattr(publish_mod, "render_application_form_page", _spy_render)
+    values = {"color_primary": "#112233", "color_accent": "#445566"}
+    svc = _service(look_and_feel=values)
+    with pytest.raises(PublishPipelineNotWired):
+        svc.publish(_TENANT)
+    assert captured.get("branding") == values
+    # And the resolved colour is actually baked into the rendered artifact (Req 5.2):
+    assert "#112233" in svc._rendered_html
+
+
+def test_publish_without_look_and_feel_reader_renders_with_defaults(monkeypatch):
+    # Req 5.4 / backward compatible: with NO reader injected (the default), the renderer is called
+    # with `branding=None`, so Layer 2 produces styling from the SAM-owned defaults — identical to
+    # the pre-task-7.2 behaviour. The default primary colour is baked in.
+    import sam.members.domain.application_publish as publish_mod
+
+    real_render = publish_mod.render_application_form_page
+    captured = {}
+
+    def _spy_render(config, **kwargs):
+        captured.update(kwargs)
+        return real_render(config, **kwargs)
+
+    monkeypatch.setattr(publish_mod, "render_application_form_page", _spy_render)
+    svc = _service()  # no look_and_feel → no reader injected
+    with pytest.raises(PublishPipelineNotWired):
+        svc.publish(_TENANT)
+    assert captured.get("branding") is None
+    # The SAM-owned default primary colour (the Styling_Logic default) is in the artifact:
+    assert "#2D5F8A" in svc._rendered_html
 
 
 def test_publish_refuses_when_no_slug_and_attempts_no_write():
@@ -1110,3 +1173,163 @@ def test_handler_real_live_service_end_to_end_returns_200_result(monkeypatch):
     assert data["published_version"] == 1
     assert marker_store.resolve("h-dcn-aanmelden").tenant_id == _TENANT
     assert (_ARTIFACT_BUCKET, "h-dcn-aanmelden/index.html") in writer._s3.objects
+
+
+# ════════════════════════════════════════════════════════════════════════════════════
+# spec 15 Task 7.1 — the `LookAndFeelSettingsReader` Protocol + OPTIONAL injection [Req 5.1]
+#
+# Layer-3 wiring PREP (design §C4): this task adds ONLY the reader seam the next task (7.2)
+# will read — the `@runtime_checkable` Protocol `LookAndFeelSettingsReader` and an OPTIONAL
+# `look_and_feel_reader` constructor param on `ApplicationPublishService`, matching the
+# existing optional-seam style of `slug_marker_store` / `prefix_reader` / `artifact_writer`.
+#
+# These pin the 7.1 contract WITHOUT asserting any publish() behaviour change (that is 7.2):
+#
+#   * the Protocol is importable, `@runtime_checkable`, and a duck-typed reader satisfies it;
+#   * the constructor accepts the new reader AND defaults it to None (absent by default);
+#   * when ABSENT, publish() behaves EXACTLY as before (backward compatible — the existing
+#     ready-tenant → dormant-seam path is unchanged);
+#   * injecting the reader does NOT yet alter publish() behaviour (7.1 only stores the seam;
+#     the resolve→Layer2→branding wiring is 7.2) — publish still reaches the same seam and
+#     never calls the reader yet.
+#
+# Validates: Requirements 5.1 (spec 15)
+# ════════════════════════════════════════════════════════════════════════════════════
+
+from sam.members.domain.application_publish import LookAndFeelSettingsReader
+
+
+class FakeLookAndFeelReader:
+    """In-memory ``LookAndFeelSettingsReader`` — returns configured VALUES (absent → ``{}``).
+
+    Records every ``get_look_and_feel`` call so a test can assert whether publish() reached the
+    reader (it must NOT yet at task 7.1 — the resolve wiring is task 7.2).
+    """
+
+    def __init__(self, values=None):
+        self._values = dict(values or {})
+        self.calls = []
+
+    def get_look_and_feel(self, tenant_id):
+        self.calls.append(tenant_id)
+        return self._values
+
+
+def test_look_and_feel_reader_protocol_is_runtime_checkable_and_duck_typed():
+    # The Protocol is importable and `@runtime_checkable`: a duck-typed reader (just the one
+    # `get_look_and_feel` method) satisfies it without inheriting from it.
+    assert isinstance(FakeLookAndFeelReader(), LookAndFeelSettingsReader)
+    # A reader missing the method does NOT satisfy the Protocol.
+    assert not isinstance(object(), LookAndFeelSettingsReader)
+
+
+def test_publish_service_accepts_optional_look_and_feel_reader_defaulting_to_none():
+    # The constructor gains the OPTIONAL `look_and_feel_reader`, defaulting to None (absent) —
+    # matching the existing optional-seam style; a service built without it has no reader wired.
+    svc = _service()
+    assert svc._look_and_feel_reader is None
+    reader = FakeLookAndFeelReader({"color_primary": "#2D5F8A"})
+    svc_with = ApplicationPublishService(
+        slug_reader=FakeSlugReader("hdcn-application-form"),
+        readiness_provider=StaticMailReadinessProvider({_TENANT: (True, "h-dcn.nl")}),
+        field_config_reader=FakeFieldConfigReader(1),
+        look_and_feel_reader=reader,
+    )
+    assert svc_with._look_and_feel_reader is reader
+
+
+def test_publish_absent_look_and_feel_reader_is_backward_compatible():
+    # Backward compat: with NO reader injected (the default), publish() behaves EXACTLY as
+    # before — a ready tenant renders and reaches the dormant live-write seam unchanged.
+    svc = _service()
+    with pytest.raises(PublishPipelineNotWired) as exc:
+        svc.publish(_TENANT)
+    assert exc.value.slug == "hdcn-application-form"
+
+
+def test_publish_reads_the_injected_look_and_feel_reader_scoped_to_the_verified_tenant():
+    # Task 7.2 (change-with-tests — supersedes the 7.1 "not yet read" guard): the resolve is now
+    # WIRED, so an injected reader IS read during publish(), scoped to the VERIFIED tenant (Req
+    # 2.4 / 5.1) — never a client value. The reader is still read on the way to the dormant
+    # live-write seam (no artifact writer injected here), so the resolve happens regardless of the
+    # downstream write being wired.
+    reader = FakeLookAndFeelReader({"color_primary": "#2D5F8A"})
+    svc = ApplicationPublishService(
+        slug_reader=FakeSlugReader("hdcn-application-form"),
+        readiness_provider=StaticMailReadinessProvider({_TENANT: (True, "h-dcn.nl")}),
+        field_config_reader=FakeFieldConfigReader(1),
+        look_and_feel_reader=reader,
+    )
+    with pytest.raises(PublishPipelineNotWired):
+        svc.publish(_TENANT)
+    assert reader.calls == [_TENANT]  # 7.2 wires the resolve, scoped to the verified tenant
+
+
+# ════════════════════════════════════════════════════════════════════════════════════
+# spec 15 Task 7.3 — EXAMPLE/REGRESSION test: publish bakes the tenant's stored
+# look-and-feel into the published form's CSS (the Req 5 defect).
+#
+# This is the FOCUSED regression that PINS the exact defect spec 15 closes — the bug
+# recorded in `.kiro/specs/myBacklog/published-form-ignores-landing-look-and-feel.md`
+# (see this spec's README "Related"): changing a look-and-feel setting had NO observable
+# effect on the published application form, because `publish()` rendered the artifact
+# WITHOUT the tenant's resolved styling. Tasks 7.1/7.2 wired the fix
+# (resolve VALUES → Layer 2 `render_page_styles` → `branding=` into
+# `render_application_form_page`); this test is the behavioural anchor that proves a
+# CONCRETE stored value reaches the baked artifact's CSS and would re-fail loudly if that
+# wiring ever regressed to the old "styling ignored" behaviour.
+#
+# Unlike the 7.2 wiring tests (which assert the renderer is CALLED with `branding=`), this
+# asserts the OBSERVABLE output contract end-to-end: a specific stored `color_primary`
+# lands in the published CSS AS an applied `color:` declaration, and the SAM-owned default
+# primary (`#2D5F8A`) is NOT what styles the form — i.e. the styling is derived from the
+# tenant's stored value, not the default. That default-vs-stored distinction is precisely
+# what the Req 5 defect got wrong.
+#
+# In-memory fakes only (artifact writer dormant, FakeLookAndFeelReader) — no AWS.
+#
+# Validates: Requirements 5.1, 5.2, 5.3 (spec 15)
+# ════════════════════════════════════════════════════════════════════════════════════
+
+#: A distinctive stored primary colour, deliberately DIFFERENT from the SAM-owned default
+#: (`#2D5F8A`) so "the stored value is in the CSS" and "the default is NOT styling the form"
+#: are independent, unambiguous assertions.
+_REGRESSION_COLOR_PRIMARY = "#C0FFEE"
+_SAM_DEFAULT_COLOR_PRIMARY = "#2D5F8A"
+
+
+def test_publish_bakes_stored_look_and_feel_into_published_css_not_the_default():
+    # The Req 5 defect regression: a tenant with a STORED look-and-feel `color_primary` publishes
+    # a form whose CSS is derived from THAT stored value — not the SAM-owned default. Pin both
+    # halves so the test fails if the wiring regresses either way (stored value missing, OR the
+    # default silently styling the form as the old bug did).
+    svc = _service(look_and_feel={"color_primary": _REGRESSION_COLOR_PRIMARY})
+    with pytest.raises(PublishPipelineNotWired):
+        svc.publish(_TENANT)
+
+    rendered = svc._rendered_html
+    # (a) the STORED colour reaches the published artifact's CSS, APPLIED as a colour declaration
+    #     (Layer 2 inlines `color_primary` into the page CSS) — the previously-broken behaviour.
+    assert f"color: {_REGRESSION_COLOR_PRIMARY};" in rendered
+    # (b) the SAM-owned DEFAULT primary is NOT what styles the form — proves the styling is
+    #     derived from the tenant's stored value, the exact thing the Req 5 defect ignored.
+    assert f"color: {_SAM_DEFAULT_COLOR_PRIMARY};" not in rendered
+
+
+def test_publish_css_differs_when_the_stored_look_and_feel_value_changes():
+    # Req 5.3: changing a stored look-and-feel value changes the published form's styling. Two
+    # publishes with DIFFERENT stored `color_primary` values must bake DIFFERENT CSS — the direct
+    # observable the defect denied ("changing the setting has no effect on the published form").
+    svc_a = _service(look_and_feel={"color_primary": "#111111"})
+    with pytest.raises(PublishPipelineNotWired):
+        svc_a.publish(_TENANT)
+    svc_b = _service(look_and_feel={"color_primary": "#999999"})
+    with pytest.raises(PublishPipelineNotWired):
+        svc_b.publish(_TENANT)
+
+    assert svc_a._rendered_html != svc_b._rendered_html
+    assert "color: #111111;" in svc_a._rendered_html
+    assert "color: #999999;" in svc_b._rendered_html
+    # The cross-check: neither tenant's distinctive colour bleeds into the other's artifact.
+    assert "#999999" not in svc_a._rendered_html
+    assert "#111111" not in svc_b._rendered_html
