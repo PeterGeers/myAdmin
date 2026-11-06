@@ -114,24 +114,40 @@ def _form_group_track_count(css: str) -> int | None:
     ``None`` if no such multi-track grid rule is found.
     """
     norm = _normalize(css)
-    # Strip the media-query blocks so we read the BASE .form-group rule, not the collapse rule.
-    base = re.sub(r"@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", norm)
-    for selector, body in _iter_rule_blocks(base):
+    for selector, body in _iter_rule_blocks(norm):
         if ".application-form .form-group" in selector and "grid-template-columns" in body:
-            m = re.search(r"repeat\(\s*(\d+)\s*,", body)
+            # Width-driven fluid grid: tracks are repeat(auto-fit, minmax(16rem, 1fr)); the
+            # COLUMN CAP is carried by `max-width: calc(N * 20rem ...)`. Read N from there.
+            m = re.search(r"max-width:\s*calc\(\s*(\d+)\s*\*\s*20rem", body)
             if m:
                 return int(m.group(1))
+            # Fallback: a legacy fixed repeat(N, ...) literal.
+            m2 = re.search(r"repeat\(\s*(\d+)\s*,", body)
+            if m2 and m2.group(1).isdigit():
+                return int(m2.group(1))
     return None
 
 
 def _grid_collapses_to_single_column(css: str) -> bool:
-    """True iff a small-screen media query collapses ``.form-group`` to a single column."""
+    """True iff the ``.form-group`` grid reflows down to a single column on narrow screens.
+
+    The grid is now WIDTH-DRIVEN (no media query): ``repeat(auto-fit, minmax(max(16rem, calc(...)),
+    1fr))``. ``auto-fit`` with a non-zero per-track floor (16rem) INHERENTLY collapses to one
+    column once the container is narrower than that floor — so verifying the idiom (auto-fit + a
+    rem/px floor) proves the reflow-to-1 behaviour, continuously and at every width, with no
+    breakpoint. (A legacy ``@media ... 1fr`` collapse also counts, for back-compat.)
+    """
     norm = _normalize(css)
+    for selector, body in _iter_rule_blocks(norm):
+        if ".application-form .form-group" not in selector or "grid-template-columns" not in body:
+            continue
+        if "auto-fit" in body and re.search(r"minmax\(\s*\d+(?:\.\d+)?(?:rem|px)", body):
+            return True
+    # Legacy media-query collapse (back-compat).
     for media in re.finditer(r"@media[^{]*max-width[^{]*\{(.*?)\}\s*\}", norm):
         block = media.group(1)
-        if ".application-form .form-group" in block or ".form-group" in block:
-            if re.search(r"grid-template-columns:\s*(1fr|none)\b", block):
-                return True
+        if ".form-group" in block and re.search(r"grid-template-columns:\s*(1fr|none)\b", block):
+            return True
     return False
 
 
