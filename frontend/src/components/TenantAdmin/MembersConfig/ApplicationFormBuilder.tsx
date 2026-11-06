@@ -58,7 +58,11 @@ import {
   publishApplicationForm,
   setApplicationFormSlug,
   setApplicationFormPrefix,
+  getLookAndFeelSettings,
+  setLookAndFeelSetting,
+  type LookAndFeelSettingsValues,
 } from '../../../services/members/membersConfigApi';
+import type { SupportedAttribute } from './pageStyles';
 import { computeReadiness } from './applicationReadiness';
 import type { MembersConfigValue } from '../../../types/membersConfig';
 import type { FieldConfig } from '../../../types/members';
@@ -67,6 +71,7 @@ import { ApplicationFieldModal } from './ApplicationFieldModal';
 import { ApplicationFormShellPanel } from './ApplicationFormShellPanel';
 import { ApplicationReadinessPanel } from './ApplicationReadinessPanel';
 import { ApplicationFormPreview } from './ApplicationFormPreview';
+import { LookAndFeelEditor } from './LookAndFeelEditor';
 import {
   type ShellFormValues,
   mailConfigToShellValues,
@@ -93,6 +98,8 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   // Whether a prefix-author write is in flight (the `members:admin` set/change/clear control for
   // the SAM-owned public slug prefix).
   const [settingPrefix, setSettingPrefix] = useState(false);
+  // Whether a look-and-feel persist is in flight (the Layer-1 values-only Change-Op write).
+  const [settingLookAndFeel, setSettingLookAndFeel] = useState(false);
   // Whether a Save has committed draft changes that have NOT yet been (re)published (spec 12
   // R5.1a — save ≠ publish). Set on any successful field/mail save, cleared on a successful
   // publish and on a fresh load. Drives the "draft has unpublished changes" hint so the admin
@@ -113,6 +120,14 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   // the group ▸ field surface opens the modal for it; `null` = the modal is closed. Pure view state
   // (never persisted) — the modal authors the ONE working overlay through the shared engine.
   const [modalFieldKey, setModalFieldKey] = useState<string | null>(null);
+
+  // The WORKING look-and-feel VALUES (spec 15 task 12.2 — SAM Page Look-and-Feel). Seeded from the
+  // SAM-owned `look_and_feel` slice (`getLookAndFeelSettings`) on load, updated instantly by the
+  // LookAndFeelEditor's onChange, and persisted one-value-at-a-time via `setLookAndFeelSetting`
+  // (values-only Change-Op). It is fed to BOTH the editor AND the `ApplicationFormPreview
+  // lookAndFeel` prop so an admin's stored + UNSAVED edits render live in the preview with no
+  // server round-trip (Req 7.2) — closing the gap where the preview rendered with NO lookAndFeel.
+  const [lookAndFeel, setLookAndFeel] = useState<LookAndFeelSettingsValues>({});
 
   // The form-shell working values (slug/URL display, embed, consent — task 3.2). Seeded from the
   // loaded `config#mail` + the landing-page slug; committed once via `saveMembersMailConfig` →
@@ -159,6 +174,16 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       const shellValues = mailConfigToShellValues(cfg, null);
       setShell(shellValues);
       setShellBaseline(shellValues);
+      // Seed the working look-and-feel VALUES from the SAM-owned `look_and_feel` slice (spec 15
+      // task 12.2). Best-effort and NON-BLOCKING: a failed read resolves to the empty map (→
+      // Layer-2 defaults) and NEVER blocks authoring (same posture as the field-config load). The
+      // read is values-only; it never carries CSS.
+      try {
+        const lf = await getLookAndFeelSettings();
+        setLookAndFeel(lf.settings ?? {});
+      } catch {
+        setLookAndFeel({});
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -373,6 +398,59 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   };
 
   /**
+   * Lift a look-and-feel edit into builder state (spec 15 task 12.2). Pure + synchronous — it
+   * updates the ONE working `lookAndFeel` map so BOTH the editor and the preview reflect the edit
+   * on the very next render (Req 7.2), with NO server round-trip. An explicit `null` clears the
+   * attribute (the preview then falls back to the Layer-2 default for it, Req 7.3). Values-only.
+   */
+  const handleLookAndFeelChange = (attribute: SupportedAttribute, value: string | null) => {
+    setLookAndFeel((prev) => {
+      const next = { ...prev };
+      if (value === null) {
+        // Clear → revert to the Layer-2 default (store null so the preview resolves the default).
+        next[attribute] = null;
+      } else {
+        next[attribute] = value;
+      }
+      return next;
+    });
+  };
+
+  /**
+   * Persist ONE look-and-feel attribute VALUE via the Layer-1 authoring client (spec 15 task 12.2;
+   * design §C3, steering 39): `setLookAndFeelSetting(attribute, value)` sends a single values-only
+   * Change-Op — NEVER generated CSS, NEVER a whole record. `null` clears the attribute. On success
+   * the returned resolved values re-seed the working map so the editor + preview reflect the
+   * authoritative stored state. A failure surfaces the SAM edge's CALLER-SAFE error envelope as a
+   * toast (422 identifying the rejected setting, 403 cross-tenant copy, 409 stale version), exactly
+   * as the slug / prefix author controls surface their ApiError — no internals leak.
+   */
+  const handleSetLookAndFeel = async (
+    attribute: SupportedAttribute,
+    value: string | null,
+  ) => {
+    setSettingLookAndFeel(true);
+    try {
+      const res = await setLookAndFeelSetting(attribute, value);
+      // The write IS the authored state: re-seed from the resolved values the edge returns so the
+      // editor + preview reflect the persisted slice (not just the optimistic local edit).
+      setLookAndFeel(res.settings ?? {});
+    } catch (e) {
+      // Caller-safe: the backend already returns a generic, caller-safe envelope (the structured
+      // ApiError message names the client's OWN rejected setting on a 422, a generic "Forbidden"
+      // on a 403, a reload-and-retry on a 409) — surface it without leaking internals.
+      toast({
+        title: 'Error',
+        description: e instanceof Error ? e.message : String(e),
+        status: 'error',
+        duration: 6000,
+      });
+    } finally {
+      setSettingLookAndFeel(false);
+    }
+  };
+
+  /**
    * Deliberately publish the application form (spec 12 R5 / OQ1 = option 1): the ONE explicit
    * go-live action. It calls `POST /members/application-form/publish` — NEVER triggered by a Save
    * (save ≠ publish). The SAM route re-renders the live artifact from the tenant's CURRENT stored
@@ -550,6 +628,27 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
           <Heading size="sm" mb={2} color="gray.300">
             {t('Voorbeeld', 'Live preview')}
           </Heading>
+          {/* spec 15 task 12.2 — the look-and-feel editor (the seven-attribute preferences editor).
+              A values-only Layer-1 authoring control: each edit lifts the VALUE into the builder's
+              working `lookAndFeel` map (handleLookAndFeelChange) AND persists it one-value-at-a-time
+              via the authoring client (handleSetLookAndFeel → setLookAndFeelSetting) — never CSS,
+              never a whole record. The SAME working map feeds this editor AND the preview below, so
+              an unsaved edit previews live (Req 7.2). Caller-safe 422/403/409 surface as toasts. */}
+          <Box
+            mb={4}
+            pb={4}
+            borderBottomWidth="1px"
+            borderColor="gray.700"
+            data-testid="application-form-builder-lookandfeel"
+          >
+            <LookAndFeelEditor
+              values={lookAndFeel}
+              onChange={handleLookAndFeelChange}
+              onSave={handleSetLookAndFeel}
+              saving={settingLookAndFeel}
+              lang={lang}
+            />
+          </Box>
           {/* R3 (spec 12, redesign C) — the live preview: an IN-BROWSER render of the public form
               via the shared spec-10 ApplicationFormRenderer, fed by the PURE `buildPreviewConfig`
               filter over the WORKING draft (resolved fieldConfig ⊕ the ONE working overlay). It
@@ -562,6 +661,10 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
             fieldConfig={fieldConfig}
             overlay={overlay}
             lang={lang}
+            // spec 15 task 12.2 — feed the WORKING look-and-feel values into the preview so the
+            // admin's stored + UNSAVED look-and-feel renders live (Req 7.2), closing the gap where
+            // the builder rendered the preview with NO lookAndFeel prop.
+            lookAndFeel={lookAndFeel}
           />
         </GridItem>
       </Grid>

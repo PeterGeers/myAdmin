@@ -185,6 +185,17 @@ _FIELDS_MAP = "fields"
 _OVERRIDES_MAP = "overrides"
 _GROUPS_MAP = "functional_groups"
 
+#: The DISTINCT presentation slice (spec 15 — SAM Page Look-and-Feel, DD-2 / Layer 1). It is the
+#: application-form PAGE's look-and-feel — the attribute VALUES only, never generated CSS — a
+#: parent map on the SAME ``config#fields`` row the slug / publish-state ops already address, but
+#: SEPARATE from the member field-config slices ``fields`` / ``overrides`` / ``functional_groups``.
+#: Seeded empty by the C6 row skeleton (``FIELDS_SKELETON_PARENTS``) so a child
+#: ``SET look_and_feel.<attr>`` addresses a pre-existing parent map. The Layer-1 look-and-feel
+#: writer adapter (:meth:`ConfigFieldsCrudService.set_look_and_feel` /
+#: :meth:`remove_look_and_feel` / :meth:`copy_look_and_feel`) writes ONLY into this map, so a
+#: look-and-feel write can never disturb the member field config (by construction, steering 39).
+_LOOK_AND_FEEL_MAP = "look_and_feel"
+
 #: Map a STORAGE map name to the key it is served under in the reader's WIRE overlay shape. Only
 #: ``overrides`` differs (served as ``fixed_overrides``); ``fields`` / ``functional_groups`` keep
 #: their names. Used by :meth:`ConfigFieldsCrudService._entry_exists` to look an entry up in the
@@ -656,6 +667,138 @@ class ConfigFieldsCrudService:
             return [{"action": SET, "path": ["public_prefix"], "value": candidate}]
 
         return self._run(tenant_id, derive_set, client_op_id=client_op_id)
+
+    # ── Look-and-feel writer adapter (spec 15 — SAM Page Look-and-Feel, task 4.5) ───────
+    #
+    # The Layer-1 Change-Op WRITER over ``apply_ops`` for the DISTINCT ``look_and_feel`` slice
+    # (DD-2). Three op shapes, each a SINGLE path-scoped, version-conditional ``update_item`` —
+    # NEVER a whole-record ``put_item`` from a client path (steering 39 Change-Op write contract):
+    #
+    #   * :meth:`set_look_and_feel`    → ``SET look_and_feel.<attr> = :v``   (author one value)
+    #   * :meth:`remove_look_and_feel` → ``REMOVE look_and_feel.<attr>``     (revert to default)
+    #   * :meth:`copy_look_and_feel`   → ``SET look_and_feel = :snapshot``   (one-time snapshot)
+    #
+    # Each op names ONLY the ``look_and_feel`` path, so DynamoDB leaves ``fields`` / ``overrides``
+    # / ``functional_groups`` / ``slug`` / publish-state physically UNTOUCHED (by construction) and
+    # a concurrent edit surfaces as the repository's :class:`StaleVersionError` (caller-safe 409) —
+    # UNCHANGED by this adapter; the ``TruncationTripwireError`` backstop still applies since every
+    # write goes through the one ``apply_ops`` seam. This adapter stores VALUES ONLY (never
+    # generated CSS). It is the thin WRITER (intent → ops translation + placement); ATTRIBUTE and
+    # VALUE validation (the supported-seven / permitted-set rules, Req 3.4 / 4.5) is the
+    # ``LookAndFeelSettingsService`` seam's responsibility (task 5.1) layered ABOVE this adapter —
+    # kept out of here so the adapter stays a pure, reusable Change-Op surface.
+
+    def set_look_and_feel(
+        self,
+        tenant_id: str,
+        attribute: str,
+        value: Any,
+        *,
+        client_op_id: str | None = None,
+    ) -> dict:
+        """Author ONE look-and-feel attribute VALUE: ``SET look_and_feel.<attribute> = value``.
+
+        A SINGLE path-scoped, version-conditional ``update_item`` into the pre-existing
+        ``look_and_feel`` parent map (seeded empty by the C6 row skeleton). The op names ONLY
+        ``look_and_feel.<attribute>``, so every member field-config slice and the slug /
+        publish-state attributes survive by construction (steering 39). Stores the VALUE as-is
+        (never CSS). A stale row surfaces as :class:`StaleVersionError` (caller-safe 409) via the
+        guarded one-shot retry in :meth:`_run`.
+
+        ``attribute`` MUST be a non-blank string (a blank segment is a malformed path the repository
+        would reject opaquely — rejected here as a caller-safe :class:`ConfigFieldsCrudError`
+        BEFORE any write). The supported-attribute / permitted-value validation is the
+        ``LookAndFeelSettingsService`` layer's responsibility (task 5.1), not this writer adapter.
+        """
+        attr = self._require_look_and_feel_attribute(attribute)
+
+        def derive(snapshot):
+            return [
+                {
+                    "action": SET,
+                    "path": [_LOOK_AND_FEEL_MAP, attr],
+                    "value": value,
+                }
+            ]
+
+        return self._run(tenant_id, derive, client_op_id=client_op_id)
+
+    def remove_look_and_feel(
+        self,
+        tenant_id: str,
+        attribute: str,
+        *,
+        client_op_id: str | None = None,
+    ) -> dict:
+        """Clear ONE look-and-feel attribute (revert to default): ``REMOVE look_and_feel.<attr>``.
+
+        The explicit-remove half of the steering-39 clear-vs-unchanged contract: an absent attribute
+        is "leave untouched" (no path written — the caller simply omits it), while this is the
+        deliberate scoped ``REMOVE`` of exactly one attribute, after which the resolved view falls
+        back to the Layer-2 default for that attribute. A SINGLE path-scoped, version-conditional
+        ``update_item`` naming ONLY ``look_and_feel.<attribute>``; unrelated slices are untouched.
+        """
+        attr = self._require_look_and_feel_attribute(attribute)
+
+        def derive(snapshot):
+            return [{"action": REMOVE, "path": [_LOOK_AND_FEEL_MAP, attr]}]
+
+        return self._run(tenant_id, derive, client_op_id=client_op_id)
+
+    def copy_look_and_feel(
+        self,
+        tenant_id: str,
+        snapshot_values: Mapping[str, Any],
+        *,
+        client_op_id: str | None = None,
+    ) -> dict:
+        """Overwrite the WHOLE look-and-feel slice with a one-time snapshot: ``SET look_and_feel =
+        :snapshot`` (Req 9 copy, the Change-Op half).
+
+        A SINGLE path-scoped, version-conditional ``update_item`` that SETs the WHOLE
+        ``look_and_feel`` map to ``snapshot_values`` — the physical effect of a copy-from-another-
+        page (the SERVICE layer, task 5.3, resolves the source page's values and enforces the
+        same-tenant rule; this adapter performs only the scoped overwrite). It names ONLY the
+        ``look_and_feel`` path — NOT a whole-record ``put_item`` — so ``fields`` / ``overrides`` /
+        ``functional_groups`` / ``slug`` / publish-state are left physically untouched, and a stale
+        row still surfaces as :class:`StaleVersionError`. Stores VALUES only (never CSS).
+
+        ``snapshot_values`` MUST be a mapping (the snapshot of the source page's stored values);
+        an empty mapping is a valid snapshot (overwrites the target to "all defaults"). A non-mapping
+        is rejected as a caller-safe :class:`ConfigFieldsCrudError` BEFORE any write.
+        """
+        if not isinstance(snapshot_values, Mapping):
+            raise ConfigFieldsCrudError(
+                "copy_look_and_feel: snapshot_values must be a mapping of attribute values"
+            )
+        snapshot_copy = dict(snapshot_values)
+
+        def derive(snapshot):
+            return [
+                {
+                    "action": SET,
+                    "path": [_LOOK_AND_FEEL_MAP],
+                    "value": snapshot_copy,
+                }
+            ]
+
+        return self._run(tenant_id, derive, client_op_id=client_op_id)
+
+    @staticmethod
+    def _require_look_and_feel_attribute(attribute: str) -> str:
+        """Validate the attribute is a non-blank string and return it trimmed (caller-safe).
+
+        A structural guard only — a blank/non-string segment is a malformed path the repository
+        would otherwise reject with an opaque ``ChangeOpError``; rejecting it here keeps the message
+        intelligible (:class:`ConfigFieldsCrudError`, BEFORE any write). It deliberately does NOT
+        check the attribute against the supported-seven set — that semantic validation is the
+        ``LookAndFeelSettingsService`` layer's job (task 5.1), kept out of this reusable adapter.
+        """
+        if not isinstance(attribute, str) or not attribute.strip():
+            raise ConfigFieldsCrudError(
+                "look-and-feel attribute must be a non-blank string"
+            )
+        return attribute.strip()
 
     def _current_stored_slug(self, tenant_id: str) -> str | None:
         """Return the tenant's CURRENTLY stored ``config#fields.slug``, or ``None`` (task 3.2).
