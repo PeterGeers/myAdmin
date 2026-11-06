@@ -16,18 +16,22 @@ What this module owns vs what the shared library owns
 - THIS module owns the SAM-plane composition: it builds the ``head_meta`` dict from the
   tenant's form/branding, renders the applicant-facing form BODY from the public field
   config (:meth:`get_public_field_config`, the single filter authority, reused — never a
-  second field list), and produces the ``css`` string from ``LandingPageStyles``.
+  second field list), and produces the ``css`` string from the SAM-owned Layer-2 generator
+  ``sam.shared.page_styles.render_page_styles``.
 
-`LandingPageStyles` stays the SINGLE CSS source (R7.1)
-------------------------------------------------------
-The CSS is produced here by calling ``LandingPageStyles.build_css_variables`` +
-``build_page_css`` (the one shared, ``re``/``typing``-only CSS generator in
-``backend/src/services/landing_page_styles.py``) and passing the result to ``render_page``
-as the ``css`` PARAMETER. This module does NOT fork, duplicate, or re-implement any CSS —
-there is exactly one CSS source for both planes. (`LandingPageStyles` is vendored into the
-Members Lambda layer the same least-surface ``cp`` way ``dynamodb_client.py`` is — see
-``sam/members/layer/Makefile`` — so it resolves at Lambda runtime without pulling in the
-rest of ``backend/src``.)
+``render_page_styles`` is the SAM-owned CSS source (spec 15 / DD-1, R7.1)
+-------------------------------------------------------------------------
+The CSS is produced here by calling :func:`sam.shared.page_styles.render_page_styles`
+(Layer 2) — the SAM-OWNED CSS generator — and joining its ``css_variables`` + ``page_css``
+into the ``css`` PARAMETER handed to ``render_page``. This CUTS OVER the former lazy
+``from services.landing_page_styles import LandingPageStyles`` Flask-plane import (spec 15
+task 7.2 / DD-1): the publish render path produces styling entirely from SAM-owned code
+with no runtime read of or call to the Flask plane (Req 2.2 / 3.1 / 3.5). ``render_page_styles``
+relocated the former ``LandingPageStyles`` CSS logic verbatim, so for identical values the
+generated ``:root`` variables block + page CSS are byte-identical — there is still exactly
+one CSS source, now SAM-owned (and shipped via ``sam/shared/`` which the Members layer already
+packages wholesale — no Flask vendoring). This module does NOT fork, duplicate, or
+re-implement any CSS.
 
 Scope boundary (Task 2.2 ≠ the gated live write)
 ------------------------------------------------
@@ -56,6 +60,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sam.shared.page_shell import render_page
+from sam.shared.page_styles import render_page_styles
 
 __all__ = ["render_application_form_page", "build_form_body_html"]
 
@@ -808,17 +813,23 @@ def render_application_form_page(
 
     This is the SAM form's shell-rendering entry point (R7.1 "the SAM form SHALL render its
     shell via ``page_shell``"): build the body from the public field config, produce the CSS
-    from ``LandingPageStyles`` (the single CSS source), and hand both plus ``head_meta`` to
-    :func:`sam.shared.page_shell.render_page`, which owns the generic document scaffold.
+    from the SAM-owned Layer-2 generator :func:`sam.shared.page_styles.render_page_styles`
+    (the single, SAM-owned CSS source — spec 15 / DD-1, task 7.2), and hand both plus
+    ``head_meta`` to :func:`sam.shared.page_shell.render_page`, which owns the generic
+    document scaffold.
 
     Args:
         public_field_config: the ``get_public_field_config`` result (the applicant schema).
         head_meta: the SEO/OG/canonical scaffold values ``page_shell`` recognises
             (``title``, ``description``, ``canonical``, ``og_image``, ``site_name``,
             ``font_links``, ``lang``, ``og_locale``). Each value is escaped by ``render_page``.
-        branding: optional resolved branding dict (``color_primary``/``color_accent`` +
-            typography/spacing) feeding ``LandingPageStyles``; a tenant with no branding gets
-            the default palette (parity with the Flask shell).
+        branding: optional resolved Look_And_Feel_Settings VALUES (``color_primary`` /
+            ``color_accent`` + typography / spacing) fed to the SAM-owned Layer-2 generator
+            ``render_page_styles``; a tenant with no branding (``None`` / empty) gets the
+            SAM-owned defaults for every attribute (Req 3.3 / 5.4). A values mapping carrying a
+            key outside the seven supported attributes raises ``UnsupportedAttributeError``
+            (Req 3.4) — on the publish path this surfaces before the artifact write, so a bad
+            slice never replaces the previously published form (Req 5.5).
         locale: the applicant locale for field/group labels (default ``nl``).
         header_html / footer_html: optional trusted fragments wrapped around the form body.
         slug: the form's public slug the submit script posts to — threaded through to
@@ -837,20 +848,21 @@ def render_application_form_page(
         body — the live S3 write of it stays gated, spec 14 Tasks 8/9).
     """
     brand = dict(branding) if branding else {}
-    color_primary = str(brand.get("color_primary") or _DEFAULT_COLOR_PRIMARY)
-    color_accent = str(brand.get("color_accent") or _DEFAULT_COLOR_ACCENT)
 
-    # LandingPageStyles is the ONE CSS source — imported lazily so this module is importable
-    # (and unit-testable) even where the vendored copy is absent, and so page_shell stays the
-    # dependency-free core while CSS composition lives on the producer side (R7.1).
-    from services.landing_page_styles import LandingPageStyles
-
-    css = "\n".join(
-        (
-            LandingPageStyles.build_css_variables(brand),
-            LandingPageStyles.build_page_css(color_primary, color_accent),
-        )
-    )
+    # Layer 2 — the SAM-OWNED CSS generator (`sam.shared.page_styles.render_page_styles`) is now
+    # the single source of the published form's CSS (spec 15 / DD-1, task 7.2). This CUTS OVER the
+    # former lazy `from services.landing_page_styles import LandingPageStyles` Flask-plane import
+    # (task 2's flag): the publish render path must produce styling entirely from SAM-owned code
+    # with no runtime read of or call to the Flask plane (Req 2.2 / 3.1 / 3.5). `render_page_styles`
+    # relocated that CSS logic verbatim, so for identical values the generated `:root` variables
+    # block + page CSS are byte-identical — the shared-shell parity golden (test_page_shell_parity)
+    # stays green. It also OWNS the SAM defaults for each absent attribute (Req 3.3 / 5.4), so a
+    # tenant with no (or partial) branding still renders a coherent page; and it REJECTS any
+    # unsupported attribute by raising `UnsupportedAttributeError` (Req 3.4) — on the publish path
+    # that surfaces BEFORE the artifact write, so a bad settings slice never replaces the
+    # previously published form (Req 5.5).
+    styles = render_page_styles(brand)
+    css = f"{styles.css_variables}\n{styles.page_css}"
 
     body_html = build_form_body_html(
         public_field_config,

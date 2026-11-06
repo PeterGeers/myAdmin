@@ -1982,3 +1982,140 @@ class TestGetPublicPrefix:
         table.put(_config_fields_item_with_prefix("h-dcn", 123))
         reader = MembersProjectionReader(table=table)
         assert reader.get_public_prefix("h-dcn") is None
+
+
+def _config_fields_item_with_look_and_feel(tenant_id, look_and_feel, version=1):
+    """A config#fields row carrying a look_and_feel slice (empty fields/overrides).
+
+    ``look_and_feel is None`` seeds NO slice at all (the never-authored shape); otherwise the
+    given mapping is stored verbatim as the slice (spec 15 — SAM Page Look-and-Feel, DD-2).
+    """
+    item = _config_fields_item(tenant_id, fields={}, overrides={}, version=version)
+    if look_and_feel is not None:
+        item["look_and_feel"] = look_and_feel
+    return item
+
+
+class TestGetLookAndFeel:
+    """Spec 15 task 4.2 — the resolved-view reader for the ``look_and_feel`` slice.
+
+    Reader seam: ``MembersProjectionReader.get_look_and_feel(tenant_id)`` — a tenant-scoped,
+    VALUES-ONLY resolved read of Layer-1's ``look_and_feel`` slice on ``config#fields``. Absent
+    slice/key → empty mapping (Layer 2 then applies its own defaults); never merges a Flask
+    ``landing_page`` projection (Property 7 — SAM-owned only).
+
+    Validates: Requirements 2.1, 2.4, 8.4
+    """
+
+    _FULL = {
+        "color_primary": "#2D5F8A",
+        "color_accent": "#F4A261",
+        "font_heading": "Inter",
+        "font_body": "Inter",
+        "base_spacing": "normal",
+        "border_radius_global": "rounded",
+        "shadow_style": "subtle",
+    }
+
+    def test_reads_stored_values_from_config_fields(self):
+        """A fully-populated slice resolves to exactly those seven VALUES (Req 2.1)."""
+        table = FakeTable()
+        table.put(_config_fields_item_with_look_and_feel("h-dcn", dict(self._FULL)))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_look_and_feel("h-dcn") == self._FULL
+
+    def test_partial_slice_returns_only_present_attributes(self):
+        """A partial slice resolves to only the present keys; the rest default in Layer 2 (Req 2.4)."""
+        table = FakeTable()
+        table.put(
+            _config_fields_item_with_look_and_feel(
+                "h-dcn", {"color_primary": "#111111", "shadow_style": "medium"}
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_look_and_feel("h-dcn") == {
+            "color_primary": "#111111",
+            "shadow_style": "medium",
+        }
+
+    def test_missing_config_row_resolves_to_empty_mapping(self):
+        """A never-authored tenant (no row) resolves to {} → Layer-2 defaults (Req 5.4)."""
+        table = FakeTable()  # nothing seeded
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_look_and_feel("unconfigured") == {}
+
+    def test_absent_slice_resolves_to_empty_mapping(self):
+        """A config#fields row with no look_and_feel attribute resolves to {} (Req 3.3/4.4)."""
+        table = FakeTable()
+        table.put(_config_fields_item("h-dcn", fields={}, overrides={}))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_look_and_feel("h-dcn") == {}
+
+    def test_empty_seeded_slice_resolves_to_empty_mapping(self):
+        """The task-4.1 empty-parent-map seed ({}) resolves to {} (defaults)."""
+        table = FakeTable()
+        table.put(_config_fields_item_with_look_and_feel("h-dcn", {}))
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_look_and_feel("h-dcn") == {}
+
+    def test_non_mapping_slice_resolves_to_empty_mapping(self):
+        """A stray non-mapping slice value degrades to {} — never a raise (fail-safe read)."""
+        for raw in ("not-a-map", 123, ["color_primary"], True):
+            table = FakeTable()
+            table.put(_config_fields_item_with_look_and_feel("h-dcn", raw))
+            reader = MembersProjectionReader(table=table)
+            assert reader.get_look_and_feel("h-dcn") == {}, f"slice={raw!r}"
+
+    def test_unsupported_keys_are_dropped_values_only_view(self):
+        """Only the seven supported attributes cross the boundary; stray keys are dropped.
+
+        Steering 39 resolved-view contract + Property 7: a consumer never sees a raw/unexpected
+        key, and Layer 2 is never handed an unsupported attribute off the stored slice.
+        """
+        table = FakeTable()
+        table.put(
+            _config_fields_item_with_look_and_feel(
+                "h-dcn",
+                {
+                    "color_primary": "#2D5F8A",
+                    # Not one of the seven supported attributes — must be dropped.
+                    "bogus_attribute": "oops",
+                    "generated_css": ":root{--x:1}",
+                },
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_look_and_feel("h-dcn") == {"color_primary": "#2D5F8A"}
+
+    def test_null_attribute_value_is_omitted(self):
+        """An explicit None value for an attribute is omitted (resolves to that attr's default)."""
+        table = FakeTable()
+        table.put(
+            _config_fields_item_with_look_and_feel(
+                "h-dcn", {"color_primary": "#2D5F8A", "color_accent": None}
+            )
+        )
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_look_and_feel("h-dcn") == {"color_primary": "#2D5F8A"}
+
+    def test_tenant_isolation_no_cross_tenant_bleed(self):
+        """Each tenant's look-and-feel answers only from its own partition (Req 2.4 / Property 8)."""
+        table = FakeTable()
+        table.put(
+            _config_fields_item_with_look_and_feel("tenant-a", {"color_primary": "#AAAAAA"})
+        )
+        table.put(
+            _config_fields_item_with_look_and_feel("tenant-b", {"color_primary": "#BBBBBB"})
+        )
+        reader = MembersProjectionReader(table=table)
+        assert reader.get_look_and_feel("tenant-a") == {"color_primary": "#AAAAAA"}
+        assert reader.get_look_and_feel("tenant-b") == {"color_primary": "#BBBBBB"}
+
+    def test_shares_partition_cache_one_query_per_tenant(self):
+        """The look-and-feel read shares the per-invocation partition cache (one Query per tenant)."""
+        table = FakeTable()
+        table.put(_config_fields_item_with_look_and_feel("h-dcn", dict(self._FULL)))
+        reader = MembersProjectionReader(table=table)
+        reader.get_look_and_feel("h-dcn")
+        reader.get_look_and_feel("h-dcn")
+        assert table.query_counts.get("h-dcn") == 1

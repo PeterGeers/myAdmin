@@ -4,8 +4,9 @@ Spec 03 Task 2.0a — unit tests for the NEW-TENANT row-skeleton create primitiv
 
 ``ensure_skeleton`` is the create-time half of design C6 (review Must-fix #1). A freshly created
 tenant must get its ``config#fields`` row seeded with the parent-map skeleton
-``{fields: {}, overrides: {}, functional_groups: {}}`` plus a seeded ``version`` BEFORE the first
-Change-Op, because the Phase-2 path ``update_item`` requires those parent maps to exist (an
+``{fields: {}, overrides: {}, functional_groups: {}, look_and_feel: {}}`` plus a seeded ``version``
+BEFORE the first Change-Op, because the Phase-2 path ``update_item`` requires those parent maps to
+exist (an
 ``if_not_exists``-in-the-same-op seed is rejected by DynamoDB as "document paths overlap"). The
 migration (task 2.0) backfills the SAME skeleton onto legacy rows; this primitive seeds a brand-new
 tenant.
@@ -13,7 +14,10 @@ tenant.
 What this asserts
 -----------------
 1. **A new tenant gets the FULL skeleton + a version** — ``ensure_skeleton`` creates the row with
-   the three empty parent maps and a non-empty ``version`` stamp, and reports ``created=True``.
+   the four empty parent maps (``fields`` / ``overrides`` / ``functional_groups`` /
+   ``look_and_feel``) and a non-empty ``version`` stamp, and reports ``created=True``. The
+   ``look_and_feel`` slice (spec 15 — SAM Page Look-and-Feel, DD-2 / Layer 1) is seeded empty so
+   the Change-Op path can later ``SET look_and_feel.#attr`` into a pre-existing parent map.
 2. **Idempotent + NEVER overwrites a populated row** — a second call (or a call against an
    already-provisioned tenant that carries real fields / overrides / groups) is a no-op that leaves
    the stored row byte-for-byte untouched (conditional ``attribute_not_exists(sk)``), reporting
@@ -214,7 +218,7 @@ def _make_repo(table, version="v-seed"):
 
 class TestNewTenantGetsSkeleton:
     def test_new_tenant_is_seeded_with_full_skeleton_and_version(self):
-        """A never-authored tenant gets ``{fields,overrides,functional_groups}: {}`` + a version.
+        """A never-authored tenant gets ``{fields,overrides,functional_groups,look_and_feel}: {}`` + a version.
 
         Validates: Requirement 1.5
         """
@@ -225,9 +229,13 @@ class TestNewTenantGetsSkeleton:
 
         assert result == {"created": True, "version": "2026-01-01T00:00:00+00:00"}
         stored = table.store[(_TENANT_ID, _FIELDS_SK)]
-        # The three parent maps all exist AND are empty (the C6 skeleton shape).
+        # Every parent map exists AND is empty (the C6 skeleton shape).
         for parent in FIELDS_SKELETON_PARENTS:
             assert stored[parent] == {}
+        # The `look_and_feel` presentation slice (spec 15 DD-2 / Layer 1) is seeded empty, DISTINCT
+        # from the member field-config slices, so the Change-Op path can SET into it (R2.3/8.2/8.3).
+        assert "look_and_feel" in FIELDS_SKELETON_PARENTS
+        assert stored["look_and_feel"] == {}
         # The row carries the canonical key + a non-empty version stamp.
         assert stored[schema.PARTITION_KEY_ATTR] == _TENANT_ID
         assert stored[schema.SORT_KEY_ATTR] == _FIELDS_SK

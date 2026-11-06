@@ -537,6 +537,16 @@ def get_application_publish_service() -> Any:
             # Round 3 Defect 4: persist `published_version` / `published_at` on `config#fields`
             # after the artifact write, via the CRUD service's version-conditional Change-Op.
             publish_state_writer=_CrudPublishStateWriter(),
+            # spec 15 Task 9 (C6 — Layer-3 wiring): inject the REAL look-and-feel reader so the
+            # publish path resolves the tenant's stored presentation VALUES (the `look_and_feel`
+            # slice on `config#fields`) and feeds them through Layer 2 (`render_page_styles`) into
+            # the renderer's `branding=` — closing the Req 5 defect. The SAME DynamoDB-backed
+            # `MembersProjectionReader` already wired as `slug_reader` / `readiness_provider` /
+            # `prefix_reader` satisfies the `LookAndFeelSettingsReader` Protocol via its
+            # `get_look_and_feel(tenant_id)` method; reusing the one reader keeps publish on a
+            # single resolved-view read and touches no new AWS. When a test injects a service
+            # WITHOUT this reader the renderer falls back to its defaults (backward compatible).
+            look_and_feel_reader=reader,
         )
     return _APPLICATION_PUBLISH_SERVICE
 
@@ -552,6 +562,72 @@ class _CrudPublishStateWriter:
             published_version=published_version,
             published_at=published_at,
         )
+
+
+# ── Look-and-feel settings service seam (spec 15 Task 9 — design C6 / Layer 1) ────────
+#
+# The Layer-1 look-and-feel AUTHORING routes (get / set / copy) are backed by the standalone
+# :class:`~sam.members.domain.look_and_feel_settings_service.LookAndFeelSettingsService` (design
+# C3 — NOT the MembershipService). It reads the tenant's resolved ``look_and_feel`` slice and
+# authors it by VALUE through a single version-conditional Change-Op, never touching generated CSS
+# (that is Layer 2). It is resolved lazily once (warm-reuse), mirroring
+# :func:`get_config_fields_crud_service`. A test replaces :data:`_LOOK_AND_FEEL_SETTINGS_SERVICE`
+# (or patches :func:`get_look_and_feel_settings_service`) with a service over in-memory fakes, so
+# no AWS is touched.
+#
+# Its two injected seams are the SAME real adapters used elsewhere in this composition root — no
+# new egress, no new resource:
+#   * READER — the DynamoDB-backed
+#     :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader`; its
+#     ``get_look_and_feel(tenant_id)`` satisfies the service's ``LookAndFeelSettingsReader``
+#     Protocol (the resolved-view read of the ``look_and_feel`` slice — VALUES only, tenant-scoped,
+#     defaults when absent).
+#   * WRITER — the shared :func:`get_config_fields_crud_service` Change-Op service; its
+#     ``set_look_and_feel`` / ``remove_look_and_feel`` / ``copy_look_and_feel`` adapters satisfy the
+#     service's ``LookAndFeelSettingsWriter`` Protocol (each a single path-scoped,
+#     version-conditional ``apply_ops`` write — never a whole-record replace, steering 39). Reusing
+#     that accessor means the authoring write rides the SAME `config#fields` Change-Op contract
+#     (and the same ``StaleVersionError`` 409 path) as slug / prefix / publish-state.
+# Both resolve their AWS resource lazily + fail-fast on first use, so importing the module (and the
+# auth-only tests) never touches AWS.
+
+#: The module-global look-and-feel settings service, built once at cold start (``None`` until first use).
+_LOOK_AND_FEEL_SETTINGS_SERVICE: Any = None
+
+
+def get_look_and_feel_settings_service() -> Any:
+    """Return the module-global look-and-feel settings service, built once at cold start (spec 15 Task 9).
+
+    Wires the :class:`~sam.members.domain.look_and_feel_settings_service.LookAndFeelSettingsService`
+    (design C3 / C6) over its two real seams, both reused from elsewhere in this composition root:
+
+      * the resolved-view READER — the DynamoDB-backed
+        :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader` (its
+        ``get_look_and_feel`` satisfies the service's ``LookAndFeelSettingsReader``);
+      * the Change-Op WRITER — the shared config#fields Change-Op service from
+        :func:`get_config_fields_crud_service` (its ``set_look_and_feel`` /
+        ``remove_look_and_feel`` / ``copy_look_and_feel`` adapters satisfy
+        ``LookAndFeelSettingsWriter``), so the authoring write rides the same version-conditional,
+        path-scoped `apply_ops` contract as every other config#fields write.
+
+    Both resolve their table lazily + fail-fast on first use, so importing the module (and the
+    auth-only tests) never touches AWS. Tests patch this accessor (or set
+    ``_LOOK_AND_FEEL_SETTINGS_SERVICE``) to inject a service over in-memory fakes.
+    """
+    global _LOOK_AND_FEEL_SETTINGS_SERVICE
+    if _LOOK_AND_FEEL_SETTINGS_SERVICE is None:
+        from sam.members.domain.look_and_feel_settings_service import (
+            LookAndFeelSettingsService,
+        )
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
+
+        _LOOK_AND_FEEL_SETTINGS_SERVICE = LookAndFeelSettingsService(
+            reader=MembersProjectionReader(),
+            writer=get_config_fields_crud_service(),
+        )
+    return _LOOK_AND_FEEL_SETTINGS_SERVICE
 
 
 # ── Application-form live preview is IN-BROWSER (spec 12, redesign C / R3) ─────────────

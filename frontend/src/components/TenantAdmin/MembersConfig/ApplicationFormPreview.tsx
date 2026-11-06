@@ -27,6 +27,18 @@
  * driven with empty `values` + a no-op `onChange` and no submit affordance — the admin cannot type
  * into or submit the preview. It reflects the WORKING overlay; the hosted form reflects the LAST
  * PUBLISHED artifact (a deliberate Publish shows there), which the panel states.
+ *
+ * ## Look-and-feel parity (spec 15 — SAM Page Look-and-Feel, task 13.1; Req 4.2/4.3/7)
+ *
+ * The preview now also reflects the page's LOOK-AND-FEEL. It runs the browser-side TS Layer-2
+ * generator {@link renderPageStyles} — the MIRROR of the SAM-owned Python Layer-2 generator
+ * `sam/shared/page_styles` — over the same seven supported attributes and the same defaults the
+ * publish step uses, and injects the resulting `:root` CSS-variable block into the preview
+ * container. So what the admin sees while authoring matches what publish will bake (Req 7): identical
+ * values → identical styling (Req 4.3), differing values → differing styling (Req 4.2). Task 13.2
+ * (a LATER wave) pins this TS Layer-2 output to the Python output via a shared parity fixture; this
+ * component only consumes the mirror. An absent/empty `lookAndFeel` resolves to the SAM-owned
+ * defaults, exactly as the published page would (Req 7.3).
  */
 import React, { useMemo } from 'react';
 import { Box, Text, VStack } from '@chakra-ui/react';
@@ -34,6 +46,7 @@ import { ApplicationFormRenderer } from '../../public/application/ApplicationFor
 import type { FieldConfig } from '../../../types/members';
 import type { MembersConfigValue } from '../../../types/membersConfig';
 import { buildPreviewConfig } from './applicationPreviewFilter';
+import { renderPageStyles, type LookAndFeelSettings } from './pageStyles';
 
 export interface ApplicationFormPreviewProps {
   /**
@@ -48,12 +61,20 @@ export interface ApplicationFormPreviewProps {
   overlay: MembersConfigValue;
   /** The applicant locale the preview renders labels in (nl/en). */
   lang: 'nl' | 'en';
+  /**
+   * The page's WORKING `Look_And_Feel_Settings` VALUES (spec 15, task 13.1). Fed to the browser-side
+   * Layer-2 mirror {@link renderPageStyles} so the preview carries the SAME styling the publish step
+   * bakes (Req 4.2/4.3/7). Absent/empty → SAM-owned defaults, exactly as the published page would
+   * (Req 7.3). Values-only; never generated CSS.
+   */
+  lookAndFeel?: LookAndFeelSettings;
 }
 
 export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
   fieldConfig,
   overlay,
   lang,
+  lookAndFeel,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
 
@@ -62,6 +83,15 @@ export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
   const schema = useMemo(
     () => buildPreviewConfig(fieldConfig, overlay),
     [fieldConfig, overlay],
+  );
+
+  // Layer 2 (spec 15, task 13.1): generate the page styling IN-BROWSER from the working look-and-feel
+  // values via the mirror of the Python generator, so the preview matches what publish bakes (Req 7).
+  // An unsaved look-and-feel edit re-derives on the very next render (no round-trip), exactly like the
+  // schema above. Absent/empty values resolve to the SAM-owned defaults (Req 7.3).
+  const pageStyles = useMemo(
+    () => renderPageStyles(lookAndFeel ?? {}),
+    [lookAndFeel],
   );
 
   const fieldCount = schema.fields.length;
@@ -95,6 +125,11 @@ export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
           // The renderer is CONTROLLED but the preview is READ-ONLY (R7.4): empty values + a no-op
           // onChange, and no submit affordance — the admin cannot type into or submit the preview.
           data-testid="application-form-preview-render"
+          // The look-and-feel CSS variables (spec 15, task 13.1) are applied to THIS preview
+          // container's scope, so the `--font-*` / `--spacing-*` / `--radius-*` / `--shadow-*`
+          // custom properties the form consumes resolve to the values publish will bake (Req 7).
+          sx={pageStyles.cssVariableMap}
+          data-lookandfeel-vars={pageStyles.cssVariables}
         >
           <ApplicationFormRenderer
             config={schema}

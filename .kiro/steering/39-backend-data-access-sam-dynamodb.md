@@ -84,6 +84,14 @@ from sam.members.repository.projection_config_reader import MembersProjectionRea
 - **Clear-vs-unchanged semantics:** within an op, an ABSENT attribute means "leave untouched" (no
   path written); an explicit `null` means "remove that attribute" (a scoped `REMOVE`). Reverting a
   whole override is an explicit reset op, not a payload of nulls.
+- **A record may carry MULTIPLE independent server-owned slices, each written by its own scoped
+  Change-Op.** The `config#fields` row, beyond `fields` / `overrides`, now also carries a
+  `look_and_feel` presentation slice (the SAM-owned application-form look-and-feel *values* — not
+  generated CSS) written by the same version-conditional, path-scoped `update_item` to that one
+  slice. Each slice is values-only and server-placed; a write to one slice leaves the others
+  untouched **by construction** (the single-path `update_item` rule above). See
+  `.kiro/specs/Members/15 - sam-page-look-and-feel/` (DD-2) — the publish step reads this slice via
+  the resolved-view reader and feeds it to the `sam/shared/page_styles` generator (steering 35).
 - **Concurrency is version-conditional.** Each Change-Op's `update_item` carries a
   `ConditionExpression` on the record's `version` (and bumps it in the same expression), so a stale
   write fails cleanly with no partial change and surfaces as a caller-safe 409 (reload-and-retry) —

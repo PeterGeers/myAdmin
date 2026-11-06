@@ -106,6 +106,10 @@ from sam.members.domain.config_fields_crud_service import (
     SlugAuthorConflict,
     SlugAuthorRejected,
 )
+from sam.members.domain.look_and_feel_settings_service import (
+    CrossTenantCopyError,
+    LookAndFeelValidationError,
+)
 
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
@@ -1545,6 +1549,35 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             400,
             str(exc),
             code="errors.validation.failed",
+        )
+    except CrossTenantCopyError:
+        # spec 15 Task 8.1 (Req 9.4): a Layer-1 look-and-feel COPY whose source page belongs to a
+        # DIFFERENT tenant than the verified target. The service rejects it BEFORE any read or
+        # write, so neither tenant's state is touched. Mapped to a caller-safe 403 ("not
+        # permitted") with a GENERIC message — it must NOT confirm whether the other tenant/page
+        # exists (no cross-tenant information leak, never str(e)). A PermissionError subclass,
+        # DISTINCT from the LookAndFeelValidationError 422 below, so it is a 403 not a 422; placed
+        # before the generic `except Exception` so it is never mis-shaped as a 500.
+        return _error(
+            403,
+            "Forbidden",
+            code="errors.api.forbidden",
+            route=spec.name,
+        )
+    except LookAndFeelValidationError as exc:
+        # spec 15 Task 8.1 (Req 3.4 / Req 4.5): a DELIBERATE, caller-safe Layer-1 look-and-feel
+        # rejection — an unsupported attribute, a value outside its permitted set, an unknown page
+        # id, or a missing `attribute` on the author action. The service raises BEFORE any write,
+        # so the Page's previously stored values are UNCHANGED by construction. Mapped to a 422
+        # identifying the rejected setting (the message names only the client's own key/value —
+        # safe to surface, no internals, steering 30/37, never str of an internal fault). A
+        # ValueError subclass; placed before the generic `except Exception` so a deliberate
+        # validation 422 is never mis-shaped as a 500.
+        return _error(
+            422,
+            str(exc),
+            code="errors.validation.failed",
+            route=spec.name,
         )
     except StaleClientBundleError as exc:
         # STALE-SPA-BUNDLE guard (spec 03 Task 5.3a — design "Migration/rollout Slice 3"): a

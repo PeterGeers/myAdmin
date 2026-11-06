@@ -80,7 +80,10 @@ def test_route_map_covers_eighteen_behaviours_total():
     # ...plus the application-form slug PREFIX author route (slug-prefix SAM-owned —
     # POST /members/application-form/prefix, members:admin; persists config#fields.public_prefix
     # via a Change-Op) = 48.
-    assert len(ROUTES) == 48
+    # ...plus the two Layer-1 look-and-feel authoring routes (spec 15 Task 8 — GET/PUT
+    # /members/look-and-feel, members:admin; resolve + author the look_and_feel slice on
+    # config#fields via a Change-Op) = 50.
+    assert len(ROUTES) == 50
 
 
 def test_route_map_groups_match_the_design_c1_counts():
@@ -103,7 +106,10 @@ def test_route_map_groups_match_the_design_c1_counts():
     # surface = MEMBER is 13.
     # PLUS the application-form slug PREFIX author route (slug-prefix SAM-owned —
     # POST /members/application-form/prefix, members:admin), also admin-config = MEMBER is 14.
-    assert len(routes_by_group(RouteGroup.MEMBER)) == 14
+    # PLUS the two Layer-1 look-and-feel authoring routes (spec 15 Task 8 — GET/PUT
+    # /members/look-and-feel, members:admin), also grouped with the admin-config surface =
+    # MEMBER is 16.
+    assert len(routes_by_group(RouteGroup.MEMBER)) == 16
     # Membership lifecycle is 5 after the two transition routes were retired
     # (retire-members-status-lifecycle-engine): create + list + get + update + delete.
     assert len(routes_by_group(RouteGroup.MEMBERSHIP)) == 5
@@ -155,6 +161,10 @@ def test_route_map_includes_each_named_behaviour():
         # POST /members/application-form/prefix, members:admin; persists config#fields.public_prefix
         # via an identity Change-Op)
         "set_application_form_prefix",
+        # Page look-and-feel Layer-1 authoring (spec 15 Task 8 — GET/PUT /members/look-and-feel,
+        # members:admin; resolve + author the look_and_feel slice via a Change-Op)
+        "get_look_and_feel",
+        "write_look_and_feel",
         # membership lifecycle
         "create_membership",
         "list_memberships",
