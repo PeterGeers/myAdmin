@@ -36,8 +36,13 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Accordion,
+  AccordionButton,
+  AccordionIcon,
+  AccordionItem,
+  AccordionPanel,
+  Badge,
   Box,
-  Button,
   Grid,
   GridItem,
   HStack,
@@ -47,6 +52,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useTranslation } from 'react-i18next';
+import { GroupSaveBar } from './GroupSaveBar';
 import {
   getMembersFieldConfig,
   saveMembersMailConfig,
@@ -71,11 +77,14 @@ import type { FieldConfig } from '../../../types/members';
 import { ApplicationFieldModalList } from './ApplicationFieldModalList';
 import { ApplicationFieldModal } from './ApplicationFieldModal';
 import { ApplicationFormShellPanel } from './ApplicationFormShellPanel';
+import { ApplicationAddressFields } from './ApplicationAddressFields';
 import { ApplicationReadinessPanel } from './ApplicationReadinessPanel';
 import { ApplicationFormPreview } from './ApplicationFormPreview';
+import { PublishSection } from './PublishSection';
 import { LookAndFeelEditor } from './LookAndFeelEditor';
 import {
   type ShellFormValues,
+  deriveApplicationFormUrl,
   mailConfigToShellValues,
   resolveConsentVersion,
   toShellMailBody,
@@ -202,6 +211,22 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
     mailConfigToShellValues(null, null),
   );
 
+  // The deferred DRAFT values for the Public-address group (slug + prefix). These are lifted UP
+  // from the shell panel so slug/prefix join the one "edit then Save" model: editing an input only
+  // mutates this in-memory draft, and NOTHING is written until the Public-address group Save fires
+  // `handleSaveAddress` (prefix first, then slug). Seeded from the SAM-sourced stored values on
+  // load (`cfg.slug` / `cfg.public_prefix`) so editing starts from the persisted value; a blank
+  // draft with a stored value is a deliberate CLEAR (send null on save).
+  const [slugDraft, setSlugDraft] = useState<string>('');
+  const [prefixDraft, setPrefixDraft] = useState<string>('');
+  // The stored (authoritative, SAM-sourced) slug/prefix the drafts are diffed against for the
+  // group's dirty signal. Re-seeded on every load so a clean load is never dirty.
+  const [storedSlug, setStoredSlug] = useState<string>('');
+  const [storedPrefix, setStoredPrefix] = useState<string>('');
+  // A caller-safe inline error for the Public-address group (a slug/prefix 400/422/409), shown in
+  // that group's GroupSaveBar error slot rather than as a bare toast. Cleared on edit + re-save.
+  const [addressError, setAddressError] = useState<string | null>(null);
+
   const load = async () => {
     setLoading(true);
     setError(null);
@@ -238,6 +263,16 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
       const shellValues = mailConfigToShellValues(cfg, null);
       setShell(shellValues);
       setShellBaseline(shellValues);
+      // Seed the Public-address group's deferred drafts from the authoritative SAM state so a
+      // fresh load is NOT dirty and editing starts from the persisted value. The stored copies are
+      // what the drafts are diffed against for `slugDirty`/`prefixDirty`.
+      const loadedSlug = (cfg?.slug ?? '').trim();
+      const loadedPrefix = (cfg?.public_prefix ?? '').trim();
+      setStoredSlug(loadedSlug);
+      setStoredPrefix(loadedPrefix);
+      setSlugDraft(loadedSlug);
+      setPrefixDraft(loadedPrefix);
+      setAddressError(null);
       // Seed the working look-and-feel VALUES from the SAM-owned `look_and_feel` slice (spec 15
       // task 12.2). Best-effort and NON-BLOCKING: a failed read resolves to the empty map (→
       // Layer-2 defaults) and NEVER blocks authoring (same posture as the field-config load). The
@@ -279,6 +314,41 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
     () => JSON.stringify({ seven: lookAndFeel, extra: extraLookAndFeel }) !== lookAndFeelBaseline,
     [lookAndFeel, extraLookAndFeel, lookAndFeelBaseline],
   );
+  // Public-address group dirt: each draft differs (trimmed) from the stored SAM value. A blank
+  // draft against a stored value is dirty too (a deliberate CLEAR). Prefix and slug are one group
+  // but tracked separately so `handleSaveAddress` commits only the one(s) that actually changed.
+  const slugDirty = useMemo(
+    () => slugDraft.trim() !== storedSlug.trim(),
+    [slugDraft, storedSlug],
+  );
+  const prefixDirty = useMemo(
+    () => prefixDraft.trim() !== storedPrefix.trim(),
+    [prefixDraft, storedPrefix],
+  );
+  const addressDirty = slugDirty || prefixDirty;
+  // The union of every group's dirt — drives the aggregate (dirty-gated) header indicator and
+  // arms the navigation-away guard. There is NO always-visible remark (decision): indicators show
+  // only when something is actually unsaved.
+  const anyDirty =
+    dirty || mailDirty || lookAndFeelDirty || slugDirty || prefixDirty;
+
+  // Navigation-away guard (grouped per-group-save redesign, Task 3). The draft lives only in
+  // in-memory state — leaving the page discards every unsaved group edit (a fresh mount re-seeds
+  // from the server). So warn the user on a browser-level navigation (refresh / close / tab
+  // discard) whenever ANY group is dirty. Armed only while `anyDirty` is true and removed when the
+  // form is clean, so a clean screen never prompts. No always-visible remark accompanies it
+  // (indicators are dirty-gated); the prompt IS the safeguard.
+  useEffect(() => {
+    if (!anyDirty) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Modern browsers show their own generic message; setting returnValue is what triggers it.
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [anyDirty]);
 
   /**
    * Upload a new logo image and set the `logo` look-and-feel value to the stored reference. Reuses
@@ -303,18 +373,36 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
    * source of truth), so it is free of the overlapping-response race.
    */
   const persistLookAndFeel = async () => {
-    const sevenEntries = Object.entries(lookAndFeel) as [SupportedAttribute, string | null][];
-    const extraEntries = Object.entries(extraLookAndFeel) as [ExtraAttribute, string | null][];
-    for (const [attribute, value] of sevenEntries) {
-      await setLookAndFeelSetting(attribute, value);
+    setSettingLookAndFeel(true);
+    try {
+      const sevenEntries = Object.entries(lookAndFeel) as [SupportedAttribute, string | null][];
+      const extraEntries = Object.entries(extraLookAndFeel) as [ExtraAttribute, string | null][];
+      for (const [attribute, value] of sevenEntries) {
+        await setLookAndFeelSetting(attribute, value);
+      }
+      for (const [attribute, value] of extraEntries) {
+        await setLookAndFeelSetting(attribute, value);
+      }
+      // Clear the dirty flag: the working maps are now the saved baseline.
+      setLookAndFeelBaseline(
+        JSON.stringify({ seven: lookAndFeel, extra: extraLookAndFeel }),
+      );
+      toast({ title: t('Opgeslagen', 'Saved'), status: 'success', duration: 3000 });
+      // Save ≠ publish (spec 12 R5.1a): a look-and-feel save commits the draft slice but the live
+      // form is unchanged until a deliberate Publish — mark the draft as having unpublished changes.
+      setSavedSincePublish(true);
+    } catch (e) {
+      // Caller-safe: the backend returns a generic envelope (422 names the rejected setting, 403
+      // cross-tenant, 409 stale) — surface it as a toast without leaking internals.
+      toast({
+        title: 'Error',
+        description: e instanceof Error ? e.message : String(e),
+        status: 'error',
+        duration: 6000,
+      });
+    } finally {
+      setSettingLookAndFeel(false);
     }
-    for (const [attribute, value] of extraEntries) {
-      await setLookAndFeelSetting(attribute, value);
-    }
-    // Clear the dirty flag: the working maps are now the saved baseline.
-    setLookAndFeelBaseline(
-      JSON.stringify({ seven: lookAndFeel, extra: extraLookAndFeel }),
-    );
   };
 
   /**
@@ -325,12 +413,9 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   const handleSaveFields = async () => {
     setSaving(true);
     try {
-      // The SINGLE builder Save (serverless-friendly): persist the look-and-feel working maps in one
-      // batched pass FIRST (values-only Change-Ops), then the field_overlay diff — there is no
-      // separate look-and-feel Save button. Look-and-feel errors surface via the shared catch below.
-      if (lookAndFeelDirty) {
-        await persistLookAndFeel();
-      }
+      // The Fields-group Save commits ONLY the field_overlay diff. Look & feel is its OWN group now
+      // (grouped per-group-save redesign, Task 7) with its own Save → `persistLookAndFeel`; it is no
+      // longer batched into this handler.
       // Phase 5 (spec 03): the per-field application attributes commit by IDENTITY via the
       // Change-Op path, not the whole overlay. Derive the ops from the loaded baseline → the edited
       // working overlay — a form-builder edit is a `set_field_application` by the BARE field key
@@ -440,40 +525,54 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
    * optimistic local value) — the display and the authoritative SAM publish gate always agree
    * (R2.2). A validation / foreign-owner failure surfaces as a caller-safe error toast.
    */
-  const handleSetSlug = async (nextSlug: string) => {
+  /**
+   * Commit the Public-address group (prefix + slug) under ONE deferred group Save (grouped
+   * per-group-save redesign, Task 5). Both inputs are builder-owned drafts; this is the ONLY place
+   * a slug/prefix write fires — editing an input never writes. Ordering matters: the PREFIX is
+   * committed first (`setApplicationFormPrefix`), THEN the slug (`setApplicationFormSlug`), because
+   * a slug must sit under the tenant's prefix (SEC-4 prefix-ownership) — committing the slug before
+   * a just-changed prefix could be rejected by the server's ownership check. Each endpoint is
+   * called only when its draft actually changed (so an unchanged prefix is not re-written on a
+   * slug-only save). A blank draft against a stored value sends `null` (a deliberate clear).
+   *
+   * Server-side validation (format/reserved, SEC-4 prefix-ownership, the `_slugs/{slug}` marker
+   * claim) surfaces as a caller-safe `ApiError`; it is shown INLINE on this group's save bar
+   * (`addressError`), next to the Save the admin just pressed, rather than as a bare toast — and
+   * the dirty draft is NOT reset, so the admin can correct and retry. On success the builder
+   * re-loads so the displayed public URL + the Publish-readiness slug signal reflect the persisted
+   * SAM state (never an optimistic local value), and the stored baselines re-seed clean.
+   */
+  const handleSaveAddress = async () => {
+    setAddressError(null);
     setSettingSlug(true);
+    setSettingPrefix(true);
     try {
-      const trimmed = nextSlug.trim();
-      const res = await setApplicationFormSlug(trimmed ? trimmed : null);
-      if (res.success) {
-        toast({
-          title: trimmed
-            ? t('Publiek adres opgeslagen', 'Public address saved')
-            : t('Publiek adres gewist', 'Public address cleared'),
-          status: 'success',
-          duration: 3000,
-        });
-        // Re-load so the SAM-sourced display + readiness reflect the persisted config#fields.slug.
-        await load();
-      } else {
-        toast({
-          title: 'Error',
-          description: t('Publiek adres opslaan is mislukt', 'Saving the public address failed'),
-          status: 'error',
-          duration: 6000,
-        });
+      // Prefix FIRST (the slug must sit under it). Only when the prefix draft changed.
+      if (prefixDirty) {
+        const nextPrefix = prefixDraft.trim();
+        await setApplicationFormPrefix(nextPrefix ? nextPrefix : null);
       }
+      // Slug SECOND. Only when the slug draft changed.
+      if (slugDirty) {
+        const nextSlug = slugDraft.trim();
+        await setApplicationFormSlug(nextSlug ? nextSlug : null);
+      }
+      toast({
+        title: t('Publiek adres opgeslagen', 'Public address saved'),
+        status: 'success',
+        duration: 3000,
+      });
+      // Re-load so the SAM-sourced display + readiness reflect the persisted config#fields values,
+      // and the stored baselines re-seed clean (clearing the group's dirty state).
+      await load();
     } catch (e) {
       // Caller-safe: surface the structured ApiError message (validation 400/422, foreign-owner
-      // 409) without leaking internals — the backend already returns a caller-safe envelope.
-      toast({
-        title: 'Error',
-        description: e instanceof Error ? e.message : String(e),
-        status: 'error',
-        duration: 6000,
-      });
+      // 409) INLINE on this group — the backend already returns a caller-safe envelope. The draft
+      // is left intact (still dirty) so the admin can fix the value and press Save again.
+      setAddressError(e instanceof Error ? e.message : String(e));
     } finally {
       setSettingSlug(false);
+      setSettingPrefix(false);
     }
   };
 
@@ -485,40 +584,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
    * the persisted prefix (so the slug control's validation and the displayed value stay in step). A
    * validation failure surfaces as a caller-safe error toast.
    */
-  const handleSetPrefix = async (nextPrefix: string) => {
-    setSettingPrefix(true);
-    try {
-      const trimmed = nextPrefix.trim();
-      const res = await setApplicationFormPrefix(trimmed ? trimmed : null);
-      if (res.success) {
-        toast({
-          title: trimmed
-            ? t('Voorvoegsel opgeslagen', 'Prefix saved')
-            : t('Voorvoegsel gewist', 'Prefix cleared'),
-          status: 'success',
-          duration: 3000,
-        });
-        await load();
-      } else {
-        toast({
-          title: 'Error',
-          description: t('Voorvoegsel opslaan is mislukt', 'Saving the prefix failed'),
-          status: 'error',
-          duration: 6000,
-        });
-      }
-    } catch (e) {
-      toast({
-        title: 'Error',
-        description: e instanceof Error ? e.message : String(e),
-        status: 'error',
-        duration: 6000,
-      });
-    } finally {
-      setSettingPrefix(false);
-    }
-  };
-
   /**
    * Lift a look-and-feel edit into builder state (spec 15 task 12.2). Pure + synchronous — it
    * updates the ONE working `lookAndFeel` map so BOTH the editor and the preview reflect the edit
@@ -539,43 +604,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
   };
 
   /**
-   * Persist ONE look-and-feel attribute VALUE via the Layer-1 authoring client (spec 15 task 12.2;
-   * design §C3, steering 39): `setLookAndFeelSetting(attribute, value)` sends a single values-only
-   * Change-Op — NEVER generated CSS, NEVER a whole record. `null` clears the attribute. On success
-   * the returned resolved values re-seed the working map so the editor + preview reflect the
-   * authoritative stored state. A failure surfaces the SAM edge's CALLER-SAFE error envelope as a
-   * toast (422 identifying the rejected setting, 403 cross-tenant copy, 409 stale version), exactly
-   * as the slug / prefix author controls surface their ApiError — no internals leak.
-   */
-  const handleSetLookAndFeel = async (
-    attribute: SupportedAttribute,
-    value: string | null,
-  ) => {
-    setSettingLookAndFeel(true);
-    try {
-      await setLookAndFeelSetting(attribute, value);
-      // Persist ONLY. The optimistic local edit (applied by handleLookAndFeelChange on change) is
-      // the authoritative draft and already feeds the preview; the load-time GET is the seed. We do
-      // NOT re-seed the working maps from the PUT response: each response carries the slice resolved
-      // AT THAT REQUEST'S MOMENT, so when edits overlap (type title, then logo, before the first PUT
-      // resolves) an older-but-later-arriving response would overwrite the newer edit and snap a
-      // control back to its previous value. Writing nothing back on success removes that race.
-    } catch (e) {
-      // Caller-safe: the backend already returns a generic, caller-safe envelope (the structured
-      // ApiError message names the client's OWN rejected setting on a 422, a generic "Forbidden"
-      // on a 403, a reload-and-retry on a 409) — surface it without leaking internals.
-      toast({
-        title: 'Error',
-        description: e instanceof Error ? e.message : String(e),
-        status: 'error',
-        duration: 6000,
-      });
-    } finally {
-      setSettingLookAndFeel(false);
-    }
-  };
-
-  /**
    * Lift a NEW-attribute look-and-feel edit (`logo`/`header_title`/`columns`) into the
    * `extraLookAndFeel` working map (bugfix `bugfix-published-form-styling`, Task 11/12). Pure +
    * synchronous. As of Task 12 these three ARE reflected in the preview: the merged
@@ -585,38 +613,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
    */
   const handleExtraLookAndFeelChange = (attribute: ExtraAttribute, value: string | null) => {
     setExtraLookAndFeel((prev) => ({ ...prev, [attribute]: value }));
-  };
-
-  /**
-   * Persist ONE NEW look-and-feel attribute VALUE via the SAME Layer-1 authoring client as the
-   * seven (`setLookAndFeelSetting`): a single values-only Change-Op — NEVER generated CSS, NEVER a
-   * whole record (steering 39). `null` clears the attribute. A failure surfaces the SAM edge's
-   * CALLER-SAFE error envelope as a toast (422 identifying the rejected setting, 403 cross-tenant,
-   * 409 stale version), exactly as the seven-attribute control does — no internals leak.
-   */
-  const handleSetExtraLookAndFeel = async (
-    attribute: ExtraAttribute,
-    value: string | null,
-  ) => {
-    setSettingLookAndFeel(true);
-    try {
-      await setLookAndFeelSetting(attribute, value);
-      // Persist ONLY — no re-seed from the response (same overlap race as handleSetLookAndFeel): the
-      // optimistic local edit is the authoritative draft, so an older-but-later-arriving PUT response
-      // must never overwrite a newer edit. The load-time GET remains the authoritative seed.
-    } catch (e) {
-      // Caller-safe: the backend already returns a generic, caller-safe envelope (the structured
-      // ApiError message names the client's OWN rejected setting on a 422, a generic "Forbidden"
-      // on a 403, a reload-and-retry on a 409) — surface it without leaking internals.
-      toast({
-        title: 'Error',
-        description: e instanceof Error ? e.message : String(e),
-        status: 'error',
-        duration: 6000,
-      });
-    } finally {
-      setSettingLookAndFeel(false);
-    }
   };
 
   /**
@@ -679,89 +675,195 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
     );
   }
 
+  // A small dirty badge for a collapsed accordion header, so the admin sees which groups have
+  // unsaved edits without expanding them (Option C). Shown ONLY when that group is dirty.
+  const DirtyBadge: React.FC<{ show: boolean; testId: string }> = ({ show, testId }) =>
+    show ? (
+      <Badge colorScheme="yellow" ml={2} data-testid={testId}>
+        {t('niet opgeslagen', 'unsaved')}
+      </Badge>
+    ) : null;
+
   return (
     // `lang` declares the content language of the whole builder (nl/en) so assistive tech
     // pronounces the bilingual labels correctly (WCAG 2.2 AA / NFR — nl/en `lang` wiring).
     <Box data-testid="application-form-builder" lang={lang}>
       {/*
-        Four-panel layout (R1.3 / design §3). The sub-components (ApplicationFieldModalList +
-        ApplicationFieldModal, -FormShellPanel, -ReadinessPanel, -FormPreview) consume the one
-        working `overlay`, the resolved `fieldConfig`, and the two commit handlers.
+        Grouped per-group-save layout (Option C). The four AUTHORING groups are multi-open
+        accordion items, each with its OWN deferred Save (GroupSaveBar) and a dirty badge on its
+        header. Readiness + Preview are pinned ALWAYS-VISIBLE below the accordion (read-only, no
+        save). Publish is its own always-visible section, kept DISTINCT from Save.
       */}
-      <Grid
-        templateColumns={{ base: '1fr', lg: '2fr 1fr' }}
-        templateRows={{ base: 'auto', lg: 'auto auto' }}
-        gap={4}
-      >
-        {/* Slot 1 — field list + per-field attributes (R2/R3; tasks 2.3/3.1). */}
-        <GridItem
-          data-testid="application-form-builder-panel-fields"
-          borderWidth="1px"
-          borderColor="gray.700"
-          borderRadius="md"
-          p={4}
-          rowSpan={{ base: 1, lg: 2 }}
-        >
-          <Heading size="sm" mb={2} color="gray.300">
-            {t('Velden op het formulier', 'Fields on the form')}
-          </Heading>
-          <Text fontSize="sm" color="gray.500" mb={3}>
+
+      {/* Aggregate dirty indicator (dirty-gated) — a single header line naming that there are
+          unsaved edits somewhere. There is NO always-visible static remark (decision). */}
+      {anyDirty && (
+        <HStack mb={3} data-testid="application-form-builder-unsaved-indicator">
+          <Badge colorScheme="yellow">{t('Niet-opgeslagen wijzigingen', 'Unsaved changes')}</Badge>
+          <Text fontSize="sm" color="gray.400">
             {t(
-              'Kies welke velden op het publieke aanmeldformulier verschijnen.',
-              'Choose which fields appear on the public application form.',
+              'Wijzigingen worden pas bewaard als je in de betreffende sectie op Opslaan drukt.',
+              'Changes are stored only when you press Save in each section.',
             )}
           </Text>
-          {/* R1.1 (spec 12, redesign A) — the grouped/ordered group ▸ field surface. A row-click
-              OPENS the per-field modal (below); there is no inline toggle and no buried attributes
-              panel anymore. The retired `ApplicationFieldList` toggle-list + `ApplicationFieldAttributes`
-              panel are replaced by this list + `ApplicationFieldModal`. The modal authors the ONE
-              working overlay via the shared engine (overlayModel.upsertField); the single Save below
-              commits it (§3.1). */}
-          <ApplicationFieldModalList
-            fieldConfig={fieldConfig}
-            overlay={overlay}
-            onOpenField={setModalFieldKey}
-            lang={lang}
-          />
-        </GridItem>
+        </HStack>
+      )}
 
-        {/* Slot 2 — form-shell panel (slug/URL, embed, consent; R5; task 3.2). */}
-        <GridItem
-          data-testid="application-form-builder-panel-shell"
-          borderWidth="1px"
-          borderColor="gray.700"
-          borderRadius="md"
-          p={4}
-        >
-          <Heading size="sm" mb={2} color="gray.300">
-            {t('Formulierinstellingen', 'Form settings')}
-          </Heading>
-          {/* R5 — the form-shell panel: derived public URL (display-only), embed mode + snippet +
-              allowed origins, and the versioned bilingual consent notice. It lifts a working
-              `config#mail` body up via onChange; the single Save below commits it once via
-              `saveMembersMailConfig` → PUT /members/config/mail (R5.5). */}
-          <ApplicationFormShellPanel
-            values={shell}
-            onChange={setShell}
-            mailConfig={fieldConfig?.mail_config}
-            onSaveMail={handleSaveMail}
-            savingMail={savingMail}
-            mailDirty={mailDirty}
-            readiness={readiness}
-            onPublish={handlePublish}
-            publishing={publishing}
-            hasUnpublishedChanges={hasUnpublishedChanges}
-            everPublished={everPublished}
-            onSetSlug={handleSetSlug}
-            settingSlug={settingSlug}
-            onSetPrefix={handleSetPrefix}
-            settingPrefix={settingPrefix}
-            currentPrefix={fieldConfig?.public_prefix ?? null}
-            lang={lang}
-          />
-        </GridItem>
+      {/* Fields group open by default (index 0); the other three authoring groups collapsed.
+          allowMultiple so the admin can expand several groups at once and save each. */}
+      <Accordion allowMultiple defaultIndex={[0]} data-testid="application-form-builder-accordion">
+        {/* ── Group 1: Fields on the form → PUT /members/config/fields ──────────────── */}
+        <AccordionItem data-testid="application-form-builder-group-fields">
+          <AccordionButton>
+            <Box flex="1" textAlign="left">
+              <Heading size="sm" color="gray.300" display="inline">
+                {t('Velden op het formulier', 'Fields on the form')}
+              </Heading>
+              <DirtyBadge show={dirty} testId="application-form-builder-group-fields-badge" />
+            </Box>
+            <AccordionIcon />
+          </AccordionButton>
+          <AccordionPanel pb={4}>
+            <Text fontSize="sm" color="gray.500" mb={3}>
+              {t(
+                'Kies welke velden op het publieke aanmeldformulier verschijnen.',
+                'Choose which fields appear on the public application form.',
+              )}
+            </Text>
+            {/* A row-click OPENS the per-field modal (below); the modal authors the ONE working
+                overlay via overlayModel.upsertField; THIS group's Save commits the overlay diff. */}
+            <ApplicationFieldModalList
+              fieldConfig={fieldConfig}
+              overlay={overlay}
+              onOpenField={setModalFieldKey}
+              lang={lang}
+            />
+            <GroupSaveBar
+              dirty={dirty}
+              saving={saving}
+              onSave={handleSaveFields}
+              lang={lang}
+              data-testid="application-form-builder-fields-savebar"
+            />
+          </AccordionPanel>
+        </AccordionItem>
 
-        {/* Slot 3 — readiness panel (R6; task 4.1). */}
+        {/* ── Group 2: Public address (prefix + slug) → one Save, prefix then slug ───── */}
+        <AccordionItem data-testid="application-form-builder-group-address">
+          <AccordionButton>
+            <Box flex="1" textAlign="left">
+              <Heading size="sm" color="gray.300" display="inline">
+                {t('Publiek adres', 'Public address')}
+              </Heading>
+              <DirtyBadge show={addressDirty} testId="application-form-builder-group-address-badge" />
+            </Box>
+            <AccordionIcon />
+          </AccordionButton>
+          <AccordionPanel pb={4}>
+            {/* The derived public URL (display-only) + "open live form" + consent/embed all live in
+                the shell panel below (Form settings). This group owns ONLY the slug + prefix drafts;
+                both commit together under one Save (prefix first). */}
+            <ApplicationAddressFields
+              prefixDraft={prefixDraft}
+              slugDraft={slugDraft}
+              onPrefixChange={(v) => {
+                setPrefixDraft(v);
+                setAddressError(null);
+              }}
+              onSlugChange={(v) => {
+                setSlugDraft(v);
+                setAddressError(null);
+              }}
+              publicUrl={deriveApplicationFormUrl(storedSlug || null)}
+              busy={settingSlug || settingPrefix}
+              lang={lang}
+            />
+            <GroupSaveBar
+              dirty={addressDirty}
+              saving={settingSlug || settingPrefix}
+              onSave={handleSaveAddress}
+              error={addressError}
+              label={t('Adres opslaan', 'Save address')}
+              lang={lang}
+              data-testid="application-form-builder-address-savebar"
+            />
+          </AccordionPanel>
+        </AccordionItem>
+
+        {/* ── Group 3: Form settings (consent + embedding) → PUT /members/config/mail ── */}
+        <AccordionItem data-testid="application-form-builder-group-settings">
+          <AccordionButton>
+            <Box flex="1" textAlign="left">
+              <Heading size="sm" color="gray.300" display="inline">
+                {t('Formulierinstellingen', 'Form settings')}
+              </Heading>
+              <DirtyBadge show={mailDirty} testId="application-form-builder-group-settings-badge" />
+            </Box>
+            <AccordionIcon />
+          </AccordionButton>
+          <AccordionPanel pb={4}>
+            {/* The shell panel now ONLY lifts consent + embedding values via onChange; it no longer
+                owns slug/prefix inputs, the mail Save, or the Publish control — those are the
+                Public-address group, THIS group's GroupSaveBar, and the Publish section below. */}
+            <ApplicationFormShellPanel
+              values={shell}
+              onChange={setShell}
+              mailConfig={fieldConfig?.mail_config}
+              lang={lang}
+            />
+            <GroupSaveBar
+              dirty={mailDirty}
+              saving={savingMail}
+              onSave={handleSaveMail}
+              lang={lang}
+              data-testid="application-form-builder-settings-savebar"
+            />
+          </AccordionPanel>
+        </AccordionItem>
+
+        {/* ── Group 4: Look & feel → setLookAndFeelSetting per changed attribute ─────── */}
+        <AccordionItem data-testid="application-form-builder-group-lookandfeel">
+          <AccordionButton>
+            <Box flex="1" textAlign="left">
+              <Heading size="sm" color="gray.300" display="inline">
+                {t('Uiterlijk', 'Look & feel')}
+              </Heading>
+              <DirtyBadge
+                show={lookAndFeelDirty}
+                testId="application-form-builder-group-lookandfeel-badge"
+              />
+            </Box>
+            <AccordionIcon />
+          </AccordionButton>
+          <AccordionPanel pb={4}>
+            {/* Values-only Layer-1 authoring. Each edit lifts the VALUE into the builder's working
+                maps (handleLookAndFeelChange / handleExtraLookAndFeelChange) with NO server
+                round-trip — the per-control persist is gone. THIS group's Save (GroupSaveBar →
+                persistLookAndFeel) is the single batched write path. The working maps feed BOTH the
+                editor and the pinned preview below, so unsaved edits preview live (Req 7.2). */}
+            <LookAndFeelEditor
+              values={lookAndFeel}
+              onChange={handleLookAndFeelChange}
+              extraValues={extraLookAndFeel}
+              onExtraChange={handleExtraLookAndFeelChange}
+              onUploadLogo={handleUploadLogo}
+              saving={settingLookAndFeel}
+              lang={lang}
+            />
+            <GroupSaveBar
+              dirty={lookAndFeelDirty}
+              saving={settingLookAndFeel}
+              onSave={persistLookAndFeel}
+              label={t('Uiterlijk opslaan', 'Save look & feel')}
+              lang={lang}
+              data-testid="application-form-builder-lookandfeel-savebar"
+            />
+          </AccordionPanel>
+        </AccordionItem>
+      </Accordion>
+
+      {/* ── Pinned (always-visible, read-only): Readiness + Live preview ──────────────── */}
+      <Grid templateColumns={{ base: '1fr', lg: '1fr 2fr' }} gap={4} mt={4}>
         <GridItem
           data-testid="application-form-builder-panel-readiness"
           borderWidth="1px"
@@ -772,11 +874,6 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
           <Heading size="sm" mb={2} color="gray.300">
             {t('Gereedheid', 'Readiness')}
           </Heading>
-          {/* R6 — the readiness summary: certified sender / slug / >=1-field-on-form states +
-              neutral "not available" guidance (no mail-config leak) + a link to sender
-              verification. It reuses the spec-10 send-ready signal (certified sender + slug) over
-              the already-loaded fieldConfig/mail_config + the one working overlay + the slug — a
-              pure view, no network (task 4.1, design §6). */}
           <ApplicationReadinessPanel
             fieldConfig={fieldConfig}
             overlay={overlay}
@@ -785,97 +882,45 @@ export const ApplicationFormBuilder: React.FC<Props> = ({ tenant }) => {
           />
         </GridItem>
 
-        {/* Slot 4 — live preview (R7; task 4.2). */}
         <GridItem
           data-testid="application-form-builder-panel-preview"
           borderWidth="1px"
           borderColor="gray.700"
           borderRadius="md"
           p={4}
-          colSpan={{ base: 1, lg: 2 }}
         >
           <Heading size="sm" mb={2} color="gray.300">
             {t('Voorbeeld', 'Live preview')}
           </Heading>
-          {/* spec 15 task 12.2 — the look-and-feel editor (the seven-attribute preferences editor).
-              A values-only Layer-1 authoring control: each edit lifts the VALUE into the builder's
-              working `lookAndFeel` map (handleLookAndFeelChange) AND persists it one-value-at-a-time
-              via the authoring client (handleSetLookAndFeel → setLookAndFeelSetting) — never CSS,
-              never a whole record. The SAME working map feeds this editor AND the preview below, so
-              an unsaved edit previews live (Req 7.2). Caller-safe 422/403/409 surface as toasts. */}
-          <Box
-            mb={4}
-            pb={4}
-            borderBottomWidth="1px"
-            borderColor="gray.700"
-            data-testid="application-form-builder-lookandfeel"
-          >
-            <LookAndFeelEditor
-              values={lookAndFeel}
-              onChange={handleLookAndFeelChange}
-              onSave={handleSetLookAndFeel}
-              extraValues={extraLookAndFeel}
-              onExtraChange={handleExtraLookAndFeelChange}
-              onExtraSave={handleSetExtraLookAndFeel}
-              onUploadLogo={handleUploadLogo}
-              saving={settingLookAndFeel}
-              lang={lang}
-            />
-          </Box>
-          {/* R3 (spec 12, redesign C) — the live preview: an IN-BROWSER render of the public form
-              via the shared spec-10 ApplicationFormRenderer, fed by the PURE `buildPreviewConfig`
-              filter over the WORKING draft (resolved fieldConfig ⊕ the ONE working overlay). It
-              shows UNSAVED edits live with NO server round-trip — the retired
-              `POST /members/application-preview` is gone (task 5.2); the client filter reproduces
-              `get_public_field_config`'s applicant-facing selection, parity-pinned in task 5.3
-              (design §C2/D4). The "open live form" link to the hosted form is the form-shell panel's
-              concern (R3.3). */}
           <ApplicationFormPreview
             fieldConfig={fieldConfig}
             overlay={overlay}
             lang={lang}
-            // bugfix bugfix-published-form-styling Task 12 — feed the UNIFIED look-and-feel values
-            // (the seven + the three new `logo`/`header_title`/`columns`) into the preview. Now
-            // that `renderPageStyles` accepts all ten (Task 8), the preview reflects the three new
-            // values too (`columns` drives the grid, `logo`/`header_title` render in the body), so
-            // the preview matches the published form (Req 2.6). The two working maps are merged
-            // here — the one SAM-owned attribute set feeds BOTH the editor and the preview.
             lookAndFeel={previewLookAndFeel}
           />
         </GridItem>
       </Grid>
 
-      {/* Single save path: one Save → one PUT /members/config/fields (design §3.1 / Property 8). */}
-      <Box borderTopWidth="1px" borderColor="gray.700" mt={4} pt={4}>
-        <HStack justify="flex-end">
-          {dirty && (
-            <Text
-              fontSize="sm"
-              color="yellow.300"
-              mr="auto"
-              data-testid="application-form-builder-unsaved-indicator"
-            >
-              {t('Niet-opgeslagen wijzigingen', 'Unsaved changes')}
-            </Text>
-          )}
-          <Button
-            colorScheme="orange"
-            onClick={handleSaveFields}
-            isLoading={saving || settingLookAndFeel}
-            isDisabled={!dirty && !lookAndFeelDirty}
-            loadingText={t('Opslaan…', 'Saving…')}
-            data-testid="application-form-builder-save"
-          >
-            {t('Opslaan', 'Save')}
-          </Button>
-        </HStack>
+      {/* ── Publish (always-visible, DISTINCT from Save — save ≠ publish) ─────────────── */}
+      <Box
+        borderTopWidth="1px"
+        borderColor="gray.700"
+        mt={4}
+        pt={4}
+        data-testid="application-form-builder-publish-section"
+      >
+        <PublishSection
+          readiness={readiness}
+          onPublish={handlePublish}
+          publishing={publishing}
+          hasUnpublishedChanges={hasUnpublishedChanges}
+          everPublished={everPublished}
+          lang={lang}
+        />
       </Box>
 
-      {/* R1.1/R1.2 (spec 12, redesign A) — the per-field modal, opened by a row-click in the field
-          list above. It reuses `MembersFieldModal`'s engine (`resolveWriteTarget` / `upsertField`)
-          and renders the application-form attributes section ONLY when a form is in scope. The
-          builder IS the application-form authoring context, so `formInScope` is always true here;
-          the modal authors the ONE working overlay via `onChange`, committed by the single Save. */}
+      {/* The per-field modal, opened by a row-click in the Fields group. It authors the ONE working
+          overlay via `onChange`, committed by the Fields group Save. */}
       <ApplicationFieldModal
         isOpen={modalFieldKey !== null}
         onClose={() => setModalFieldKey(null)}

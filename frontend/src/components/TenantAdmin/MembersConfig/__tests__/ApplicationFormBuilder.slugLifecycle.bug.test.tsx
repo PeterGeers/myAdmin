@@ -68,9 +68,17 @@ vi.mock('../../../../services/landingPageApi', () => ({
 
 const mockListMembershipTypes = vi.fn();
 const mockPublishApplicationForm = vi.fn();
+const mockGetLookAndFeel = vi.fn();
+const mockSetLookAndFeel = vi.fn();
+const mockSetSlug = vi.fn();
+const mockSetPrefix = vi.fn();
 vi.mock('../../../../services/members/membersConfigApi', () => ({
   listMembershipTypes: (...a: unknown[]) => mockListMembershipTypes(...a),
   publishApplicationForm: (...a: unknown[]) => mockPublishApplicationForm(...a),
+  getLookAndFeelSettings: (...a: unknown[]) => mockGetLookAndFeel(...a),
+  setLookAndFeelSetting: (...a: unknown[]) => mockSetLookAndFeel(...a),
+  setApplicationFormSlug: (...a: unknown[]) => mockSetSlug(...a),
+  setApplicationFormPrefix: (...a: unknown[]) => mockSetPrefix(...a),
 }));
 
 import { ApplicationFormBuilder } from '../ApplicationFormBuilder';
@@ -135,6 +143,10 @@ function seed() {
   mockGetSlug.mockResolvedValue({ success: true, data: { slug: FLASK_LANDING_SLUG } });
   mockListMembershipTypes.mockResolvedValue([]);
   mockPublishApplicationForm.mockResolvedValue({ success: true });
+  mockGetLookAndFeel.mockResolvedValue({ settings: {} });
+  mockSetLookAndFeel.mockResolvedValue({ settings: {} });
+  mockSetSlug.mockResolvedValue({ success: true });
+  mockSetPrefix.mockResolvedValue({ success: true });
 }
 
 async function renderBuilder() {
@@ -163,9 +175,11 @@ describe('ApplicationFormBuilder — slug-lifecycle DISPLAY facet (bugfix R1.1/R
     // UNFIXED: the builder reads the Flask slug via getSlug() and shows the derived
     // `https://hdcn-application-form.jabaki.nl/apply` URL → this FAILS. That displayed Flask URL is
     // the counterexample (bugfix.md Examples, facet=DISPLAY).
-    expect(screen.getByTestId('application-form-shell-no-url')).toBeInTheDocument();
+    // The public address now lives in the Public-address group (ApplicationAddressFields). Its
+    // panel stays mounted even while collapsed, so the "no public address yet" state resolves.
+    expect(screen.getByTestId('application-form-address-no-url')).toBeInTheDocument();
     expect(
-      screen.queryByTestId('application-form-shell-public-url'),
+      screen.queryByTestId('application-form-address-public-url'),
     ).not.toBeInTheDocument();
   });
 

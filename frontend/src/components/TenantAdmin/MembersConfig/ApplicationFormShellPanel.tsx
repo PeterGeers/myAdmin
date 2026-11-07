@@ -38,14 +38,11 @@ import {
   FormLabel,
   HStack,
   Heading,
-  Input,
-  Link,
   Text,
   Textarea,
   VStack,
 } from '@chakra-ui/react';
 import type { FieldConfig } from '../../../types/members';
-import type { ReadinessState } from './applicationReadiness';
 import {
   CONFIRMED_EMBED_ORIGINS,
   type EmbedMode,
@@ -63,53 +60,6 @@ export interface ApplicationFormShellPanelProps {
   onChange: (next: ShellFormValues) => void;
   /** The loaded `mail_config` (read-only reference — scope-copy/Reply-To note, R5.4). */
   mailConfig?: FieldConfig['mail_config'] | null;
-  /** Commit the form-shell mail settings via the Mail editor's `PUT /members/config/mail` (R5.5). */
-  onSaveMail?: () => void;
-  /** Whether a mail save is in flight. */
-  savingMail?: boolean;
-  /** Whether the working mail body differs from the last-saved state. */
-  mailDirty?: boolean;
-  /**
-   * Readiness state (spec 12 R5.4 / spec 11 R6) — reused from the readiness panel's
-   * `computeReadiness`. Publish is GATED on it: a form must have a slug + certified sender + ≥1
-   * on-form field. When absent (not wired), the Publish control is not shown.
-   */
-  readiness?: ReadinessState;
-  /**
-   * Deliberately publish the form (spec 12 R5 / OQ1=option 1): the explicit control that calls
-   * `POST /members/application-form/publish`. A plain Save (`onSaveMail`/the fields Save) NEVER
-   * calls this — save ≠ publish. When absent, no Publish control is rendered.
-   */
-  onPublish?: () => void;
-  /** Whether a publish is in flight. */
-  publishing?: boolean;
-  /**
-   * Whether the working draft has changes NOT yet published (spec 12 R5.1a — surface the
-   * save/publish distinction). `true` → the "draft has unpublished changes" hint shows.
-   */
-  hasUnpublishedChanges?: boolean;
-  /** Whether the form has ever been published (controls first-publish vs re-publish copy). */
-  everPublished?: boolean;
-  /**
-   * Author / change / clear the FORM's public slug on the SAM plane (bugfix-slug-lifecycle task
-   * 3.3 / R2.3): the `members:admin` control that calls the SAM slug-author endpoint (NOT the
-   * Flask `landingPageApi`). Receives the raw input value — a non-blank string sets/changes the
-   * slug, an empty string clears it. When absent (not wired), no slug-author control is rendered.
-   */
-  onSetSlug?: (slug: string) => void;
-  /** Whether a slug-author write is in flight (disables the author control + shows a loading state). */
-  settingSlug?: boolean;
-  /**
-   * Author / change / clear the tenant's SAM-owned public slug PREFIX (slug-prefix SAM-owned):
-   * the `members:admin` control calling `setApplicationFormPrefix`. Receives the raw input value —
-   * a non-blank string sets/changes the prefix, an empty string clears it. When absent (not wired),
-   * no prefix-author control is rendered.
-   */
-  onSetPrefix?: (prefix: string) => void;
-  /** Whether a prefix-author write is in flight (disables the control + shows a loading state). */
-  settingPrefix?: boolean;
-  /** The tenant's current SAM-owned public prefix (`config#fields.public_prefix`), for display + seed. */
-  currentPrefix?: string | null;
   lang: 'nl' | 'en';
 }
 
@@ -117,53 +67,14 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
   values,
   onChange,
   mailConfig,
-  onSaveMail,
-  savingMail = false,
-  mailDirty = false,
-  readiness,
-  onPublish,
-  publishing = false,
-  hasUnpublishedChanges = false,
-  everPublished = false,
-  onSetSlug,
-  settingSlug = false,
-  onSetPrefix,
-  settingPrefix = false,
-  currentPrefix = null,
   lang,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
 
+  // The copy-ready iframe snippet references the public URL derived from the stored slug.
   const publicUrl = useMemo(() => deriveApplicationFormUrl(values.slug), [values.slug]);
   const iframeSnippet = useMemo(() => buildIframeSnippet(publicUrl), [publicUrl]);
   const [hasCopied, setHasCopied] = useState(false);
-  // The draft value of the slug-author input (bugfix-slug-lifecycle task 3.3). Seeded from the
-  // current SAM slug so editing starts from the stored value; a blank submit clears the slug.
-  const [slugDraft, setSlugDraft] = useState(values.slug ?? '');
-
-  // Re-seed the draft whenever the authoritative (SAM-sourced) slug changes — e.g. after a
-  // successful author re-load pushes the persisted `config#fields.slug` down. This keeps the
-  // input in step with SAM state rather than a stale optimistic value.
-  React.useEffect(() => {
-    setSlugDraft(values.slug ?? '');
-  }, [values.slug]);
-
-  // The draft value of the prefix-author input (slug-prefix SAM-owned). Seeded from the current
-  // SAM prefix so editing starts from the stored value; a blank submit clears the prefix.
-  const [prefixDraft, setPrefixDraft] = useState(currentPrefix ?? '');
-  React.useEffect(() => {
-    setPrefixDraft(currentPrefix ?? '');
-  }, [currentPrefix]);
-
-  // Publish is readiness-gated (R5.4): slug + certified sender + ≥1 on-form field. These are the
-  // SAME three readiness facts the readiness panel computes (reused, not re-derived here). The
-  // button is disabled + explained until all three hold — show, don't silently block.
-  const canPublish = Boolean(
-    readiness &&
-    readiness.slugPresent &&
-    readiness.certifiedSender &&
-    readiness.hasFieldOnForm,
-  );
 
   // Copy-to-clipboard without Chakra's `useClipboard` (its named hook does not resolve cleanly
   // under the test ESM path). Best-effort: a clipboard failure is swallowed so the button never
@@ -189,151 +100,16 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
 
   return (
     <VStack align="stretch" spacing={5} data-testid="application-form-shell-panel">
-      {/* ------------------------------------------------------------------ */}
-      {/* Public URL (R5.1 / E4) — derived + displayed; never authored here.  */}
-      {/* ------------------------------------------------------------------ */}
-      <Box>
-        <Heading size="xs" color="gray.400" mb={2} textTransform="uppercase">
-          {t('Publieke URL', 'Public URL')}
-        </Heading>
-        {publicUrl ? (
-          <FormControl>
-            <HStack spacing={3} align="center">
-              <Code data-testid="application-form-shell-public-url">{publicUrl}</Code>
-              {/* The authoritative check (R5.1 / R7.3): an "open live form" link to the real
-                  CloudFront-hosted public form — opens in a new tab, rel-hardened. The in-app
-                  preview (ApplicationFormPreview) is for authoring; THIS link confirms the real
-                  thing (and shows the public form's own "not available" state when not send-ready). */}
-              <Link
-                href={publicUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                color="orange.300"
-                fontWeight="semibold"
-                data-testid="application-form-shell-open-live"
-              >
-                {t('Open live formulier', 'Open live form')}
-              </Link>
-            </HStack>
-            <FormHelperText>
-              {t(
-                'Het eigen publieke adres van het formulier — los van de landingspagina en mag afwijken van de tenantnaam. De slug wordt opgeslagen bij de formulierconfiguratie.',
-                'The form\u2019s own public address \u2014 independent of the landing page and free to differ from the tenant name. The slug is stored with the form configuration.',
-              )}
-            </FormHelperText>
-          </FormControl>
-        ) : (
-          <Box data-testid="application-form-shell-no-url">
-            <Text fontSize="sm" color="yellow.300">
-              {t(
-                'Dit formulier heeft nog geen publiek adres.',
-                'This form has no public address yet.',
-              )}
-            </Text>
-            <Text fontSize="sm" color="gray.500" data-testid="application-form-shell-slug-hint">
-              {t(
-                'Stel hieronder een formulier-slug in om een publiek adres te krijgen.',
-                'Set a form slug below to get a public address.',
-              )}
-            </Text>
-          </Box>
-        )}
-
-        {/* ---------------------------------------------------------------- */}
-        {/* Prefix author control (slug-prefix SAM-owned) — the members:admin  */}
-        {/* control to set/change/clear the tenant's public slug PREFIX (the   */}
-        {/* SEC-4 stem every form slug must sit under). Calls the SAM prefix-   */}
-        {/* author endpoint via the builder's onSetPrefix. Rendered above the  */}
-        {/* slug control because a slug can only be authored once a prefix      */}
-        {/* exists. Blank submit clears the prefix.                            */}
-        {/* ---------------------------------------------------------------- */}
-        {onSetPrefix && (
-          <FormControl mt={4} data-testid="application-form-shell-prefix-editor">
-            <FormLabel htmlFor="application-form-shell-prefix-input">
-              {t('Publiek voorvoegsel (slug-prefix)', 'Public prefix (slug prefix)')}
-            </FormLabel>
-            <HStack spacing={2} align="center">
-              <Input
-                id="application-form-shell-prefix-input"
-                value={prefixDraft}
-                onChange={(e) => setPrefixDraft(e.target.value)}
-                placeholder={t('bijv. h-dcn', 'e.g. h-dcn')}
-                data-testid="application-form-shell-prefix-input"
-                maxW="sm"
-                isDisabled={settingPrefix}
-              />
-              <Button
-                size="sm"
-                colorScheme="orange"
-                onClick={() => onSetPrefix(prefixDraft)}
-                isLoading={settingPrefix}
-                // Disable only when the draft matches the stored prefix (no change); a blank draft
-                // with a stored prefix is a deliberate CLEAR, so it stays enabled.
-                isDisabled={settingPrefix || prefixDraft.trim() === (currentPrefix ?? '').trim()}
-                loadingText={t('Opslaan…', 'Saving…')}
-                data-testid="application-form-shell-prefix-save"
-              >
-                {t('Voorvoegsel opslaan', 'Save prefix')}
-              </Button>
-            </HStack>
-            <FormHelperText>
-              {t(
-                'Het korte publieke voorvoegsel van je organisatie. Elke formulier-slug moet hieronder vallen (bijv. voorvoegsel \u2018h-dcn\u2019 \u2192 slug \u2018h-dcn-aanmelden\u2019). Leeg maken wist het voorvoegsel.',
-                'Your organisation\u2019s short public prefix. Every form slug must sit under it (e.g. prefix \u2018h-dcn\u2019 \u2192 slug \u2018h-dcn-apply\u2019). Clearing it removes the prefix.',
-              )}
-            </FormHelperText>
-          </FormControl>
-        )}
-        {/* ---------------------------------------------------------------- */}
-        {/* Slug author control (bugfix-slug-lifecycle task 3.3 / R2.3) — the  */}
-        {/* members:admin control to set/change/clear the SAM form slug. It    */}
-        {/* calls the SAM slug-author endpoint (via the builder's onSetSlug),  */}
-        {/* NEVER the Flask landing plane. The displayed address + readiness   */}
-        {/* reflect the persisted SAM slug after the builder re-loads (R2.2).  */}
-        {/* ---------------------------------------------------------------- */}
-        {onSetSlug && (
-          <FormControl mt={4} data-testid="application-form-shell-slug-editor">
-            <FormLabel htmlFor="application-form-shell-slug-input">
-              {t('Formulier-slug (publiek adres)', 'Form slug (public address)')}
-            </FormLabel>
-            <HStack spacing={2} align="center">
-              <Input
-                id="application-form-shell-slug-input"
-                value={slugDraft}
-                onChange={(e) => setSlugDraft(e.target.value)}
-                placeholder={t('bijv. h-dcn-aanmelden', 'e.g. h-dcn-apply')}
-                data-testid="application-form-shell-slug-input"
-                maxW="sm"
-                isDisabled={settingSlug}
-              />
-              <Button
-                size="sm"
-                colorScheme="orange"
-                onClick={() => onSetSlug(slugDraft)}
-                isLoading={settingSlug}
-                // Disable only when the draft matches the stored slug (no change to make); a blank
-                // draft with a stored slug is a deliberate CLEAR, so it stays enabled.
-                isDisabled={settingSlug || slugDraft.trim() === (values.slug ?? '').trim()}
-                loadingText={t('Opslaan…', 'Saving…')}
-                data-testid="application-form-shell-slug-save"
-              >
-                {t('Adres opslaan', 'Save address')}
-              </Button>
-            </HStack>
-            <FormHelperText>
-              {t(
-                'Het eigen publieke adres van het formulier, opgeslagen bij de formulierconfiguratie (niet de landingspagina). Moet voldoen aan het toegestane voorvoegsel van je organisatie. Leeg maken wist het adres.',
-                'The form\u2019s own public address, stored with the form configuration (not the landing page). Must match your organisation\u2019s allowed prefix. Clearing it removes the address.',
-              )}
-            </FormHelperText>
-          </FormControl>
-        )}
-      </Box>
+      {/* The public URL + the slug/prefix author controls + the Publish control have moved OUT of
+          this panel (grouped per-group-save redesign): the public address is the builder's
+          "Public address" accordion group (ApplicationAddressFields), and Publish is its own
+          always-visible section (PublishSection). This panel now authors ONLY embedding + the
+          consent notice, lifting values up via onChange — no slug/prefix input, no save button. */}
 
       {/* ------------------------------------------------------------------ */}
       {/* Embed mode (R5.2) — standalone / iframe + snippet + origins.        */}
       {/* ------------------------------------------------------------------ */}
-      <Box borderTopWidth="1px" borderColor="gray.700" pt={4}>
+      <Box>
         <Heading size="xs" color="gray.400" mb={2} textTransform="uppercase">
           {t('Insluiten', 'Embedding')}
         </Heading>
@@ -496,139 +272,10 @@ export const ApplicationFormShellPanel: React.FC<ApplicationFormShellPanelProps>
         </Text>
       </Box>
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Publish (R5 / OQ1=option 1) — the DELIBERATE go-live action.        */}
-      {/* ------------------------------------------------------------------ */}
-      {/*
-        An EXPLICIT publish control, distinct from Save (save ≠ publish, R5.1a): a plain Save
-        commits the draft to `config#fields`/`config#mail` but NEVER republishes the live form;
-        only THIS button calls `POST /members/application-form/publish` (task 6.2). The button is
-        readiness-gated (slug + certified sender + ≥1 on-form field, R5.4) — disabled with a clear
-        reason when not ready, never emitting a broken live artifact. When the draft has changes
-        not yet published, an "unpublished changes" hint surfaces the save/publish distinction.
-      */}
-      {onPublish && (
-        <Box
-          borderTopWidth="1px"
-          borderColor="gray.700"
-          pt={4}
-          data-testid="application-form-shell-publish-section"
-        >
-          <Heading size="xs" color="gray.400" mb={2} textTransform="uppercase">
-            {t('Publiceren', 'Publish')}
-          </Heading>
-          <Text fontSize="sm" color="gray.500" mb={3}>
-            {t(
-              'Publiceren is een aparte, bewuste stap: opslaan wijzigt het live formulier niet. Het live formulier verandert pas wanneer je hier publiceert.',
-              'Publishing is a separate, deliberate step: saving does not change the live form. The live form only changes when you publish here.',
-            )}
-          </Text>
-
-          {/* Readiness gate (R5.4): when NOT ready, explain WHY (which precondition is missing) so
-              the admin can act — show, don't silently block. The reasons are authoring facts (slug
-              / on-form field) + the neutral certified-sender boolean (no mail internals leaked). */}
-          {readiness && !canPublish && (
-            <VStack
-              align="stretch"
-              spacing={1}
-              mb={3}
-              data-testid="application-form-shell-publish-blocked"
-            >
-              <Text fontSize="sm" color="yellow.300">
-                {t(
-                  'Nog niet klaar om te publiceren:',
-                  'Not ready to publish yet:',
-                )}
-              </Text>
-              {!readiness.slugPresent && (
-                <Text fontSize="sm" color="gray.400" data-testid="application-form-shell-publish-need-slug">
-                  {t('• Stel een formulier-slug in (publiek adres).', '\u2022 Set a form slug (public address).')}
-                </Text>
-              )}
-              {!readiness.certifiedSender && (
-                <Text
-                  fontSize="sm"
-                  color="gray.400"
-                  data-testid="application-form-shell-publish-need-sender"
-                >
-                  {t('• Verifieer een gecertificeerde afzender.', '\u2022 Verify a certified sender.')}
-                </Text>
-              )}
-              {!readiness.hasFieldOnForm && (
-                <Text
-                  fontSize="sm"
-                  color="gray.400"
-                  data-testid="application-form-shell-publish-need-field"
-                >
-                  {t(
-                    '• Zet minstens één veld op het formulier.',
-                    '\u2022 Put at least one field on the form.',
-                  )}
-                </Text>
-              )}
-            </VStack>
-          )}
-
-          <HStack justify="flex-end">
-            {canPublish && hasUnpublishedChanges && (
-              <Text
-                fontSize="sm"
-                color="yellow.300"
-                mr="auto"
-                data-testid="application-form-shell-unpublished-changes"
-              >
-                {t(
-                  'Concept heeft niet-gepubliceerde wijzigingen',
-                  'Draft has unpublished changes',
-                )}
-              </Text>
-            )}
-            <Button
-              colorScheme="orange"
-              size="sm"
-              onClick={onPublish}
-              isLoading={publishing}
-              isDisabled={!canPublish}
-              loadingText={t('Publiceren…', 'Publishing…')}
-              data-testid="application-form-shell-publish"
-            >
-              {everPublished
-                ? t('Opnieuw publiceren', 'Republish')
-                : t('Publiceren', 'Publish')}
-            </Button>
-          </HStack>
-        </Box>
-      )}
-
-      {/* Single mail save path: one Save → one PUT /members/config/mail (R5.5). */}
-      {onSaveMail && (
-        <Box borderTopWidth="1px" borderColor="gray.700" pt={4}>
-          <HStack justify="flex-end">
-            {mailDirty && (
-              <Text
-                fontSize="sm"
-                color="yellow.300"
-                mr="auto"
-                data-testid="application-form-shell-mail-unsaved"
-              >
-                {t('Niet-opgeslagen formulierinstellingen', 'Unsaved form settings')}
-              </Text>
-            )}
-            <Button
-              colorScheme="orange"
-              variant="outline"
-              size="sm"
-              onClick={onSaveMail}
-              isLoading={savingMail}
-              isDisabled={!mailDirty}
-              loadingText={t('Opslaan…', 'Saving…')}
-              data-testid="application-form-shell-save-mail"
-            >
-              {t('Formulierinstellingen opslaan', 'Save form settings')}
-            </Button>
-          </HStack>
-        </Box>
-      )}
+      {/* Publish + the mail Save have moved OUT of this panel (grouped per-group-save redesign):
+          Publish is the builder's own always-visible PublishSection, and the mail commit is the
+          Form-settings accordion group's GroupSaveBar → handleSaveMail. This panel only lifts the
+          consent + embedding values up via onChange; it owns no save button and no publish control. */}
     </VStack>
   );
 };
