@@ -65,10 +65,9 @@ export type LookAndFeelValues = Partial<Record<SupportedAttribute, string | null
  * record (steering 39):
  *
  *  - `logo`         — a URL / asset reference to the tenant logo;
- *  - `header_title` — the form header/title text (length-bounded, HTML-escaped on render); and
- *  - `columns`      — a bounded column-count (1..4, matching the service/generator clamp).
+ *  - `header_title` — the form header/title text (length-bounded, HTML-escaped on render).
  */
-export type ExtraAttribute = 'logo' | 'header_title' | 'columns';
+export type ExtraAttribute = 'logo' | 'header_title';
 
 /** The VALUES for the three new attributes (values-only; never CSS). */
 export type ExtraLookAndFeelValues = Partial<Record<ExtraAttribute, string | null>>;
@@ -77,11 +76,7 @@ export type ExtraLookAndFeelValues = Partial<Record<ExtraAttribute, string | nul
 const EXTRA_DEFAULTS: Readonly<Record<ExtraAttribute, string>> = {
   logo: '',
   header_title: '',
-  columns: '2',
 };
-
-/** Permitted column counts — mirror of the service/generator clamp (`1 .. _MAX_FORM_COLUMNS`). */
-const COLUMN_OPTIONS = ['1', '2', '3', '4'] as const;
 
 /** The upper bound on the header/title length — mirror of the service `_MAX_HEADER_TITLE_LENGTH`. */
 const MAX_HEADER_TITLE_LENGTH = 200;
@@ -152,7 +147,7 @@ export interface LookAndFeelEditorProps {
    */
   onSave: (attribute: SupportedAttribute, value: string | null) => void;
   /**
-   * The current WORKING values for the three NEW attributes (`logo`/`header_title`/`columns`).
+   * The current WORKING values for the two NEW attributes (`logo`/`header_title`).
    * Kept SEPARATE from {@link values} because the preview path renders only the seven today; an
    * absent attribute shows its SAM-owned default so the control never renders blank.
    */
@@ -269,7 +264,7 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
    * The three new attributes do NOT feed the preview map today (that plane renders only the
    * seven), so only the extra working map + the persist are driven here. An empty string on
    * `logo`/`header_title` CLEARS the attribute (persist `null`) so the control can revert to the
-   * SAM-owned default; `columns` always carries a bounded value.
+   * SAM-owned default.
    */
   const normalizeExtra = (attribute: ExtraAttribute, raw: string): string | null =>
     (attribute === 'logo' || attribute === 'header_title') && raw.trim() === '' ? null : raw;
@@ -286,9 +281,8 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
     onExtraSave?.(attribute, value);
   };
 
-  /** Edit-only for the extra controls too: preview on change, persist only via Save. */
-  const editExtra = changeExtraOnly;
   void commitExtra;
+  void changeExtraOnly;
 
   /** A labelled enum <select> for one attribute (shared across spacing/radius/shadow/font). */
   const renderEnum = (
@@ -382,8 +376,8 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
 
       {/*
         The three VALUES-ONLY attributes the bugfix `bugfix-published-form-styling` adds
-        (bugfix 3.4 / design §C): a tenant logo (URL/asset reference), a form header/title, and
-        the number of columns. They persist via the SAME values-only `setLookAndFeelSetting`
+        (bugfix 3.4 / design §C): a tenant logo (URL/asset reference) and a form header/title.
+        They persist via the SAME values-only `setLookAndFeelSetting`
         Change-Op path as the seven above — never CSS, never a whole record (steering 39). The
         logo/title default to EMPTY (= absent → no logo / no heading) and clear when blanked.
       */}
@@ -465,25 +459,6 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
           onChange={(e) => changeExtraOnly('header_title', e.target.value)}
           aria-label={t('Koptekst van het formulier', 'Form header title')}
         />
-      </FormControl>
-
-      <FormControl>
-        <FormLabel htmlFor="lookandfeel-columns" fontSize="sm" color="gray.300">
-          {t('Aantal kolommen', 'Number of columns')}
-        </FormLabel>
-        <Select
-          id="lookandfeel-columns"
-          data-testid="lookandfeel-columns"
-          size="sm"
-          value={currentExtra('columns')}
-          onChange={(e) => editExtra('columns', e.target.value)}
-        >
-          {COLUMN_OPTIONS.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </Select>
       </FormControl>
 
       <Text color="gray.500" fontSize="xs">

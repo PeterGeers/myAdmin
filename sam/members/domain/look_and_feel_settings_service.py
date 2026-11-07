@@ -43,15 +43,15 @@ rejected rather than silently writing to the application form.
 Validation contract (Req 3.4 / Req 4.5)
 ---------------------------------------
 - Attribute support (Req 3.4): the attribute MUST be one of
-  :data:`~sam.shared.page_styles.SUPPORTED_ATTRIBUTES` (the ten the Layer-2 generator
-  consumes — the original seven plus the bugfix extension ``columns`` / ``logo`` /
-  ``header_title``). An unsupported attribute is rejected and NO write is issued.
+  :data:`~sam.shared.page_styles.SUPPORTED_ATTRIBUTES` (the nine the Layer-2 generator
+  consumes — the original seven plus the bugfix extension ``logo`` / ``header_title``;
+  the earlier ``columns`` attribute was removed, the form grid is now width-driven).
+  An unsupported attribute is rejected and NO write is issued.
 - Value permitted-set (Req 4.5): each attribute has a permitted VALUE contract (see
-  :data:`_PERMITTED_VALUES` / the colour + font format checks / the columns-bounds + logo-reference
+  :data:`_PERMITTED_VALUES` / the colour + font format checks / the logo-reference
   + header_title-length checks). A value outside it is rejected and the stored values are left
-  unchanged. The enum permitted sets (and the ``columns`` bound) mirror the Layer-2 generator's own
-  lookup maps / grid clamp so a value the service accepts is a value the generator renders
-  meaningfully.
+  unchanged. The enum permitted sets mirror the Layer-2 generator's own lookup maps so a value
+  the service accepts is a value the generator renders meaningfully.
 
 Both rejections raise :class:`LookAndFeelValidationError` (a :class:`ValueError`) BEFORE any writer
 call, so the stored values are untouched by construction (the edge maps it to a caller-safe 422 that
@@ -120,16 +120,9 @@ _FONT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 \-]{0,63}$")
 # ``_require_permitted_value`` BEFORE any write, exactly like the original seven — an
 # out-of-range value is REJECTED and the stored values are left UNCHANGED (Req 4.5 / bugfix 3.4).
 
-#: ``columns`` — a BOUNDED integer (DD-C1): the number of layout columns for the application-form
-#: field groups. The permitted set is the CLOSED integer range the Layer-2 generator's grid clamps
-#: to (``sam/shared/page_styles``: ``1 .. _MAX_FORM_COLUMNS``). A value the service accepts is
-#: therefore a value the generator renders meaningfully (parity pinned by the paired test). An
-#: out-of-range or non-integer value (incl. a bool — ``bool`` is an ``int`` subclass, excluded
-#: explicitly) is rejected. An integer-valued string (e.g. ``"3"``) is accepted — the authoring
-#: edge may carry the value as text — and coerced to its ``int`` before the bounds check.
-_COLUMNS_ATTRIBUTE = "columns"
-_MIN_COLUMNS = 1
-_MAX_COLUMNS = 4
+#: (The earlier ``columns`` bounded-integer attribute was removed — the published form grid is now
+#: a fully width-driven responsive auto-fit grid, so a column count no longer has any effect and is
+#: no longer a settable attribute. A legacy stored ``columns`` is tolerated by the generator.)
 
 #: ``logo`` — a well-formed URL / asset REFERENCE (never a CSS/binary upload — values-only,
 #: steering 39 / DD-C1). The permitted set is a bounded ``https://`` (or a site-relative ``/...``)
@@ -405,8 +398,6 @@ class LookAndFeelSettingsService:
         - Colour attributes (``color_primary`` / ``color_accent``): a ``#RGB`` / ``#RRGGBB`` hex.
         - Font attributes (``font_heading`` / ``font_body``): a non-blank font-family token
           (``system`` or a web-font name), restricted to safe characters.
-        - ``columns`` (bugfix extension, DD-C1): a bounded integer (or integer-valued string) in
-          ``_MIN_COLUMNS .. _MAX_COLUMNS``, mirroring the Layer-2 generator's grid clamp.
         - ``logo`` (bugfix extension, DD-C1): a well-formed, bounded ``https://`` / site-relative
           URL/asset reference with no injection payload — never a CSS/binary upload (values-only).
         - ``header_title`` (bugfix extension, DD-C1): non-blank, length-bounded free text
@@ -442,32 +433,6 @@ class LookAndFeelSettingsService:
 
         # ── The three NEW values-only attributes (bugfix bugfix-published-form-styling, Task 10) ──
 
-        if attribute == _COLUMNS_ATTRIBUTE:
-            # Bounded integer (DD-C1). Accept an int or an integer-valued string (the edge may
-            # carry the value as text); reject a bool (an ``int`` subclass that is not a real
-            # column count), a non-integer, or an out-of-range value. The accepted range mirrors
-            # the Layer-2 generator's grid clamp (1 .. _MAX_FORM_COLUMNS), pinned by the paired
-            # parity test.
-            if isinstance(value, bool):
-                raise LookAndFeelValidationError(
-                    f"invalid value {value!r} for {attribute!r}: expected an integer in "
-                    f"{_MIN_COLUMNS}..{_MAX_COLUMNS}"
-                )
-            if isinstance(value, int):
-                column_count = value
-            elif isinstance(value, str) and re.fullmatch(r"-?\d+", value.strip()):
-                column_count = int(value.strip())
-            else:
-                raise LookAndFeelValidationError(
-                    f"invalid value {value!r} for {attribute!r}: expected an integer in "
-                    f"{_MIN_COLUMNS}..{_MAX_COLUMNS}"
-                )
-            if not (_MIN_COLUMNS <= column_count <= _MAX_COLUMNS):
-                raise LookAndFeelValidationError(
-                    f"invalid value {value!r} for {attribute!r}: expected an integer in "
-                    f"{_MIN_COLUMNS}..{_MAX_COLUMNS}"
-                )
-            return
 
         if attribute == _LOGO_ATTRIBUTE:
             # A well-formed, bounded URL/asset reference — never a CSS/binary upload (values-only,

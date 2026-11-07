@@ -61,9 +61,9 @@ export const SUPPORTED_ATTRIBUTES = [
   'base_spacing',
   'border_radius_global',
   'shadow_style',
-  // bugfix bugfix-published-form-styling (Req 2.2 / 2.7) — the three new values-only
-  // attributes; a documented extension of the original seven (bugfix 3.4).
-  'columns',
+  // bugfix bugfix-published-form-styling (Req 2.7) — the two new values-only attributes.
+  // (The earlier `columns` attribute was removed: the form grid is now a fully width-driven
+  // responsive auto-fit grid, so an authored column count has no effect.)
   'logo',
   'header_title',
 ] as const;
@@ -71,16 +71,6 @@ export const SUPPORTED_ATTRIBUTES = [
 export type SupportedAttribute = (typeof SUPPORTED_ATTRIBUTES)[number];
 
 const SUPPORTED_SET: ReadonlySet<string> = new Set(SUPPORTED_ATTRIBUTES);
-
-/**
- * Default / ceiling for the application-form multi-column grid (bugfix DD-B1) — mirrors the
- * Python `_DEFAULT_FORM_COLUMNS` / `_MAX_FORM_COLUMNS`. The `columns` attribute drives the
- * grid track count; an unset value falls back to the default, and the generator clamps to a
- * sane 1..4 range so a stray value never emits a broken track list (the authoritative
- * out-of-range rejection lives at the edge/service plane).
- */
-const DEFAULT_FORM_COLUMNS = 2;
-const MAX_FORM_COLUMNS = 4;
 
 /**
  * SAM-owned defaults (Req 1.3, 3.3) — mirrors the Python `_DEFAULTS` map EXACTLY. A missing
@@ -99,9 +89,7 @@ export const DEFAULTS: Readonly<Record<SupportedAttribute, string>> = {
   base_spacing: 'normal',
   border_radius_global: 'rounded',
   shadow_style: 'subtle',
-  // bugfix bugfix-published-form-styling (Req 2.2 / 2.7 / 3.3) — defaults for the three new
-  // attributes; mirrors the Python `_DEFAULTS`.
-  columns: String(DEFAULT_FORM_COLUMNS),
+  // bugfix bugfix-published-form-styling — defaults for the two new attributes (mirrors Python).
   logo: '',
   header_title: '',
 };
@@ -310,7 +298,6 @@ function buildFontLinks(fontHeading: string, fontBody: string): string {
 function buildPageCss(
   colorPrimaryRaw: string,
   colorAccentRaw: string,
-  columns: number | string = DEFAULT_FORM_COLUMNS,
 ): string {
   const colorPrimary = sanitize(colorPrimaryRaw);
   const colorAccent = sanitize(colorAccentRaw);
@@ -406,7 +393,7 @@ function buildPageCss(
     .form-status { margin: 1rem 0; min-height: 1.2em; }
     .form-status-error { color: #b42318; font-weight: 600; }
     .form-status-success { color: #027a48; font-weight: 600; }
-${buildApplicationFormCss(colorPrimary, colorAccent, columns)}`;
+${buildApplicationFormCss(colorPrimary, colorAccent)}`;
 }
 
 /**
@@ -427,21 +414,12 @@ ${buildApplicationFormCss(colorPrimary, colorAccent, columns)}`;
 function buildApplicationFormCss(
   colorPrimary: string,
   colorAccent: string,
-  columns: number | string,
 ): string {
-  // Clamp to a sane range so a stray/out-of-range value can never emit a broken track list —
-  // mirrors the Python defensive floor/ceiling (the authoritative validation is at the
-  // edge/service plane). A non-numeric value falls back to the default.
-  let trackCount = Number.parseInt(String(columns), 10);
-  if (Number.isNaN(trackCount)) {
-    trackCount = DEFAULT_FORM_COLUMNS;
-  }
-  trackCount = Math.max(1, Math.min(trackCount, MAX_FORM_COLUMNS));
-
-  return `    .application-form h1, .application-form .form-title { font-family: var(--font-heading); color: ${colorPrimary}; margin-bottom: var(--spacing-element); }
+  return `    .application-form { --form-col-min: 16rem; }
+    .application-form h1, .application-form .form-title { font-family: var(--font-heading); color: ${colorPrimary}; margin-bottom: var(--spacing-element); }
     .application-form h2 { font-family: var(--font-heading); color: ${colorPrimary}; margin-bottom: var(--spacing-element); }
     .application-form .form-logo { max-height: 96px; width: auto; margin-bottom: var(--spacing-element); }
-    .application-form .form-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--spacing-element); border: none; margin-bottom: var(--spacing-section); max-width: calc(${trackCount} * 20rem + (${trackCount} - 1) * var(--spacing-element)); }
+    .application-form .form-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--form-col-min, 16rem)), 1fr)); gap: var(--spacing-element); border: none; margin-bottom: var(--spacing-section); }
     .application-form .form-group[data-group="_meta"] { grid-template-columns: 1fr; }
     .application-form .form-group > h2 { grid-column: 1 / -1; }
     .application-form input:focus, .application-form select:focus, .application-form textarea:focus { outline: 2px solid ${colorPrimary}; outline-offset: 1px; border-color: ${colorPrimary}; }
@@ -467,7 +445,13 @@ export function renderPageStyles(settings: LookAndFeelSettings): PageStyles {
   // Reject BEFORE producing any styling (Req 3.4): an unsupported key fails the whole
   // request so no partial styling escapes. Sorted so the reported key is deterministic
   // (parity with the Python `for key in sorted(settings)`).
-  for (const key of Object.keys(settings).sort()) {
+  // Backward-compat: `columns` was a supported attribute in an earlier version and may still
+  // exist on a stored slice. It is now a known-but-ignored legacy key (the grid is fully
+  // width-driven), so drop it rather than reject an existing stored row. Unknown keys still throw.
+  const effective = Object.fromEntries(
+    Object.entries(settings).filter(([k]) => k !== 'columns'),
+  );
+  for (const key of Object.keys(effective).sort()) {
     if (!SUPPORTED_SET.has(key)) {
       throw new UnsupportedAttributeError(key);
     }
@@ -480,12 +464,8 @@ export function renderPageStyles(settings: LookAndFeelSettings): PageStyles {
   const baseSpacing = resolve(settings, 'base_spacing');
   const borderRadiusGlobal = resolve(settings, 'border_radius_global');
   const shadowStyle = resolve(settings, 'shadow_style');
-  // bugfix bugfix-published-form-styling: resolve the authored `columns` value and thread it
-  // into the application-form grid. An unset value resolves to the multi-column default, so
-  // the generated CSS is unchanged for a tenant that never authored columns (preservation).
-  // `buildApplicationFormCss` clamps defensively; `logo` / `header_title` are SUPPORTED values
-  // the renderer/preview consumes and are intentionally NOT read here — they emit no CSS.
-  const columns = resolve(settings, 'columns');
+  // `logo` / `header_title` are SUPPORTED values the renderer/preview consumes and emit no CSS,
+  // so they are intentionally NOT read here. The grid is fully width-driven — no column count.
 
   const varEntries = resolveCssVariableEntries(
     fontHeading,
@@ -500,7 +480,7 @@ export function renderPageStyles(settings: LookAndFeelSettings): PageStyles {
   return {
     cssVariables: buildCssVariables(varEntries),
     cssVariableMap: Object.fromEntries(varEntries),
-    pageCss: buildPageCss(colorPrimary, colorAccent, columns),
+    pageCss: buildPageCss(colorPrimary, colorAccent),
     fontLinks: buildFontLinks(fontHeading, fontBody),
   };
 }

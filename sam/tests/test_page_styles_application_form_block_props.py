@@ -107,25 +107,16 @@ def _colour_applied_to_form_own_element(css: str, colour: str) -> bool:
     return False
 
 
-def _form_group_track_count(css: str) -> int | None:
-    """Return the base (non-media) grid track count on ``.application-form .form-group``.
-
-    Parses the top-level ``.form-group`` rule (the one NOT inside an ``@media`` block). Returns
-    ``None`` if no such multi-track grid rule is found.
-    """
+def _form_group_is_width_driven_auto_fit(css: str) -> bool:
+    """True iff the base (non-media) ``.application-form .form-group`` grid is a width-driven
+    ``auto-fit`` grid (``repeat(auto-fit, minmax(...))``) — reflows purely by container width,
+    with no authored track count. Returns False if no such grid rule is found."""
     norm = _normalize(css)
     for selector, body in _iter_rule_blocks(norm):
         if ".application-form .form-group" in selector and "grid-template-columns" in body:
-            # Width-driven fluid grid: tracks are repeat(auto-fit, minmax(16rem, 1fr)); the
-            # COLUMN CAP is carried by `max-width: calc(N * 20rem ...)`. Read N from there.
-            m = re.search(r"max-width:\s*calc\(\s*(\d+)\s*\*\s*20rem", body)
-            if m:
-                return int(m.group(1))
-            # Fallback: a legacy fixed repeat(N, ...) literal.
-            m2 = re.search(r"repeat\(\s*(\d+)\s*,", body)
-            if m2 and m2.group(1).isdigit():
-                return int(m2.group(1))
-    return None
+            if re.search(r"auto-fit,\s*minmax\(", body):
+                return True
+    return False
 
 
 def _grid_collapses_to_single_column(css: str) -> bool:
@@ -141,7 +132,7 @@ def _grid_collapses_to_single_column(css: str) -> bool:
     for selector, body in _iter_rule_blocks(norm):
         if ".application-form .form-group" not in selector or "grid-template-columns" not in body:
             continue
-        if "auto-fit" in body and re.search(r"minmax\(\s*\d+(?:\.\d+)?(?:rem|px)", body):
+        if "auto-fit" in body and "minmax(" in body:
             return True
     # Legacy media-query collapse (back-compat).
     for media in re.finditer(r"@media[^{]*max-width[^{]*\{(.*?)\}\s*\}", norm):
@@ -157,8 +148,8 @@ def _grid_collapses_to_single_column(css: str) -> bool:
 _COLOURS = st.sampled_from(
     ["#c01030", "#7b2cbf", "#0a7e3f", "#d62828", "#1d3557", "#e63946", "#2d5f8a"]
 )
-# `columns` is clamped to 1..4 by the generator; exercise below, in, and above the range.
-_COLUMNS = st.integers(min_value=-2, max_value=8)
+# (The earlier ``columns`` attribute was removed — the form grid is now fully width-driven, so
+# there is no column-count strategy to exercise.)
 
 
 # ══════════════════════════════════════════════════════════════════════════════════════
@@ -167,8 +158,8 @@ _COLUMNS = st.integers(min_value=-2, max_value=8)
 
 
 @settings(max_examples=150)
-@given(primary=_COLOURS, accent=_COLOURS, columns=_COLUMNS)
-def test_brand_colour_applied_to_form_own_elements(primary, accent, columns):
+@given(primary=_COLOURS, accent=_COLOURS)
+def test_brand_colour_applied_to_form_own_elements(primary, accent):
     """The primary brand colour reaches the form's OWN elements (heading/title/submit/focus).
 
     The colour must appear INSIDE a rule whose selector targets an ``.application-form`` own
@@ -177,11 +168,11 @@ def test_brand_colour_applied_to_form_own_elements(primary, accent, columns):
 
     Validates (bugfix): Requirement 2.1
     """
-    block = _build_application_form_css(primary, accent, columns)
+    block = _build_application_form_css(primary, accent)
 
     assert _colour_applied_to_form_own_element(block, primary), (
         f"BRAND_COLOURS_ON_FORM_OWN_ELEMENTS (2.1): primary {primary!r} is NOT applied to any "
-        f"form own-element rule (heading/title/submit/focus). columns={columns!r}"
+        f"form own-element rule (heading/title/submit/focus)."
     )
 
     # The submit button carries the primary background and the accent on hover.
@@ -228,67 +219,55 @@ def test_full_generator_applies_brand_colour_to_form_via_render_page_styles(prim
 
 
 @settings(max_examples=150)
-@given(primary=_COLOURS, accent=_COLOURS, columns=_COLUMNS)
-def test_form_group_grid_is_multi_column_and_clamped(primary, accent, columns):
-    """The form groups lay out in a grid whose track count is the clamped (1..4) column value.
+@given(primary=_COLOURS, accent=_COLOURS)
+def test_form_group_grid_is_width_driven_auto_fit(primary, accent):
+    """The form groups lay out in a WIDTH-DRIVEN ``auto-fit`` grid — no authored track count.
 
-    The generator clamps ``columns`` to 1..4 so it always emits a well-formed track list. We
-    assert the base ``.form-group`` rule is a grid with that clamped track count.
+    The grid is ``repeat(auto-fit, minmax(...))``, so it fits as many columns as the container
+    width allows and reflows continuously (more on a wide screen, one on a narrow one). The grid
+    rule is independent of the brand colours.
 
     Validates (bugfix): Requirement 2.2
     """
-    block = _build_application_form_css(primary, accent, columns)
-    expected = max(1, min(int(columns), 4))
-
-    tracks = _form_group_track_count(block)
-    assert tracks == expected, (
-        f"MULTI_COLUMN_COLLAPSING_GRID (2.2): .form-group grid track count {tracks!r} != clamped "
-        f"expected {expected!r} for columns={columns!r}."
+    block = _build_application_form_css(primary, accent)
+    assert _form_group_is_width_driven_auto_fit(block), (
+        "WIDTH_DRIVEN_GRID (2.2): the .form-group grid must be a repeat(auto-fit, minmax(...)) grid."
     )
 
 
 @settings(max_examples=100)
-@given(primary=_COLOURS, accent=_COLOURS, columns=st.integers(min_value=2, max_value=8))
-def test_multi_column_grid_collapses_to_single_column_on_small_screens(
-    primary, accent, columns
-):
-    """A multi-column grid (columns>=2 -> clamped to 2..4) collapses to one column on small screens.
+@given(primary=_COLOURS, accent=_COLOURS)
+def test_width_driven_grid_collapses_to_single_column_on_narrow_containers(primary, accent):
+    """The width-driven ``auto-fit`` grid reflows to a single column on a narrow container.
 
-    For a multi-column choice the base rule has >1 track AND a small-screen media query collapses
-    ``.form-group`` to a single column (mirroring the landing-grid ``@media (max-width: 480px)``
-    collapse pattern).
+    ``auto-fit`` with a per-track floor inherently collapses to one column once the container is
+    narrower than that floor — continuously, at every width, with no breakpoint.
 
     Validates (bugfix): Requirement 2.2
     """
-    block = _build_application_form_css(primary, accent, columns)
-
-    tracks = _form_group_track_count(block)
-    assert tracks is not None and tracks > 1, (
-        f"MULTI_COLUMN (2.2): expected a >1-track base grid for columns={columns!r}, got {tracks!r}."
-    )
+    block = _build_application_form_css(primary, accent)
     assert _grid_collapses_to_single_column(block), (
-        "MULTI_COLUMN (2.2): the multi-column grid must collapse to a single column under a "
-        "small-screen media query."
+        "WIDTH_DRIVEN_GRID (2.2): the auto-fit grid must reflow to a single column on a narrow "
+        "container."
     )
 
 
-def test_form_group_default_columns_is_multi_column_collapsing():
-    """With no explicit columns, the form grid defaults to multi-column and still collapses.
+def test_form_group_default_grid_is_width_driven_collapsing():
+    """With no authored values, the form grid is the SAME width-driven auto-fit collapsing grid.
 
-    ``_build_page_css`` (and ``render_page_styles``) call the form-block builder with the default
-    column count (2) until the ``columns`` attribute is threaded (Task 8). The default must be a
-    multi-column collapsing grid — the published form must not be single-column by default.
+    ``_build_page_css`` (and ``render_page_styles``) emit the width-driven grid regardless of
+    authored values — the published form reflows by container width and collapses to one column
+    on a narrow screen.
 
     Validates (bugfix): Requirement 2.2
     """
     page_css = render_page_styles({}).page_css
-    tracks = _form_group_track_count(page_css)
-    assert tracks is not None and tracks > 1, (
-        f"MULTI_COLUMN (2.2): default form grid must be multi-column, got {tracks!r} tracks."
+    assert _form_group_is_width_driven_auto_fit(page_css), (
+        "WIDTH_DRIVEN_GRID (2.2): default form grid must be a repeat(auto-fit, minmax(...)) grid."
     )
     assert _grid_collapses_to_single_column(page_css), (
-        "MULTI_COLUMN (2.2): the default form grid must collapse to a single column on small "
-        "screens."
+        "WIDTH_DRIVEN_GRID (2.2): the default form grid must reflow to a single column on a narrow "
+        "container."
     )
 
 

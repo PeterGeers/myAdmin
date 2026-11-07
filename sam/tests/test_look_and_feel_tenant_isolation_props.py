@@ -79,11 +79,11 @@ _ATTR_STRATEGY = {
     "base_spacing": _base_spacing,
     "border_radius_global": _border_radius,
     "shadow_style": _shadow_style,
-    # bugfix bugfix-published-form-styling (Task 8): the three new values-only attributes are
+    # bugfix bugfix-published-form-styling (Task 8): the two new values-only attributes are
     # now supported, so tenant-isolation coverage must carry them through the slice too (their
     # stored VALUES are opaque to this resolve-scoping property; the authoritative permitted-value
-    # validation lives at the edge/service plane, Task 10).
-    "columns": st.sampled_from([1, 2, 3, 4]),
+    # validation lives at the edge/service plane, Task 10). (The earlier ``columns`` attribute was
+    # removed — the form grid is now fully width-driven.)
     "logo": st.sampled_from(["https://assets.example.org/logo.png", "logo.svg"]),
     "header_title": st.sampled_from(["Aanmelden", "Join us"]),
 }

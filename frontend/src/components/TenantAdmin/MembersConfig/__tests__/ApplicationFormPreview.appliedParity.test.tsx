@@ -23,9 +23,10 @@
  * byte-for-byte while the FORM is still unstyled, because the string themed only landing-page
  * classes the form markup never used. So this test asserts the APPLIED RESULT on the preview —
  * the tenant logo renders as an `<img>`, the header title renders as a visible heading, and the
- * `columns` value drives the field-group grid track count — and that the styling the preview
- * applies to the form's OWN elements (heading/submit/focus) carries the brand colour. It NEVER
- * merely compares the two generators' strings.
+ * field-group grid is a width-driven auto-fit grid — and that the styling the preview applies to
+ * the form's OWN elements (heading/submit/focus) carries the brand colour. It NEVER merely
+ * compares the two generators' strings. (The earlier `columns` attribute was removed: the grid
+ * is fully width-driven, so there is no authored track count to assert.)
  *
  * Applied-colour predicate
  * ------------------------
@@ -45,7 +46,7 @@ import { describe, it, expect } from 'vitest';
 import React from 'react';
 import { render, screen } from '../../../../test-utils';
 import { ApplicationFormPreview } from '../ApplicationFormPreview';
-import { renderPageStyles, DEFAULTS, type LookAndFeelSettings } from '../pageStyles';
+import { renderPageStyles, type LookAndFeelSettings } from '../pageStyles';
 import type { FieldConfig, FieldConfigField } from '../../../../types/members';
 
 // ── the ONE shared attribute fixture + its canonical SAM twin ─────────────────────────
@@ -62,7 +63,6 @@ interface ParityCase {
   input: {
     color_primary: string;
     color_accent: string;
-    columns: string;
     logo: string;
     header_title: string;
   };
@@ -139,8 +139,9 @@ function appliesBrandColourToForm(pageCss: string, colorPrimary: string): boolea
   return false;
 }
 
-/** Largest multi-column (>1) `grid-template-columns` track count for the form's group container. */
-function multiColumnTrackCount(pageCss: string): number {
+/** True when the form's group container declares a width-driven `auto-fit` grid (which reflows
+ *  to one column on a narrow container with no media query / no authored track count). */
+function declaresWidthDrivenAutoFitGrid(pageCss: string): boolean {
   const norm = pageCss.replace(/\s+/g, ' ').toLowerCase();
   const containerSelectors = [
     '.application-form .form-group',
@@ -149,7 +150,6 @@ function multiColumnTrackCount(pageCss: string): number {
     '.application-form main',
     '.application-form',
   ];
-  let best = 0;
   const ruleRe = /([^{}]+)\{([^{}]*)\}/g;
   let match: RegExpExecArray | null;
   while ((match = ruleRe.exec(norm)) !== null) {
@@ -157,12 +157,9 @@ function multiColumnTrackCount(pageCss: string): number {
     const body = match[2];
     if (!body.includes('grid-template-columns')) continue;
     if (!containerSelectors.some((sel) => selector.includes(sel))) continue;
-    const cap = /max-width:\s*calc\(\s*(\d+)\s*\*\s*20rem/.exec(body);
-    if (cap) { best = Math.max(best, Number(cap[1])); continue; }
-    const repeat = /repeat\(\s*(\d+)/.exec(body);
-    if (repeat && Number(repeat[1]) > 1) best = Math.max(best, Number(repeat[1]));
+    if (/auto-fit,\s*minmax\(/.test(body)) return true;
   }
-  return best;
+  return false;
 }
 
 // ── Fixture / drift guards (both planes read the SAME attributes) ─────────────────────
@@ -174,11 +171,10 @@ describe('bugfix Task 20 — applied-appearance parity (preview half): shared fi
     expect(frontendBytes.equals(samBytes)).toBe(true);
   });
 
-  it('every case carries distinct observable values (colour ≠ default, columns>1, logo, title)', () => {
+  it('every case carries distinct observable values (colour ≠ default, logo, title)', () => {
     expect(CASES.length).toBeGreaterThan(0);
     for (const c of CASES) {
       expect(c.input.color_primary.toLowerCase()).not.toBe(DEFAULT_PRIMARY.toLowerCase());
-      expect(Number(c.input.columns)).toBeGreaterThan(1);
       expect(c.input.logo.trim().length).toBeGreaterThan(0);
       expect(c.input.header_title.trim().length).toBeGreaterThan(0);
     }
@@ -189,7 +185,7 @@ describe('bugfix Task 20 — applied-appearance parity (preview half): shared fi
 
 describe('bugfix Task 20 — the preview applies the shared fixture attributes', () => {
   it.each(CASES.map((c) => [c.name, c] as const))(
-    'preview applies the brand colour / columns / logo / heading for case %s (Req 2.6)',
+    'preview applies the brand colour / grid / logo / heading for case %s (Req 2.6)',
     (_name, testCase) => {
       const lookAndFeel = testCase.input as unknown as LookAndFeelSettings;
 
@@ -202,19 +198,16 @@ describe('bugfix Task 20 — the preview applies the shared fixture attributes',
         />,
       );
 
-      const container = screen.getByTestId('application-form-preview-render');
-
       // (a) brand colour APPLIED to the form's own elements — asserted over the page CSS the
       // preview actually consumes (the Layer-2 mirror output), using the SAME applied-colour
       // predicate the SAM published-artifact test uses. Not a string-equality compare.
       const { pageCss } = renderPageStyles(lookAndFeel);
       expect(appliesBrandColourToForm(pageCss, testCase.input.color_primary)).toBe(true);
 
-      // (b) the `columns` value drives the field-group grid track count — the APPLIED column
-      // count the preview resolved (exposed on the container) matches the fixture, AND the
-      // Layer-2 page CSS the preview consumes declares the same multi-column grid.
-      expect(container.getAttribute('data-lookandfeel-columns')).toBe(testCase.input.columns);
-      expect(multiColumnTrackCount(pageCss)).toBe(Number(testCase.input.columns));
+      // (b) the field-group grid is the SAME width-driven auto-fit grid — the Layer-2 page CSS
+      // the preview consumes declares the width-driven `auto-fit` grid (reflows by container
+      // width, no authored track count). The published twin asserts the same on its path.
+      expect(declaresWidthDrivenAutoFitGrid(pageCss)).toBe(true);
 
       // (c) the tenant logo is rendered as an <img> with the fixture src.
       const logo = screen.getByTestId('application-form-preview-logo');
@@ -226,42 +219,24 @@ describe('bugfix Task 20 — the preview applies the shared fixture attributes',
     },
   );
 
-  it('the preview resolves the SAME applied column count the published path declares (parity)', () => {
-    // Cross-check: for each case the preview's resolved column count (the number it lays the
-    // field groups out in) equals the multi-column track count the shared Layer-2 page CSS
-    // declares — so the two paths cannot diverge on the applied column count. An out-of-range
-    // value would clamp identically on both (authoritative rejection lives at the edge/service).
+  it('both render paths declare the SAME width-driven auto-fit field-group grid (parity)', () => {
+    // Cross-check: for each case the Layer-2 page CSS the preview consumes declares the
+    // width-driven `auto-fit` grid — the SAME rule the published path bakes — so the two paths
+    // cannot diverge on the grid. There is no authored column count: the grid reflows purely by
+    // container width (more columns on a wide screen, one on a narrow one).
     for (const c of CASES) {
       const lookAndFeel = c.input as unknown as LookAndFeelSettings;
-      const { unmount } = render(
-        <ApplicationFormPreview
-          fieldConfig={onFormConfig()}
-          overlay={{}}
-          lang="en"
-          lookAndFeel={lookAndFeel}
-        />,
-      );
-      const previewColumns = Number(
-        screen.getByTestId('application-form-preview-render').getAttribute('data-lookandfeel-columns'),
-      );
-      const cssColumns = multiColumnTrackCount(renderPageStyles(lookAndFeel).pageCss);
-      // Both derive from the SAME resolved value + SAME clamp, so they agree (and equal the
-      // fixture's in-range value).
-      expect(previewColumns).toBe(cssColumns);
-      expect(previewColumns).toBe(Number(c.input.columns));
-      unmount();
+      expect(declaresWidthDrivenAutoFitGrid(renderPageStyles(lookAndFeel).pageCss)).toBe(true);
     }
   });
 
-  it('a tenant on pure defaults (no fixture attrs) renders no logo/heading and the default columns', () => {
+  it('a tenant on pure defaults (no fixture attrs) renders no logo/heading and the width-driven grid', () => {
     // The parity holds at the "absent" end too: with no look-and-feel the preview renders neither
-    // logo nor heading and falls back to the SAM-owned default column count — exactly as the
-    // published path renders a defaults-only tenant (preservation of the no-attrs appearance).
+    // logo nor heading and the field-group grid is still the SAME width-driven auto-fit grid —
+    // exactly as the published path renders a defaults-only tenant (no-attrs appearance preserved).
     render(<ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" />);
     expect(screen.queryByTestId('application-form-preview-logo')).not.toBeInTheDocument();
     expect(screen.queryByTestId('application-form-preview-title')).not.toBeInTheDocument();
-    expect(
-      screen.getByTestId('application-form-preview-render').getAttribute('data-lookandfeel-columns'),
-    ).toBe(DEFAULTS.columns);
+    expect(declaresWidthDrivenAutoFitGrid(renderPageStyles({}).pageCss)).toBe(true);
   });
 });
