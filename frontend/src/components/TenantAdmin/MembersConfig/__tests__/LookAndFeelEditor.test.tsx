@@ -380,9 +380,9 @@ async function renderBuilder() {
       <ApplicationFormBuilder tenant="t-1" />
     </I18nextProvider>,
   );
-  await screen.findByTestId('application-form-builder');
-  // Wait for the best-effort look-and-feel seed to resolve.
-  await screen.findByTestId('application-form-builder-lookandfeel');
+  await screen.findByTestId('application-form-builder-accordion');
+  // Wait for the Look & feel group to mount (its panel stays mounted even while collapsed).
+  await screen.findByTestId('application-form-builder-group-lookandfeel');
   return utils;
 }
 
@@ -422,7 +422,7 @@ describe('ApplicationFormBuilder — look-and-feel editor wiring (task 12.2)', (
     });
     // Serverless model: editing does NOT persist. Click the single bottom Save button.
     expect(mockSetLookAndFeel).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    fireEvent.click(screen.getByTestId('application-form-builder-lookandfeel-savebar-save'));
     await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledWith('shadow_style', 'dramatic'));
     // Each call is exactly (attribute, value) — one supported attribute + its value, no CSS/record.
     const call = mockSetLookAndFeel.mock.calls.find((c) => c[0] === 'shadow_style')!;
@@ -461,7 +461,7 @@ describe('ApplicationFormBuilder — look-and-feel editor wiring (task 12.2)', (
     fireEvent.change(screen.getByTestId('lookandfeel-shadow_style'), {
       target: { value: 'none' },
     });
-    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    fireEvent.click(screen.getByTestId('application-form-builder-lookandfeel-savebar-save'));
     // The caller-safe envelope surfaces as an error toast naming the client's OWN setting; the
     // description carries NO internal detail (no stack frame / Python traceback marker).
     await waitFor(() => expect(mockToast).toHaveBeenCalled());
@@ -479,7 +479,7 @@ describe('ApplicationFormBuilder — look-and-feel editor wiring (task 12.2)', (
     fireEvent.change(screen.getByTestId('lookandfeel-color_accent-hex'), {
       target: { value: '#abcdef' },
     });
-    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    fireEvent.click(screen.getByTestId('application-form-builder-lookandfeel-savebar-save'));
     await waitFor(() => expect(mockToast).toHaveBeenCalled());
     const toastArg = mockToast.mock.calls.at(-1)![0] as { status?: string; description?: string };
     expect(toastArg.status).toBe('error');
@@ -537,7 +537,7 @@ describe('ApplicationFormBuilder — logo / header_title wiring (bugfix Task 11/
       target: { value: 'https://cdn.example.org/logo.png' },
     });
     expect(mockSetLookAndFeel).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    fireEvent.click(screen.getByTestId('application-form-builder-lookandfeel-savebar-save'));
     await waitFor(() =>
       expect(mockSetLookAndFeel).toHaveBeenCalledWith('logo', 'https://cdn.example.org/logo.png'),
     );
@@ -551,7 +551,7 @@ describe('ApplicationFormBuilder — logo / header_title wiring (bugfix Task 11/
       target: { value: 'Membership application' },
     });
     expect(mockSetLookAndFeel).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    fireEvent.click(screen.getByTestId('application-form-builder-lookandfeel-savebar-save'));
     await waitFor(() =>
       expect(mockSetLookAndFeel).toHaveBeenCalledWith('header_title', 'Membership application'),
     );
@@ -568,7 +568,7 @@ describe('ApplicationFormBuilder — logo / header_title wiring (bugfix Task 11/
     fireEvent.change(screen.getByTestId('lookandfeel-logo'), {
       target: { value: 'https://cdn.example.org/logo.png' },
     });
-    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    fireEvent.click(screen.getByTestId('application-form-builder-lookandfeel-savebar-save'));
     await waitFor(() => expect(mockToast).toHaveBeenCalled());
     const toastArg = mockToast.mock.calls.at(-1)![0] as { status?: string; description?: string };
     expect(toastArg.status).toBe('error');
