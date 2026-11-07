@@ -34,7 +34,6 @@ import {
   resolveConsentVersion,
   toShellMailBody,
 } from '../applicationShellForm';
-import type { ReadinessState } from '../applicationReadiness';
 import {
   IFRAME_RESIZE_MESSAGE_TYPE,
   IFRAME_RESIZE_SOURCE,
@@ -349,8 +348,15 @@ describe('applicationShellForm — config#mail body assembly (R5.5)', () => {
   });
 });
 
+
 /* ------------------------------------------------------------------ */
-/*  Component (ApplicationFormShellPanel)                              */
+/*  Component (ApplicationFormShellPanel) — the SLIMMED panel.         */
+/*                                                                    */
+/*  Grouped per-group-save redesign: the panel now authors ONLY        */
+/*  embedding + the consent notice, lifting values via onChange. The   */
+/*  public URL + slug/prefix inputs moved to ApplicationAddressFields, */
+/*  the mail Save to the Form-settings group's GroupSaveBar, and the   */
+/*  Publish control to PublishSection — none of them live here now.    */
 /* ------------------------------------------------------------------ */
 const BASE_VALUES: ShellFormValues = {
   slug: 'h-dcn',
@@ -368,47 +374,14 @@ function renderPanel(values: ShellFormValues = BASE_VALUES, onChange = vi.fn()) 
   return { ...utils, onChange };
 }
 
-describe('ApplicationFormShellPanel — public URL display (R5.1)', () => {
-  it('displays the derived public URL when a slug exists', () => {
+describe('ApplicationFormShellPanel — slimmed panel owns no address/save/publish controls', () => {
+  it('renders no public-URL, slug, prefix, mail-save or publish controls (all moved out)', () => {
     renderPanel();
-    expect(screen.getByTestId('application-form-shell-public-url')).toHaveTextContent(
-      'https://h-dcn.jabaki.nl/apply',
-    );
-  });
-
-  it('surfaces an "open live form" link to the hosted form, opening in a new tab (R5.1 / R7.3)', () => {
-    renderPanel();
-    const link = screen.getByTestId('application-form-shell-open-live');
-    expect(link).toHaveAttribute('href', 'https://h-dcn.jabaki.nl/apply');
-    expect(link).toHaveAttribute('target', '_blank');
-  });
-
-  it('rel-hardens the new-tab open-live link (noopener/noreferrer — no window.opener handle)', () => {
-    // A target=_blank link MUST carry rel="noopener noreferrer" so the opened tab gets no
-    // `window.opener` handle back to the admin app (reverse-tabnabbing, CWE-1022). The checklist's
-    // "rel hardened" requirement for the slug link states — pin it so a regression can't drop it.
-    renderPanel();
-    const rel = screen.getByTestId('application-form-shell-open-live').getAttribute('rel') ?? '';
-    expect(rel).toContain('noopener');
-    expect(rel).toContain('noreferrer');
-  });
-
-  it('shows NO "open live form" link when there is no public address yet', () => {
-    renderPanel({ ...BASE_VALUES, slug: null });
-    expect(screen.queryByTestId('application-form-shell-open-live')).not.toBeInTheDocument();
-  });
-
-  it('shows "no address yet" + a form-slug hint when no slug (spec 12: authored via form config, not the landing editor)', () => {
-    // Spec 12 R4/Phase 1: the slug is the FORM slug on config#fields, authored via the SAM
-    // config-write — NOT the Landing Page editor. The old landing-editor link is retired; the
-    // "no address yet" state now points at the form configuration.
-    renderPanel({ ...BASE_VALUES, slug: null });
-    expect(screen.getByTestId('application-form-shell-no-url')).toBeInTheDocument();
-    expect(screen.getByTestId('application-form-shell-slug-hint')).toBeInTheDocument();
-    expect(
-      screen.queryByTestId('application-form-shell-landing-link'),
-    ).not.toBeInTheDocument();
     expect(screen.queryByTestId('application-form-shell-public-url')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-shell-slug-editor')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-shell-prefix-editor')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-shell-save-mail')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-shell-publish')).not.toBeInTheDocument();
   });
 });
 
@@ -469,404 +442,16 @@ describe('ApplicationFormShellPanel — consent notice (R5.3)', () => {
   });
 });
 
-describe('ApplicationFormShellPanel — single mail save (R5.5)', () => {
-  it('surfaces a save that is disabled until dirty and fires onSaveMail once when clicked', () => {
-    const onSaveMail = vi.fn();
-    render(
-      <ApplicationFormShellPanel
-        values={BASE_VALUES}
-        onChange={vi.fn()}
-        onSaveMail={onSaveMail}
-        mailDirty
-        lang="en"
-      />,
-    );
-    const btn = screen.getByTestId('application-form-shell-save-mail');
-    expect(btn).toBeEnabled();
-    fireEvent.click(btn);
-    expect(onSaveMail).toHaveBeenCalledTimes(1);
-  });
-
-  it('disables the save when not dirty', () => {
-    render(
-      <ApplicationFormShellPanel
-        values={BASE_VALUES}
-        onChange={vi.fn()}
-        onSaveMail={vi.fn()}
-        mailDirty={false}
-        lang="en"
-      />,
-    );
-    expect(screen.getByTestId('application-form-shell-save-mail')).toBeDisabled();
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  Publish button — explicit go-live, readiness-gated, save ≠ publish */
-/*  (spec 12 task 6.2 / R5 / OQ1 = option 1).                          */
-/* ------------------------------------------------------------------ */
-const READY: ReadinessState = {
-  certifiedSender: true,
-  slugPresent: true,
-  hasFieldOnForm: true,
-  isSendReady: true,
-};
-
-describe('ApplicationFormShellPanel — explicit Publish (spec 12 R5 / task 6.2)', () => {
-  it('renders no Publish control when onPublish is not wired', () => {
-    renderPanel();
-    expect(screen.queryByTestId('application-form-shell-publish')).not.toBeInTheDocument();
-  });
-
-  it('the Publish button calls the publish handler (POST /members/application-form/publish) when ready', () => {
-    const onPublish = vi.fn();
-    render(
-      <ApplicationFormShellPanel
-        values={BASE_VALUES}
-        onChange={vi.fn()}
-        readiness={READY}
-        onPublish={onPublish}
-        lang="en"
-      />,
-    );
-    const btn = screen.getByTestId('application-form-shell-publish');
-    expect(btn).toBeEnabled();
-    fireEvent.click(btn);
-    expect(onPublish).toHaveBeenCalledTimes(1);
-  });
-
-  it('a plain Save does NOT publish — Save fires onSaveMail only, never onPublish (save ≠ publish)', () => {
-    const onPublish = vi.fn();
-    const onSaveMail = vi.fn();
-    render(
-      <ApplicationFormShellPanel
-        values={BASE_VALUES}
-        onChange={vi.fn()}
-        readiness={READY}
-        onPublish={onPublish}
-        onSaveMail={onSaveMail}
-        mailDirty
-        lang="en"
-      />,
-    );
-    fireEvent.click(screen.getByTestId('application-form-shell-save-mail'));
-    expect(onSaveMail).toHaveBeenCalledTimes(1);
-    expect(onPublish).not.toHaveBeenCalled();
-  });
-
-  it('disables Publish and explains WHY when readiness fails (no slug / no sender / no field, R5.4)', () => {
-    const onPublish = vi.fn();
-    render(
-      <ApplicationFormShellPanel
-        values={{ ...BASE_VALUES, slug: null }}
-        onChange={vi.fn()}
-        readiness={{
-          certifiedSender: false,
-          slugPresent: false,
-          hasFieldOnForm: false,
-          isSendReady: false,
-        }}
-        onPublish={onPublish}
-        lang="en"
-      />,
-    );
-    const btn = screen.getByTestId('application-form-shell-publish');
-    expect(btn).toBeDisabled();
-    // A disabled button never fires the handler even if clicked.
-    fireEvent.click(btn);
-    expect(onPublish).not.toHaveBeenCalled();
-    // The three missing preconditions are each surfaced (show, don't silently block).
-    expect(screen.getByTestId('application-form-shell-publish-blocked')).toBeInTheDocument();
-    expect(screen.getByTestId('application-form-shell-publish-need-slug')).toBeInTheDocument();
-    expect(screen.getByTestId('application-form-shell-publish-need-sender')).toBeInTheDocument();
-    expect(screen.getByTestId('application-form-shell-publish-need-field')).toBeInTheDocument();
-  });
-
-  it('explains ONLY the missing precondition (a certified sender present is not listed)', () => {
-    render(
-      <ApplicationFormShellPanel
-        values={BASE_VALUES}
-        onChange={vi.fn()}
-        readiness={{
-          certifiedSender: true,
-          slugPresent: true,
-          hasFieldOnForm: false, // only this is missing
-          isSendReady: true,
-        }}
-        onPublish={vi.fn()}
-        lang="en"
-      />,
-    );
-    expect(screen.getByTestId('application-form-shell-publish')).toBeDisabled();
-    expect(screen.getByTestId('application-form-shell-publish-need-field')).toBeInTheDocument();
-    expect(
-      screen.queryByTestId('application-form-shell-publish-need-slug'),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId('application-form-shell-publish-need-sender'),
-    ).not.toBeInTheDocument();
-  });
-
-  it('surfaces the "draft has unpublished changes" hint when ready + pending edits (save ≠ publish)', () => {
-    render(
-      <ApplicationFormShellPanel
-        values={BASE_VALUES}
-        onChange={vi.fn()}
-        readiness={READY}
-        onPublish={vi.fn()}
-        hasUnpublishedChanges
-        lang="en"
-      />,
-    );
-    expect(
-      screen.getByTestId('application-form-shell-unpublished-changes'),
-    ).toBeInTheDocument();
-  });
-
-  it('hides the unpublished-changes hint when the live form matches the draft', () => {
-    render(
-      <ApplicationFormShellPanel
-        values={BASE_VALUES}
-        onChange={vi.fn()}
-        readiness={READY}
-        onPublish={vi.fn()}
-        hasUnpublishedChanges={false}
-        lang="en"
-      />,
-    );
-    expect(
-      screen.queryByTestId('application-form-shell-unpublished-changes'),
-    ).not.toBeInTheDocument();
-  });
-
-  it('labels the button "Publish" first time and "Republish" once published', () => {
-    const { rerender } = render(
-      <ApplicationFormShellPanel
-        values={BASE_VALUES}
-        onChange={vi.fn()}
-        readiness={READY}
-        onPublish={vi.fn()}
-        everPublished={false}
-        lang="en"
-      />,
-    );
-    expect(screen.getByTestId('application-form-shell-publish')).toHaveTextContent('Publish');
-    rerender(
-      <ApplicationFormShellPanel
-        values={BASE_VALUES}
-        onChange={vi.fn()}
-        readiness={READY}
-        onPublish={vi.fn()}
-        everPublished
-        lang="en"
-      />,
-    );
-    expect(screen.getByTestId('application-form-shell-publish')).toHaveTextContent('Republish');
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  Form slug display + "no public address" states (spec 12 task 6.1). */
-/* ------------------------------------------------------------------ */
-describe('ApplicationFormShellPanel — form slug URL states (spec 12 R4.4 / R3.3)', () => {
-  it('a NAME ≠ tenant form slug shows that slug\u2019s address + open-live link', () => {
-    renderPanel({ ...BASE_VALUES, slug: 'join-our-club' });
-    expect(screen.getByTestId('application-form-shell-public-url')).toHaveTextContent(
-      'https://join-our-club.jabaki.nl/apply',
-    );
-    expect(screen.getByTestId('application-form-shell-open-live')).toHaveAttribute(
-      'href',
-      'https://join-our-club.jabaki.nl/apply',
-    );
-  });
-
-  it('states the form has no public address yet + a slug hint when no slug (not the landing editor)', () => {
-    renderPanel({ ...BASE_VALUES, slug: null });
-    expect(screen.getByTestId('application-form-shell-no-url')).toBeInTheDocument();
-    // bugfix-slug-lifecycle task 3.3: the hint now points at the inline SAM slug-author control
-    // below, not "the form configuration"/the landing editor.
-    expect(screen.getByTestId('application-form-shell-slug-hint')).toHaveTextContent(
-      /set a form slug/i,
-    );
-    expect(screen.queryByTestId('application-form-shell-open-live')).not.toBeInTheDocument();
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  Slug-author control (bugfix-slug-lifecycle task 3.3 / R2.3).        */
-/*  The members:admin control to set/change/clear the SAM form slug via */
-/*  the SAM slug-author endpoint — NOT the Flask landing plane.         */
-/* ------------------------------------------------------------------ */
-describe('ApplicationFormShellPanel — slug-author control (bugfix-slug-lifecycle R2.3)', () => {
-  it('renders no slug-author control when onSetSlug is not wired', () => {
-    renderPanel({ ...BASE_VALUES, slug: null });
-    expect(screen.queryByTestId('application-form-shell-slug-editor')).not.toBeInTheDocument();
-  });
-
-  it('renders the slug-author control (labelled input + save) when onSetSlug is wired', () => {
-    render(
-      <ApplicationFormShellPanel
-        values={{ ...BASE_VALUES, slug: null }}
-        onChange={vi.fn()}
-        onSetSlug={vi.fn()}
-        lang="en"
-      />,
-    );
-    expect(screen.getByTestId('application-form-shell-slug-editor')).toBeInTheDocument();
-    // Accessibility: the input has a programmatic label (htmlFor/id wiring).
-    expect(screen.getByLabelText(/form slug/i)).toBeInTheDocument();
-  });
-
-  it('seeds the input from the current SAM slug and submits the edited value', () => {
-    const onSetSlug = vi.fn();
-    render(
-      <ApplicationFormShellPanel
-        values={{ ...BASE_VALUES, slug: 'h-dcn' }}
-        onChange={vi.fn()}
-        onSetSlug={onSetSlug}
-        lang="en"
-      />,
-    );
-    const input = screen.getByTestId('application-form-shell-slug-input') as HTMLInputElement;
-    // Seeded from the stored slug.
-    expect(input.value).toBe('h-dcn');
-    // Save is disabled while the draft equals the stored slug (nothing to change).
-    expect(screen.getByTestId('application-form-shell-slug-save')).toBeDisabled();
-
-    fireEvent.change(input, { target: { value: 'h-dcn-apply' } });
-    fireEvent.click(screen.getByTestId('application-form-shell-slug-save'));
-    expect(onSetSlug).toHaveBeenCalledWith('h-dcn-apply');
-  });
-
-  it('a blank input with a stored slug stays enabled (a deliberate clear) and submits empty', () => {
-    const onSetSlug = vi.fn();
-    render(
-      <ApplicationFormShellPanel
-        values={{ ...BASE_VALUES, slug: 'h-dcn' }}
-        onChange={vi.fn()}
-        onSetSlug={onSetSlug}
-        lang="en"
-      />,
-    );
-    const input = screen.getByTestId('application-form-shell-slug-input');
-    fireEvent.change(input, { target: { value: '' } });
-    // Clearing differs from the stored slug → the Save (clear) action is enabled.
-    expect(screen.getByTestId('application-form-shell-slug-save')).toBeEnabled();
-    fireEvent.click(screen.getByTestId('application-form-shell-slug-save'));
-    expect(onSetSlug).toHaveBeenCalledWith('');
-  });
-});
-
-/* ------------------------------------------------------------------ */
-/*  Embed snippet ⇄ published-artifact consistency (spec 12 task 6.3). */
-/* ------------------------------------------------------------------ */
-describe('ApplicationFormShellPanel — embed snippet consistency with the published artifact (spec 12 R8.1)', () => {
-  it('the embed snippet points at the SAME hosted URL the open-live link resolves to', () => {
-    // R8.1: the external-embed snippet must address the published artifact, i.e. the same
-    // `{slug}.jabaki.nl/apply` URL the "open live form" link opens — not a divergent address.
+describe('ApplicationFormShellPanel — embed snippet consistency (spec 12 R8.1)', () => {
+  it('the rendered snippet carries the postMessage resize contract, origin-pinned (no wildcard)', () => {
     renderPanel({ ...BASE_VALUES, embedMode: 'iframe', slug: 'hdcn-application-form' });
-    const openLive = screen.getByTestId('application-form-shell-open-live');
     const snippet = screen.getByTestId('application-form-shell-iframe-snippet').textContent ?? '';
-    expect(openLive).toHaveAttribute('href', 'https://hdcn-application-form.jabaki.nl/apply');
     expect(snippet).toContain('src="https://hdcn-application-form.jabaki.nl/apply"');
-  });
-
-  it('the rendered snippet carries the postMessage resize contract the published artifact emits', () => {
-    // R8.1 / spec 11 E4b: the published artifact posts its height with the shared resize tokens;
-    // the embed snippet's listener must validate those SAME tokens + be origin-pinned (no wildcard).
-    renderPanel({ ...BASE_VALUES, embedMode: 'iframe', slug: 'hdcn-application-form' });
-    const snippet = screen.getByTestId('application-form-shell-iframe-snippet').textContent ?? '';
-    expect(snippet).toContain('<script>');
-    expect(snippet).toContain('addEventListener("message"');
     expect(snippet).toContain(JSON.stringify(IFRAME_RESIZE_MESSAGE_TYPE));
     expect(snippet).toContain(JSON.stringify(IFRAME_RESIZE_SOURCE));
     expect(snippet).toContain(JSON.stringify(IFRAME_EMBED_ELEMENT_ID));
-    // Origin-pinned to the hosted form, never a wildcard (CWE-346).
     expect(snippet).toContain('"https://hdcn-application-form.jabaki.nl"');
     expect(snippet).toContain('event.origin !== ORIGIN');
     expect(snippet).not.toContain('"*"');
-  });
-
-  it('authoring application_embed_origins persists the parsed list onto the one config#mail body', () => {
-    // R8.1: the embed origins the panel authors land on the single config#mail body
-    // (`application_embed_origins`) — the SAME list the published artifact's CSP frame-ancestors
-    // + the public edge CORS consume. Author via the panel, assemble the body, assert it persists.
-    const { onChange } = renderPanel({ ...BASE_VALUES, embedMode: 'iframe', slug: 'h-dcn' });
-    fireEvent.change(screen.getByTestId('application-form-shell-embed-origins'), {
-      target: { value: 'https://sites.google.com\nhttps://portal.h-dcn.nl' },
-    });
-    const next = onChange.mock.calls[0][0] as ShellFormValues;
-    const body = toShellMailBody(next, { mail_enabled: true, mail_certified: true }, '');
-    expect(body.application_embed_origins).toEqual([
-      'https://sites.google.com',
-      'https://portal.h-dcn.nl',
-    ]);
-  });
-});
-
-
-/* ------------------------------------------------------------------ */
-/*  Prefix-author control (slug-prefix SAM-owned)                      */
-/* ------------------------------------------------------------------ */
-describe('ApplicationFormShellPanel — prefix-author control (slug-prefix SAM-owned)', () => {
-  it('renders no prefix-author control when onSetPrefix is not wired', () => {
-    renderPanel({ ...BASE_VALUES, slug: null });
-    expect(
-      screen.queryByTestId('application-form-shell-prefix-editor'),
-    ).not.toBeInTheDocument();
-  });
-
-  it('renders the prefix-author control (labelled input + save) when onSetPrefix is wired', () => {
-    render(
-      <ApplicationFormShellPanel
-        values={{ ...BASE_VALUES, slug: null }}
-        onChange={vi.fn()}
-        onSetPrefix={vi.fn()}
-        currentPrefix={null}
-        lang="en"
-      />,
-    );
-    expect(screen.getByTestId('application-form-shell-prefix-editor')).toBeInTheDocument();
-    // Accessibility: the input has a programmatic label (htmlFor/id wiring).
-    expect(screen.getByLabelText(/public prefix/i)).toBeInTheDocument();
-  });
-
-  it('seeds the input from the current SAM prefix and submits the edited value', () => {
-    const onSetPrefix = vi.fn();
-    render(
-      <ApplicationFormShellPanel
-        values={{ ...BASE_VALUES, slug: null }}
-        onChange={vi.fn()}
-        onSetPrefix={onSetPrefix}
-        currentPrefix="h-dcn"
-        lang="en"
-      />,
-    );
-    const input = screen.getByTestId('application-form-shell-prefix-input') as HTMLInputElement;
-    expect(input.value).toBe('h-dcn');
-    // Save is disabled while the draft equals the stored prefix (nothing to change).
-    expect(screen.getByTestId('application-form-shell-prefix-save')).toBeDisabled();
-
-    fireEvent.change(input, { target: { value: 'h-dcn-new' } });
-    fireEvent.click(screen.getByTestId('application-form-shell-prefix-save'));
-    expect(onSetPrefix).toHaveBeenCalledWith('h-dcn-new');
-  });
-
-  it('a blank input with a stored prefix stays enabled (a deliberate clear) and submits empty', () => {
-    const onSetPrefix = vi.fn();
-    render(
-      <ApplicationFormShellPanel
-        values={{ ...BASE_VALUES, slug: null }}
-        onChange={vi.fn()}
-        onSetPrefix={onSetPrefix}
-        currentPrefix="h-dcn"
-        lang="en"
-      />,
-    );
-    const input = screen.getByTestId('application-form-shell-prefix-input');
-    fireEvent.change(input, { target: { value: '' } });
-    expect(screen.getByTestId('application-form-shell-prefix-save')).toBeEnabled();
-    fireEvent.click(screen.getByTestId('application-form-shell-prefix-save'));
-    expect(onSetPrefix).toHaveBeenCalledWith('');
   });
 });

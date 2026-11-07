@@ -66,11 +66,15 @@ const mockListMembershipTypes = vi.fn();
 const mockPublishApplicationForm = vi.fn();
 const mockSetApplicationFormSlug = vi.fn();
 const mockSetApplicationFormPrefix = vi.fn();
+const mockGetLookAndFeel = vi.fn();
+const mockSetLookAndFeel = vi.fn();
 vi.mock('../../../../services/members/membersConfigApi', () => ({
   listMembershipTypes: (...a: unknown[]) => mockListMembershipTypes(...a),
   publishApplicationForm: (...a: unknown[]) => mockPublishApplicationForm(...a),
   setApplicationFormSlug: (...a: unknown[]) => mockSetApplicationFormSlug(...a),
   setApplicationFormPrefix: (...a: unknown[]) => mockSetApplicationFormPrefix(...a),
+  getLookAndFeelSettings: (...a: unknown[]) => mockGetLookAndFeel(...a),
+  setLookAndFeelSetting: (...a: unknown[]) => mockSetLookAndFeel(...a),
 }));
 
 import { ApplicationFormBuilder } from '../ApplicationFormBuilder';
@@ -124,6 +128,8 @@ function seed(cfg: FieldConfig | null) {
   mockSetApplicationFormSlug.mockResolvedValue({ success: true, slug: 'h-dcn', version: 'v1' });
   mockSetApplicationFormPrefix.mockResolvedValue({ success: true, prefix: 'h-dcn', version: 'v1' });
   mockPublishApplicationForm.mockResolvedValue({ success: true, slug: 'h-dcn' });
+  mockGetLookAndFeel.mockResolvedValue({ settings: {} });
+  mockSetLookAndFeel.mockResolvedValue({ settings: {} });
 }
 
 async function renderBuilder(cfg: FieldConfig | null = UNAUTHORED_CONFIG) {
@@ -182,7 +188,8 @@ describe('ApplicationFormBuilder overlay-seed preservation — unauthored config
 describe('ApplicationFormBuilder overlay-seed preservation — fresh load not dirty (P2.b / 3.1)', () => {
   it('Save is DISABLED and there is NO unsaved indicator on a clean load', async () => {
     await renderBuilder(UNAUTHORED_CONFIG);
-    expect(screen.getByTestId('application-form-builder-save')).toBeDisabled();
+    // The Fields group's own Save (grouped per-group-save redesign) is disabled on a clean load.
+    expect(screen.getByTestId('application-form-builder-fields-savebar-save')).toBeDisabled();
     expect(
       screen.queryByTestId('application-form-builder-unsaved-indicator'),
     ).not.toBeInTheDocument();
@@ -206,11 +213,11 @@ describe('ApplicationFormBuilder overlay-seed preservation — one edit → one 
     // Open the field, toggle it on the form, then Save.
     fireEvent.click(screen.getByTestId('application-field-row-nickname'));
     fireEvent.click(screen.getByTestId('application-field-modal-on-form-toggle'));
-    // The edit makes the builder dirty → Save enables.
+    // The edit makes the Fields group dirty → its Save enables.
     await waitFor(() =>
-      expect(screen.getByTestId('application-form-builder-save')).toBeEnabled(),
+      expect(screen.getByTestId('application-form-builder-fields-savebar-save')).toBeEnabled(),
     );
-    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    fireEvent.click(screen.getByTestId('application-form-builder-fields-savebar-save'));
 
     // EXACTLY one Change-Op write, carrying a single set_field_application op for the edited
     // identity — no whole-overlay write, no phantom ops for untouched fields.
@@ -231,10 +238,11 @@ describe('ApplicationFormBuilder overlay-seed preservation — one edit → one 
 describe('ApplicationFormBuilder overlay-seed preservation — form-shell seeding unchanged (P2.d / 3.3)', () => {
   it('seeds the public URL from the SAM cfg.slug', async () => {
     await renderBuilder(UNAUTHORED_CONFIG);
-    expect(screen.getByTestId('application-form-shell-public-url')).toHaveTextContent(
+    // The public URL now renders in the Public-address group (derived from the stored slug).
+    expect(screen.getByTestId('application-form-address-public-url')).toHaveTextContent(
       'https://h-dcn.jabaki.nl',
     );
-    expect(screen.queryByTestId('application-form-shell-no-url')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-address-no-url')).not.toBeInTheDocument();
   });
 
   it('seeds the consent notice text from config#mail', async () => {
@@ -247,8 +255,8 @@ describe('ApplicationFormBuilder overlay-seed preservation — form-shell seedin
 
   it('shows "no public address yet" when cfg.slug is absent (SAM state, independent of the overlay seed)', async () => {
     await renderBuilder({ ...UNAUTHORED_CONFIG, slug: null });
-    expect(screen.getByTestId('application-form-shell-no-url')).toBeInTheDocument();
-    expect(screen.queryByTestId('application-form-shell-public-url')).not.toBeInTheDocument();
+    expect(screen.getByTestId('application-form-address-no-url')).toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-address-public-url')).not.toBeInTheDocument();
   });
 });
 
@@ -259,9 +267,9 @@ describe('ApplicationFormBuilder overlay-seed preservation — form-shell seedin
 describe('ApplicationFormBuilder overlay-seed preservation — null config never blocks authoring (P2.e)', () => {
   it('renders the panels when the field-config fetch resolves to null', async () => {
     await renderBuilder(null);
-    expect(screen.getByTestId('application-form-builder-panel-fields')).toBeInTheDocument();
+    expect(screen.getByTestId('application-form-builder-group-fields')).toBeInTheDocument();
     expect(screen.getByTestId('application-form-builder-panel-preview')).toBeInTheDocument();
     // A null config is not dirty — nothing to save, no phantom diff.
-    expect(screen.getByTestId('application-form-builder-save')).toBeDisabled();
+    expect(screen.getByTestId('application-form-builder-fields-savebar-save')).toBeDisabled();
   });
 });

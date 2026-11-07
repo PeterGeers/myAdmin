@@ -119,8 +119,8 @@ async function renderBuilder() {
       <ApplicationFormBuilder tenant="t-1" />
     </I18nextProvider>,
   );
-  await screen.findByTestId('application-form-builder');
-  await screen.findByTestId('application-form-builder-lookandfeel');
+  await screen.findByTestId('application-form-builder-accordion');
+  await screen.findByTestId('application-form-builder-group-lookandfeel');
   return utils;
 }
 
@@ -129,18 +129,12 @@ describe('ApplicationFormBuilder — R-B stale editor (reflects the authored val
     vi.clearAllMocks();
     mockToast.mockClear();
     // The slice starts empty, so `shadow_style` seeds to its Layer-2 default ('subtle') on the
-    // load-time GET. After the bottom Save persists the Change-Op, the builder reloads (`load()`),
-    // and THAT reload GET resolves the now-stored value ('dramatic') — so the editor reflects the
-    // authored value from the authoritative reloaded state (no stale snap-back).
-    mockGetLookAndFeel
-      .mockResolvedValueOnce({ settings: {} })
-      .mockResolvedValue({ settings: { shadow_style: 'dramatic' } });
-    // THE REAL POST-FIX PUT CONTRACT (Task 14.1 / DD-D1): `write_look_and_feel` folds the
-    // re-resolved tenant values into the response under `settings`, ALONGSIDE the Change-Op
-    // write-result fields — `{ version, idempotent_replay, settings: { <resolved> } }`. GET and PUT
-    // now share ONE `{settings}` contract (`_with_resolved_settings`). Here the authored attribute
-    // (`shadow_style: 'dramatic'`) resolves back in `settings`, so the client's
-    // `setLookAndFeel(res.settings ?? {})` re-seed shows the authored value — no reload, no blank.
+    // load-time GET. In the grouped per-group-save redesign the Look & feel group's Save persists
+    // each changed attribute via `setLookAndFeelSetting` and keeps the OPTIMISTIC in-memory value
+    // as the authoritative draft (no re-seed from the PUT response, no `load()` reload) — removing
+    // the overlapping-response race the old re-seed had. So the control reflects the authored value
+    // straight through the save with NO additional GET.
+    mockGetLookAndFeel.mockResolvedValue({ settings: {} });
     mockSetLookAndFeel.mockResolvedValue({
       version: 'v3',
       idempotent_replay: false,
@@ -148,7 +142,7 @@ describe('ApplicationFormBuilder — R-B stale editor (reflects the authored val
     });
   });
 
-  it('after the bottom Save persists, the editor reflects the AUTHORED value from the reloaded state', async () => {
+  it('the Look & feel group Save persists the authored value and the editor keeps it (no stale snap-back)', async () => {
     await renderBuilder();
 
     // Baseline: one seed GET on load; the control shows the default 'subtle'.
@@ -157,30 +151,24 @@ describe('ApplicationFormBuilder — R-B stale editor (reflects the authored val
       screen.getByTestId('lookandfeel-shadow_style') as HTMLSelectElement;
     expect(control().value).toBe('subtle');
 
-    // Author a distinct value. Per the serverless-friendly editor model (one bottom Save, not a
-    // persist-per-change), the change lifts the value in-memory for the live preview but does NOT
-    // persist yet — so no network write fires on change.
+    // Author a distinct value. The change lifts the value in-memory for the live preview but does
+    // NOT persist yet (deferred per-group save) — so no network write fires on change.
     fireEvent.change(control(), { target: { value: 'dramatic' } });
     expect(control().value).toBe('dramatic');
     expect(mockSetLookAndFeel).not.toHaveBeenCalled();
 
-    // The single bottom Save persists the authored value. The PUT resolves with the REAL post-fix
-    // shape (write-result fields PLUS the resolved `settings`).
-    fireEvent.click(screen.getByTestId('application-form-builder-save'));
+    // The Look & feel group's own Save persists the authored value via one Change-Op.
+    fireEvent.click(screen.getByTestId('application-form-builder-lookandfeel-savebar-save'));
     await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledTimes(1));
     expect(mockSetLookAndFeel).toHaveBeenCalledWith('shadow_style', 'dramatic');
 
-    // …and after the save resolves, the control MUST show the authored value. The serverless
-    // one-bottom-Save flow persists the Change-Op and then reloads the authoritative state
-    // (`load()`), whose GET now resolves the stored `{ shadow_style: 'dramatic' }` — so the editor
-    // reflects the authored value from the true post-save state (never a stale default snap-back,
-    // the R-B symptom). The optimistic in-memory edit held 'dramatic' through the save; the reload
-    // confirms it against the server's resolved slice.
+    // The control MUST still show the authored value — the optimistic in-memory draft is the
+    // source of truth, so there is no stale default snap-back (the R-B symptom).
     await waitFor(() => {
       expect(control().value).toBe('dramatic');
     });
 
-    // The reload is the authoritative confirm: the load-time seed GET plus one post-save reload GET.
-    expect(mockGetLookAndFeel).toHaveBeenCalledTimes(2);
+    // The group Save does NOT reload — no second GET fires (race-free, serverless-friendly).
+    expect(mockGetLookAndFeel).toHaveBeenCalledTimes(1);
   });
 });
