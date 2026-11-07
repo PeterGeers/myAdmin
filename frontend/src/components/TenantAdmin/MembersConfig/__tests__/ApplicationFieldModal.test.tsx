@@ -13,14 +13,17 @@
  *  - a calculated / read-only field is NOT offerable — a note, no toggle (R2.5);
  *  - the application-form attributes section renders ONLY when a form is in scope (R1.2).
  *
- * Task 4.3 completes the four-attribute write-through: the remaining `application_required`
- * (NO-RELAX for a platform-required field) and `format` (KNOWN tokens only) attributes are authored
- * onto the SAME single `field_overlay` via the SAME origin-aware `upsertField` engine. The cases
- * here pair those behaviours:
+ * Task 4.3 completes the four-attribute write-through: the remaining `application_required` and
+ * `format` (KNOWN tokens only) attributes are authored onto the SAME single `field_overlay` via the
+ * SAME origin-aware `upsertField` engine. The cases here pair those behaviours:
  *  - `application_required` writes true / persists an explicit false on OFF (03b BU-5), origin-aware;
- *  - the NO-RELAX lock holds for a platform-required field (the toggle is disabled + forced on with
- *    an explanatory note — it cannot be authored optional);
  *  - `format` writes only a KNOWN token and clears to null; an unknown token is never offerable.
+ *
+ * Round 6 (bugfix-published-form-submit, task 23.2) made form-required the SOLE public-form rule:
+ * the required toggle no longer reads the platform `required` floor, so a platform-required field is
+ * FREELY settable (a free tighten), NOT forced on + disabled. A SERVER-STAMPED membership field
+ * (`status`, `member_number`, timestamps) is never demanded of the applicant, so the toggle is NOT
+ * offered for it. An exposed membership_type stays forced-required (D21/R11, the engine's own rule).
  *
  * Fixtures use the bare `key` + `group` server shape (R2.3) — never a pre-dotted key.
  */
@@ -58,9 +61,12 @@ const FIELD_CONFIG: FieldConfig = {
     { key: 'salutation', functional_group: 'contact', order: 4, type: 'enum', provenance: 'tenant_added', options: ['mr', 'mrs', 'mx'], label: { en: 'Salutation', nl: 'Aanhef' } },
     // plain string field → NOT choice-bearing, NO picker
     { key: 'first_name', functional_group: 'contact', order: 5, type: 'string', provenance: 'tenant_added', label: { en: 'First name', nl: 'Voornaam' } },
-    // platform-required base field (appended LAST to keep the earlier index-based assertions stable)
-    // → the required toggle is FORCED ON + disabled (NO-RELAX, R2).
+    // platform-required base field (appended LAST to keep the earlier index-based assertions stable).
+    // Round 6: platform-required no longer forces the required toggle on — it is freely settable.
     { key: 'last_name', group: 'contact', functional_group: 'contact', order: 6, type: 'string', origin: 'fixed', provenance: 'base', required: true, label: { en: 'Last name', nl: 'Achternaam' } },
+    // SERVER-STAMPED membership field (Round 6): `status` lives in the `membership` storage group and
+    // is in the server-set — the server stamps it, so the required toggle is NOT offered for it.
+    { key: 'status', group: 'membership', functional_group: 'membership', order: 3, type: 'string', origin: 'fixed', provenance: 'base', label: { en: 'Status', nl: 'Status' } },
   ],
 };
 
@@ -197,37 +203,72 @@ describe('ApplicationFieldModal — application_required writes onto the ONE ove
   });
 
   it('a BASE field writes application_required under fixed_overrides keyed {group}.{key}', () => {
-    const { onChange } = renderModal('member_number', {}, { formInScope: true });
+    // `last_name` is a base field in the `contact` storage group (NOT server-stamped), so its
+    // required toggle is offered and freely settable; the write is origin-aware.
+    const { onChange } = renderModal('last_name', {}, { formInScope: true });
     fireEvent.click(screen.getByTestId('application-field-modal-required-toggle'));
     const next = onChange.mock.calls[0][0] as MembersConfigValue;
-    expect(findField(next, 'membership.member_number')?.field.application_required).toBe(true);
-    expect(findField(next, 'membership.member_number')?.origin).toBe('fixed_overrides');
+    expect(findField(next, 'contact.last_name')?.field.application_required).toBe(true);
+    expect(findField(next, 'contact.last_name')?.origin).toBe('fixed_overrides');
   });
 });
 
-describe('ApplicationFieldModal — application_required NO-RELAX for a platform-required field (task 4.3 / R2)', () => {
-  it('the required toggle is forced ON (locked) with an explanatory note (cannot author optional)', () => {
+describe('ApplicationFieldModal — a platform-required field is FREELY settable (Round 6: form-required is the sole public rule)', () => {
+  it('the required toggle for a platform-required field is NOT forced on and NOT disabled, no platform-required badge/lock', () => {
     renderModal('last_name', {}, { formInScope: true });
-    // Forced ON — a platform-required field is always required on the form (R2, no-relax).
-    expect(screen.getByTestId('application-field-modal-required-toggle')).toBeChecked();
-    // The platform-required provenance + the locked note surface WHY it cannot be relaxed.
-    expect(screen.getByText('platform-required')).toBeInTheDocument();
-    expect(screen.getByTestId('application-field-modal-required-locked-note')).toBeInTheDocument();
+    const toggle = screen.getByTestId('application-field-modal-required-toggle');
+    // Round 6 dropped the platform-floor coupling: the public form no longer reads the platform
+    // `required` floor, so a platform-required field seeds from its authored `application_required`
+    // (here absent → OFF) and is freely settable — never forced on, never disabled.
+    expect(toggle).not.toBeChecked();
+    expect(toggle).not.toBeDisabled();
+    // The former platform-required badge + locked note are GONE (the floor no longer drives the UI).
+    expect(screen.queryByText('platform-required')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('application-field-modal-required-locked-note'),
+    ).not.toBeInTheDocument();
   });
 
-  it('clicking the locked toggle does NOT write a relax onto the overlay', () => {
+  it('clicking the toggle on a platform-required field writes a free tighten (application_required=true)', () => {
     const { onChange } = renderModal('last_name', {}, { formInScope: true });
-    // The no-relax guard holds: a click can NEVER write a relax to the overlay (R2 / R8.1c).
+    fireEvent.click(screen.getByTestId('application-field-modal-required-toggle'));
+    // The tenant freely chooses the public-form requiredness — the click writes to the overlay.
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const next = onChange.mock.calls[0][0] as MembersConfigValue;
+    expect(findField(next, 'contact.last_name')?.field.application_required).toBe(true);
+  });
+
+  it('the membership-type reference field is STILL forced required (locked) when on the form (D21/R11)', () => {
+    const { onChange } = renderModal('membership_type', {}, { formInScope: true });
+    // The engine treats an EXPOSED membership_type as application-required, so the UI mirrors that:
+    // forced ON + the lock holds (no relax written). This is membership_type's OWN rule, unchanged
+    // by Round 6 (it is NOT the platform-floor coupling that was dropped).
+    expect(screen.getByTestId('application-field-modal-required-toggle')).toBeChecked();
+    expect(screen.getByTestId('application-field-modal-required-locked-note')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('application-field-modal-required-toggle'));
     expect(onChange).not.toHaveBeenCalled();
   });
+});
 
-  it('the membership-type reference field is likewise forced required (locked) when on the form', () => {
-    const { onChange } = renderModal('membership_type', {}, { formInScope: true });
-    // Forced ON even though it is NOT platform-required — an exposed membership-type field is
-    // always application-required (spec 10 D21) — and the lock holds (no relax written).
-    expect(screen.getByTestId('application-field-modal-required-toggle')).toBeChecked();
-    fireEvent.click(screen.getByTestId('application-field-modal-required-toggle'));
+describe('ApplicationFieldModal — a SERVER-STAMPED field is NOT offered a required toggle (Round 6 / task 23.2)', () => {
+  it('a server-stamped membership field (status) shows a note and NO required toggle', () => {
+    renderModal('status', {}, { formInScope: true });
+    // `status` is server-stamped (membership group + server-set key): the applicant never supplies
+    // it, so the required toggle is absent and a short explanatory note is shown instead.
+    expect(
+      screen.queryByTestId('application-field-modal-required-toggle'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId('application-field-modal-required-server-stamped-note'),
+    ).toBeInTheDocument();
+  });
+
+  it('does NOT write application_required for a server-stamped field (no toggle to click)', () => {
+    const { onChange } = renderModal('status', {}, { formInScope: true });
+    // There is no required toggle to interact with; the server stamps the field regardless.
+    expect(
+      screen.queryByTestId('application-field-modal-required-toggle'),
+    ).not.toBeInTheDocument();
     expect(onChange).not.toHaveBeenCalled();
   });
 });

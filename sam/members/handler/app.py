@@ -66,6 +66,8 @@ from sam.members.domain.analytics_set import AnalyticsSetValidationError
 from sam.members.domain.application_publish import (
     PublishNotReady,
     PublishPipelineNotWired,
+    PublishSlugConflict,
+    PublishSlugRejected,
 )
 from sam.members.domain.error_codes import FieldError  # noqa: F401 (surface compat)
 from sam.members.domain.execute_and_deliver import (
@@ -100,6 +102,14 @@ from sam.members.domain.mail_gate import MailGateProvider
 from sam.members.domain.mail_config import MailConfigProvider
 from sam.members.domain.config_status import ConfigStatusProvider
 from sam.members.domain.default_page_size import DefaultPageSizeProvider
+from sam.members.domain.config_fields_crud_service import (
+    SlugAuthorConflict,
+    SlugAuthorRejected,
+)
+from sam.members.domain.look_and_feel_settings_service import (
+    CrossTenantCopyError,
+    LookAndFeelValidationError,
+)
 
 # ── Per-route dispatch (the generic membership engine delegation) — re-exported ────────
 from sam.members.handler._dispatch import (
@@ -378,6 +388,43 @@ class _ProjectionMailConfigProvider:
 _MAIL_CONFIG_PROVIDER: MailConfigProvider = _ProjectionMailConfigProvider()
 
 
+#: Test-only override for the consent-notice provider (``None`` in production → fresh reader).
+#: Mirrors :data:`_MAIL_CONFIG_PROVIDER_OVERRIDE` — a test injects a ``StaticConsentNoticeProvider``
+#: (or a ``MembersProjectionReader`` over a fake table) so the publish / public field-config /
+#: submit consent stamp can be driven without an AWS round-trip.
+_CONSENT_NOTICE_PROVIDER_OVERRIDE: Any | None = None
+
+
+class _ProjectionConsentNoticeProvider:
+    """A thin consent-notice provider indirection over a per-call fresh reader.
+
+    Round 3 (bugfix-published-form-submit, WIRING): ``_get_membership_service`` previously built
+    the service WITHOUT a ``consent_notice_provider``, so the empty static default was used in
+    production and publish, the public field-config GET and the submit consent stamp all saw no
+    notice. EXACTLY mirrors :class:`_ProjectionMailConfigProvider`: every call delegates to a
+    FRESH :class:`MembersProjectionReader` (or the test override) so a re-projected
+    ``config#mail`` ``consent_notice`` is reflected without rebuilding the service singleton.
+    Empty-is-valid (no notice → ``None``) is owned by the reader. ``_new_projection_reader`` is
+    looked up by module global at call time.
+    """
+
+    def _source(self) -> Any:
+        if _CONSENT_NOTICE_PROVIDER_OVERRIDE is not None:
+            return _CONSENT_NOTICE_PROVIDER_OVERRIDE
+        return _new_projection_reader()
+
+    def get_consent_notice_version(self, tenant_id: str) -> str | None:
+        return self._source().get_consent_notice_version(tenant_id)
+
+    def get_consent_notice(self, tenant_id: str) -> dict | None:
+        return self._source().get_consent_notice(tenant_id)
+
+
+#: The consent-notice provider handed to the domain service — a stable indirection that reads a
+#: fresh projection each call (see :class:`_ProjectionConsentNoticeProvider`).
+_CONSENT_NOTICE_PROVIDER = _ProjectionConsentNoticeProvider()
+
+
 class _ProjectionConfigStatusProvider:
     """A thin :class:`ConfigStatusProvider` indirection over a per-call fresh reader.
 
@@ -421,6 +468,49 @@ class _ProjectionDefaultPageSizeProvider:
         if _DEFAULT_PAGE_SIZE_PROVIDER_OVERRIDE is not None:
             return _DEFAULT_PAGE_SIZE_PROVIDER_OVERRIDE.get_default_page_size(tenant_id)
         return _new_projection_reader().get_default_page_size(tenant_id)
+
+
+class _ProjectionFormSlugProvider:
+    """A thin form-slug / public-prefix read indirection over a per-call fresh reader.
+
+    slug-prefix SAM-owned — the form-slug + public-prefix read seam wired at the module edge,
+    mirroring :class:`_ProjectionDefaultPageSizeProvider`. The :class:`MembershipService` is a lazy
+    module-level singleton; to reflect a freshly re-projected ``config#fields`` edit (the admin
+    authors the form slug or the public prefix via the SAM Change-Ops, the row re-projects) without
+    rebuilding the service per request, its form-slug provider is this stable indirection: every
+    ``get_form_slug`` / ``get_public_prefix`` call delegates to a FRESH
+    :class:`MembersProjectionReader` (both read the ``config#fields`` row), so the field-config
+    endpoint's ``slug`` + ``public_prefix`` always reflect the current projection while the service
+    singleton stays UNCHANGED. Honours the overlay test override seam (a test injecting a
+    ``MembersProjectionReader`` over a fake table drives both reads without an AWS round-trip).
+    Empty-is-valid is owned by the reader (missing row / absent attr → ``None``).
+    """
+
+    def get_form_slug(self, tenant_id: str):
+        if _OVERLAY_PROVIDER_OVERRIDE is not None and hasattr(
+            _OVERLAY_PROVIDER_OVERRIDE, "get_form_slug"
+        ):
+            return _OVERLAY_PROVIDER_OVERRIDE.get_form_slug(tenant_id)
+        return _new_projection_reader().get_form_slug(tenant_id)
+
+    def get_public_prefix(self, tenant_id: str):
+        if _OVERLAY_PROVIDER_OVERRIDE is not None and hasattr(
+            _OVERLAY_PROVIDER_OVERRIDE, "get_public_prefix"
+        ):
+            return _OVERLAY_PROVIDER_OVERRIDE.get_public_prefix(tenant_id)
+        return _new_projection_reader().get_public_prefix(tenant_id)
+
+    def get_published_state(self, tenant_id: str):
+        if _OVERLAY_PROVIDER_OVERRIDE is not None and hasattr(
+            _OVERLAY_PROVIDER_OVERRIDE, "get_published_state"
+        ):
+            return _OVERLAY_PROVIDER_OVERRIDE.get_published_state(tenant_id)
+        return _new_projection_reader().get_published_state(tenant_id)
+
+
+#: The form-slug / public-prefix provider handed to the domain service — a stable indirection that
+#: reads a fresh projection each call (see :class:`_ProjectionFormSlugProvider`).
+_FORM_SLUG_PROVIDER = _ProjectionFormSlugProvider()
 
 
 #: The default-page-size provider handed to the domain service — a stable indirection that
@@ -1137,8 +1227,10 @@ def _get_membership_service() -> MembershipService:
             scope_config_provider=_SCOPE_CONFIG_PROVIDER_FOR_SERVICE,
             mail_gate_provider=_MAIL_GATE_PROVIDER,
             mail_config_provider=_MAIL_CONFIG_PROVIDER,
+            consent_notice_provider=_CONSENT_NOTICE_PROVIDER,
             config_status_provider=_CONFIG_STATUS_PROVIDER,
             default_page_size_provider=_DEFAULT_PAGE_SIZE_PROVIDER,
+            form_slug_provider=_FORM_SLUG_PROVIDER,
             scheduler_port=EventBridgeSchedulerApi(),
         )
     return _SERVICE
@@ -1243,6 +1335,31 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             "The application form is not ready to publish",
             code=exc.code,
             reason=exc.reason.value,
+        )
+    except PublishSlugRejected as exc:
+        # spec 14 Task 8.1: the tenant is ready and the artifact rendered, but the stored slug is
+        # malformed/reserved or violates the SEC-4 prefix-ownership rule (it does not sit under the
+        # tenant's own public prefix). NO marker was claimed and no write reached. Mapped to a 422
+        # (a well-formed, authorized request whose slug value is invalid — distinct from the 409
+        # readiness refusal and the 409 foreign-owned conflict) carrying the validator's own
+        # caller-safe detail (no internals, steering 30/37).
+        return _error(
+            422,
+            exc.detail,
+            code=exc.code,
+            route=spec.name,
+        )
+    except PublishSlugConflict:
+        # spec 14 Task 8.1 (clobber backstop, R4.4): the slug is already claimed by a FOREIGN owner
+        # (a different plane / kind / tenant), so the publish REFUSES to overwrite it and performs
+        # no write. Mapped to a 409 (conflict with existing state) carrying a GENERIC, no-internals
+        # message — never the raw SlugTaken / str(e). A same-owner re-publish is idempotent and
+        # never reaches here.
+        return _error(
+            409,
+            "That page address is already in use",
+            code="errors.application.publishSlugConflict",
+            route=spec.name,
         )
     except PublishPipelineNotWired:
         # The tenant PASSED the readiness gate but the live publish pipeline is task 2.2 — the
@@ -1391,6 +1508,33 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             str(exc),
             code="errors.validation.failed",
         )
+    except SlugAuthorRejected as exc:
+        # bugfix-slug-lifecycle task 3.1: the authored application-form slug is malformed/reserved
+        # or violates the SEC-4 prefix-ownership rule (it does not sit under the tenant's own
+        # public prefix). NO marker was claimed and config#fields.slug was NOT persisted. Mapped to
+        # a 422 (a well-formed, authorized request whose slug VALUE is invalid — distinct from the
+        # 409 foreign-owner conflict and the generic 400 ops-validation) carrying the validator's
+        # own caller-safe detail (no internals, steering 30/37). A ConfigFieldsCrudError subclass,
+        # so this branch MUST precede the generic `except ConfigFieldsCrudError` 400 to be mapped
+        # as a 422.
+        return _error(
+            422,
+            exc.detail,
+            code="errors.validation.failed",
+            route=spec.name,
+        )
+    except SlugAuthorConflict:
+        # bugfix-slug-lifecycle task 3.1 (clobber backstop, R4.4): the authored slug is already
+        # claimed by a FOREIGN owner (a different plane / kind / tenant), so the op REFUSES to
+        # overwrite it and persists NOTHING. Mapped to a 409 (conflict with existing state)
+        # carrying a GENERIC, no-internals message — never the raw SlugTaken / str(e). A same-owner
+        # re-author is idempotent and never reaches here.
+        return _error(
+            409,
+            "That page address is already in use",
+            code="errors.application.slugConflict",
+            route=spec.name,
+        )
     except ConfigFieldsCrudError as exc:
         # A DELIBERATE, caller-safe config#fields Change-Op validation error (spec 03 Task 2.7):
         # a malformed ops envelope (empty/absent ops list, an op that is not an object, an unknown
@@ -1405,6 +1549,35 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             400,
             str(exc),
             code="errors.validation.failed",
+        )
+    except CrossTenantCopyError:
+        # spec 15 Task 8.1 (Req 9.4): a Layer-1 look-and-feel COPY whose source page belongs to a
+        # DIFFERENT tenant than the verified target. The service rejects it BEFORE any read or
+        # write, so neither tenant's state is touched. Mapped to a caller-safe 403 ("not
+        # permitted") with a GENERIC message — it must NOT confirm whether the other tenant/page
+        # exists (no cross-tenant information leak, never str(e)). A PermissionError subclass,
+        # DISTINCT from the LookAndFeelValidationError 422 below, so it is a 403 not a 422; placed
+        # before the generic `except Exception` so it is never mis-shaped as a 500.
+        return _error(
+            403,
+            "Forbidden",
+            code="errors.api.forbidden",
+            route=spec.name,
+        )
+    except LookAndFeelValidationError as exc:
+        # spec 15 Task 8.1 (Req 3.4 / Req 4.5): a DELIBERATE, caller-safe Layer-1 look-and-feel
+        # rejection — an unsupported attribute, a value outside its permitted set, an unknown page
+        # id, or a missing `attribute` on the author action. The service raises BEFORE any write,
+        # so the Page's previously stored values are UNCHANGED by construction. Mapped to a 422
+        # identifying the rejected setting (the message names only the client's own key/value —
+        # safe to surface, no internals, steering 30/37, never str of an internal fault). A
+        # ValueError subclass; placed before the generic `except Exception` so a deliberate
+        # validation 422 is never mis-shaped as a 500.
+        return _error(
+            422,
+            str(exc),
+            code="errors.validation.failed",
+            route=spec.name,
         )
     except StaleClientBundleError as exc:
         # STALE-SPA-BUNDLE guard (spec 03 Task 5.3a — design "Migration/rollout Slice 3"): a

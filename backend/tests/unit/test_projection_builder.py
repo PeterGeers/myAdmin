@@ -150,6 +150,13 @@ def test_build_emits_single_tenant_record_with_tenant_attrs(sam_module):
     assert ti.attributes == {"display_name": "Tenant A", "country": "NL"}
 
 
+# NOTE: the former public_prefix projection passthrough tests were removed with the feature
+# — the slug prefix is now SAM-owned on the config#fields row (authored via
+# ConfigFieldsCrudService.set_public_prefix, read via MembersProjectionReader.get_public_prefix),
+# so Flask no longer stores or projects tenants.public_prefix (the column was dropped). The
+# projection builder carries no prefix attribute; there is nothing prefix-specific left to test.
+
+
 def test_build_all_items_share_the_tenant_partition_key(sam_module):
     tenant = {"administration": "TenantA"}
     modules = [{"module_name": sam_module, "is_active": True}]
@@ -224,12 +231,19 @@ def test_build_emits_role_item_per_role_grant(sam_module):
 
     role_items = {i.sort_key: i for i in items if i.sort_key.startswith("role#")}
     assert set(role_items) == {
-        schema.build_sort_key(schema.RECORD_TYPE_ROLE, "alice@example.invalid", "SamTest_Read"),
-        schema.build_sort_key(schema.RECORD_TYPE_ROLE, "bob@example.invalid", "Finance_CRUD"),
+        schema.build_sort_key(
+            schema.RECORD_TYPE_ROLE, "alice@example.invalid", "SamTest_Read"
+        ),
+        schema.build_sort_key(
+            schema.RECORD_TYPE_ROLE, "bob@example.invalid", "Finance_CRUD"
+        ),
     }
     # role rows mirror (email, role) verbatim — tenant-level reference data.
     alice = role_items["role#alice@example.invalid#SamTest_Read"]
-    assert alice.attributes == {"email": "alice@example.invalid", "role": "SamTest_Read"}
+    assert alice.attributes == {
+        "email": "alice@example.invalid",
+        "role": "SamTest_Read",
+    }
 
 
 def test_build_role_row_missing_email_or_role_raises(sam_module):
@@ -251,7 +265,13 @@ def test_build_no_token_only_resolved_data_projected(sam_module):
 
     items = build_projection_items(tenant, modules, roles)
 
-    forbidden = {"permissions", "resolved", "effective_permissions", "decision", "capabilities"}
+    forbidden = {
+        "permissions",
+        "resolved",
+        "effective_permissions",
+        "decision",
+        "capabilities",
+    }
     for item in items:
         assert forbidden.isdisjoint(item.attributes.keys()), (
             f"token-only (S4) data leaked into projection: {item.attributes!r}"

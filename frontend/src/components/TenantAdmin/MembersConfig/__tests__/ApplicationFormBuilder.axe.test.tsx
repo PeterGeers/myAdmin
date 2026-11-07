@@ -53,7 +53,6 @@ const AXE_NO_FRAMES = { iframes: false } as const;
 /* ------------------------------------------------------------------ */
 const mockGetParams = vi.fn();
 const mockGetFieldConfig = vi.fn();
-const mockGetSlug = vi.fn();
 const mockListMembershipTypes = vi.fn();
 // spec 12 (redesign C / R3, task 5.2): the live preview is IN-BROWSER (pure filter → shared
 // renderer), so there is no server preview endpoint to mock.
@@ -75,12 +74,12 @@ vi.mock('../../../../services/membersApiService', () => ({
   getFieldConfig: vi.fn(),
 }));
 
-vi.mock('../../../../services/landingPageApi', () => ({
-  getSlug: (...a: unknown[]) => mockGetSlug(...a),
-}));
-
+// bugfix-slug-lifecycle task 3.3: the builder no longer reads the Flask landing-plane slug — the
+// slug comes from the SAM config#fields.slug (fixture) and is authored via the SAM endpoint below.
 vi.mock('../../../../services/members/membersConfigApi', () => ({
   listMembershipTypes: (...a: unknown[]) => mockListMembershipTypes(...a),
+  publishApplicationForm: vi.fn().mockResolvedValue({ success: true }),
+  setApplicationFormSlug: vi.fn().mockResolvedValue({ success: true, slug: 'h-dcn' }),
 }));
 
 import { ApplicationFormBuilder } from '../ApplicationFormBuilder';
@@ -115,6 +114,8 @@ const overlayRow: Parameter = {
 } as unknown as Parameter;
 
 const FIELD_CONFIG: FieldConfig = {
+  // bugfix-slug-lifecycle: the SAM form slug on config#fields drives the public URL display.
+  slug: 'h-dcn',
   fields: [
     {
       key: 'email',
@@ -165,7 +166,6 @@ const SHELL_VALUES: ShellFormValues = {
 function seed() {
   mockGetParams.mockResolvedValue({ field_overlay: overlayRow });
   mockGetFieldConfig.mockResolvedValue(FIELD_CONFIG);
-  mockGetSlug.mockResolvedValue({ success: true, data: { slug: 'h-dcn' } });
   mockListMembershipTypes.mockResolvedValue(CATALOG);
 }
 

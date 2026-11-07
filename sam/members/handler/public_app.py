@@ -50,35 +50,57 @@ Task 1.3 (this change) wires the delegation seam's FIRST step and the routes/API
   UNCHANGED ``TenantSlugReader`` Protocol, so a forged/unknown slug becomes a non-probeable 404 and
   an allow-listed slug carries its canonical ``tenant_id`` forward (verify-before-trust, R2).
 
-Still pending (later same-plane tasks, intentionally NOT built here): the two service calls behind
-the resolved tenant — ``ApplicationService.get_public_field_config`` (Phase 4) and
-``create_application`` (Phase 2). Until those land, a recognised public path whose slug RESOLVES
-to an allow-listed tenant reaches the (still-pending) service seam and resolves to an honest
-**501 Not Implemented** (``route exists, behaviour pending``) — mirroring how ``app.handler`` maps
-:class:`~sam.members.handler._dispatch.RouteNotImplemented`. An UNRECOGNISED path — OR a recognised
-path whose slug does NOT resolve to an allow-listed tenant — returns **404** ``errors.api.notFound``,
-deliberately indistinguishable from "no such endpoint" so neither the surface nor the tenant
-allow-list can be probed (R2.3/R1a.4). The abuse guards (honeypot / payload cap / malformed body)
-return **400** ``errors.api.badRequest`` BEFORE any delegation (R10.2/R1a.4).
+Task 3.1 (this change) LANDS the public READ path ``GET …/field-config`` — the public ``GET {slug}``
+of the public-pages platform (spec 14, R5.1–R5.3 / R10.1 / R10.5, design D-SLUG / C2). It resolves
+the slug from the ``_slugs/{slug}`` marker BODY (a scan-free O(1) ``get_object`` — never the h-dcn
+table-scan anti-pattern; routing decided from ``owner_plane``/``kind`` in the body, never by parsing
+the slug) to a published SAM ``application_form`` tenant, then returns the applicant schema via the
+REUSED :meth:`ApplicationService.get_public_field_config` — the EXPLICIT whitelist (R5.2 / SEC-1),
+with the service's readiness/publication gate mapped to a non-probeable 404 so "unpublished" is
+INDISTINGUISHABLE from "unknown" (SEC-5, enumeration-safe). A missing / cross-plane / cross-kind
+marker is the SAME non-probeable 404 (Property 2/3/5).
+
+Task 4.1 (this change) LANDS the public WRITE path ``POST …/applications`` — the public ``POST {slug}``
+submit (spec 14, R5.5 / R3.2 / R10.2 / R10.3 / R10.9 / R10.10, design C2 / SEC-3). It resolves the
+slug from the SAME ``_slugs/{slug}`` marker BODY the GET read uses (:func:`_resolve_sam_form_tenant` —
+a scan-free O(1) ``get_object``, routed from ``owner_plane``/``kind``, never by parsing the slug and
+NEVER from a client value) to a published SAM ``application_form`` tenant, then writes the applicant
+record via the REUSED :meth:`ApplicationService.create_application` SCOPED to that marker-resolved
+``tenant_id`` (SEC-3: cross-tenant write safety — the service strips any forged body ``tenant_id``
+and stamps the resolved one, so the record lands in the MEMBERS module's own ``tenant_id``-partitioned
+store). A missing / cross-plane / cross-kind marker — OR the service's readiness refusal — is the
+SAME non-probeable 404 the GET path returns (SEC-5, enumeration-safe), with NO write performed. The
+deep input validation (SEC-2), applicant-PII minimization (SEC-9) and stored-XSS neutralization
+(SEC-10) are later sub-tasks (4.2–4.5); this sub-task is the happy-path wiring + SEC-3 tenant-from-marker.
+
+An UNRECOGNISED path — OR a
+recognised path whose slug does NOT resolve — returns **404** ``errors.api.notFound``, deliberately
+indistinguishable from "no such endpoint" so neither the surface nor the tenant allow-list can be
+probed (R2.3/R1a.4). The abuse guards (honeypot / payload cap / malformed body) return **400**
+``errors.api.badRequest`` BEFORE any delegation (R10.2/R1a.4).
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import uuid
 from collections.abc import Mapping
 from typing import Any
 
-from sam.members.domain.tenant_directory import TenantDirectory, TenantResolution
+from sam.members.domain._membership_errors import MemberValidationError
+from sam.members.domain.application_readiness import ApplicationNotAvailable
+from sam.members.domain.application_service import ApplicationService
+from sam.members.domain.tenant_directory import TenantDirectory
 from sam.members.handler._http import (
     ParsedRequest,
     _error,
-    _field_errors_array,  # noqa: F401 (surface compat: the delegation/validation seam shapes 422 with it)
+    _field_errors_array,  # SEC-2 (task 4.2): shapes the deliberate validation 422 per-field array
     _parse_request,
     _response,
 )
 from sam.members.repository.projection_config_reader import MembersProjectionReader
-from sam.members.repository.slug_marker_store import S3SlugMarkerStore
+from sam.members.repository.slug_marker_store import S3SlugMarkerStore, SlugMarker
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -87,11 +109,30 @@ if not logger.handlers:
 __all__ = [
     "HONEYPOT_FIELD",
     "MAX_PAYLOAD_BYTES",
+    "PUBLIC_OWNER_PLANE",
+    "PUBLIC_PAGE_KIND",
     "PublicAbuseRejected",
     "PublicRouteNotImplemented",
     "PublicTenantNotFound",
     "handler",
 ]
+
+
+# ── Owner-plane / kind the public read path serves (D-SLUG, Property 2 / R4.2) ────────
+
+#: The ONLY ``owner_plane`` the SAM public read path serves. Ownership/kind/tenant are decided by
+#: READING the ``_slugs/{slug}`` marker BODY (Property 2, D-SLUG) — never by parsing the slug
+#: string — so a slug whose marker names a DIFFERENT plane (a future Flask-owned landing page, say)
+#: resolved at the SAM edge is a clean, non-probeable MISMATCH (treated identically to a missing
+#: slug, R5.3/SEC-5), not a leak and not a cross-plane read (steering 35 rule 5a / Property 3).
+PUBLIC_OWNER_PLANE = "sam"
+
+#: The ONLY ``kind`` the public ``GET {slug}`` field-config read serves today — the application
+#: form (C2, the first producer). ``kind`` is an OPEN set platform-wide (``webshop`` /
+#: ``event_calendar`` / … are expected future kinds, R3.5), but THIS read path returns the
+#: applicant schema, so a marker of any OTHER kind resolved here is a non-match (non-probeable
+#: 404), exactly like a cross-plane marker — never a wrong-kind body served as a form schema.
+PUBLIC_PAGE_KIND = "application_form"
 
 
 # ── Abuse-guard configuration (R10.2) ─────────────────────────────────────────────────
@@ -119,6 +160,50 @@ MAX_PAYLOAD_BYTES = 64 * 1024
 #: header is simply not set, so a browser blocks the read) rather than silently echoing ``*`` —
 #: the public write must not be callable from any origin.
 ALLOWED_ORIGINS_ENV = "PUBLIC_FORM_ALLOWED_ORIGINS"
+
+#: The env var carrying the per-env PUBLIC-PAGES APEX the published application form is served on
+#: (task 7.1 / R5.1). The published artifact for a slug lives at ``https://{slug}.{apex}`` — the
+#: CloudFront public-pages distribution maps ``{slug}.{apex}`` to the served ``{slug}/`` prefix
+#: (``application_publish``/``public_page_artifact_store`` write the canonical ``{slug}.jabaki.nl``
+#: URL). CORS Option B (R5.1/5.5) admits that form's OWN resolved slug host — computed from the
+#: apex HERE, never a hardcode and NEVER a broad ``*.{apex}`` wildcard. The canonical public-pages
+#: apex is ``jabaki.nl`` (the SAME value ``application_publish`` bakes into the canonical URL), so
+#: that is the resolved default; a stack/test may override it per env via this var. An explicitly
+#: BLANK override resolves to NO apex, so the slug-host union member is simply SKIPPED (CORS stays
+#: fail-closed — a missing apex never raises and never widens the allow-list, it only declines to
+#: add the one slug-host member).
+APEX_ENV = "PUBLIC_FORM_APEX"
+
+#: The canonical public-pages apex the published form is served on when :data:`APEX_ENV` is unset.
+#: Mirrors the apex ``application_publish`` already bakes into the canonical ``{slug}.jabaki.nl``
+#: URL, so the CORS slug-host and the served host cannot drift.
+_DEFAULT_FORM_APEX = "jabaki.nl"
+
+
+class _PublicResult:
+    """A completed public read/write result + the RESOLVED tenant (for the 200's per-tenant CORS).
+
+    :func:`_dispatch_public` returns this on a success so :func:`handler` can both shape the
+    ``{data}`` body AND apply the resolved tenant's ``application_embed_origins`` CORS allow-list
+    (task 5.3) to the 200 — exactly as the recognised-route 501 already does via
+    :attr:`PublicRouteNotImplemented.tenant_id`. The tenant is the slug-resolved, verified one
+    (verify-before-trust) — never a client value.
+    """
+
+    __slots__ = ("data", "tenant_id", "resolved_slug")
+
+    def __init__(
+        self,
+        data: Any,
+        *,
+        tenant_id: str | None = None,
+        resolved_slug: str | None = None,
+    ):
+        self.data = data
+        self.tenant_id = tenant_id
+        # The slug the route resolved to this tenant for THIS request (CORS Option B, task 7.1) —
+        # so the 200 admits the form's OWN host `https://{resolved_slug}.{apex}`.
+        self.resolved_slug = resolved_slug
 
 
 class PublicAbuseRejected(Exception):
@@ -159,9 +244,18 @@ class PublicRouteNotImplemented(Exception):
     the tenant's ``application_embed_origins`` even while the service behind it is pending.
     """
 
-    def __init__(self, message: str = "", *, tenant_id: str | None = None):
+    def __init__(
+        self,
+        message: str = "",
+        *,
+        tenant_id: str | None = None,
+        resolved_slug: str | None = None,
+    ):
         super().__init__(message)
         self.tenant_id = tenant_id
+        # The slug the route resolved to this tenant (CORS Option B, task 7.1) so even the 501
+        # honours the form's OWN slug host, consistent with the 200.
+        self.resolved_slug = resolved_slug
 
 
 # ── CORS (R10.3) — restrict the one Access-Control-Allow-Origin header ────────────────
@@ -224,8 +318,49 @@ def _tenant_embed_origins(tenant_id: str | None) -> list[str]:
         return []
 
 
+def _form_apex() -> str | None:
+    """The per-env PUBLIC-PAGES apex the published form is served on (R5.1), resolved at call time.
+
+    Reads :data:`APEX_ENV` and trims it; an UNSET var resolves to the canonical
+    :data:`_DEFAULT_FORM_APEX` (``jabaki.nl`` — the SAME apex ``application_publish`` bakes into the
+    served canonical URL, so the CORS slug-host and the served host cannot drift). An explicitly
+    BLANK override resolves to ``None`` so the slug-host union member is SKIPPED — a missing apex
+    NEVER raises and NEVER widens the allow-list (CORS stays fail-closed); it only declines to add
+    the one slug-host member. Resolved per request (not import-time) so a stack param / a test
+    ``monkeypatch.setenv`` is honoured without reloading the module (mirrors :func:`_allowed_origins`).
+    """
+    raw = os.environ.get(APEX_ENV)
+    if raw is None:
+        return _DEFAULT_FORM_APEX
+    apex = raw.strip()
+    return apex or None
+
+
+def _resolved_slug_host(resolved_slug: str | None) -> str | None:
+    """The published form's OWN origin ``https://{resolved_slug}.{apex}`` for CORS Option B (R5.1).
+
+    The TIGHTEST CORS match (design Round 2 "CORS Option B"): the form's OWN host for the slug the
+    route ALREADY resolved from the ``_slugs/{slug}`` marker for THIS request (verify-before-trust —
+    never a raw/client value). Returns ``None`` — so NO slug-host member is unioned into the
+    allow-list — when there is no resolved slug (e.g. the non-probeable 404 branches, where no slug
+    resolved) OR when the apex is unset/blank (:func:`_form_apex`). Both cases keep CORS fail-closed:
+    a request is admitted by the slug host ONLY when a real resolved slug AND a configured apex
+    compose the form's own origin — never a broad ``*.{apex}`` wildcard, never a foreign host.
+    """
+    if not isinstance(resolved_slug, str) or not resolved_slug.strip():
+        return None
+    apex = _form_apex()
+    if not apex:
+        return None
+    return f"https://{resolved_slug.strip()}.{apex}"
+
+
 def _apply_cors_origin(
-    response: dict, request: ParsedRequest, *, tenant_id: str | None = None
+    response: dict,
+    request: ParsedRequest,
+    *,
+    tenant_id: str | None = None,
+    resolved_slug: str | None = None,
 ) -> dict:
     """Restrict the response's ``Access-Control-Allow-Origin`` to the form origin(s) (R10.3/R5.2).
 
@@ -234,11 +369,19 @@ def _apply_cors_origin(
     site, so this REPLACES that one header per the allow-list, leaving the rest of the shared
     envelope (and the authenticated edge) untouched. The allow-list is the UNION of:
 
-    - the STATIC stack-wide baseline (:func:`_allowed_origins`, e.g. the canonical form host); and
+    - the STATIC stack-wide baseline (:func:`_allowed_origins`, e.g. the canonical form host);
     - the PER-TENANT ``application_embed_origins`` (:func:`_tenant_embed_origins`) — supplied ONLY
       when the route resolved to an allow-listed ``tenant_id`` (task 5.3). On the non-probeable
       404 branches ``tenant_id`` is ``None``, so those responses carry the static baseline ONLY
-      and an unknown-slug / unknown-path 404 stay indistinguishable (R2.3/R1a.4).
+      and an unknown-slug / unknown-path 404 stay indistinguishable (R2.3/R1a.4); and
+    - CORS Option B (task 7.1, R5.1/R5.5): the form's OWN resolved slug host
+      ``https://{resolved_slug}.{apex}`` (:func:`_resolved_slug_host`) — supplied ONLY when the
+      route has resolved the slug to its tenant for THIS request (never a raw/client value), so the
+      published per-tenant host ``{slug}.{apex}`` the form is served on can read its own submit
+      response. This is the TIGHTEST widening: a single exact host, computed from the per-env apex
+      (:func:`_form_apex`), NEVER a broad ``*.{apex}`` wildcard — so no foreign ``*.{apex}`` site is
+      admitted. On the non-probeable 404 branches ``resolved_slug`` is ``None`` (nothing resolved),
+      so no slug-host member is added and those responses stay indistinguishable.
 
     Decision (fail-closed, never ``*``):
 
@@ -255,6 +398,12 @@ def _apply_cors_origin(
     headers = dict(response.get("headers") or {})
     origin = _request_origin(request)
     allowed = _allowed_origins() + _tenant_embed_origins(tenant_id)
+    # CORS Option B (task 7.1): union the form's OWN resolved slug host when the route resolved a
+    # slug for THIS request (and the apex is configured). ``None`` (no resolved slug / no apex) adds
+    # nothing — the union stays the static baseline ∪ tenant embed origins (fail-closed).
+    slug_host = _resolved_slug_host(resolved_slug)
+    if slug_host and slug_host not in allowed:
+        allowed = allowed + [slug_host]
     if origin and origin in allowed:
         headers["Access-Control-Allow-Origin"] = origin
         # A shared cache must key on Origin so it never serves origin A its cached
@@ -455,45 +604,429 @@ def _tenant_directory() -> TenantDirectory:
     return TenantDirectory(S3SlugMarkerStore())
 
 
-def _dispatch_public(request: ParsedRequest) -> Any:
-    """Delegate a recognised public route to the domain — resolving the tenant slug first (task 1.3).
+def _application_service() -> ApplicationService:
+    """Build the public-intake :class:`ApplicationService` wired to the SAM-plane concretes (task 3.1).
 
-    This is the single downward seam from the thin public edge to the application domain. Task 1.3
-    wires the FIRST step of it — resolve the path slug → ``tenant_id`` against the allow-list
-    (verify-before-trust, R2) via the Task-1.2 :class:`TenantDirectory` — so a forged/unknown slug
-    is turned into a non-probeable 404 HERE (:class:`PublicTenantNotFound`, mapped by
-    :func:`handler`) rather than reaching the (still-pending) service layer. The slug is trusted
-    for NOTHING: it only SELECTS among allow-listed tenants, and the resolved ``tenant_id`` becomes
-    the ONLY source of the record's tenant (R2.2/R2.4) when the service lands.
+    The single composition root for the public READ path (mirroring :func:`_tenant_directory`).
+    It wires the public-intake facade over:
 
-    The service calls behind this are later same-plane tasks and are intentionally NOT built here:
+    - the production :class:`~sam.members.domain.membership_service.MembershipService` (via
+      ``app._get_membership_service``), the ONE authoritative engine whose
+      ``get_public_field_config`` applies the EXPLICIT applicant whitelist (R5.2 / SEC-1) — reused,
+      never re-derived here; and
+    - the DynamoDB-backed :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader`
+      as the ``mail_readiness_provider`` (it satisfies the
+      :class:`~sam.members.domain.application_readiness.MailReadinessProvider` Protocol by
+      duck-typing — the SAME reader the publish/send path uses), so the readiness/publication gate
+      (D15/R5.4) agrees across the form read, the submit, and the eventual send.
 
-    - ``GET …/field-config`` → ``ApplicationService.get_public_field_config(tenant_id)``
-      (Phase 4 — readiness gate + filtered schema);
-    - ``POST …/applications`` → ``ApplicationService.create_application(tenant_id, …)`` (Phase 2).
-
-    Until those land, a slug that DID resolve to a real tenant raises
-    :class:`PublicRouteNotImplemented` → an honest 501 ("route exists, behaviour pending"). So this
-    task's wiring is fully exercised: an allow-listed slug reaches the pending-service 501, an
-    unknown slug gets the non-probeable 404 — both without ever calling
-    ``_authenticate_and_authorize`` (D27).
+    Imported lazily inside the function (not at module top) so importing this edge touches no AWS
+    and the auth-only tests stay offline — the repository/engine resolve their real table lazily +
+    fail-fast on first use. Tests inject a fake by monkeypatching :data:`ApplicationService` (or
+    the names this constructs) on this module, mirroring the other injection seams here.
     """
-    resolution: TenantResolution = _tenant_directory().resolve(_slug_from_path(request))
-    if not resolution.ok:
-        # Unknown / forged / blank / oversized slug — uniform not-found (R2.3). Raise the
-        # non-probeable 404 the handler maps identically to an unrecognised path (R1a.4).
-        raise PublicTenantNotFound(_slug_from_path(request))
+    from sam.members.handler.app import _get_membership_service
 
-    # Slug resolved to an allow-listed tenant (resolution.tenant_id) — the service layer that
-    # consumes it is Phase 2 / Phase 4, so the behaviour is still pending. 501, not a silent 200.
-    # Carry the resolved tenant forward so the response's CORS honours that tenant's authored
-    # embed origins (task 5.3) even while the service is pending.
-    raise PublicRouteNotImplemented(
-        f"{request.method} {request.path}", tenant_id=resolution.tenant_id
+    return ApplicationService(
+        _get_membership_service(),
+        mail_readiness_provider=MembersProjectionReader(),
     )
 
 
+def _resolve_sam_form_tenant(slug: str) -> str | None:
+    """Resolve ``slug`` to its owning ``tenant_id`` IFF it is a published SAM application-form page.
+
+    The task-3.1 public-read resolution (D-SLUG / Property 2 / Property 4): a SINGLE scan-free,
+    O(1) keyed ``get_object`` on the ``_slugs/{slug}`` marker via
+    :meth:`~sam.members.repository.slug_marker_store.S3SlugMarkerStore.resolve` — NEVER a
+    ``.scan()`` (the h-dcn anti-pattern the design explicitly rejects). Ownership/kind/tenant are
+    decided by READING the marker BODY, never by parsing the slug string.
+
+    Returns the ``tenant_id`` ONLY when the marker exists AND its body names THIS plane+kind
+    (``owner_plane == sam`` AND ``kind == application_form``) with a non-blank ``tenant_id``.
+    Every other case — a missing marker (slug never claimed / unpublished), a cross-plane marker
+    (a Flask-owned landing page), a cross-kind marker (a webshop/event page), or a malformed body
+    with no usable tenant — returns ``None`` so the edge raises the ONE non-probeable 404 (R5.3 /
+    SEC-5, indistinguishable from "no such slug"; Property 3 — the SAM edge never reads another
+    plane's data). A blank/reserved slug is handled inside ``resolve`` (returns ``None`` without
+    touching S3).
+    """
+    marker: SlugMarker | None = S3SlugMarkerStore().resolve(slug)
+    if marker is None:
+        return None
+    # Route from the BODY (Property 2): a cross-plane / cross-kind marker is a clean non-match,
+    # never a cross-plane read and never served as this kind's schema.
+    if marker.owner_plane != PUBLIC_OWNER_PLANE or marker.kind != PUBLIC_PAGE_KIND:
+        return None
+    tenant_id = marker.tenant_id
+    if not isinstance(tenant_id, str) or not tenant_id.strip():
+        return None
+    return tenant_id.strip()
+
+
+# ── SEC-1 fail-closed edge guard: no raw record shape may cross the public boundary ──
+
+
+#: Raw-storage-shape keys that MUST NEVER appear in a public response (steering 39 / SEC-1). The
+#: resolved-view contract keeps the physical two-map/dotted-key layout (``fields`` vs ``overrides``
+#: vs ``fixed_overrides``, dotted ``{group}.{key}``) INSIDE the repository; a public response
+#: carries only the RESOLVED view. The authority (``get_public_field_config``) already builds that
+#: resolved view by constructing an explicit, named key set — it never copies the raw item — so
+#: nothing raw can ride along by construction. This set names the exact keys the access guard
+#: (``scripts/check_sam_service_access.py``) also forbids, so the two enforcement points agree.
+_RAW_SHAPE_KEYS = frozenset({"field_overlay", "overrides", "fixed_overrides"})
+
+
+def _assert_fail_closed_public_schema(schema: Any) -> Any:
+    """SEC-1 defense-in-depth: assert the resolved public schema leaks NO raw/physical shape.
+
+    The applicant schema is an ALLOWLIST authored upstream in
+    :meth:`MembershipService.get_public_field_config`: a field is exposed ONLY when the tenant
+    explicitly marked it ``application_visible`` (default ``False`` → an unknown / newly-added
+    field defaults HIDDEN, fail-closed), and each exposed field is projected into an EXPLICIT,
+    named key set (``key``/``type``/``label``/``functional_group``/``order``/``required``/
+    ``show_when``/``options``/``format``) — never a copy of the raw item, so no secret VALUE and no
+    physical-layout key can ride along. A secret can therefore surface at most as a boolean
+    existence flag, never its value.
+
+    This guard is the LAST trust boundary (the public edge) re-checking that invariant rather than
+    blindly trusting the upstream view: if a future change to the authority ever regressed to
+    leaking a raw-shape key (``field_overlay`` / ``overrides`` / ``fixed_overrides``) or a dotted
+    ``{group}.{key}`` key — at the schema top level OR inside any field — this FAILS CLOSED by
+    raising, so the regression surfaces as a bodied 500 server-side instead of silently
+    over-exposing tenant data on an unauthenticated endpoint. It mirrors the committed access guard
+    (``scripts/check_sam_service_access.py``) and the boundary test, moving the same rule to
+    runtime on the one surface with no authentication in front of it.
+
+    Returns ``schema`` unchanged on success (so it is a transparent pass-through at the call site).
+    """
+    if isinstance(schema, Mapping):
+        _reject_raw_shape_keys(schema.keys())
+        for field in schema.get("fields") or ():
+            if isinstance(field, Mapping):
+                _reject_raw_shape_keys(field.keys())
+    return schema
+
+
+def _reject_raw_shape_keys(keys: Any) -> None:
+    """Raise if any key is a forbidden raw-shape key or a dotted ``{group}.{key}`` key (SEC-1)."""
+    for key in keys:
+        if not isinstance(key, str):
+            continue
+        if key in _RAW_SHAPE_KEYS or "." in key:
+            # A raw-shape / dotted physical key reached the public boundary — fail closed. The
+            # message is server-log-only (the edge maps the raised error to a neutral bodied 500,
+            # never echoing the offending key to the unauthenticated caller).
+            raise ValueError(
+                f"public schema carried a forbidden raw-shape key {key!r} (SEC-1 / steering 39)"
+            )
+
+
+# ── Submit-request sourcing (task 4.1) — the NON-TRUSTED values the submit write needs ──
+#
+# The POST submit carries three non-field inputs the write needs beside the resolved tenant and
+# the applicant ``body``. NONE of them confers tenant or identity (steering 39: the tenant comes
+# ONLY from the verified marker, never the request body); they are read from the request in a
+# non-trusted way and the authoritative service owns their meaning:
+#
+#   * ``session_key`` — a per-submission idempotency/de-dup value (R3a). The FIRST submit of a
+#     session CREATES; a same-key resend (a correction, a double-click) UPDATES that same record.
+#     A client that supplies one gets resend-coalescing; one that supplies none gets a fresh,
+#     server-minted uuid4 (so every submit lands, never silently coalesced to another's record).
+#   * ``locale`` — the applicant's preferred locale; the service owns normalization + fallback.
+#   * ``consent`` — the applicant's affirmative acceptance of the tenant's versioned notice; the
+#     service REQUIRES it (a submit without it is a hard reject) and stamps a server-authoritative
+#     consent record (version/timestamp/locale resolved server-side, never client-trusted).
+
+#: The body keys the submit reads its session value / locale from. Accept both the camelCase the
+#: SPA form posts and the snake_case the domain uses, so the edge is tolerant of either client.
+_SESSION_KEY_BODY_KEYS = ("session_key", "sessionKey", "session_id", "sessionId")
+_LOCALE_BODY_KEYS = ("locale", "lang")
+
+
+def _submission_session_key(body: Mapping[str, Any]) -> str:
+    """The per-submission de-dup ``session_key`` for ``create_application`` (R3a), NON-TRUSTED.
+
+    Read from the request body (one of :data:`_SESSION_KEY_BODY_KEYS`) so a resend within one
+    fill-in session coalesces onto the SAME record; a server-minted ``uuid4`` is used when the
+    client sends none (a fresh session), so a submission is NEVER silently lost or coalesced onto
+    an unrelated record. The value is a de-dup token ONLY — it carries no tenant and no identity
+    (the tenant is the verified, marker-resolved one; the ``member_id`` is server-minted), so
+    trusting it for de-dup grants a caller no cross-tenant or cross-record reach.
+    """
+    if isinstance(body, Mapping):
+        for key in _SESSION_KEY_BODY_KEYS:
+            value = body.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return uuid.uuid4().hex
+
+
+def _submission_locale(body: Mapping[str, Any]) -> str | None:
+    """The applicant's requested locale off the body, or ``None`` (the service owns fallback)."""
+    if isinstance(body, Mapping):
+        for key in _LOCALE_BODY_KEYS:
+            value = body.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _submission_consent(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """The applicant's consent object off the body, or ``None`` (the service REQUIRES/validates it).
+
+    Passed through verbatim for the service to gate on (affirmative consent is mandatory — a
+    submit without it is rejected) and to stamp server-authoritatively; the edge neither trusts
+    nor interprets its contents.
+    """
+    if isinstance(body, Mapping):
+        consent = body.get("consent")
+        if isinstance(consent, Mapping):
+            return consent
+    return None
+
+
+def _public_field_key(engine_key: Any) -> str:
+    """Map an engine error key to the BARE key the published form names its control by.
+
+    The engine keys errors by physical identity (``personal.last_name``, ``membership.membership_type``,
+    ``overlay.region``); the public field config emits the bare ``key`` (``last_name`` ...) and the
+    form's controls carry that name. Steering 39: no dotted ``{group}.{key}`` crosses the public
+    boundary. The bare key IS the last dotted segment (the group / ``overlay`` prefix is the
+    physical placement), so this is derived from the key alone: no extra read, no boto3. A key
+    with no dot (``consent``) is returned unchanged. For an unrecognised shape the last segment is
+    still used, so a message is never dropped.
+    """
+    key = str(engine_key)
+    return key.rsplit(".", 1)[-1] or key
+
+
+def _public_field_errors_array(errors: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """The shared per-field ``errors`` array with ``field`` rewritten to the bare public key.
+
+    Entry shape is unchanged (``{field, code, detail, params?}``). When two engine keys collapse
+    to the same bare key, the FIRST entry wins (no duplicates).
+    """
+    seen: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for entry in _field_errors_array(errors):
+        bare = _public_field_key(entry.get("field"))
+        if bare in seen:
+            continue
+        seen.add(bare)
+        out.append({**entry, "field": bare})
+    return out
+
+
+def _dispatch_public(
+    request: ParsedRequest, resolved: dict[str, str] | None = None
+) -> Any:
+    """Delegate a recognised public route to the domain — resolving the slug from the marker first.
+
+    This is the single downward seam from the thin public edge to the application domain.
+
+    **``GET …/field-config`` — the public read path (task 3.1, R5.1–R5.3 / R10.1 / R10.5).** The
+    slug is resolved from the ``_slugs/{slug}`` marker BODY (:func:`_resolve_sam_form_tenant` — an
+    O(1) keyed ``get_object``, NEVER a scan, Property 4) to a published SAM ``application_form``
+    tenant. A missing / cross-plane / cross-kind marker → :class:`PublicTenantNotFound` (the
+    non-probeable 404, Property 2/3/5). On a match, the applicant schema is returned via the REUSED
+    :meth:`ApplicationService.get_public_field_config` — the EXPLICIT whitelist (SEC-1); no field
+    list is re-derived here and no raw record shape crosses the boundary (steering 39). The
+    service's own readiness/publication gate
+    (:class:`~sam.members.domain.application_readiness.ApplicationNotAvailable`) is caught and
+    turned into the SAME non-probeable 404 — on the PUBLIC read, "exists but not yet accepting
+    applications" must be INDISTINGUISHABLE from "unknown slug" (SEC-5, enumeration-safe), never a
+    409 that would reveal the page exists.
+
+    **``POST …/applications`` — the submit write (task 4.1, R5.5 / R3.2 / SEC-3).** The tenant is
+    resolved from the SAME marker BODY the GET read uses (:func:`_resolve_sam_form_tenant`) — a
+    scan-free O(1) ``get_object`` routed from ``owner_plane``/``kind``, NEVER a value from the
+    request body and NEVER a second resolution mechanism. A missing / cross-plane / cross-kind
+    marker → :class:`PublicTenantNotFound` (the SAME non-probeable 404 the GET path raises, R5.3 /
+    SEC-5, Property 2/3) with NO write performed. On a resolved, published SAM ``application_form``
+    tenant the applicant record is written via the REUSED
+    :meth:`ApplicationService.create_application`, SCOPED to that marker-resolved ``tenant_id`` —
+    the service strips any forged body ``tenant_id`` and stamps the resolved one, so the record
+    lands in the MEMBERS module's own ``tenant_id``-partitioned store (steering 39). The service's
+    readiness re-check (:class:`~sam.members.domain.application_readiness.ApplicationNotAvailable`)
+    is caught and mapped to the SAME non-probeable 404 (SEC-5) — "not accepting applications yet"
+    is indistinguishable from "unknown slug", never a 409. The deep input validation (SEC-2),
+    applicant-PII minimization (SEC-9) and stored-XSS neutralization (SEC-10) are tasks 4.2–4.5.
+
+    The whole seam runs WITHOUT ever calling ``_authenticate_and_authorize`` (D27) — the public
+    edge never authenticates.
+    """
+    slug = _slug_from_path(request)
+    # Per-request holder (a LOCAL dict owned by `handler`, never module state — Lambda reuse): once
+    # the slug resolves to a tenant it is recorded here BEFORE the service runs, so the handler's
+    # 422/500 branches can admit the form's OWN slug host in CORS (Round 3, R9.1) even though the
+    # service raised. Left empty when resolution fails → those branches add nothing (fail-closed).
+    if resolved is None:
+        resolved = {}
+
+    # ── GET …/field-config: the public read path (task 3.1) ──────────────────────────
+    if request.method == "GET":
+        tenant_id = _resolve_sam_form_tenant(slug)
+        if tenant_id is None:
+            # No marker / cross-plane / cross-kind → non-probeable 404 (R5.3, Property 2/3/5).
+            raise PublicTenantNotFound(slug)
+        resolved.update(tenant_id=tenant_id, resolved_slug=slug)
+        try:
+            # REUSE the one filter authority — the EXPLICIT applicant whitelist (R5.2 / SEC-1).
+            # The authority is the allowlist (``application_visible`` gate, default HIDDEN) and
+            # builds an explicit named-key resolved view; this edge re-asserts fail-closed that no
+            # raw/physical shape leaked before it crosses the unauthenticated boundary (SEC-1 /
+            # steering 39) — a regression there fails closed as a bodied 500, never over-exposure.
+            schema = _assert_fail_closed_public_schema(
+                _application_service().get_public_field_config(tenant_id)
+            )
+            # Carry the resolved tenant AND the resolved slug so the 200's CORS honours the
+            # tenant's embed origins (task 5.3) AND the form's OWN slug host (CORS Option B,
+            # task 7.1) — the published `{slug}.{apex}` host can read its own field-config.
+            return _PublicResult(schema, tenant_id=tenant_id, resolved_slug=slug)
+        except ApplicationNotAvailable as exc:
+            # Publication gate (R5.3 / SEC-5): a resolved-but-not-send-ready tenant is NOT
+            # accepting applications yet — on the PUBLIC read this must be INDISTINGUISHABLE from
+            # an unknown slug, so map the readiness refusal to the SAME non-probeable 404, never a
+            # 409 that would confirm the page exists (enumeration-safe). The neutral server-side
+            # reason is logged; the client sees only the uniform not-found.
+            #
+            # SEC-5 timing-insensitivity reasoning. The unpublished path does ONE extra bounded
+            # step the unknown path does not — the readiness provider lookup inside
+            # ``get_public_field_config`` (a single O(1) keyed projection read), which runs BEFORE
+            # the schema is resolved and raises here. The unknown / cross-plane / cross-kind paths
+            # stop one step earlier (after the single ``_slugs/{slug}`` marker ``resolve``). Both
+            # paths are therefore a small, constant number of O(1) keyed reads against the SAME
+            # backing stores (no ``.scan()``, Property 4 / SEC-6) — the only difference is at most
+            # one additional keyed read on the "exists" branch. That is below the practically
+            # observable threshold over the network (the Lambda cold/warm variance and API-Gateway
+            # jitter dwarf a single keyed read), so there is no usable timing ORACLE distinguishing
+            # "exists but unpublished" from "does not exist". Full constant-time is not required
+            # (design SEC-5: "no *practically observable* oracle"); the status + body are made
+            # BYTE-IDENTICAL (both map to the one ``_error(404, …notFound)`` below), which is the
+            # control that actually closes the enumeration channel.
+            logger.info(
+                "Public field-config for slug '%s' resolved to a tenant that is not accepting "
+                "applications yet; returning the non-probeable 404 (%s)",
+                slug,
+                exc.code,
+            )
+            raise PublicTenantNotFound(slug) from exc
+
+    # ── POST …/applications: the submit write (task 4.1, R5.5 / R3.2 / SEC-3) ────────
+    # SEC-3 (cross-tenant write safety): the tenant is resolved ONLY from the marker BODY — the
+    # SAME resolve-by-body the GET read uses (:func:`_resolve_sam_form_tenant`), NOT a second
+    # resolution mechanism and NEVER a value from the request body. A missing / cross-plane
+    # (``owner_plane != sam``) / cross-kind (``kind != application_form``) marker resolves to
+    # ``None`` → the SAME non-probeable 404 the GET path raises (R5.3 / SEC-5, Property 2/3) with
+    # NO write performed, so a foreign/cross-plane slug can never reach an arbitrary partition and
+    # the surface cannot be probed.
+    tenant_id = _resolve_sam_form_tenant(slug)
+    if tenant_id is None:
+        raise PublicTenantNotFound(slug)
+    resolved.update(tenant_id=tenant_id, resolved_slug=slug)
+
+    # The write is SCOPED to the marker-resolved ``tenant_id`` (steering 39: the tenant comes from
+    # the verified marker, never the request body) — the service strips any body ``tenant_id`` and
+    # stamps this one authoritatively, so the applicant record lands in the MEMBERS module's own
+    # ``tenant_id``-partitioned store via its own Lambda/repository. ``session_key`` is a
+    # per-submission idempotency/de-dup value: the FIRST submit of a session creates, a same-key
+    # resend UPDATES that record (R3a). It is sourced from the request in a NON-TRUSTED way
+    # (:func:`_submission_session_key`) — it confers no tenant and no identity — falling back to a
+    # server-minted uuid4 when the client sends none. ``locale`` / ``consent`` ride through from
+    # the body (the service owns their authoritative normalization / affirmative-consent gate).
+    body = request.body if isinstance(request.body, Mapping) else {}
+    try:
+        record = _application_service().create_application(
+            tenant_id,
+            body,
+            _submission_session_key(body),
+            locale=_submission_locale(body),
+            consent=_submission_consent(body),
+        )
+    except ApplicationNotAvailable as exc:
+        # Readiness gate re-check (R9.4 defense-in-depth): a resolved-but-not-send-ready tenant
+        # refuses the submit with NO record written. On the PUBLIC surface this must be
+        # INDISTINGUISHABLE from an unknown slug (SEC-5, enumeration-safe) — map it to the SAME
+        # non-probeable 404 the GET read uses, never a 409 that would confirm the page exists.
+        logger.info(
+            "Public submit for slug '%s' resolved to a tenant not accepting applications yet; "
+            "returning the non-probeable 404 (%s)",
+            slug,
+            exc.code,
+        )
+        raise PublicTenantNotFound(slug) from exc
+
+    # Carry the resolved tenant AND the resolved slug so the 200's CORS honours the tenant's
+    # authored embed origins (task 5.3) AND the form's OWN slug host (CORS Option B, task 7.1) —
+    # the published `{slug}.{apex}` host can read its own submit response.
+    return _PublicResult(record, tenant_id=tenant_id, resolved_slug=slug)
+
+
 # ── Lambda entry point (the public, token-less edge — D27) ────────────────────────────
+
+
+def _is_public_preflight_route(request: ParsedRequest) -> bool:
+    """True for an ``OPTIONS`` on one of the two public route shapes (slug-agnostic)."""
+    if request.method != "OPTIONS":
+        return False
+    path = (request.path or "").rstrip("/")
+    return path.startswith(_PUBLIC_PREFIX) and path.endswith(
+        ("/field-config", "/applications")
+    )
+
+
+def _preflight_response(request: ParsedRequest) -> dict:
+    """Answer a CORS preflight per origin (Round 4, R12).
+
+    API Gateway's static ``Cors`` mock cannot echo the per-slug host, so ``OPTIONS`` is routed to
+    this Lambda and decided by the SAME :func:`_apply_cors_origin` union (baseline ∪ tenant embed
+    origins ∪ the resolved slug host) as the real request. Fail-closed: an unresolved slug, an
+    unknown route, a foreign origin, or ANY error during resolution yields a 204 with NO
+    ``Access-Control-Allow-Origin`` (never ``*``) and no body detail.
+    """
+    tenant_id: str | None = None
+    resolved_slug: str | None = None
+    if _is_public_preflight_route(request):
+        slug = _slug_from_path(request)
+        try:
+            tenant_id = _resolve_sam_form_tenant(slug)
+            if tenant_id is not None:
+                resolved_slug = slug
+        except Exception:
+            # No PII / stack in the response; resolution failure simply means no ACAO.
+            logger.warning(
+                "Public preflight slug resolution failed; answering without ACAO"
+            )
+            tenant_id = None
+            resolved_slug = None
+    # Built directly (not via the shared envelope) so no default ``*`` ACAO exists to leak.
+    response: dict = {
+        "statusCode": 204,
+        "headers": {
+            "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Max-Age": "600",
+            "Vary": "Origin",
+        },
+        "body": "",
+    }
+    try:
+        response = _apply_cors_origin(
+            response, request, tenant_id=tenant_id, resolved_slug=resolved_slug
+        )
+    except Exception:
+        logger.warning("Public preflight CORS decision failed; answering without ACAO")
+        response["headers"].pop("Access-Control-Allow-Origin", None)
+    response["headers"]["Vary"] = (
+        "Origin"  # _apply_cors_origin may have appended a duplicate
+    )
+    logger.info(
+        "Public preflight answered (resolved=%s, allowed=%s)",
+        tenant_id is not None,
+        "Access-Control-Allow-Origin" in response["headers"],
+    )
+    return response
 
 
 def handler(event: Mapping[str, Any], context: Any = None) -> dict:
@@ -511,6 +1044,10 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
         (non-probeable — a real-but-unknown slug is indistinguishable from "no such endpoint",
         R2.3/R1a.4);
       * honeypot / oversized / malformed body → **400** ``errors.api.badRequest`` (R10.2);
+      * a submit that fails server-side per-field validation (SEC-2, task 4.2 — bad email, an
+        out-of-subset enum, a missing required field, missing affirmative consent) → **422**
+        ``errors.validation.failed`` with the RFC 9457 per-field ``errors`` array, raised BEFORE
+        any write so NO record lands;
       * an unanticipated error → a BODIED **500** ``errors.api.serverError`` (never an empty 502).
 
     Every response — success AND error — carries the shared ``_http`` envelope (``success`` flag
@@ -518,6 +1055,11 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
     to the configured form origin(s) (R10.3) via :func:`_apply_cors_origin`.
     """
     request = _parse_request(event)
+
+    # 0) CORS preflight (Round 4): decided per origin BEFORE the body-based abuse guards (a
+    #    preflight carries no body) and before the public-route check (OPTIONS is not a route).
+    if request.method == "OPTIONS":
+        return _preflight_response(request)
 
     # 1) Abuse guards FIRST (R10.2) — a flood is turned away before any tenant resolution/write.
     try:
@@ -538,8 +1080,9 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
 
     # 3) Delegate to the application domain (the slug resolver + service seam, tasks 1.2 / 1.3 /
     #    Phase 2 / Phase 4). Shape the response; CORS is applied to EVERY branch (R10.3).
+    resolved: dict[str, str] = {}
     try:
-        result = _dispatch_public(request)
+        result = _dispatch_public(request, resolved)
     except PublicTenantNotFound:
         # The slug did not resolve to an allow-listed tenant → the SAME non-probeable 404 an
         # unrecognised path returns, so a real-but-unknown slug cannot be told from "no such
@@ -564,6 +1107,36 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             _error(501, "Not implemented", code="errors.api.notImplemented"),
             request,
             tenant_id=exc.tenant_id,
+            resolved_slug=exc.resolved_slug,
+        )
+    except MemberValidationError as exc:
+        # SEC-2 (task 4.2): the submit failed the authoritative server-side per-field validation
+        # that `ApplicationService.create_application` runs BEFORE the write (email-is-email,
+        # enum within the published application subset, required present, and the GDPR consent
+        # gate — all collected into ONE `MemberValidationError` by the membership engine, which
+        # raises it BEFORE `save_member`, so NO record is written and NOTHING is enqueued on any
+        # validation failure). This is a DELIBERATELY-raised, caller-safe rejection (not a caught
+        # internal exception), so — exactly like the authenticated edge (`app.handler`) — it is
+        # mapped to a 422 carrying the per-field errors as the RFC 9457 `errors` array the SPA
+        # localizes, NOT swallowed into the generic 500 below. The edge adds NO second, drifting
+        # validator: the one authoritative engine owns every rule; this only shapes its refusal.
+        logger.info(
+            "Public submit for '%s %s' rejected by server-side validation (%d field error(s)); "
+            "no record written",
+            request.method,
+            request.path,
+            len(exc.errors),
+        )
+        return _apply_cors_origin(
+            _error(
+                422,
+                "Validation failed",
+                code="errors.validation.failed",
+                errors=_public_field_errors_array(exc.errors),
+            ),
+            request,
+            tenant_id=resolved.get("tenant_id"),
+            resolved_slug=resolved.get("resolved_slug"),
         )
     except Exception:
         # Any UNANTICIPATED error becomes a BODIED 500 — never an empty 502 the SPA can only
@@ -577,10 +1150,22 @@ def handler(event: Mapping[str, Any], context: Any = None) -> dict:
             request_id,
         )
         return _apply_cors_origin(
-            _error(500, "Internal error", code="errors.api.serverError"), request
+            _error(500, "Internal error", code="errors.api.serverError"),
+            request,
+            tenant_id=resolved.get("tenant_id"),
+            resolved_slug=resolved.get("resolved_slug"),
         )
 
-    # A completed read/write result → 200 with the shared envelope. (The 202 for an accepted
-    # submission is shaped by the create_application path in Phase 2, which returns the
-    # AcceptedResult the service layer marks; task 1.1's seam never reaches a success body.)
+    # A completed read/write result → 200 with the shared envelope. The GET field-config read
+    # (task 3.1) returns a `_PublicResult` carrying the slug-resolved tenant, so the 200 honours
+    # THAT tenant's embed-origin CORS allow-list (task 5.3) exactly as the recognised-route 501
+    # does. (The 202 for an accepted submission is shaped by the create_application path in
+    # Task 4, which returns the AcceptedResult the service layer marks.)
+    if isinstance(result, _PublicResult):
+        return _apply_cors_origin(
+            _response(200, {"data": result.data}),
+            request,
+            tenant_id=result.tenant_id,
+            resolved_slug=result.resolved_slug,
+        )
     return _apply_cors_origin(_response(200, {"data": result}), request)

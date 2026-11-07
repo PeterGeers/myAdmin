@@ -36,6 +36,7 @@ from sam.members.repository._config_reader_base import (
     _CONFIG_ID_FIELDS,
     _normalize_functional_groups,
 )
+from sam.shared.page_styles import SUPPORTED_ATTRIBUTES
 
 
 def _coerce_option_order(raw) -> int | None:
@@ -210,6 +211,15 @@ class _FieldOverlayReadMixin:
         for attr in ("slug", "published_at", "published_version"):
             if attr in row:
                 wire[attr] = row.get(attr)
+        # Look-and-feel slice (spec 15, DD-2): carry the stored ``look_and_feel`` map THROUGH
+        # on the raw write-path snapshot so the Change-Op writer can see whether the parent map
+        # already exists (and its current sibling values) when placing a single-attribute SET.
+        # A nested ``SET look_and_feel.<attr>`` is INVALID on a row whose parent map is absent
+        # (a LEGACY pre-task-4.1 row never got the skeleton seed), so the writer must branch on
+        # presence — it needs this slice in the snapshot to do so. Only surfaced when STORED;
+        # a never-authored/legacy row omits it (the writer then seeds the whole slice).
+        if isinstance(row.get("look_and_feel"), Mapping):
+            wire["look_and_feel"] = dict(row["look_and_feel"])
         return wire
 
     @staticmethod
@@ -553,6 +563,129 @@ class _FieldOverlayReadMixin:
         if not isinstance(slug, str) or not slug.strip():
             return None
         return slug.strip()
+
+    def get_published_state(self, tenant_id: str) -> dict:
+        """Return the form's publish-state scalars from ``config#fields`` (Round 3, task 11.4).
+
+        ``{"published_version": int, "published_at": str}`` — each key present ONLY when stored
+        and well-formed (positive non-bool int / non-blank string). Empty-is-valid / fail-safe:
+        a missing row or absent attribute yields ``{}`` (never published) — never a raise. Returns
+        resolved scalars only; no raw row shape crosses the boundary (steering 39).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        if row is None:
+            return {}
+        state: dict = {}
+        version = row.get("published_version")
+        if isinstance(version, int) and not isinstance(version, bool) and version > 0:
+            state["published_version"] = version
+        else:
+            # Boto3 returns DynamoDB numbers as Decimal — accept an integral Decimal.
+            try:
+                from decimal import Decimal
+
+                if (
+                    isinstance(version, Decimal)
+                    and version == version.to_integral_value()
+                    and version > 0
+                ):
+                    state["published_version"] = int(version)
+            except Exception:  # noqa: BLE001 - fail-safe read
+                pass
+        published_at = row.get("published_at")
+        if isinstance(published_at, str) and published_at.strip():
+            state["published_at"] = published_at.strip()
+        return state
+
+    # ── SAM-owned public prefix reader (config#fields.public_prefix) ────────────────────
+
+    def get_public_prefix(self, tenant_id: str) -> str | None:
+        """Return the tenant's SAM-owned public slug ``prefix`` from ``config#fields``, or ``None``.
+
+        The slug PREFIX is the tenant's own short public stem (e.g. ``h-dcn``) under which every
+        application-form slug must sit (SEC-4 prefix ownership). It is SAM-OWNED: authored by
+        :meth:`sam.members.domain.config_fields_crud_service.ConfigFieldsCrudService.set_public_prefix`
+        as the top-level ``public_prefix`` attribute on the tenant's ``config#fields`` row, and read
+        back HERE by the SAME ``tenant_id``-pinned partition read the sibling config reads use.
+
+        (History: the prefix was previously stored in Flask as ``tenants.public_prefix`` and
+        carried onto the projected ``tenant`` row. That MySQL column and its projection were
+        removed — the prefix now lives only on the SAM plane, alongside the form ``slug`` on the
+        same ``config#fields`` row, so author + read are one plane, one record.)
+
+        Empty-is-valid / fail-safe (same discipline as :meth:`get_form_slug`): a **missing**
+        ``config#fields`` row, a missing ``public_prefix`` attribute, or a non-string / blank value
+        all resolve to ``None`` (the tenant has no public prefix yet). The prefix-ownership rule
+        treats a ``None`` prefix as "cannot assert ownership of a fresh prefixed namespace" — see
+        :func:`sam.members.domain.form_slug.validate_slug_prefix_ownership`.
+
+        Args:
+            tenant_id: The tenant (partition key) whose public prefix to resolve.
+
+        Returns:
+            The stored non-blank ``public_prefix`` string, or ``None`` when absent/unusable.
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        if row is None:
+            return None
+        prefix = row.get("public_prefix")
+        if not isinstance(prefix, str) or not prefix.strip():
+            return None
+        return prefix.strip()
+
+    # ── SAM-owned look-and-feel reader (config#fields.look_and_feel) ───────────────────
+
+    def get_look_and_feel(self, tenant_id: str) -> dict:
+        """Return the tenant's resolved ``Look_And_Feel_Settings`` VALUES (spec 15, task 4.2).
+
+        The RESOLVED-VIEW read of Layer-1's ``look_and_feel`` slice on the SAM-owned
+        ``config#fields`` row (spec 15 — SAM Page Look-and-Feel, DD-2 / Layer 1). The slice holds
+        the application-form PAGE's presentation **attribute values** (never generated CSS); task
+        4.1 seeds it as an empty parent map at tenant-create so the Change-Op path can
+        ``SET look_and_feel.#attr`` into a live map. This accessor serves those values back for
+        the publish-time resolve (``ApplicationPublishService`` → Layer 2 ``render_page_styles``)
+        and the Layer-1 authoring UI's ``get`` read.
+
+        Resolved-domain-view contract (steering 39): returns a plain ``{attribute: value}``
+        mapping of VALUES ONLY — it never crosses the boundary carrying the raw row shape, and it
+        surfaces **only** the seven supported attributes
+        (:data:`sam.shared.page_styles.SUPPORTED_ATTRIBUTES`). Any stray key stored alongside them
+        is dropped here, so a consumer never sees an unexpected/raw-shape key and Layer 2 is never
+        handed an unsupported attribute off the stored slice.
+
+        Tenant isolation (Req 2.4): reads only the ``tenant_id``-pinned partition (the same shared,
+        cached Query the sibling config reads use); another tenant's settings can never bleed in.
+
+        SAM-owned only — never Flask (Req 2.1, Property 7): the value comes exclusively from this
+        SAM-owned ``config#fields`` attribute. It does **not** read or merge any Flask
+        ``landing_page`` projection; there is no runtime path to the Flask plane here.
+
+        Empty-is-valid / defaults (Req 2.4, 3.3, 4.4, 5.4): a **missing** ``config#fields`` row, a
+        missing / non-mapping ``look_and_feel`` slice, or a slice with no recognised attribute all
+        resolve to an **empty mapping** — Layer 2 then applies its own SAM-owned default for each
+        unset attribute. Absent is never an error.
+
+        Args:
+            tenant_id: The tenant (partition key) whose look-and-feel values to resolve.
+
+        Returns:
+            A ``{attribute: value}`` mapping restricted to the supported attributes actually
+            stored (VALUES only); ``{}`` when the tenant has none (resolve to Layer-2 defaults).
+        """
+        row = self._find_config_row(tenant_id, _CONFIG_ID_FIELDS)
+        if row is None:
+            return {}
+        slice_ = row.get("look_and_feel")
+        if not isinstance(slice_, Mapping):
+            return {}
+        # VALUES-ONLY resolved view: surface only the seven supported attributes actually
+        # present, so no raw/unexpected key crosses the boundary and Layer 2 never receives an
+        # unsupported attribute off the stored slice. Absent attributes stay absent (-> defaults).
+        return {
+            attr: slice_[attr]
+            for attr in SUPPORTED_ATTRIBUTES
+            if attr in slice_ and slice_[attr] is not None
+        }
 
     def get_config_fields_version(
         self, tenant_id: str, *, consistent_read: bool = False

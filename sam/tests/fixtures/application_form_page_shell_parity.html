@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aanmelden - Hondenschool DCN</title>
+  <meta name="description" content="Word lid van onze vereniging" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Aanmelden - Hondenschool DCN" />
+  <meta property="og:description" content="Word lid van onze vereniging" />
+  <meta property="og:image" content="https://cdn.jabaki.nl/h-dcn/og.png" />
+  <meta property="og:url" content="https://h-dcn-aanmelden.jabaki.nl/" />
+  <meta property="og:site_name" content="Hondenschool DCN" />
+  <meta property="og:locale" content="nl_NL" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Aanmelden - Hondenschool DCN" />
+  <meta name="twitter:description" content="Word lid van onze vereniging" />
+  <meta name="twitter:image" content="https://cdn.jabaki.nl/h-dcn/og.png" />
+  <link rel="canonical" href="https://h-dcn-aanmelden.jabaki.nl/" />
+  <style>
+:root {
+  --font-heading: "Inter", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --spacing-section: 2rem;
+  --spacing-element: 1rem;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --shadow-card: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-hover: 0 4px 16px rgba(0,0,0,0.12);
+  --color-primary: #2D5F8A;
+  --color-accent: #F4A261;
+}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: var(--font-body); color: #333; line-height: 1.6; }
+    img { max-width: 100%; height: auto; display: block; }
+    .section { padding: var(--spacing-section) 1.5rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .hero { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-element); }
+    .hero-text { flex: 1; min-width: 280px; }
+    .hero-img { flex: 1; min-width: 280px; }
+    .hero h1 { font-family: var(--font-heading); font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem; color: #2D5F8A; }
+    .hero p { font-size: 1.2rem; color: #555; margin-bottom: 1rem; }
+    .btn { display: inline-block; padding: 0.75rem 1.5rem; background: #F4A261; color: #fff; text-decoration: none; border-radius: var(--radius-sm); font-weight: 600; }
+    .btn:hover { opacity: 0.9; }
+    .about { background: #f9f9f9; }
+    .about-content { display: flex; flex-wrap: wrap; align-items: center; gap: var(--spacing-element); }
+    .about-text { flex: 1; min-width: 280px; }
+    .about-text h2 { font-family: var(--font-heading); font-size: 1.8rem; font-weight: 700; margin-bottom: 1rem; color: #2D5F8A; }
+    .about-text p { margin-bottom: 0.75rem; color: #555; }
+    .about-img { flex: 1; min-width: 280px; }
+    .about-img img { border-radius: var(--radius-md); }
+    .gallery { text-align: center; }
+    .gallery h2 { font-family: var(--font-heading); font-size: 1.8rem; font-weight: 700; margin-bottom: 1.5rem; color: #2D5F8A; }
+    .gallery-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+    .gallery-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+    .gallery-masonry { columns: 3; column-gap: 1rem; }
+    .gallery-masonry img { break-inside: avoid; margin-bottom: 1rem; }
+    .gallery-grid-3 img, .gallery-grid-4 img { border-radius: var(--radius-md); width: 100%; height: auto; object-fit: contain; }
+    .gallery-masonry img { border-radius: var(--radius-md); width: 100%; height: auto; }
+    .carousel { position: relative; overflow: hidden; border-radius: var(--radius-md); max-width: 800px; margin: 0 auto; }
+    .carousel-track { display: flex; transition: transform 0.4s ease; }
+    .carousel-slide { min-width: 100%; }
+    .carousel-slide img { width: 100%; height: auto; max-height: 500px; object-fit: contain; display: block; margin: 0 auto; }
+    .carousel-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); color: #fff; border: none; padding: 0.8rem 1rem; font-size: 1.2rem; cursor: pointer; border-radius: 4px; z-index: 2; }
+    .carousel-btn:hover { background: rgba(0,0,0,0.8); }
+    .carousel-prev { left: 0.5rem; }
+    .carousel-next { right: 0.5rem; }
+    .carousel-dots { text-align: center; padding: 0.8rem 0; }
+    .carousel-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ccc; margin: 0 4px; cursor: pointer; transition: background 0.3s; }
+    .carousel-dot.active { background: #2D5F8A; }
+    @media (max-width: 768px) {
+      .gallery-grid-3, .gallery-grid-4 { grid-template-columns: repeat(2, 1fr); }
+      .gallery-masonry { columns: 2; }
+    }
+    @media (max-width: 480px) {
+      .gallery-grid-3, .gallery-grid-4 { grid-template-columns: 1fr; }
+      .gallery-masonry { columns: 1; }
+    }
+    .cta { background: #2D5F8A; color: #fff; text-align: center; padding: 4rem 1.5rem; }
+    .cta h2 { font-family: var(--font-heading); font-size: 2rem; margin-bottom: 0.5rem; }
+    .cta p { font-size: 1.1rem; margin-bottom: 1.5rem; opacity: 0.9; }
+    .cta .btn { background: #F4A261; }
+    .faq { background: #f9f9f9; }
+    .faq h2 { font-family: var(--font-heading); font-size: 1.8rem; font-weight: 700; margin-bottom: 1.5rem; color: #2D5F8A; text-align: center; }
+    .faq-grid { display: grid; grid-template-columns: 1fr; gap: 0 2rem; }
+    @media (min-width: 769px) { .faq-grid { grid-template-columns: repeat(2, 1fr); } }
+    .faq-item { border-bottom: 1px solid #ddd; padding: 0.4rem 0; margin: 0; display: block; }
+    .faq-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .faq-item summary { font-weight: 600; cursor: pointer; font-size: 1.05rem; margin: 0; padding: 0; }
+    .faq-item p { margin: 0.2rem 0 0.2rem 0; padding: 0; color: #555; line-height: 1.4; }
+    .faq-item[open] summary { margin-bottom: 0; }
+    .testimonials { text-align: center; }
+    .testimonials h2 { font-family: var(--font-heading); font-size: 1.8rem; font-weight: 700; margin-bottom: 1.5rem; color: #2D5F8A; }
+    .testimonial-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
+    .testimonial-card { background: #f9f9f9; padding: 1.5rem; border-radius: var(--radius-md); text-align: left; box-shadow: var(--shadow-card); }
+    .testimonial-card blockquote { font-style: italic; color: #555; margin-bottom: 0.75rem; }
+    .testimonial-card cite { font-weight: 600; color: #2D5F8A; }
+    .contact { background: #f9f9f9; }
+    .contact h2 { font-family: var(--font-heading); font-size: 1.8rem; font-weight: 700; margin-bottom: 1rem; color: #2D5F8A; text-align: center; }
+    .contact form { max-width: 500px; margin: 0 auto; }
+    .contact input, .contact textarea { width: 100%; padding: 0.75rem; margin-bottom: 1rem; border: 1px solid #ddd; border-radius: var(--radius-sm); font-size: 1rem; }
+    .contact textarea { min-height: 120px; resize: vertical; }
+    .contact button { width: 100%; padding: 0.75rem; background: #F4A261; color: #fff; border: none; border-radius: var(--radius-md); font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .embed-block iframe { width: 100%; border: none; border-radius: var(--radius-md); }
+    .pricing h2 { font-family: var(--font-heading); font-size: 1.8rem; font-weight: 700; margin-bottom: 1.5rem; color: #2D5F8A; text-align: center; }
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.5rem; }
+    .pricing-card { background: #f9f9f9; padding: 1.5rem; border-radius: var(--radius-md); text-align: center; border: 1px solid #eee; box-shadow: var(--shadow-card); }
+    .pricing-card h3 { color: #2D5F8A; margin-bottom: 0.5rem; }
+    .pricing-card .price { font-size: 1.5rem; font-weight: 700; color: #F4A261; margin-bottom: 0.5rem; }
+    footer { background: #222; color: #ccc; padding: 2rem 1.5rem; text-align: center; font-size: 0.9rem; }
+    footer a { color: #F4A261; text-decoration: none; }
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 1.8rem; }
+      .section { padding: 1.5rem 1rem; }
+    }
+    .application-form .form-field { margin-bottom: 1rem; }
+    .application-form label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+    .application-form input, .application-form select, .application-form textarea { width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: var(--radius-sm); font-size: 1rem; }
+    .field-error { color: #b42318; font-size: 0.9rem; margin-top: 0.25rem; }
+    .form-field.has-error input, .form-field.has-error select, .form-field.has-error textarea, .form-meta-field.has-error input, .form-meta-field.has-error select { border: 1px solid #b42318; outline-color: #b42318; }
+    .form-field.has-error label { color: #b42318; }
+    .form-status { margin: 1rem 0; min-height: 1.2em; }
+    .form-status-error { color: #b42318; font-weight: 600; }
+    .form-status-success { color: #027a48; font-weight: 600; }
+    .application-form { --form-col-min: 16rem; }
+    .application-form h1, .application-form .form-title { font-family: var(--font-heading); color: #2D5F8A; margin-bottom: var(--spacing-element); }
+    .application-form h2 { font-family: var(--font-heading); color: #2D5F8A; margin-bottom: var(--spacing-element); }
+    .application-form .form-logo { max-height: 96px; width: auto; margin-bottom: var(--spacing-element); }
+    .application-form .form-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--form-col-min, 16rem)), 1fr)); gap: var(--spacing-element); border: none; margin-bottom: var(--spacing-section); }
+    .application-form .form-group[data-group="_meta"] { grid-template-columns: 1fr; }
+    .application-form .form-group > h2 { grid-column: 1 / -1; }
+    .application-form input:focus, .application-form select:focus, .application-form textarea:focus { outline: 2px solid #2D5F8A; outline-offset: 1px; border-color: #2D5F8A; }
+    .application-form button[type="submit"] { background: #2D5F8A; color: #fff; border: none; padding: 0.75rem 1.5rem; border-radius: var(--radius-sm); font-size: 1rem; font-weight: 600; cursor: pointer; }
+    .application-form button[type="submit"]:hover { background: #F4A261; }
+  </style>
+</head>
+<body>
+<main>
+<form class="application-form" method="post" novalidate data-slug="" data-api-base="">
+<fieldset class="form-group" data-group="personal">
+  <h2>Persoonlijk</h2>
+<div class="form-field" data-field="first_name">
+  <label for="first_name">Voornaam <span aria-hidden="true">*</span></label>
+  <input type="text" id="first_name" name="first_name" required />
+</div>
+<div class="form-field" data-field="last_name">
+  <label for="last_name">Achternaam <span aria-hidden="true">*</span></label>
+  <input type="text" id="last_name" name="last_name" required />
+</div>
+</fieldset>
+<fieldset class="form-group" data-group="contact">
+  <h2>Contact</h2>
+<div class="form-field" data-field="email">
+  <label for="email">E-mail <span aria-hidden="true">*</span></label>
+  <input type="email" id="email" name="email" required />
+</div>
+</fieldset>
+<fieldset class="form-group" data-group="membership">
+  <h2>Lidmaatschap</h2>
+<div class="form-field" data-field="membership_type">
+  <label for="membership_type">Lidmaatschap</label>
+  <select id="membership_type" name="membership_type">
+    <option value=""></option>
+    <option value="junior">Junior</option>
+    <option value="senior">Senior</option>
+  </select>
+</div>
+</fieldset>
+<fieldset class="form-group" data-group="_meta">
+<div class="form-meta-field" data-field="locale">
+  <label for="locale">Taal</label>
+  <select id="locale" name="locale">
+    <option value="nl" selected>nl</option>
+    <option value="en">en</option>
+  </select>
+</div>
+</fieldset>
+<div class="form-status" role="status" aria-live="polite"></div>
+<button type="submit">Verstuur</button>
+</form>
+<script>
+(function () {
+  "use strict";
+  var form = document.querySelector("form.application-form");
+  if (!form) { return; }
+  var status = form.querySelector(".form-status");
+
+  // EMAIL — mirrors field_formats._EMAIL_PATTERN (local@domain.tld, >=1 dot in domain).
+  var EMAIL_RE = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+  function checkEmail(value) {
+    return EMAIL_RE.test(String(value).trim())
+      ? null
+      : "Vul een geldig e-mailadres in.";
+  }
+
+  // IBAN — mirrors field_formats.check_iban: ISO 13616 structure + mod-97 (ISO 7064) checksum.
+  var IBAN_STRUCTURE = /^[A-Z]{2}[0-9]{2}[A-Z0-9]{1,30}$/;
+  function ibanMod97(compact) {
+    var rearranged = compact.slice(4) + compact.slice(0, 4);
+    var remainder = 0;
+    for (var i = 0; i < rearranged.length; i++) {
+      var ch = rearranged.charAt(i);
+      // 'A'-'Z' -> "10".."35"; '0'-'9' -> the digit itself.
+      var chunk = /[A-Z]/.test(ch) ? String(ch.charCodeAt(0) - 55) : ch;
+      for (var j = 0; j < chunk.length; j++) {
+        remainder = (remainder * 10 + (chunk.charCodeAt(j) - 48)) % 97;
+      }
+    }
+    return remainder;
+  }
+  function checkIban(value) {
+    var compact = String(value).replace(/ /g, "").toUpperCase();
+    if (!IBAN_STRUCTURE.test(compact) || ibanMod97(compact) !== 1) {
+      return "Vul een geldig IBAN in.";
+    }
+    return null;
+  }
+
+  var CHECKERS = { EMAIL: checkEmail, IBAN: checkIban };
+
+  // The synthetic field key the backend uses for the consent reject (code CONSENT_REQUIRED —
+  // `_membership_writes_application._CONSENT_FIELD_KEY`). The wire `code` is the shared
+  // `errors.validation.required` i18n leaf, so the RELIABLE runtime signal is the field KEY,
+  // not the code — a 422 entry whose `field === "consent"` is the consent-required reject and
+  // is mapped to a clear message near the consent control (`[data-field="consent"]`).
+  var CONSENT_REQUIRED = "consent";
+
+  function controls() {
+    // Every named field control inside the form (inputs / selects / textareas), skipping the
+    // honeypot and the submit button.
+    return Array.prototype.slice
+      .call(form.querySelectorAll("[name]"))
+      .filter(function (el) { return el.name && el.name !== "website"; });
+  }
+
+  function fieldWrap(el) {
+    // The per-field wrapper is `.form-field`; the submit-contract controls (consent, locale)
+    // sit in a sibling `.form-meta-field` wrapper (the consent control is
+    // `<div class="form-meta-field" data-field="consent">`). Resolve either so the inline
+    // message lands inside the control's own wrapper, next to what it refers to.
+    var wrap = el.closest ? el.closest(".form-field, .form-meta-field") : null;
+    return wrap || el.parentNode;
+  }
+
+  function wrapForField(name) {
+    // Prefer the control carrying this `name`; fall back to the `[data-field="{name}"]` wrapper
+    // (the consent control is addressed by its synthetic `data-field="consent"` key). This lets
+    // a server 422 for a synthetic key with no live `[name]` control still resolve a wrapper.
+    var el = form.querySelector('[name="' + name + '"]');
+    if (el) { return fieldWrap(el); }
+    return form.querySelector('[data-field="' + name + '"]');
+  }
+
+  // Dutch message by error CODE (the server's English text is never shown). `invalidFormat`
+  // is shared by EMAIL / IBAN / other formats, so it is disambiguated by the control's
+  // `data-format` token.
+  var MSG_REQUIRED = "Dit veld is verplicht.";
+  var MSG_DEFAULT = "Ongeldige waarde.";
+  var MSG_CONSENT = "Je moet akkoord gaan om je aanmelding te versturen.";
+  var CODE_MESSAGES = {
+    "errors.validation.required": MSG_REQUIRED,
+    "errors.validation.mustNotBeBlank": MSG_REQUIRED,
+    "errors.validation.mustBeOneOf": "Kies een geldige waarde.",
+    "errors.validation.invalidDate": "Vul een geldige datum in."
+  };
+  var FORMAT_MESSAGES = {
+    EMAIL: "Vul een geldig e-mailadres in.",
+    IBAN: "Vul een geldig IBAN in."
+  };
+  function messageFor(code, name) {
+    if (code === "errors.validation.invalidFormat") {
+      var el = form.querySelector('[name="' + name + '"]');
+      var token = el ? el.getAttribute("data-format") : null;
+      return (token && FORMAT_MESSAGES[token]) || MSG_DEFAULT;
+    }
+    return CODE_MESSAGES[code] || MSG_DEFAULT;
+  }
+
+  // A control the applicant cannot see/interact with is not validated client-side.
+  function isVisible(el) {
+    if (el.disabled || el.type === "hidden") { return false; }
+    if (el.closest && el.closest("[hidden]")) { return false; }
+    return el.offsetParent !== null;
+  }
+
+  var firstErrored = null;
+  var errorSeq = 0;
+
+  function clearErrors() {
+    Array.prototype.slice
+      .call(form.querySelectorAll(".field-error"))
+      .forEach(function (n) { n.parentNode.removeChild(n); });
+    Array.prototype.slice
+      .call(form.querySelectorAll(".has-error"))
+      .forEach(function (n) { n.classList.remove("has-error"); });
+    Array.prototype.slice
+      .call(form.querySelectorAll("[aria-invalid]"))
+      .forEach(function (n) {
+        n.removeAttribute("aria-invalid");
+        n.removeAttribute("aria-describedby");
+      });
+    firstErrored = null;
+    errorSeq = 0;
+    if (status) { status.textContent = ""; status.className = "form-status"; }
+  }
+
+  function focusFirstError() {
+    if (!firstErrored) { return; }
+    try {
+      if (firstErrored.scrollIntoView) { firstErrored.scrollIntoView({ block: "center" }); }
+      if (firstErrored.focus) { firstErrored.focus({ preventScroll: true }); }
+    } catch (e) { /* old browsers: leave the page where it is */ }
+  }
+
+  // Fallback for an error entry with no target element: append to the form-level message area
+  // (textContent only) so it is never dropped silently and several entries do not overwrite.
+  function statusAppend(message) {
+    if (!status) { return; }
+    status.textContent = status.textContent ? status.textContent + " " + message : message;
+    status.className = "form-status form-status-error";
+  }
+
+  function showFieldError(name, message) {
+    var wrap = wrapForField(name);
+    if (!wrap) { statusAppend(message); return; }
+    var msg = document.createElement("div");
+    msg.className = "field-error";
+    msg.setAttribute("role", "alert");
+    // textContent — NEVER innerHTML — so no message can inject markup.
+    msg.textContent = message;
+    wrap.appendChild(msg);
+    // Mark the wrapper and the control (accessible description -> the message element).
+    if (wrap.classList) { wrap.classList.add("has-error"); }
+    var control = form.querySelector('[name="' + name + '"]') ||
+      wrap.querySelector("input, select, textarea");
+    if (control) {
+      errorSeq += 1;
+      msg.id = "field-error-" + errorSeq;
+      control.setAttribute("aria-invalid", "true");
+      control.setAttribute("aria-describedby", msg.id);
+      if (!firstErrored) { firstErrored = control; }
+    }
+  }
+
+  function neutral(message) {
+    if (status) { status.textContent = message; status.className = "form-status form-status-error"; }
+  }
+
+  function clientValidate() {
+    var errors = {};
+    controls().forEach(function (el) {
+      if (!isVisible(el)) { return; }
+      var value = el.value == null ? "" : String(el.value);
+      if (el.hasAttribute("required") && !value.trim()) {
+        errors[el.name] = MSG_REQUIRED;
+        return;
+      }
+      if (!value.trim()) { return; }
+      var token = el.getAttribute("data-format");
+      var checker = token ? CHECKERS[token] : null;
+      if (checker) {
+        var problem = checker(value);
+        if (problem) { errors[el.name] = problem; }
+      }
+    });
+    return errors;
+  }
+
+  function collect() {
+    var fields = {};
+    controls().forEach(function (el) {
+      fields[el.name] = el.value == null ? "" : el.value;
+    });
+    // Locale: read a locale/lang selector if the page rendered one (Task 3.3); else the page lang.
+    var localeEl = form.querySelector('[name="locale"], [name="lang"]');
+    var locale = localeEl && localeEl.value
+      ? localeEl.value
+      : (document.documentElement.getAttribute("lang") || "nl");
+    // Consent: read a consent control if present (Task 3.3 wires the real one bound to the notice
+    // version); until then an empty object keeps the backend JSON shape correct.
+    var consentEl = form.querySelector('[name="consent"]');
+    var consent = {};
+    if (consentEl) {
+      consent.accepted = consentEl.type === "checkbox" ? !!consentEl.checked : !!consentEl.value;
+      var version = consentEl.getAttribute("data-notice-version");
+      if (version) { consent.version = version; }
+    }
+    // website is the honeypot — always sent empty from a real browser.
+    return {
+      fields: fields,
+      locale: locale,
+      consent: consent,
+      session_key: form.getAttribute("data-session-key") || undefined,
+      website: ""
+    };
+  }
+
+  function submitUrl() {
+    var base = (form.dataset.apiBase || "").replace(/\/+$/, "");
+    // The backend endpoint is the literal template "/public/members/{slug}/applications" with the
+    // slug read from the DOM (`form.dataset.slug`) and URL-encoded — no config value is ever
+    // interpolated into this string (XSS-safe). The template literal is kept whole so the path
+    // contract is self-evident in the artifact.
+    var path = "/public/members/{slug}/applications".replace(
+      "{slug}", encodeURIComponent(form.dataset.slug || "")
+    );
+    return base + path;
+  }
+
+  form.addEventListener("submit", function (event) {
+    // (a) the native POST to the static /apply page must NEVER fire.
+    event.preventDefault();
+    clearErrors();
+
+    // (b) client-side presence + format checks (convenience; the server 422 stays authoritative).
+    var clientErrors = clientValidate();
+    var names = Object.keys(clientErrors);
+    if (names.length) {
+      names.forEach(function (name) { showFieldError(name, clientErrors[name]); });
+      neutral("Controleer de gemarkeerde velden.");
+      focusFirstError();
+      return;
+    }
+
+    // (c)/(d) serialize the backend JSON shape and POST it as JSON.
+    var payload = collect();
+    fetch(submitUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+      .then(function (response) {
+        // (e) map the response — success / inline 422 / neutral everything-else.
+        if (response.ok) {
+          form.reset();
+          if (status) {
+            status.textContent = "Bedankt, je aanmelding is ontvangen.";
+            status.className = "form-status form-status-success";
+          }
+          return;
+        }
+        if (response.status === 422) {
+          // The 422 body is the shared per-field envelope: `{errors:[{field, code, detail}]}`
+          // (handler `_field_errors_array`). Map EACH entry inline next to its control by its
+          // `field` key; the consent reject arrives on the synthetic `CONSENT_REQUIRED` field
+          // key (`consent`) and lands near the consent control (`[data-field="consent"]`). The
+          // The message is chosen by the entry's CODE (Dutch, via messageFor), never the server
+          // text: e.g. errors.validation.required -> "Dit veld is verplicht." (textContent only).
+          return response.json().then(function (data) {
+            var arr = (data && data.errors) || [];
+            if (Array.isArray(arr) && arr.length) {
+              var sawConsent = false;
+              arr.forEach(function (entry) {
+                if (!entry || !entry.field) { return; }
+                if (entry.field === CONSENT_REQUIRED) {
+                  // Consent-required: a clear, consent-adjacent message near the checkbox.
+                  sawConsent = true;
+                  showFieldError(CONSENT_REQUIRED, MSG_CONSENT);
+                } else {
+                  showFieldError(entry.field, messageFor(entry.code, entry.field));
+                }
+              });
+              // APPEND the summary so fallback texts already shown stay visible.
+              statusAppend(
+                sawConsent
+                  ? "Ga akkoord met de voorwaarden en controleer de gemarkeerde velden."
+                  : "Controleer de gemarkeerde velden."
+              );
+              focusFirstError();
+            } else {
+              // A 422 with no usable per-field array — treat as a neutral validation nudge.
+              neutral("Controleer je gegevens en probeer het opnieuw.");
+            }
+          }).catch(function () {
+            neutral("Controleer je gegevens en probeer het opnieuw.");
+          });
+        }
+        // 404 / 5xx / any other opaque state — deliberately non-probeable, no internal detail.
+        neutral("Je aanmelding kon niet worden verwerkt. Probeer het later opnieuw.");
+      })
+      .catch(function () {
+        neutral("Je aanmelding kon niet worden verwerkt. Probeer het later opnieuw.");
+      });
+  });
+})();
+</script>
+</main>
+</body>
+</html>

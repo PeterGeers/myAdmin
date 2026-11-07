@@ -518,4 +518,13 @@ class LandingPageStyles:
     @media (max-width: 768px) {{
       .hero h1 {{ font-size: 1.8rem; }}
       .section {{ padding: 1.5rem 1rem; }}
-    }}"""
+    }}
+    .application-form .form-field {{ margin-bottom: 1rem; }}
+    .application-form label {{ display: block; font-weight: 600; margin-bottom: 0.25rem; }}
+    .application-form input, .application-form select, .application-form textarea {{ width: 100%; padding: 0.6rem; border: 1px solid #ccc; border-radius: var(--radius-sm); font-size: 1rem; }}
+    .field-error {{ color: #b42318; font-size: 0.9rem; margin-top: 0.25rem; }}
+    .form-field.has-error input, .form-field.has-error select, .form-field.has-error textarea, .form-meta-field.has-error input, .form-meta-field.has-error select {{ border: 1px solid #b42318; outline-color: #b42318; }}
+    .form-field.has-error label {{ color: #b42318; }}
+    .form-status {{ margin: 1rem 0; min-height: 1.2em; }}
+    .form-status-error {{ color: #b42318; font-weight: 600; }}
+    .form-status-success {{ color: #027a48; font-weight: 600; }}"""
