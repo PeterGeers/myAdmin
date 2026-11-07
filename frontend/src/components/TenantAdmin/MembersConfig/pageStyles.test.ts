@@ -30,17 +30,17 @@ const RADIUS_VALUES = ['sharp', 'rounded', 'pill'] as const;
 const SHADOW_VALUES = ['none', 'subtle', 'medium', 'dramatic'] as const;
 
 describe('renderPageStyles — supported attributes + defaults (Req 3.2, 3.3)', () => {
-  it('supports exactly the TEN attributes the Python generator supports (Req 3.2 + bugfix 3.4)', () => {
-    // The original seven PLUS the three the bugfix `bugfix-published-form-styling` added as a
-    // documented extension (`columns` / `logo` / `header_title`, bugfix 3.4) — mirrors the Python
-    // `SUPPORTED_ATTRIBUTES` frozenset exactly.
+  it('supports exactly the NINE attributes the Python generator supports (Req 3.2 + bugfix 3.4)', () => {
+    // The original seven PLUS the two the bugfix `bugfix-published-form-styling` added as a
+    // documented extension (`logo` / `header_title`, bugfix 3.4) — mirrors the Python
+    // `SUPPORTED_ATTRIBUTES` frozenset exactly. (The earlier `columns` attribute was later
+    // removed — the form grid is now fully width-driven, so a column count has no effect.)
     expect([...SUPPORTED_ATTRIBUTES].sort()).toEqual(
       [
         'base_spacing',
         'border_radius_global',
         'color_accent',
         'color_primary',
-        'columns',
         'font_body',
         'font_heading',
         'header_title',
@@ -59,23 +59,25 @@ describe('renderPageStyles — supported attributes + defaults (Req 3.2, 3.3)', 
       base_spacing: 'normal',
       border_radius_global: 'rounded',
       shadow_style: 'subtle',
-      // bugfix bugfix-published-form-styling: the three new attributes default to the sensible
-      // multi-column count + empty logo/title (= absent → no logo / no heading), mirroring Python.
-      columns: '2',
+      // bugfix bugfix-published-form-styling: the two new attributes default to empty logo/title
+      // (= absent → no logo / no heading), mirroring Python. (The earlier `columns` attribute was
+      // removed — the form grid is now fully width-driven, so there is no column-count default.)
       logo: '',
       header_title: '',
     });
   });
 
-  it('caps the width-driven grid at the `columns` attribute (bugfix 2.2)', () => {
-    // The grid is WIDTH-DRIVEN: fluid auto-fit tracks (16rem min) that reflow by width, capped at
-    // the authored `columns` via a max-width of N x 20rem. The default caps at 2; columns changes it.
+  it('emits a width-driven auto-fit field-group grid (bugfix 2.2)', () => {
+    // The grid is fully WIDTH-DRIVEN: `repeat(auto-fit, minmax(min(100%, 16rem), 1fr))` fits as
+    // many ~16rem columns as the container allows and reflows continuously down to one column on
+    // a narrow screen — no authored column count, no breakpoint, no max-width cap.
     const def = renderPageStyles({}).pageCss;
-    expect(def).toContain('grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr))');
-    expect(def).toContain('max-width: calc(2 * 20rem');
-    expect(renderPageStyles({ columns: '3' }).pageCss).toContain('max-width: calc(3 * 20rem');
-    // Out-of-range clamps to the sane 1..4 ceiling (defensive — authoritative reject at the edge).
-    expect(renderPageStyles({ columns: '9' }).pageCss).toContain('max-width: calc(4 * 20rem');
+    expect(def).toContain(
+      'grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--form-col-min, 16rem)), 1fr))',
+    );
+    expect(def).toContain('.application-form { --form-col-min: 16rem; }');
+    // A legacy stored `columns` is tolerated (stripped/ignored) and does not change the grid.
+    expect(renderPageStyles({ columns: '3' } as Record<string, string>).pageCss).toBe(def);
   });
 
   it('applies the brand colours to the form OWN elements via the application-form block (bugfix 2.1)', () => {

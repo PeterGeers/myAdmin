@@ -443,31 +443,33 @@ def test_render_with_no_branding_uses_defaults_without_failing():
 # ══════════════════════════════════════════════════════════════════════════════════════
 
 
-# The three new values-only attributes the bugfix adds (the documented extension of the seven).
-_NEW_THREE = frozenset({"columns", "logo", "header_title"})
-# The full post-fix supported set — the seven original attributes plus the three new ones.
-_TEN = _SEVEN | _NEW_THREE
+# The two new values-only attributes the bugfix adds (the documented extension of the seven).
+# (The earlier ``columns`` attribute was later removed — the form grid is now fully width-driven.)
+_NEW_TWO = frozenset({"logo", "header_title"})
+# The full post-fix supported set — the seven original attributes plus the two new ones.
+_NINE = _SEVEN | _NEW_TWO
 
 
 def test_seven_attributes_still_supported_today():
-    """The seven original attributes stay supported, and the set is now EXACTLY the ten.
+    """The seven original attributes stay supported, and the set is now EXACTLY the nine.
 
     The seven original attributes MUST remain supported (the preservation intent — this is the
-    subsequence/subset guard that must never weaken). The bugfix extends the set to ten via a
-    deliberate, documented extension (bugfix 3.4): `columns` / `logo` / `header_title`. This
-    baseline assertion — the ONE place the deliberate extension changes the exact-equality
-    baseline — is aligned to the new ten-set (change-with-tests for a deliberate behavior change);
-    the preservation intent (the seven remain a subset) is kept, not weakened.
+    subsequence/subset guard that must never weaken). The bugfix extends the set via a
+    deliberate, documented extension (bugfix 3.4): `logo` / `header_title` (the earlier `columns`
+    attribute was later removed — the form grid is now fully width-driven). This baseline
+    assertion — the ONE place the deliberate extension changes the exact-equality baseline — is
+    aligned to the new nine-set (change-with-tests for a deliberate behavior change); the
+    preservation intent (the seven remain a subset) is kept, not weakened.
 
     Validates (bugfix): Requirement 3.4
     """
     assert _SEVEN <= set(SUPPORTED_ATTRIBUTES), (
         "SEVEN_ATTRIBUTE_LAYER2_UNCHANGED (3.4): the seven existing attributes must stay supported."
     )
-    # Post-fix the set is EXACTLY the ten — the original seven plus the documented extension.
-    assert set(SUPPORTED_ATTRIBUTES) == _TEN, (
-        "SUPPORTED_ATTRIBUTES must be exactly the ten: the original seven plus the deliberate, "
-        "documented bugfix extension (columns / logo / header_title). Anything else is drift."
+    # Post-fix the set is EXACTLY the nine — the original seven plus the documented extension.
+    assert set(SUPPORTED_ATTRIBUTES) == _NINE, (
+        "SUPPORTED_ATTRIBUTES must be exactly the nine: the original seven plus the deliberate, "
+        "documented bugfix extension (logo / header_title). Anything else is drift."
     )
 
 

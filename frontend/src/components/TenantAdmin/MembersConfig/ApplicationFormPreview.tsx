@@ -56,27 +56,7 @@ import { ApplicationFormRenderer } from '../../public/application/ApplicationFor
 import type { FieldConfig } from '../../../types/members';
 import type { MembersConfigValue } from '../../../types/membersConfig';
 import { buildPreviewConfig } from './applicationPreviewFilter';
-import { DEFAULTS, renderPageStyles, type LookAndFeelSettings } from './pageStyles';
-
-/**
- * Resolve the application-form grid column count the preview lays its field groups out in, from the
- * working `columns` look-and-feel value — mirroring the Python/TS Layer-2 clamp so the preview's
- * multi-column layout matches what publish bakes (bugfix `bugfix-published-form-styling` Req 2.6).
- * An unset/absent value resolves to the SAM-owned default; a non-numeric or out-of-range value is
- * clamped to the sane 1..4 range (the authoritative out-of-range rejection lives at the
- * edge/service plane).
- */
-const MIN_FORM_COLUMNS = 1;
-const MAX_FORM_COLUMNS = 4;
-function resolveColumns(lookAndFeel: LookAndFeelSettings | undefined): number {
-  const raw = lookAndFeel?.columns;
-  const value = raw === undefined || raw === null ? DEFAULTS.columns : String(raw);
-  let n = Number.parseInt(value, 10);
-  if (Number.isNaN(n)) {
-    n = Number.parseInt(DEFAULTS.columns, 10);
-  }
-  return Math.max(MIN_FORM_COLUMNS, Math.min(n, MAX_FORM_COLUMNS));
-}
+import { renderPageStyles, type LookAndFeelSettings } from './pageStyles';
 
 /**
  * Resolve a values-only text attribute (`logo` / `header_title`) from the working look-and-feel —
@@ -149,7 +129,6 @@ export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
   // edit, no round-trip — exactly like the schema + styling above.
   const logo = useMemo(() => resolveText(lookAndFeel, 'logo'), [lookAndFeel]);
   const headerTitle = useMemo(() => resolveText(lookAndFeel, 'header_title'), [lookAndFeel]);
-  const columns = useMemo(() => resolveColumns(lookAndFeel), [lookAndFeel]);
 
   const fieldCount = schema.fields.length;
 
@@ -195,7 +174,6 @@ export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
             ...pageStyles.cssVariableMap,
           }}
           data-lookandfeel-vars={pageStyles.cssVariables}
-          data-lookandfeel-columns={columns}
         >
           {/* bugfix Task 12: the tenant logo (Req 2.3/2.6) — rendered at the top of the form body
               when a logo reference is supplied, exactly as the published form renders it. An
@@ -232,7 +210,6 @@ export const ApplicationFormPreview: React.FC<ApplicationFormPreviewProps> = ({
             values={{}}
             onChange={() => { }}
             idPrefix="application-preview"
-            columns={columns}
           />
         </Box>
       )}

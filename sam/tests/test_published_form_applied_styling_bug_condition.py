@@ -224,13 +224,12 @@ def _has_collapsing_multi_column_grid(html):
             continue
         if not any(sel in selector for sel in form_container_selectors):
             continue
-        # Width-driven capped auto-fit: multi-column-CAPABLE iff the calc() cap denominator is >1,
-        # and it INHERENTLY reflows to one column (auto-fit + a rem/px floor) with no breakpoint.
-        cap = re.search(r"max-width:\s*calc\(\s*(\d+)\s*\*\s*20rem", body)
-        if "auto-fit" in body and re.search(r"minmax\(\s*\d+(?:\.\d+)?(?:rem|px)", body):
+        # Width-driven auto-fit: a `repeat(auto-fit, minmax(...))` grid is BOTH multi-column
+        # CAPABLE (it fits as many tracks as the container width allows — more on a wide screen)
+        # AND INHERENTLY reflows to one column on a narrow container (no breakpoint needed).
+        if "auto-fit" in body and "minmax(" in body:
+            has_multi_col = True
             has_collapse = True
-            if cap and int(cap.group(1)) > 1:
-                has_multi_col = True
         # Legacy fixed repeat(N>1, ...) multi-column.
         repeat_match = re.search(r"repeat\(\s*(\d+)", body)
         if repeat_match and int(repeat_match.group(1)) > 1:
@@ -291,7 +290,7 @@ _HEADER_TITLES = [
     "Aanmelden ledenadministratie",
     "Inschrijfformulier 2026",
 ]
-_COLUMNS = [2, 3]
+# (The earlier ``columns`` attribute was removed — the form grid is now fully width-driven.)
 
 
 @pytest.fixture(autouse=True)
@@ -305,15 +304,14 @@ def _set_public_api_base_env(monkeypatch):
     color_primary=st.sampled_from(_DISTINCT_PRIMARIES),
     logo=st.sampled_from(_LOGO_REFS),
     header_title=st.sampled_from(_HEADER_TITLES),
-    columns=st.sampled_from(_COLUMNS),
 )
 def test_published_form_does_not_apply_look_and_feel_to_its_own_elements(
-    color_primary, logo, header_title, columns
+    color_primary, logo, header_title
 ):
     """Property 1 (Bug Condition): for a tenant whose resolved look-and-feel carries distinct
-    values (a vivid brand colour, a logo, a header title, a multi-column choice), the published
-    artifact SHALL apply that styling to the form's OWN elements — brand colour on the form
-    heading/submit/focus, a collapsing multi-column grid, the logo, and a visible heading.
+    values (a vivid brand colour, a logo, a header title), the published artifact SHALL apply
+    that styling to the form's OWN elements — brand colour on the form heading/submit/focus, a
+    width-driven collapsing auto-fit grid, the logo, and a visible heading.
 
     EXPECTED ON UNFIXED CODE: FAILS. The current artifact themes only landing-page classes,
     lays the form out single-column at all widths, and renders neither logo nor heading. Each
@@ -323,17 +321,16 @@ def test_published_form_does_not_apply_look_and_feel_to_its_own_elements(
     """
     assert color_primary.lower() != _DEFAULT_COLOR_PRIMARY.lower()
 
-    # All four authored values are now fed to the publish path. After Phase 2 (Task 8 made
-    # `columns` / `logo` / `header_title` SUPPORTED attributes end-to-end; Task 6 renders the
-    # logo + heading; Task 10 validates them), the publish/Layer-2 path CAN carry all four, so
-    # the test exercises the FIXED end-to-end contract: the brand colour themes the form's own
-    # elements, `columns` drives the collapsing grid, and the logo + header title are rendered.
+    # All authored values are now fed to the publish path. After Phase 2 (Task 8 made
+    # `logo` / `header_title` SUPPORTED attributes end-to-end; Task 6 renders the logo +
+    # heading; Task 10 validates them), the publish/Layer-2 path CAN carry them, so the test
+    # exercises the FIXED end-to-end contract: the brand colour themes the form's own elements,
+    # the width-driven grid collapses on a narrow screen, and the logo + header title render.
     html = _publish(
         {
             "color_primary": color_primary,
             "logo": logo,
             "header_title": header_title,
-            "columns": columns,
         }
     )
 
@@ -345,8 +342,8 @@ def test_published_form_does_not_apply_look_and_feel_to_its_own_elements(
 
     # (b) multi-column grid collapsing on small screens — Req 1.2/2.2.
     assert _has_collapsing_multi_column_grid(html), (
-        f"no multi-column collapsing grid for the form groups (columns={columns}); "
-        f"the form stacks single-column at every width (bug 1.2)"
+        "no width-driven collapsing grid for the form groups; "
+        "the form stacks single-column at every width (bug 1.2)"
     )
 
     # (c) the tenant logo <img> is rendered — Req 1.3/2.3.
