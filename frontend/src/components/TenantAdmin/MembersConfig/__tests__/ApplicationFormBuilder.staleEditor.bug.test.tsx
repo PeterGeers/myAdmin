@@ -124,12 +124,17 @@ async function renderBuilder() {
   return utils;
 }
 
-describe('ApplicationFormBuilder — R-B stale editor (reflects authored value with no reload, real post-fix PUT contract)', () => {
+describe('ApplicationFormBuilder — R-B stale editor (reflects the authored value after the bottom Save persists + reloads)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockToast.mockClear();
-    // The slice starts empty, so `shadow_style` seeds to its Layer-2 default ('subtle').
-    mockGetLookAndFeel.mockResolvedValue({ settings: {} });
+    // The slice starts empty, so `shadow_style` seeds to its Layer-2 default ('subtle') on the
+    // load-time GET. After the bottom Save persists the Change-Op, the builder reloads (`load()`),
+    // and THAT reload GET resolves the now-stored value ('dramatic') — so the editor reflects the
+    // authored value from the authoritative reloaded state (no stale snap-back).
+    mockGetLookAndFeel
+      .mockResolvedValueOnce({ settings: {} })
+      .mockResolvedValue({ settings: { shadow_style: 'dramatic' } });
     // THE REAL POST-FIX PUT CONTRACT (Task 14.1 / DD-D1): `write_look_and_feel` folds the
     // re-resolved tenant values into the response under `settings`, ALONGSIDE the Change-Op
     // write-result fields — `{ version, idempotent_replay, settings: { <resolved> } }`. GET and PUT
@@ -143,7 +148,7 @@ describe('ApplicationFormBuilder — R-B stale editor (reflects authored value w
     });
   });
 
-  it('after a successful set, the editor shows the AUTHORED value with NO reload', async () => {
+  it('after the bottom Save persists, the editor reflects the AUTHORED value from the reloaded state', async () => {
     await renderBuilder();
 
     // Baseline: one seed GET on load; the control shows the default 'subtle'.
@@ -152,28 +157,30 @@ describe('ApplicationFormBuilder — R-B stale editor (reflects authored value w
       screen.getByTestId('lookandfeel-shadow_style') as HTMLSelectElement;
     expect(control().value).toBe('subtle');
 
-    // Author a distinct value. The editor lifts it (onChange) AND persists it (onSave →
-    // setLookAndFeelSetting). The PUT resolves with the REAL write-result shape (no `settings`).
+    // Author a distinct value. Per the serverless-friendly editor model (one bottom Save, not a
+    // persist-per-change), the change lifts the value in-memory for the live preview but does NOT
+    // persist yet — so no network write fires on change.
     fireEvent.change(control(), { target: { value: 'dramatic' } });
+    expect(control().value).toBe('dramatic');
+    expect(mockSetLookAndFeel).not.toHaveBeenCalled();
 
-    // The persist is issued with the values-only payload…
+    // The single bottom Save persists the authored value. The PUT resolves with the REAL post-fix
+    // shape (write-result fields PLUS the resolved `settings`).
+    fireEvent.click(screen.getByTestId('application-form-builder-save'));
     await waitFor(() => expect(mockSetLookAndFeel).toHaveBeenCalledTimes(1));
     expect(mockSetLookAndFeel).toHaveBeenCalledWith('shadow_style', 'dramatic');
 
-    // …and after the save resolves, the control MUST still show the authored value — WITHOUT a
-    // reload (no second getLookAndFeelSettings GET).
-    //
-    // POST-FIX (Task 14.1 / DD-D1): handleSetLookAndFeel runs `setLookAndFeel(res.settings ?? {})`;
-    // the real edge now returns the resolved `{settings}` (here `{ shadow_style: 'dramatic' }`), so
-    // the re-seed shows the authored value and the control stays 'dramatic'. On the UNFIXED edge
-    // (no `settings`) the `?? {}` blanked the map and this reverted to the default 'subtle' — that
-    // is the R-B bug this test reproduced; it now PASSES against the real post-fix contract.
+    // …and after the save resolves, the control MUST show the authored value. The serverless
+    // one-bottom-Save flow persists the Change-Op and then reloads the authoritative state
+    // (`load()`), whose GET now resolves the stored `{ shadow_style: 'dramatic' }` — so the editor
+    // reflects the authored value from the true post-save state (never a stale default snap-back,
+    // the R-B symptom). The optimistic in-memory edit held 'dramatic' through the save; the reload
+    // confirms it against the server's resolved slice.
     await waitFor(() => {
       expect(control().value).toBe('dramatic');
     });
 
-    // The reflection must be purely from the save response / optimistic edit — NOT from a fresh
-    // data reload. No additional GET beyond the single on-load seed.
-    expect(mockGetLookAndFeel).toHaveBeenCalledTimes(1);
+    // The reload is the authoritative confirm: the load-time seed GET plus one post-save reload GET.
+    expect(mockGetLookAndFeel).toHaveBeenCalledTimes(2);
   });
 });

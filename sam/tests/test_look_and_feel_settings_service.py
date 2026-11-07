@@ -300,12 +300,12 @@ def test_permitted_enum_sets_match_generator_lookup_maps():
 def test_every_supported_attribute_has_a_permitted_value_rule():
     # Every attribute the SERVICE validates must be accepted for SOME value (so a valid author
     # never trips the defensive "no permitted-value rule" guard) — and, after the bugfix
-    # ``bugfix-published-form-styling`` Task 10, the SERVICE validates EXACTLY the ten the
-    # GENERATOR's ``SUPPORTED_ATTRIBUTES`` supports: the original seven plus ``columns`` / ``logo``
-    # / ``header_title`` (each with its permitted-value rule added on the service plane).
+    # ``bugfix-published-form-styling`` Task 10, the SERVICE validates EXACTLY the nine the
+    # GENERATOR's ``SUPPORTED_ATTRIBUTES`` supports: the original seven plus ``logo`` /
+    # ``header_title`` (the earlier ``columns`` attribute was removed — the form grid is now
+    # fully width-driven, so a column count is no longer a settable attribute).
     from sam.members.domain.look_and_feel_settings_service import (
         _COLOUR_ATTRIBUTES,
-        _COLUMNS_ATTRIBUTE,
         _FONT_ATTRIBUTES,
         _HEADER_TITLE_ATTRIBUTE,
         _LOGO_ATTRIBUTE,
@@ -316,7 +316,7 @@ def test_every_supported_attribute_has_a_permitted_value_rule():
         set(_PERMITTED_VALUES)
         | set(_COLOUR_ATTRIBUTES)
         | set(_FONT_ATTRIBUTES)
-        | {_COLUMNS_ATTRIBUTE, _LOGO_ATTRIBUTE, _HEADER_TITLE_ATTRIBUTE}
+        | {_LOGO_ATTRIBUTE, _HEADER_TITLE_ATTRIBUTE}
     )
     # Task 10: the service now validates the FULL generator set — no attribute is left without a
     # permitted-value rule (no gap that would trip the defensive guard for a valid author).
@@ -332,7 +332,6 @@ def test_every_supported_attribute_has_a_permitted_value_rule():
         "border_radius_global": "rounded",
         "shadow_style": "subtle",
         # The bugfix extension (Task 10) — one valid value per new attribute.
-        "columns": 3,
         "logo": "https://assets.example.org/logo.png",
         "header_title": "Membership application",
     }
@@ -342,15 +341,12 @@ def test_every_supported_attribute_has_a_permitted_value_rule():
     assert len(writer.calls) == len(service_validated)
 
 
-# ── set_setting — the THREE NEW attributes (bugfix Task 10): valid values accepted ──────
+# ── set_setting — the TWO NEW attributes (bugfix Task 10): valid values accepted ──────
 
 
 @pytest.mark.parametrize(
     "attribute,value",
     [
-        ("columns", 1),
-        ("columns", 4),
-        ("columns", "2"),  # integer-valued string (the edge may carry it as text)
         ("logo", "https://assets.example.org/brand/logo.png"),
         ("logo", "/assets/logo.svg"),  # site-relative reference
         ("header_title", "Apply to join"),
@@ -367,19 +363,12 @@ def test_set_setting_new_attribute_valid_value_issues_single_set_op(attribute, v
     assert writer.last["value"] == value
 
 
-# ── set_setting — the THREE NEW attributes: out-of-range rejected, stored values unchanged ──
+# ── set_setting — the TWO NEW attributes: out-of-range rejected, stored values unchanged ──
 
 
 @pytest.mark.parametrize(
     "attribute,bad_value",
     [
-        # columns — a BOUNDED integer; out-of-range / non-integer / bool rejected.
-        ("columns", 0),  # below floor
-        ("columns", 5),  # above ceiling
-        ("columns", -1),  # negative
-        ("columns", 2.5),  # non-integer
-        ("columns", "two"),  # non-numeric string
-        ("columns", True),  # bool is an int subclass but not a real column count
         # logo — a well-formed URL/asset reference; malformed / injection-shaped rejected.
         ("logo", "javascript:alert(1)"),
         ("logo", "data:image/png;base64,AAAA"),
@@ -409,12 +398,12 @@ def test_set_setting_new_attribute_invalid_value_rejected_no_write(attribute, ba
 
 def test_new_attribute_invalid_value_leaves_resolved_read_unchanged():
     # A rejected set of a NEW attribute does not perturb what a subsequent get resolves.
-    stored = {"columns": "2", "header_title": "Keep me", "color_primary": "#2D5F8A"}
+    stored = {"logo": "https://assets.example.org/logo.png", "header_title": "Keep me", "color_primary": "#2D5F8A"}
     reader = FakeReader({_TENANT: stored})
     svc, _reader, writer = _service(reader=reader)
 
     with pytest.raises(LookAndFeelValidationError):
-        svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, "columns", 99)
+        svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, "logo", "javascript:alert(1)")
 
     assert writer.calls == []
     assert svc.get_settings(_TENANT) == stored
@@ -432,14 +421,3 @@ def test_set_setting_new_attribute_none_value_clears_via_remove_op():
         "client_op_id": None,
     }
 
-
-def test_columns_permitted_bound_matches_generator_grid_clamp():
-    # Parity: the service's accepted columns ceiling matches the Layer-2 generator's grid clamp, so
-    # a value the service accepts is a value the generator renders meaningfully (bugfix DD-C1).
-    from sam.members.domain.look_and_feel_settings_service import (
-        _MAX_COLUMNS,
-        _MIN_COLUMNS,
-    )
-
-    assert _MIN_COLUMNS == 1
-    assert _MAX_COLUMNS == page_styles._MAX_FORM_COLUMNS

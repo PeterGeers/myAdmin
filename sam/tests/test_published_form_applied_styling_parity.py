@@ -25,9 +25,10 @@ The spec-15 parity fixture (``page_styles_parity.json`` /
 byte-for-byte while the published FORM is still unstyled, because the string themed only
 landing-page classes the form markup never used. So this test asserts the APPLIED RESULT on
 the published artifact — the brand colour reaches the form's OWN elements
-(heading/submit/focus), the ``columns`` value produces a multi-column grid that collapses on
-small screens, and the logo ``<img>`` + visible heading are rendered — NEVER merely that a
-generator emits a string.
+(heading/submit/focus), the field-group grid is a width-driven auto-fit grid that collapses to
+one column on small screens, and the logo ``<img>`` + visible heading are rendered — NEVER
+merely that a generator emits a string. (The earlier ``columns`` attribute was removed: the
+grid is fully width-driven, so there is no authored track count to assert.)
 
 Applied-appearance predicates
 -----------------------------
@@ -197,47 +198,15 @@ def _applies_brand_colour_to_form(html, color_primary):
     return False
 
 
-def _multi_column_grid_track_count(html):
-    """Return the largest multi-column ``grid-template-columns`` track count declared for the
-    form's own group/field container (>1), or 0 if none — so the parity test can compare the
-    APPLIED column count the published path produced against the shared fixture's ``columns``."""
-    norm = _normalize(html)
-    form_container_selectors = (
-        ".application-form .form-group",
-        ".application-form .form-field",
-        ".application-form .form-grid",
-        ".application-form main",
-        ".application-form",
-    )
-    best = 0
-    for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", norm):
-        selector, body = match.group(1), match.group(2)
-        if "grid-template-columns" not in body:
-            continue
-        if not any(sel in selector for sel in form_container_selectors):
-            continue
-        # Width-driven capped auto-fit: the COLUMN CAP is the calc() denominator in
-        # minmax(max(16rem, calc((100% - ((N - 1) * gap)) / N)), 1fr).
-        cap = re.search(r"max-width:\s*calc\(\s*(\d+)\s*\*\s*20rem", body)
-        if cap:
-            best = max(best, int(cap.group(1)))
-            continue
-        # Legacy fixed repeat(N, ...) literal.
-        repeat_match = re.search(r"repeat\(\s*(\d+)", body)
-        if repeat_match and int(repeat_match.group(1)) > 1:
-            best = max(best, int(repeat_match.group(1)))
-    return best
-
-
 def _collapses_on_small_screens(html):
     """The form grid reflows to a single column on narrow screens.
 
-    Width-driven: ``repeat(auto-fit, minmax(max(16rem, calc(...)), 1fr))`` inherently collapses to
+    Width-driven: ``repeat(auto-fit, minmax(min(100%, 16rem), 1fr))`` inherently collapses to
     one column once the container is narrower than the 16rem floor — no media query. (A legacy
     ``@media ... 1fr`` collapse also counts.)
     """
     norm = _normalize(html)
-    if re.search(r"auto-fit,\s*minmax\(\s*\d+(?:\.\d+)?(?:rem|px)", norm):
+    if re.search(r"auto-fit,\s*minmax\(", norm):
         return True
     return bool(
         re.search(
@@ -291,17 +260,14 @@ def test_the_two_fixture_copies_are_byte_identical():
 
 def test_fixture_cases_carry_distinct_observable_values():
     """Guard the fixture is meaningful: every case supplies a brand colour that DIFFERS from the
-    SAM default (so 'colour applied' is observable), a multi-column ``columns`` (>1), a logo
-    reference, and a non-empty header_title."""
+    SAM default (so 'colour applied' is observable), a logo reference, and a non-empty
+    header_title."""
     assert CASES, "the shared fixture must carry at least one case"
     for case in CASES:
         values = case["input"]
         assert values["color_primary"].lower() != _DEFAULT_PRIMARY.lower(), (
             f"case {case['name']!r}: color_primary must differ from the SAM default so "
             f"'colour applied' is observable"
-        )
-        assert int(values["columns"]) > 1, (
-            f"case {case['name']!r}: columns must be multi-column (>1) so the grid is observable"
         )
         assert values["logo"].strip(), f"case {case['name']!r}: logo must be non-empty"
         assert values["header_title"].strip(), (
@@ -316,12 +282,11 @@ def test_fixture_cases_carry_distinct_observable_values():
 def test_published_artifact_applies_the_shared_fixture_attributes(case):
     """For the SAME resolved attributes the preview test uses, the PUBLISHED artifact applies
     the styling to the form's OWN logical elements: the brand colour on the form
-    heading/submit/focus, a multi-column grid matching the fixture ``columns`` that collapses
+    heading/submit/focus, a width-driven auto-fit field-group grid that collapses to one column
     on small screens, the logo ``<img>``, and a visible heading. Asserts the APPLIED result on
     this path — never merely that a generator emits a string (Req 2.6 / spec-15 Req 7.1)."""
     values = case["input"]
     color_primary = values["color_primary"]
-    columns = int(values["columns"])
     logo = values["logo"]
     header_title = values["header_title"]
 
@@ -333,15 +298,11 @@ def test_published_artifact_applies_the_shared_fixture_attributes(case):
         f"published form's own elements (heading/submit/focus)"
     )
 
-    # (b) a multi-column grid matching the fixture `columns`, collapsing on small screens.
-    applied_columns = _multi_column_grid_track_count(html)
-    assert applied_columns == columns, (
-        f"case {case['name']!r}: published form grid applies {applied_columns} columns, "
-        f"expected the fixture's {columns}"
-    )
+    # (b) a width-driven auto-fit field-group grid that collapses to one column on narrow
+    # screens (no authored track count — the grid reflows purely by container width).
     assert _collapses_on_small_screens(html), (
-        f"case {case['name']!r}: published form grid does not collapse to a single column on "
-        f"small screens"
+        f"case {case['name']!r}: published form grid is not a width-driven auto-fit grid that "
+        f"collapses to a single column on small screens"
     )
 
     # (c) the tenant logo <img> is rendered.

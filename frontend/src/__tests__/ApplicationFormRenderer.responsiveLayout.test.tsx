@@ -4,7 +4,8 @@
  *
  * Task 4.1 made each field's `FormControl` `display={{ base: 'block', md: 'flex' }}` (label above
  * the control on a narrow viewport, beside it on `md`+). Task 4.2 replaced the per-group `VStack`
- * with a responsive `SimpleGrid columns={{ base: 1, md: 2 }}` (one column on `base`, ≥2 on `md`),
+ * with a grid; the bugfix `bugfix-published-form-styling` later made it a plain `Box display="grid"`
+ * with a WIDTH-DRIVEN `gridTemplateColumns` auto-fit idiom (no fixed count, no breakpoint),
  * with an intrinsically-wide field (`isWideField` — textarea/text_area/long_text/multiline)
  * getting a full-row `gridColumn={{ md: '1 / -1' }}` span. This file pins the task-4.3 facts:
  *   - the responsive single-column-at-`base` / ≥2-columns-at-`md` layout is driven by Chakra's
@@ -68,13 +69,28 @@ vi.mock('@chakra-ui/react', async () => {
     );
   };
 
+  // The renderer lays each group out with a plain `Box display="grid"` (NOT SimpleGrid) so nothing
+  // overrides the width-driven `gridTemplateColumns`. Capture the group-grid Box props here (the
+  // central mock would otherwise strip the style props before they reach the DOM).
+  const Box = ({ children, ...rest }: any) => {
+    const testid = rest['data-testid'];
+    if (typeof testid === 'string' && testid.startsWith('group-grid-')) {
+      capturedGrids[testid] = { ...rest };
+    }
+    return (
+      <div data-testid={testid} data-group={rest['data-group']}>
+        {children}
+      </div>
+    );
+  };
+
   const FormControl = ({ children, isRequired, isInvalid, gridColumn, display, ...rest }: any) => {
     capturedControls.push({ isRequired, isInvalid, gridColumn, display, ...rest });
     // Render a real DOM wrapper so the inner control + label association survives.
     return <div data-formcontrol="true">{children}</div>;
   };
 
-  return { ...mocks, SimpleGrid, FormControl };
+  return { ...mocks, SimpleGrid, FormControl, Box };
 });
 
 /* ------------------------------------------------------------------------ */
@@ -152,27 +168,29 @@ describe('ApplicationFormRenderer — responsive multi-column layout (spec 13 ta
     capturedControls.length = 0;
   });
 
-  it('drives single-column-at-base / >=2-columns-at-md via Chakra responsive `columns` (R4.3)', () => {
+  it('lays each group out with a WIDTH-DRIVEN auto-fit grid — no fixed count, no breakpoint (R4.3)', () => {
     render(<Harness />);
 
-    // Every group's grid is WIDTH-DRIVEN (not a fixed responsive columns object): it lays out as
-    // many ~16rem columns as fit and reflows down to 1 on narrow screens, capped at the authored
-    // `columns` (default 2) via a max-width. The grid carries the fluid `gridTemplateColumns`
-    // auto-fit idiom in `sx` plus a `data-columns-cap` recording the cap — not a `columns` prop.
+    // Every group's grid is a plain `Box display="grid"` with a WIDTH-DRIVEN `gridTemplateColumns`:
+    // it fits as many ~16rem columns as the container allows and reflows continuously down to 1 on
+    // a narrow screen — no fixed `columns` object, no `max-width` cap, no breakpoint, no viewport
+    // sniffing. The `min(100%, 16rem)` floor guarantees a single field never overflows a narrow
+    // container (so it genuinely collapses to one column).
     const membershipGrid = capturedGrids['group-grid-membership'];
     const personalGrid = capturedGrids['group-grid-personal'];
     expect(membershipGrid).toBeTruthy();
     expect(personalGrid).toBeTruthy();
 
     for (const grid of [membershipGrid, personalGrid]) {
-      // No fixed responsive columns object any more.
+      // It is a grid.
+      expect(grid.display).toBe('grid');
+      // No fixed responsive columns object, and no column cap.
       expect(grid.columns).toBeUndefined();
-      // Fluid auto-fit tracks + a max-width cap, both in the sx override.
-      const sx = grid.sx as Record<string, unknown>;
-      expect(String(sx.gridTemplateColumns)).toContain('repeat(auto-fit, minmax(16rem, 1fr))');
-      expect(String(sx.maxWidth)).toContain('* 20rem');
-      // The cap defaults to 2 when no `columns` prop is supplied (prior default preserved).
-      expect(grid['data-columns-cap']).toBe(2);
+      expect(grid['data-columns-cap']).toBeUndefined();
+      // The width-driven auto-fit idiom with the min(100%, 16rem) floor.
+      expect(String(grid.gridTemplateColumns)).toBe(
+        'repeat(auto-fit, minmax(min(100%, var(--form-col-min, 16rem)), 1fr))',
+      );
     }
   });
 

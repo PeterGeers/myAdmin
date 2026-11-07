@@ -86,15 +86,14 @@ interface Props {
 }
 
 /**
- * The three NEW look-and-feel attributes the bugfix `bugfix-published-form-styling` adds
- * (`logo`/`header_title`/`columns`; bugfix 3.4 / design §C). They are authored alongside the
- * seven but ride a SEPARATE working map because the preview path (`renderPageStyles`) renders
- * only the seven today.
+ * The two NEW look-and-feel attributes the bugfix `bugfix-published-form-styling` adds
+ * (`logo`/`header_title`). They are authored through dedicated editor controls and ride a
+ * separate working map. (The earlier `columns` attribute was removed — the form grid is now a
+ * fully width-driven responsive auto-fit grid, so a column count has no effect.)
  */
 const EXTRA_LOOKANDFEEL_ATTRIBUTES: readonly ExtraAttribute[] = [
   'logo',
   'header_title',
-  'columns',
 ];
 
 /**
@@ -110,6 +109,9 @@ function splitLookAndFeel(settings: LookAndFeelSettingsValues): {
   const seven: LookAndFeelSettingsValues = {};
   const extra: ExtraLookAndFeelValues = {};
   for (const [key, value] of Object.entries(settings)) {
+    // Backward-compat: a stored slice may still carry a legacy `columns` key. It is no longer a
+    // supported attribute (the grid is width-driven), so drop it — don't resurface or resend it.
+    if (key === 'columns') continue;
     if ((EXTRA_LOOKANDFEEL_ATTRIBUTES as readonly string[]).includes(key)) {
       extra[key as ExtraAttribute] = value as string | null;
     } else {
