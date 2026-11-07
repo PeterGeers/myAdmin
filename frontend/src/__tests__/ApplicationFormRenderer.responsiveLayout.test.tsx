@@ -155,18 +155,24 @@ describe('ApplicationFormRenderer — responsive multi-column layout (spec 13 ta
   it('drives single-column-at-base / >=2-columns-at-md via Chakra responsive `columns` (R4.3)', () => {
     render(<Harness />);
 
-    // Every group's grid carries the SAME responsive columns object — one column on `base`
-    // (mobile), two on `md`+ (laptop/desktop). This is the responsive system, not viewport sniffing.
+    // Every group's grid is WIDTH-DRIVEN (not a fixed responsive columns object): it lays out as
+    // many ~16rem columns as fit and reflows down to 1 on narrow screens, capped at the authored
+    // `columns` (default 2) via a max-width. The grid carries the fluid `gridTemplateColumns`
+    // auto-fit idiom in `sx` plus a `data-columns-cap` recording the cap — not a `columns` prop.
     const membershipGrid = capturedGrids['group-grid-membership'];
     const personalGrid = capturedGrids['group-grid-personal'];
     expect(membershipGrid).toBeTruthy();
     expect(personalGrid).toBeTruthy();
 
     for (const grid of [membershipGrid, personalGrid]) {
-      expect(grid.columns).toEqual({ base: 1, md: 2 });
-      // base === 1 (single column on mobile); md >= 2 (multi-column on desktop).
-      expect((grid.columns as any).base).toBe(1);
-      expect((grid.columns as any).md).toBeGreaterThanOrEqual(2);
+      // No fixed responsive columns object any more.
+      expect(grid.columns).toBeUndefined();
+      // Fluid auto-fit tracks + a max-width cap, both in the sx override.
+      const sx = grid.sx as Record<string, unknown>;
+      expect(String(sx.gridTemplateColumns)).toContain('repeat(auto-fit, minmax(16rem, 1fr))');
+      expect(String(sx.maxWidth)).toContain('* 20rem');
+      // The cap defaults to 2 when no `columns` prop is supplied (prior default preserved).
+      expect(grid['data-columns-cap']).toBe(2);
     }
   });
 
