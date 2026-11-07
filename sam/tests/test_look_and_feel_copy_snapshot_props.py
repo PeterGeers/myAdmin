@@ -59,26 +59,23 @@ from sam.members.domain.look_and_feel_settings_service import (  # noqa: E402
     APPLICATION_FORM_PAGE_ID,
     LookAndFeelSettingsService,
     _COLOUR_ATTRIBUTES,
-    _COLUMNS_ATTRIBUTE,
     _FONT_ATTRIBUTES,
     _HEADER_TITLE_ATTRIBUTE,
     _LOGO_ATTRIBUTE,
-    _MAX_COLUMNS,
     _MAX_HEADER_TITLE_LENGTH,
-    _MIN_COLUMNS,
     _PERMITTED_VALUES,
 )
 from sam.shared.page_styles import SUPPORTED_ATTRIBUTES  # noqa: E402
 
-# The attributes the SERVICE validates (enum + colour + font + the bugfix extension columns / logo
-# / header_title). The bugfix ``bugfix-published-form-styling`` Task 10 added the permitted-value
-# rules for the new three, so the service-driven value pool below covers EXACTLY the full generator
-# set of ten.
+# The attributes the SERVICE validates (enum + colour + font + the bugfix extension logo /
+# header_title). The earlier ``columns`` attribute was removed (the form grid is now fully
+# width-driven), so the service-driven value pool below covers EXACTLY the generator's current
+# supported set of nine.
 _SERVICE_VALIDATED_ATTRS = (
     set(_PERMITTED_VALUES)
     | set(_COLOUR_ATTRIBUTES)
     | set(_FONT_ATTRIBUTES)
-    | {_COLUMNS_ATTRIBUTE, _LOGO_ATTRIBUTE, _HEADER_TITLE_ATTRIBUTE}
+    | {_LOGO_ATTRIBUTE, _HEADER_TITLE_ATTRIBUTE}
 )
 
 _TENANT = "h-dcn"
@@ -149,9 +146,9 @@ _VALID_BY_ATTR = {
     "base_spacing": st.sampled_from(sorted(_PERMITTED_VALUES["base_spacing"])),
     "border_radius_global": st.sampled_from(sorted(_PERMITTED_VALUES["border_radius_global"])),
     "shadow_style": st.sampled_from(sorted(_PERMITTED_VALUES["shadow_style"])),
-    # bugfix ``bugfix-published-form-styling`` Task 10 — the three new values-only attributes, each
-    # drawn from its PERMITTED set so ``set_setting`` accepts them.
-    "columns": st.integers(min_value=_MIN_COLUMNS, max_value=_MAX_COLUMNS),
+    # bugfix ``bugfix-published-form-styling`` Task 10 — the two new values-only attributes, each
+    # drawn from its PERMITTED set so ``set_setting`` accepts them. (The earlier ``columns``
+    # attribute was removed — the form grid is now fully width-driven.)
     "logo": st.sampled_from(
         [
             "https://assets.example.org/logo.png",
@@ -165,8 +162,8 @@ _VALID_BY_ATTR = {
 }
 # These values are driven through ``set_setting``, so the pool must cover EXACTLY the attributes the
 # SERVICE validates. The bugfix ``bugfix-published-form-styling`` Task 10 (edge + service plane)
-# added the permitted-value rules for the new three (columns / logo / header_title), so this
-# copy-snapshot property now exercises the FULL generator set of ten.
+# added the permitted-value rules for the new two (logo / header_title); the earlier ``columns``
+# attribute was removed, so this copy-snapshot property exercises the generator's set of nine.
 assert set(_VALID_BY_ATTR) == _SERVICE_VALIDATED_ATTRS
 assert _SERVICE_VALIDATED_ATTRS == set(SUPPORTED_ATTRIBUTES)
 

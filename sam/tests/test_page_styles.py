@@ -45,12 +45,13 @@ _FULL_SETTINGS = {
 
 
 def test_supported_attributes_are_exactly_the_seven():
-    """Req 3.2 + bugfix 3.4: the capability supports EXACTLY the ten named attributes.
+    """Req 3.2 + bugfix 3.4: the capability supports EXACTLY the nine named attributes.
 
     The original spec-15 contract was exactly seven; the bugfix ``bugfix-published-form-styling``
-    (Task 8) extended it with three values-only attributes — ``columns`` (drives the
-    application-form grid), ``logo`` and ``header_title`` (carried for the renderer) — a
-    deliberate, documented extension (bugfix 3.4). The set is now exactly these ten.
+    (Task 8) extended it with two values-only attributes — ``logo`` and ``header_title``
+    (carried for the renderer) — a deliberate, documented extension (bugfix 3.4). The earlier
+    ``columns`` attribute was later removed (the form grid is now fully width-driven), so the
+    set is now exactly these nine.
     """
     assert SUPPORTED_ATTRIBUTES == frozenset(
         {
@@ -62,7 +63,8 @@ def test_supported_attributes_are_exactly_the_seven():
             "border_radius_global",
             "shadow_style",
             # bugfix bugfix-published-form-styling (Task 8) — the documented extension.
-            "columns",
+            # (The earlier ``columns`` attribute was removed — the form grid is now fully
+            # width-driven, so an authored column count has no effect.)
             "logo",
             "header_title",
         }

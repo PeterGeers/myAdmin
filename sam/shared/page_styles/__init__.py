@@ -20,9 +20,10 @@ Design contract (spec 15 design, C1 / C2):
   ``color_accent``, ``font_heading``, ``font_body``, ``base_spacing``,
   ``border_radius_global``, ``shadow_style``) PLUS the three the bugfix
   ``bugfix-published-form-styling`` added as a deliberate, documented extension (bugfix 3.4):
-  ``columns`` (drives the application-form grid track count), ``logo`` and ``header_title``
-  (carried as supported VALUES the renderer consumes — they emit no CSS of their own). Any
-  key outside the ten is rejected (Req 3.4). See :data:`SUPPORTED_ATTRIBUTES`.
+  ``logo`` and ``header_title`` (the earlier ``columns`` attribute was removed; the form grid
+  is now fully width-driven). These two are carried as supported VALUES the renderer
+  consumes — they emit no CSS of their own. Any key outside the nine is rejected (Req 3.4),
+  though a legacy stored ``columns`` is tolerated. See :data:`SUPPORTED_ATTRIBUTES`.
 - **Absent attribute -> SAM-owned default** for that attribute (Req 1.3, 3.3, 4.4, 5.4).
 - **Unsupported attribute -> raise** :class:`UnsupportedAttributeError` and produce NO
   styling (Req 3.4).
@@ -55,13 +56,9 @@ __all__ = [
 #
 # The first SEVEN are the original spec-15 contract (colours / fonts / spacing / radius /
 # shadow). The bugfix ``bugfix-published-form-styling`` (Req 2.2 / 2.7, design §C) extends
-# the set with THREE new values-only attributes — a deliberate, DOCUMENTED extension of the
+# the set with TWO new values-only attributes — a deliberate, DOCUMENTED extension of the
 # exactly-seven set (bugfix 3.4 names this as an allowed extension):
 #
-#   * ``columns``      — the number of layout columns for the form's field groups; DRIVES
-#                        the application-form grid ``grid-template-columns`` track count
-#                        (clamped 1..4 here; authoritative out-of-range rejection at the
-#                        edge/service plane, Task 10).
 #   * ``logo``         — a URL/asset reference to the tenant logo; CARRIED as a supported
 #                        value but NOT emitted as CSS — the renderer (Task 6) consumes it.
 #   * ``header_title`` — the form header/title text; likewise CARRIED for the renderer, not
@@ -69,8 +66,10 @@ __all__ = [
 #
 # ``logo`` / ``header_title`` are accepted so ``render_page_styles`` does not reject them as
 # unsupported, but they produce NO CSS of their own (the renderer reads them from the stored
-# slice). ``columns`` is the only new attribute that affects the generated CSS. Any key
-# OUTSIDE these ten is still rejected (Req 3.4).
+# slice). The earlier ``columns`` attribute was REMOVED: the application-form grid is now a
+# fully width-driven responsive auto-fit grid, so an authored column count has no effect. A
+# legacy stored ``columns`` is TOLERATED (stripped/ignored) by ``render_page_styles`` so an
+# existing row never fails to publish. Any key OUTSIDE these nine is still rejected (Req 3.4).
 SUPPORTED_ATTRIBUTES: Final[frozenset[str]] = frozenset(
     {
         "color_primary",
@@ -80,21 +79,14 @@ SUPPORTED_ATTRIBUTES: Final[frozenset[str]] = frozenset(
         "base_spacing",
         "border_radius_global",
         "shadow_style",
-        # bugfix bugfix-published-form-styling (Req 2.2 / 2.7) — the three new values-only
-        # attributes; a documented extension of the original seven (bugfix 3.4).
-        "columns",
+        # bugfix bugfix-published-form-styling (Req 2.7) — the two new values-only attributes
+        # (a documented extension of the original seven). The renderer consumes them; they emit
+        # no CSS. (The earlier `columns` attribute was removed: the form grid is now a fully
+        # width-driven responsive auto-fit grid, so an authored column count has no effect.)
         "logo",
         "header_title",
     }
 )
-
-# Default / ceiling for the application-form multi-column grid (bugfix DD-B1). The `columns`
-# attribute (now a supported attribute) drives the grid track count; an unset value falls
-# back to this sensible multi-column default. The ceiling is a defensive clamp so the
-# generator always emits a well-formed track list — the authoritative out-of-range rejection
-# lives at the edge/service plane (Task 10).
-_DEFAULT_FORM_COLUMNS: Final[int] = 2
-_MAX_FORM_COLUMNS: Final[int] = 4
 
 # ─── SAM-owned defaults (Req 1.3, 3.3) ─────────────────────────────────────────────────
 # A missing attribute resolves to the default below. These match the fallbacks the Flask
@@ -110,14 +102,10 @@ _DEFAULTS: Final[dict[str, str]] = {
     "base_spacing": "normal",
     "border_radius_global": "rounded",
     "shadow_style": "subtle",
-    # bugfix bugfix-published-form-styling (Req 2.2 / 2.7 / 3.3) — defaults for the three new
-    # attributes. An unset attribute resolves to the default below exactly like the original
-    # seven (Req 1.3 / 3.3). ``columns`` defaults to the sensible multi-column count the
-    # application-form grid already used before the attribute was authorable; ``logo`` /
+    # bugfix bugfix-published-form-styling — defaults for the two new attributes: ``logo`` /
     # ``header_title`` default to EMPTY (no logo / no heading rendered) so a tenant that never
-    # authored them renders byte-identically to today (preservation 3.3). These are stored as
-    # strings alongside the other values; the renderer treats an empty value as "absent".
-    "columns": str(_DEFAULT_FORM_COLUMNS),
+    # authored them renders byte-identically to today. The renderer treats an empty value as
+    # "absent".
     "logo": "",
     "header_title": "",
 }
@@ -299,7 +287,6 @@ def _build_font_links(font_heading: str, font_body: str) -> str:
 def _build_page_css(
     color_primary: str,
     color_accent: str,
-    columns: int | str = _DEFAULT_FORM_COLUMNS,
 ) -> str:
     """Build the page CSS from the two brand colours (relocated from ``build_page_css``).
 
@@ -405,11 +392,11 @@ def _build_page_css(
     .form-status {{ margin: 1rem 0; min-height: 1.2em; }}
     .form-status-error {{ color: #b42318; font-weight: 600; }}
     .form-status-success {{ color: #027a48; font-weight: 600; }}
-{_build_application_form_css(color_primary, color_accent, columns)}"""
+{_build_application_form_css(color_primary, color_accent)}"""
 
 
 def _build_application_form_css(
-    color_primary: str, color_accent: str, columns: int | str
+    color_primary: str, color_accent: str
 ) -> str:
     """Build the application-form CSS block (bugfix ``bugfix-published-form-styling`` DD-B1).
 
@@ -456,19 +443,11 @@ def _build_application_form_css(
         The application-form CSS block (indented to match the surrounding page CSS), with a
         leading newline-free join handled by the caller's f-string.
     """
-    # Clamp to a sane range so a stray/out-of-range value can never emit a broken track list
-    # (the authoritative validation lives at the edge/service plane — Task 10 — this is a
-    # defensive floor/ceiling so the generator always emits well-formed CSS).
-    try:
-        track_count = int(columns)
-    except (TypeError, ValueError):
-        track_count = _DEFAULT_FORM_COLUMNS
-    track_count = max(1, min(track_count, _MAX_FORM_COLUMNS))
-
-    return f"""    .application-form h1, .application-form .form-title {{ font-family: var(--font-heading); color: {color_primary}; margin-bottom: var(--spacing-element); }}
+    return f"""    .application-form {{ --form-col-min: 16rem; }}
+    .application-form h1, .application-form .form-title {{ font-family: var(--font-heading); color: {color_primary}; margin-bottom: var(--spacing-element); }}
     .application-form h2 {{ font-family: var(--font-heading); color: {color_primary}; margin-bottom: var(--spacing-element); }}
     .application-form .form-logo {{ max-height: 96px; width: auto; margin-bottom: var(--spacing-element); }}
-    .application-form .form-group {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--spacing-element); border: none; margin-bottom: var(--spacing-section); max-width: calc({track_count} * 20rem + ({track_count} - 1) * var(--spacing-element)); }}
+    .application-form .form-group {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--form-col-min, 16rem)), 1fr)); gap: var(--spacing-element); border: none; margin-bottom: var(--spacing-section); }}
     .application-form .form-group[data-group="_meta"] {{ grid-template-columns: 1fr; }}
     .application-form .form-group > h2 {{ grid-column: 1 / -1; }}
     .application-form input:focus, .application-form select:focus, .application-form textarea:focus {{ outline: 2px solid {color_primary}; outline-offset: 1px; border-color: {color_primary}; }}
@@ -500,6 +479,13 @@ def render_page_styles(settings: Mapping[str, Any]) -> PageStyles:
             :data:`SUPPORTED_ATTRIBUTES`. The request is rejected and NO styling is
             produced (Req 3.4).
     """
+    # Backward-compat: ``columns`` was a supported attribute in an earlier version and may still
+    # exist on a stored look-and-feel slice. It is now a KNOWN-but-IGNORED legacy key (the form
+    # grid is fully width-driven, so a column count has no effect) — drop it so an existing stored
+    # row never fails the publish. Genuinely unknown keys are still rejected below.
+    if "columns" in settings:
+        settings = {k: v for k, v in settings.items() if k != "columns"}
+
     # Reject BEFORE producing any styling (Req 3.4): an unsupported key fails the whole
     # request so no partial styling escapes. Sorted so the reported key is deterministic.
     for key in sorted(settings):
@@ -513,13 +499,9 @@ def render_page_styles(settings: Mapping[str, Any]) -> PageStyles:
     base_spacing = _resolve(settings, "base_spacing")
     border_radius_global = _resolve(settings, "border_radius_global")
     shadow_style = _resolve(settings, "shadow_style")
-    # bugfix bugfix-published-form-styling (Task 8): resolve the authored `columns` value and
-    # thread it into the application-form grid. An unset/None value resolves to the
-    # multi-column default (via `_DEFAULTS["columns"]`), so the generated CSS is unchanged for
-    # a tenant that never authored columns (preservation 3.4). `_build_application_form_css`
-    # clamps the value defensively; `logo` / `header_title` are SUPPORTED values the renderer
-    # consumes (Task 6) and are intentionally NOT read here — they emit no CSS.
-    columns = _resolve(settings, "columns")
+    # `logo` / `header_title` are SUPPORTED values the renderer consumes (Task 6) and emit no
+    # CSS, so they are intentionally NOT read here. The form grid is fully width-driven, so no
+    # column count is resolved.
 
     return PageStyles(
         css_variables=_build_css_variables(
@@ -531,6 +513,6 @@ def render_page_styles(settings: Mapping[str, Any]) -> PageStyles:
             color_primary=color_primary,
             color_accent=color_accent,
         ),
-        page_css=_build_page_css(color_primary, color_accent, columns),
+        page_css=_build_page_css(color_primary, color_accent),
         font_links=_build_font_links(font_heading, font_body),
     )

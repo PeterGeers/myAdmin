@@ -241,7 +241,7 @@ Phases:
   - Run against the real row before marking done — "tests pass" alone is not sufficient (steering 39)
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.7; spec-15 Req 8.3 (Change-Op write contract)_
 
-- [-] 18. CI/CD — quality gates, deploy paths, production-release gate (steering 43)
+- [x] 18. CI/CD — quality gates, deploy paths, production-release gate (steering 43)
   - Confirm the per-PR gates are green on the feature branch: CodeQL Advanced + GitGuardian (root
     cause, not suppression)
   - Confirm the changed paths trigger the right deploys on the branch→env contract:

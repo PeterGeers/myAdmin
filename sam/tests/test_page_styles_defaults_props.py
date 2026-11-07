@@ -61,11 +61,11 @@ _VALUE_POOL = {
     "base_spacing": st.sampled_from(["compact", "normal", "relaxed"]),
     "border_radius_global": st.sampled_from(["sharp", "rounded", "pill"]),
     "shadow_style": st.sampled_from(["none", "subtle", "medium", "dramatic"]),
-    # bugfix bugfix-published-form-styling (Task 8): the three new values-only attributes are
+    # bugfix bugfix-published-form-styling (Task 8): the two new values-only attributes are
     # now supported, so the defaults/omission property must cover them too (each has a SAM-owned
-    # default the omission path falls back to — columns -> multi-column default, logo /
-    # header_title -> empty). Valid "present" values below.
-    "columns": st.sampled_from([1, 2, 3, 4]),
+    # default the omission path falls back to — logo / header_title -> empty). Valid "present"
+    # values below. (The earlier ``columns`` attribute was removed — the form grid is now fully
+    # width-driven, so there is no column count to default.)
     "logo": st.sampled_from(["https://assets.example.org/logo.png", "logo.svg"]),
     "header_title": st.sampled_from(["Aanmelden", "Join us"]),
 }

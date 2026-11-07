@@ -11,11 +11,15 @@
     "    frontend/.../__tests__/ApplicationFormPreview.appliedParity.test.tsx.",
     "",
     "CRITICAL (design E / Task 20): each test asserts the APPLIED RESULT on its path — the",
-    "brand colour reaches the form heading/submit/focus, the `columns` value produces the",
-    "SAME multi-column layout, and the logo + header title appear — NEVER merely that the two",
-    "generators emit the same string. The spec-15 task-13.2 string fixture",
-    "(page_styles_parity.json) is INSUFFICIENT and is part of this bug; this fixture is the",
-    "applied-appearance companion, not a replacement.",
+    "brand colour reaches the form heading/submit/focus, the field-group grid is the SAME",
+    "width-driven responsive auto-fit grid (collapsing to one column on a narrow screen),",
+    "and the logo + header title appear — NEVER merely that the two generators emit the same",
+    "string. The spec-15 task-13.2 string fixture (page_styles_parity.json) is INSUFFICIENT",
+    "and is part of this bug; this fixture is the applied-appearance companion.",
+    "",
+    "NOTE: the earlier `columns` attribute was REMOVED (the form grid is now fully",
+    "width-driven auto-fit, no authored column count). The fixture no longer carries it;",
+    "both planes assert the shared auto-fit grid rather than a track count.",
     "",
     "ONE file is canonical: sam/tests/fixtures/applied_appearance_parity.json. The frontend",
     "test root carries a byte-identical vendored copy at",
@@ -24,41 +28,38 @@
     "planes provably read the SAME attributes.",
     "",
     "Every case carries distinct values (a brand colour differing from the SAM default, a",
-    "multi-column `columns`, a logo reference, and a header_title) so 'applied' is observable",
-    "on both paths. `default_primary` is #2D5F8A (sam/shared/page_styles._DEFAULTS /",
-    "pageStyles.ts DEFAULTS): a case's color_primary MUST differ from it."
+    "logo reference, and a header_title) so 'applied' is observable on both paths.",
+    "`default_primary` is #2D5F8A (sam/shared/page_styles._DEFAULTS / pageStyles.ts DEFAULTS):",
+    "a case's color_primary MUST differ from it."
   ],
   "default_primary": "#2D5F8A",
   "cases": [
     {
-      "name": "crimson_three_columns",
-      "description": "A vivid crimson brand colour, a three-column layout, a PNG logo, and a Dutch join heading.",
+      "name": "crimson",
+      "description": "A vivid crimson brand colour, a PNG logo, and a Dutch join heading.",
       "input": {
         "color_primary": "#C01030",
         "color_accent": "#E8A33D",
-        "columns": "3",
         "logo": "https://cdn.jabaki.nl/h-dcn/logo.png",
         "header_title": "Word lid van DCN"
       }
     },
     {
-      "name": "violet_two_columns",
-      "description": "A violet brand colour, a two-column layout, an SVG logo, and a 2026 enrolment heading.",
+      "name": "violet",
+      "description": "A violet brand colour, an SVG logo, and a 2026 enrolment heading.",
       "input": {
         "color_primary": "#7B2CBF",
         "color_accent": "#2D5F8A",
-        "columns": "2",
         "logo": "https://assets.example.org/brand/mark.svg",
         "header_title": "Inschrijfformulier 2026"
       }
     },
     {
-      "name": "forest_four_columns",
-      "description": "A forest-green brand colour, a four-column layout, a webp logo, and a registration heading.",
+      "name": "forest",
+      "description": "A forest-green brand colour, a webp logo, and a registration heading.",
       "input": {
         "color_primary": "#0A7E3F",
         "color_accent": "#D62828",
-        "columns": "4",
         "logo": "https://cdn.jabaki.nl/tenant/emblem.webp",
         "header_title": "Aanmelden ledenadministratie"
       }
