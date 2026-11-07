@@ -67,18 +67,15 @@ describe('renderPageStyles — supported attributes + defaults (Req 3.2, 3.3)', 
     });
   });
 
-  it('drives the application-form grid track count from the `columns` attribute (bugfix 2.2)', () => {
-    // The default renders a 2-track grid; a distinct columns value changes the track count.
-    expect(renderPageStyles({}).pageCss).toContain(
-      '.application-form .form-group { display: grid; grid-template-columns: repeat(2, 1fr);',
-    );
-    expect(renderPageStyles({ columns: '3' }).pageCss).toContain(
-      '.application-form .form-group { display: grid; grid-template-columns: repeat(3, 1fr);',
-    );
+  it('caps the width-driven grid at the `columns` attribute (bugfix 2.2)', () => {
+    // The grid is WIDTH-DRIVEN: fluid auto-fit tracks (16rem min) that reflow by width, capped at
+    // the authored `columns` via a max-width of N x 20rem. The default caps at 2; columns changes it.
+    const def = renderPageStyles({}).pageCss;
+    expect(def).toContain('grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr))');
+    expect(def).toContain('max-width: calc(2 * 20rem');
+    expect(renderPageStyles({ columns: '3' }).pageCss).toContain('max-width: calc(3 * 20rem');
     // Out-of-range clamps to the sane 1..4 ceiling (defensive — authoritative reject at the edge).
-    expect(renderPageStyles({ columns: '9' }).pageCss).toContain(
-      'grid-template-columns: repeat(4, 1fr);',
-    );
+    expect(renderPageStyles({ columns: '9' }).pageCss).toContain('max-width: calc(4 * 20rem');
   });
 
   it('applies the brand colours to the form OWN elements via the application-form block (bugfix 2.1)', () => {

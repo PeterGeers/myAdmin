@@ -441,14 +441,12 @@ function buildApplicationFormCss(
   return `    .application-form h1, .application-form .form-title { font-family: var(--font-heading); color: ${colorPrimary}; margin-bottom: var(--spacing-element); }
     .application-form h2 { font-family: var(--font-heading); color: ${colorPrimary}; margin-bottom: var(--spacing-element); }
     .application-form .form-logo { max-height: 96px; width: auto; margin-bottom: var(--spacing-element); }
-    .application-form .form-group { display: grid; grid-template-columns: repeat(${trackCount}, 1fr); gap: var(--spacing-element); border: none; margin-bottom: var(--spacing-section); }
+    .application-form .form-group { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--spacing-element); border: none; margin-bottom: var(--spacing-section); max-width: calc(${trackCount} * 20rem + (${trackCount} - 1) * var(--spacing-element)); }
+    .application-form .form-group[data-group="_meta"] { grid-template-columns: 1fr; }
     .application-form .form-group > h2 { grid-column: 1 / -1; }
     .application-form input:focus, .application-form select:focus, .application-form textarea:focus { outline: 2px solid ${colorPrimary}; outline-offset: 1px; border-color: ${colorPrimary}; }
     .application-form button[type="submit"] { background: ${colorPrimary}; color: #fff; border: none; padding: 0.75rem 1.5rem; border-radius: var(--radius-sm); font-size: 1rem; font-weight: 600; cursor: pointer; }
-    .application-form button[type="submit"]:hover { background: ${colorAccent}; }
-    @media (max-width: 480px) {
-      .application-form .form-group { grid-template-columns: 1fr; }
-    }`;
+    .application-form button[type="submit"]:hover { background: ${colorAccent}; }`;
 }
 
 /**

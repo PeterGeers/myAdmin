@@ -33,13 +33,14 @@
  * two colour controls pair a native colour `<input type="color">` with a text input so the value
  * is both pickable and typeable. Labels are bilingual via the builder's `t(nl, en)` helper.
  */
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Box,
   Button,
   FormControl,
   FormLabel,
   HStack,
+  Image,
   Heading,
   Input,
   Select,
@@ -164,6 +165,19 @@ export interface LookAndFeelEditorProps {
    * envelope (422/403/409) as a toast. `null` clears the attribute.
    */
   onExtraSave?: (attribute: ExtraAttribute, value: string | null) => void;
+  /**
+   * Persist ALL current look-and-feel values at once (the explicit Save action). The builder
+   * commits the whole working map (seven + the three extras) in one pass and surfaces the result.
+   * Optional so existing per-field callers keep working; when provided, the editor shows a Save
+   * button so persisting is an obvious, deliberate action rather than an invisible blur-save.
+   */
+  onSaveAll?: () => void | Promise<void>;
+  /**
+   * Upload a new logo image: stores it (tenant-scoped S3, via the builder's reuse of the existing
+   * image-upload path) and returns the stored public URL, which the control sets as the `logo`
+   * value. When omitted, the control is paste-only. The persist still happens on the single Save.
+   */
+  onUploadLogo?: (file: File) => Promise<string>;
   /** Whether a look-and-feel persist is in flight (disables the controls + shows a loading state). */
   saving?: boolean;
   lang: 'nl' | 'en';
@@ -185,16 +199,61 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
   extraValues,
   onExtraChange,
   onExtraSave,
+  onSaveAll,
+  onUploadLogo,
   saving,
   lang,
 }) => {
   const t = (nl: string, en: string) => (lang === 'nl' ? nl : en);
 
-  /** Apply + persist one edit: lift it up (live preview) THEN persist it (values-only). */
-  const edit = (attribute: SupportedAttribute, value: string | null) => {
+  // Logo upload state (reuses the builder's `onUploadLogo` — the existing tenant-scoped S3 path).
+  const logoFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+
+  const onPickLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file
+    if (!file || !onUploadLogo) return;
+    setLogoError(null);
+    setUploadingLogo(true);
+    try {
+      await onUploadLogo(file); // the builder lifts the stored URL into the `logo` value
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  /**
+   * Lift an edit up for LIVE PREVIEW only (no network). Used on every keystroke of a free-text /
+   * colour control so the preview tracks the edit without a per-keystroke persist.
+   */
+  const changeOnly = (attribute: SupportedAttribute, value: string | null) => {
+    onChange(attribute, value);
+  };
+
+  /**
+   * COMMIT one edit: lift it up AND persist it (values-only). Used for atomic controls (selects,
+   * the native colour picker) on change, and for free-text / colour-hex inputs on BLUR — so a
+   * multi-character value is persisted ONCE, when the user is done, not per keystroke.
+   */
+  const commit = (attribute: SupportedAttribute, value: string | null) => {
     onChange(attribute, value);
     onSave(attribute, value);
   };
+
+  /**
+   * All controls are EDIT-ONLY: they lift the value for the LIVE PREVIEW and never touch the
+   * network. Persisting is done ONCE, deliberately, via the Save button (`onSaveAll`) — never
+   * per keystroke, per change, or per blur. This is the right model for a serverless edge
+   * (one batched Change-Op pass on Save, not a Lambda+DynamoDB write per interaction).
+   */
+  const edit = changeOnly;
+  // `commit`/`onSave` are retained for callers that still want per-attribute persistence, but the
+  // editor itself no longer calls them — Save is the single write path.
+  void commit;
 
   /**
    * Resolve a NEW-attribute control's display value: the working value when set, else its
@@ -212,14 +271,24 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
    * `logo`/`header_title` CLEARS the attribute (persist `null`) so the control can revert to the
    * SAM-owned default; `columns` always carries a bounded value.
    */
-  const editExtra = (attribute: ExtraAttribute, raw: string) => {
-    const value =
-      (attribute === 'logo' || attribute === 'header_title') && raw.trim() === ''
-        ? null
-        : raw;
+  const normalizeExtra = (attribute: ExtraAttribute, raw: string): string | null =>
+    (attribute === 'logo' || attribute === 'header_title') && raw.trim() === '' ? null : raw;
+
+  /** Lift a NEW-attribute edit for LIVE PREVIEW only (no network) — used on keystroke. */
+  const changeExtraOnly = (attribute: ExtraAttribute, raw: string) => {
+    onExtraChange?.(attribute, normalizeExtra(attribute, raw));
+  };
+
+  /** COMMIT a NEW-attribute edit: lift + persist (values-only). Selects on change; text on blur. */
+  const commitExtra = (attribute: ExtraAttribute, raw: string) => {
+    const value = normalizeExtra(attribute, raw);
     onExtraChange?.(attribute, value);
     onExtraSave?.(attribute, value);
   };
+
+  /** Edit-only for the extra controls too: preview on change, persist only via Save. */
+  const editExtra = changeExtraOnly;
+  void commitExtra;
 
   /** A labelled enum <select> for one attribute (shared across spacing/radius/shadow/font). */
   const renderEnum = (
@@ -237,7 +306,6 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
         data-testid={`lookandfeel-${attribute}`}
         size="sm"
         value={current(values, attribute)}
-        isDisabled={saving}
         onChange={(e) => edit(attribute, e.target.value)}
       >
         {options.map((o) => (
@@ -274,8 +342,7 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
             w="3rem"
             p={0}
             value={value}
-            isDisabled={saving}
-            onChange={(e) => edit(attribute, e.target.value)}
+            onChange={(e) => commit(attribute, e.target.value)}
             // A visible FormLabel is associated above; the colour swatch needs its own name too.
             aria-label={t(labelNl, labelEn)}
           />
@@ -283,8 +350,7 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
             data-testid={`lookandfeel-${attribute}-hex`}
             size="sm"
             value={value}
-            isDisabled={saving}
-            onChange={(e) => edit(attribute, e.target.value)}
+            onChange={(e) => changeOnly(attribute, e.target.value)}
             aria-label={t(`${labelNl} (hex)`, `${labelEn} (hex)`)}
           />
         </HStack>
@@ -323,20 +389,67 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
       */}
       <FormControl>
         <FormLabel htmlFor="lookandfeel-logo" fontSize="sm" color="gray.300">
-          {t('Logo (URL)', 'Logo (URL)')}
+          {t('Logo', 'Logo')}
         </FormLabel>
-        <Input
-          id="lookandfeel-logo"
-          data-testid="lookandfeel-logo"
-          size="sm"
-          type="url"
-          inputMode="url"
-          placeholder="https://…/logo.png"
-          value={currentExtra('logo')}
-          isDisabled={saving}
-          onChange={(e) => editExtra('logo', e.target.value)}
-          aria-label={t('Logo-URL', 'Logo URL')}
-        />
+        {/* Preview of the currently-referenced logo (the stored S3 URL or a pasted one). */}
+        {currentExtra('logo').trim() !== '' && (
+          <Image
+            src={currentExtra('logo')}
+            alt={t('Huidig logo', 'Current logo')}
+            data-testid="lookandfeel-logo-preview"
+            maxH="64px"
+            mb={2}
+            objectFit="contain"
+            bg="gray.800"
+            p={1}
+            borderRadius="md"
+            fallback={
+              <Text fontSize="xs" color="red.300" data-testid="lookandfeel-logo-broken">
+                {t('Logo kon niet worden geladen', 'Logo could not be loaded')}
+              </Text>
+            }
+          />
+        )}
+        <HStack align="stretch">
+          <Input
+            id="lookandfeel-logo"
+            data-testid="lookandfeel-logo"
+            size="sm"
+            type="url"
+            inputMode="url"
+            placeholder="https://…/logo.png"
+            value={currentExtra('logo')}
+            onChange={(e) => changeExtraOnly('logo', e.target.value)}
+            aria-label={t('Logo-URL', 'Logo URL')}
+          />
+          {onUploadLogo && (
+            <>
+              <input
+                ref={logoFileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                data-testid="lookandfeel-logo-file"
+                onChange={onPickLogoFile}
+              />
+              <Button
+                size="sm"
+                flexShrink={0}
+                onClick={() => logoFileInputRef.current?.click()}
+                isLoading={uploadingLogo}
+                loadingText={t('Uploaden…', 'Uploading…')}
+                data-testid="lookandfeel-logo-upload"
+              >
+                {t('Uploaden', 'Upload')}
+              </Button>
+            </>
+          )}
+        </HStack>
+        {logoError && (
+          <Text fontSize="xs" color="red.300" mt={1} data-testid="lookandfeel-logo-error">
+            {logoError}
+          </Text>
+        )}
       </FormControl>
 
       <FormControl>
@@ -349,8 +462,7 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
           size="sm"
           maxLength={MAX_HEADER_TITLE_LENGTH}
           value={currentExtra('header_title')}
-          isDisabled={saving}
-          onChange={(e) => editExtra('header_title', e.target.value)}
+          onChange={(e) => changeExtraOnly('header_title', e.target.value)}
           aria-label={t('Koptekst van het formulier', 'Form header title')}
         />
       </FormControl>
@@ -364,7 +476,6 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
           data-testid="lookandfeel-columns"
           size="sm"
           value={currentExtra('columns')}
-          isDisabled={saving}
           onChange={(e) => editExtra('columns', e.target.value)}
         >
           {COLUMN_OPTIONS.map((n) => (
@@ -377,13 +488,25 @@ export const LookAndFeelEditor: React.FC<LookAndFeelEditorProps> = ({
 
       <Text color="gray.500" fontSize="xs">
         {t(
-          'Een wijziging wordt meteen opgeslagen voor dit formulier.',
-          'A change is saved for this form immediately.',
+          'Wijzigingen verschijnen direct in het voorbeeld. Klik op Opslaan om ze op te slaan voor dit formulier.',
+          'Changes appear instantly in the preview. Click Save to store them for this form.',
         )}
       </Text>
 
       <HStack justify="flex-end">
-        {saving && (
+        {onSaveAll && (
+          <Button
+            size="sm"
+            colorScheme="orange"
+            onClick={() => void onSaveAll()}
+            isLoading={saving}
+            loadingText={t('Opslaan…', 'Saving…')}
+            data-testid="lookandfeel-editor-save"
+          >
+            {t('Opslaan', 'Save')}
+          </Button>
+        )}
+        {!onSaveAll && saving && (
           <Button
             size="sm"
             variant="ghost"

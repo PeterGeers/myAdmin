@@ -216,6 +216,13 @@ def _multi_column_grid_track_count(html):
             continue
         if not any(sel in selector for sel in form_container_selectors):
             continue
+        # Width-driven capped auto-fit: the COLUMN CAP is the calc() denominator in
+        # minmax(max(16rem, calc((100% - ((N - 1) * gap)) / N)), 1fr).
+        cap = re.search(r"max-width:\s*calc\(\s*(\d+)\s*\*\s*20rem", body)
+        if cap:
+            best = max(best, int(cap.group(1)))
+            continue
+        # Legacy fixed repeat(N, ...) literal.
         repeat_match = re.search(r"repeat\(\s*(\d+)", body)
         if repeat_match and int(repeat_match.group(1)) > 1:
             best = max(best, int(repeat_match.group(1)))
@@ -223,8 +230,15 @@ def _multi_column_grid_track_count(html):
 
 
 def _collapses_on_small_screens(html):
-    """A small-screen media query collapses the form grid to a single column."""
+    """The form grid reflows to a single column on narrow screens.
+
+    Width-driven: ``repeat(auto-fit, minmax(max(16rem, calc(...)), 1fr))`` inherently collapses to
+    one column once the container is narrower than the 16rem floor — no media query. (A legacy
+    ``@media ... 1fr`` collapse also counts.)
+    """
     norm = _normalize(html)
+    if re.search(r"auto-fit,\s*minmax\(\s*\d+(?:\.\d+)?(?:rem|px)", norm):
+        return True
     return bool(
         re.search(
             r"@media[^{]*max-width[^{]*\{[^}]*(1fr|grid-template-columns:\s*none|"

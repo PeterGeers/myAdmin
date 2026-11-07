@@ -157,6 +157,8 @@ function multiColumnTrackCount(pageCss: string): number {
     const body = match[2];
     if (!body.includes('grid-template-columns')) continue;
     if (!containerSelectors.some((sel) => selector.includes(sel))) continue;
+    const cap = /max-width:\s*calc\(\s*(\d+)\s*\*\s*20rem/.exec(body);
+    if (cap) { best = Math.max(best, Number(cap[1])); continue; }
     const repeat = /repeat\(\s*(\d+)/.exec(body);
     if (repeat && Number(repeat[1]) > 1) best = Math.max(best, Number(repeat[1]));
   }
