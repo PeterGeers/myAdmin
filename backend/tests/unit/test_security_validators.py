@@ -45,6 +45,21 @@ class TestValidateInput:
         assert result["valid"] is False
         assert "injection" in result["error"].lower()
 
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            "<SCRIPT>alert(1)</SCRIPT>",  # uppercase — must not evade (py/bad-tag-filter)
+            '<script type="text/javascript">x</script>',  # attribute-bearing open tag
+            "<script\n>x</script>",  # newline before the closing '>' of the open tag
+            "<script>x</script\n>",  # whitespace before the closing tag '>'
+        ],
+    )
+    def test_script_tag_variants_rejected(self, payload):
+        """The hardened pattern rejects casing / attribute / newline evasions."""
+        result = validate_input(payload, "text")
+        assert result["valid"] is False
+        assert "injection" in result["error"].lower()
+
     def test_field_pattern_mismatch_rejected(self):
         """A value that clears injection checks but fails the field regex."""
         result = validate_input("ab", "username")  # too short for username rule

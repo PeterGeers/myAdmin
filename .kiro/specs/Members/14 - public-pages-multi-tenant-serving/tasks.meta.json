@@ -1,0 +1,649 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 ⚠ VERIFY S3 `If-None-Match: *` support on the target bucket/region FIRST. If": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577004970
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577161302
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577554274
+      }
+    ],
+    "1.2 `slug_marker_store` (in `sam/shared`): `claim(slug, owner)` = conditional": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577005112
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577574721
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577854832
+      }
+    ],
+    "1.3 Per-producer fast-fail validation hook (SAM config-row slug check runs first as UX);": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577005227
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577882593
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793578137688
+      }
+    ],
+    "1.4 Paired tests T1–T8: same-plane dup, **cross-plane/kind dup**, **concurrency race →": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577005334
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793578152838
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793578808735
+      }
+    ],
+    "2.1 Extract `page_shell.render_page(head_meta, body_html, css)` as a plane-neutral,": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577005441
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793578821138
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793579186780
+      }
+    ],
+    "2.2 Wire the SAM form to render its shell via `page_shell`. **Do NOT refactor Flask": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577005562
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793579200825
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793579571270
+      }
+    ],
+    "2.3 Paired tests: `page_shell`/`LandingPageStyles` output parity against a fixture.": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577005682
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793579583023
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793579785209
+      }
+    ],
+    "2.4 If a hidden Flask coupling blocks clean extraction, STOP and fall back to": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577005785
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793579801398
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793579927700
+      }
+    ],
+    "3.1 Public `GET {slug}` (no auth, no `Auth` block, no `extract_user_credentials`): resolve": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577005888
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793579934674
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793580478430
+      }
+    ],
+    "3.2 **SEC-1 (fail-closed whitelist):** the whitelist is an allowlist; an unknown/new field": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577005990
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793580495158
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793584330626
+      }
+    ],
+    "3.3 Paired SAM tests: no-auth; whitelist filter + **no un-whitelisted field escapes**": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577006091
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793584338356
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793584552239
+      }
+    ],
+    "4.1 Public `POST {slug}` (no auth): resolve slug AS DATA (marker body) → `create_application`": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577006191
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793584565879
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793588611015
+      }
+    ],
+    "4.2 **SEC-2 (input validation):** before the write — strict server-side schema, payload": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577006296
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793588619844
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793596204400
+      }
+    ],
+    "4.3 **SEC-9 (applicant PII):** persist only the form's declared fields, scoped to": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577006410
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793602916134
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793603309114
+      }
+    ],
+    "4.4 CONFIRM the Lambda role has least-privilege PutItem on the applications table; add it": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577006516
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793603316827
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793603471887
+      }
+    ],
+    "4.5 Paired SAM tests: no-auth submit routes to the CORRECT tenant's members store via the": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577006633
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793603485275
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793603771017
+      }
+    ],
+    "5.1 Published `{slug}/index.html` = thin self-contained shell that fetches `GET {slug}`": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577006746
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793603779539
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793604165850
+      }
+    ],
+    "5.2 Paired frontend tests: the published shell fetches + renders via": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577006843
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793604173176
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793604427546
+      }
+    ],
+    "6.1 Add `tenants.public_prefix VARCHAR(20) UNIQUE` (slug-safe) via migration; backfill a": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577006944
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793604437382
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793604715111
+      }
+    ],
+    "6.2 Add `public_prefix` as an ADDITIVE attribute on the already-projected `tenant` row": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577007041
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793604724368
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793604929078
+      }
+    ],
+    "6.3 Slug-prefix validation (SAM claim path): a new slug must be `{prefix}` or": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577007139
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793604937530
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605246734
+      }
+    ],
+    "6.4 Paired tests: T9 (prefix required), T10 (can't borrow another prefix — SEC-4), T11": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577007241
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605255355
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605386146
+      }
+    ],
+    "7.1 Author the NEW ADR \"SAM Public-Pages Platform\": page-as-unit realized PER PLANE; the": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577007340
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605393442
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605540419
+      }
+    ],
+    "7.2 REVIEW ADR 0003 (platform base) + ADR 0005 (MySQL SoR + projection) for consistency": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577007451
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605546757
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605660567
+      }
+    ],
+    "7.3 Cross-reference the hosting backlog; confirm no parallel slug store / bucket / CF path": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577007562
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605667657
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605874713
+      }
+    ],
+    "8.1 Wire the existing `POST /members/application-form/publish` to claim its slug via": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577007738
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605882234
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793606332810
+      }
+    ],
+    "8.2 Paired tests: publish claims the slug; re-publish is idempotent; publish won't clobber": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577007836
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793606339844
+      },
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793606461978
+      }
+    ],
+    "9.1 Live-wire the publish route's `put_object {slug}/index.html` + `{slug}/form.json` +": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577007970
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793610110525
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793610550873
+      }
+    ],
+    "9.2 **SEC-8 (least-privilege, prefix-scoped publish IAM):** Terraform grants the publish": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577008072
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793610560029
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793610898375
+      }
+    ],
+    "9.3 **SEC-7 (framing defaults closed):** confirm the `application_embed_origins` KVS +": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577008172
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793610906534
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793612073261
+      }
+    ],
+    "9.4 Live end-to-end on TEST: author a form slug, publish, load `{slug}.jabaki.nl`, submit": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577008272
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793612366241
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793612549269
+      },
+      {
+        "executionId": "13edd19e-6191-4699-82fd-9b720ee46f2a",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793617316487
+      },
+      {
+        "executionId": "13edd19e-6191-4699-82fd-9b720ee46f2a",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793618637626
+      },
+      {
+        "executionId": "c5c98174-6d86-47e4-aff9-08511b224fb6",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793619412968
+      }
+    ],
+    "10.1 **SEC-2 (edge abuse controls):** add a per-source rate limit / throttle on the public": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577008388
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793612560250
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793612799417
+      }
+    ],
+    "10.2 **SEC-6 (DoS-bounded):** front the public API with WAF / throttling; confirm slug": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577008532
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793612809415
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793613021000
+      }
+    ],
+    "10.3 Paired tests / verification: throttle trips at the configured rate; a challenge is": [
+      {
+        "executionId": "f24b3467-f4f7-432d-9116-6e33c78fe2a7",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793577008649
+      },
+      {
+        "executionId": "86d85bc5-d422-49be-93c8-1a54b4fcad3f",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793613032225
+      }
+    ],
+    "1. Slug marker store + contract — the platform spine [R4, D-SLUG]": [
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793578808847
+      }
+    ],
+    "2. Shared rendering library [R7, D-RENDER]": [
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793579927813
+      }
+    ],
+    "3. SAM public read path — `GET {slug}` [R5, R10, D-SLUG]": [
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793584552623
+      }
+    ],
+    "4. SAM public submit path — `POST {slug}` → members write [R5, R10]": [
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793603772418
+      }
+    ],
+    "5. Published shell renders the form [R5]": [
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793604427920
+      }
+    ],
+    "6. Tenant public prefix + SAM slug-prefix validation [R2]": [
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605386940
+      }
+    ],
+    "7. ADR + governance + reconcile + spec hygiene [R8]": [
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793605875010
+      }
+    ],
+    "8. Publish route claims the slug (live write still dormant) [R3, R4]": [
+      {
+        "executionId": "4508503a-2832-4a5d-9dd7-e748544044f5",
+        "chatSessionId": "sess_e8d5e90d-90be-4095-b5d2-1eb0e7d71598",
+        "timestamp": 1793606462229
+      }
+    ]
+  }
+}

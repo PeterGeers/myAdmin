@@ -120,7 +120,9 @@ def test_first_write_onto_skeleton_creates_entry(mech_table):
 
     row = _raw_row(table, _MECH_TENANT)
     assert row is not None
-    for parent in ("fields", "overrides", "functional_groups"):
+    # `look_and_feel` (spec 15 — SAM Page Look-and-Feel, DD-2) is seeded alongside the member
+    # field-config parents so the Change-Op path can SET look_and_feel.#attr into a live parent map.
+    for parent in ("fields", "overrides", "functional_groups", "look_and_feel"):
         assert row[parent] == {}, f"skeleton parent {parent!r} must be an empty map"
     assert row[schema.VERSION_ATTR], "the skeleton must carry a seeded version"
 

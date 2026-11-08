@@ -24,7 +24,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from collections.abc import Mapping
+
 from sam.members.domain.config_write_service import ConfigWriteValidationError
+from sam.members.domain.look_and_feel_settings_service import (
+    DEFAULT_PAGE_ID,
+    LookAndFeelValidationError,
+)
 
 from sam.members.handler._dispatch_services import (
     UNHANDLED,
@@ -37,8 +43,35 @@ from sam.members.handler._http import ParsedRequest
 from sam.members.handler.routes import RouteSpec
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
+    from sam.members.domain.look_and_feel_settings_service import (
+        LookAndFeelSettingsService,
+    )
     from sam.members.domain.membership_service import MembershipService
     from sam.members.handler.app import RequestContext
+
+
+def _with_resolved_settings(
+    laf_service: LookAndFeelSettingsService,
+    tenant_id: str,
+    page_id: str,
+    write_result: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Shape a look-and-feel WRITE response so PUT shares the GET contract (DD-D1, R-B).
+
+    After a ``set_setting`` / ``copy_settings`` Change-Op succeeds, re-resolve the VERIFIED
+    tenant's current look-and-feel VALUES — the SAME resolved view ``get_look_and_feel`` returns on
+    GET — and fold them into the response under ``settings``, alongside the Change-Op write-result
+    fields (``version`` / ``idempotent_replay``). GET and PUT then share ONE response contract, so
+    the frontend's ``setLookAndFeel(res.settings ?? {})`` re-seed shows the authored value with no
+    reload (bugfix R-B / defect 1.8) instead of blanking the optimistic edit against an absent key.
+
+    ``tenant_id`` is AUTHORITATIVE from the verified context (steering 39); the resolve is
+    VALUES-only (never generated CSS). The write-result fields are preserved — ``settings`` is
+    additive — and a write result key named ``settings`` would be overridden by the resolved view
+    on purpose (the resolved view is the contract), but no write result carries that key today.
+    """
+    resolved = dict(laf_service.get_settings(tenant_id, page_id))
+    return {**dict(write_result), "settings": resolved}
 
 
 def dispatch_config(
@@ -131,5 +164,112 @@ def dispatch_config(
     if name == "publish_application_form":
         publish_service = _dispatch_mod.get_application_publish_service()
         return publish_service.publish(tenant_id)
+
+    # ── Application-form SLUG author/change (bugfix-slug-lifecycle task 3.1) ──────────
+    #
+    # The MISSING client-reachable SAM slug WRITE (bugfix defect B). The edge has already verified
+    # the JWT, resolved `tenant_id` from the verified token (NEVER the body — steering 39), and
+    # enforced the members:admin gate BEFORE reaching here. This branch lifts the `{slug}` body
+    # value and delegates to `ConfigFieldsCrudService.set_form_slug`, which validates (format then
+    # SEC-4 prefix-ownership), claims the shared `_slugs/{slug}` marker, and persists
+    # `config#fields.slug` via a SINGLE identity Change-Op (an explicit `null` CLEARS it). The
+    # service owns ALL semantics: a malformed/reserved/out-of-prefix slug raises SlugAuthorRejected
+    # (→ 422), a foreign-owned slug raises SlugAuthorConflict (→ 409), a stale row raises
+    # StaleVersionError (→ 409) — all mapped caller-safe at the handler (never str(e)). The body is
+    # trusted ONLY for the slug VALUE; `tenant_id` is AUTHORITATIVE from the verified context.
+    if name == "set_application_form_slug":
+        crud_service = _dispatch_mod.get_config_fields_crud_service()
+        body = request.body if isinstance(request.body, dict) else {}
+        # An ABSENT `slug` key is a malformed request (the one thing this route carries); surface a
+        # caller-safe 422 via the service's own rejection rather than silently clearing the slug.
+        if "slug" not in body:
+            raise ConfigWriteValidationError(
+                "request body must carry a 'slug' value (a string to author, or null to clear)"
+            )
+        return crud_service.set_form_slug(tenant_id, body.get("slug"))
+
+    # ── Application-form slug PREFIX author/change (slug-prefix SAM-owned) ────────────
+    #
+    # The tenant's own public slug PREFIX author path (the SEC-4 stem every form slug must sit
+    # under). The edge has verified the JWT, resolved `tenant_id` from the token (NEVER the body),
+    # and enforced members:admin BEFORE here. This branch lifts the `{prefix}` body value and
+    # delegates to `ConfigFieldsCrudService.set_public_prefix`, which validates slug-safe format
+    # and persists `config#fields.public_prefix` via a SINGLE identity Change-Op (explicit `null`
+    # CLEARS it). A malformed/reserved prefix raises SlugAuthorRejected (→ 422); a stale row raises
+    # StaleVersionError (→ 409) — mapped caller-safe at the handler (never str(e)). The body is
+    # trusted ONLY for the prefix VALUE; `tenant_id` is AUTHORITATIVE from the verified context.
+    if name == "set_application_form_prefix":
+        crud_service = _dispatch_mod.get_config_fields_crud_service()
+        body = request.body if isinstance(request.body, dict) else {}
+        if "prefix" not in body:
+            raise ConfigWriteValidationError(
+                "request body must carry a 'prefix' value (a string to author, or null to clear)"
+            )
+        return crud_service.set_public_prefix(tenant_id, body.get("prefix"))
+
+    # ── Page look-and-feel — Layer-1 authoring GET (resolve current VALUES) (spec 15 Task 8) ──
+    #
+    # The edge has already verified the JWT, resolved `tenant_id` from the verified token (NEVER
+    # the body — verify-before-trust, steering 39), and enforced the members:admin gate BEFORE
+    # reaching here. This branch delegates to the standalone LookAndFeelSettingsService (design
+    # C3), which reads the resolved `look_and_feel` slice for the VERIFIED tenant — VALUES only,
+    # never generated CSS; an absent slice/key resolves to an empty map so Layer 2 applies its
+    # SAM-owned defaults. `tenant_id` is AUTHORITATIVE from the verified context; this GET carries
+    # no body and no tenant can be supplied by the client.
+    if name == "get_look_and_feel":
+        laf_service = _dispatch_mod.get_look_and_feel_settings_service()
+        return {"settings": dict(laf_service.get_settings(tenant_id))}
+
+    # ── Page look-and-feel — Layer-1 authoring WRITE (set one value / copy) (spec 15 Task 8) ──
+    #
+    # The edge has verified the JWT, resolved `tenant_id` from the token (NEVER the body), and
+    # enforced members:admin BEFORE here. ONE body carries the action:
+    #   * `{op:"copy", source_page, target_page}` → a one-time snapshot copy within the verified
+    #     tenant (Req 9). A source from another tenant raises CrossTenantCopyError (→ 403); an
+    #     unknown page id raises LookAndFeelValidationError (→ 422).
+    #   * `{attribute, value}` (the default action) → author ONE attribute value (an explicit
+    #     `null` value CLEARS it). An unsupported attribute or an out-of-set value raises
+    #     LookAndFeelValidationError (→ 422) BEFORE any write, so the stored values are unchanged.
+    # Both delegate to LookAndFeelSettingsService → the shared config#fields Change-Op seam, a
+    # single version-conditional `update_item` (a stale row surfaces as StaleVersionError → 409).
+    # The edge is THIN: it only lifts the body action; the service owns ALL validation/placement.
+    # `tenant_id` is AUTHORITATIVE from the verified context — a rogue body tenant is ignored.
+    if name == "write_look_and_feel":
+        laf_service = _dispatch_mod.get_look_and_feel_settings_service()
+        body = request.body if isinstance(request.body, Mapping) else {}
+
+        if body.get("op") == "copy":
+            # A one-time snapshot copy (Req 9). The page ids default to the single SAM-owned page
+            # (the application form) today; an unknown id is rejected by the service. The verified
+            # tenant scopes both read and write — `source_tenant_id` is carried so a cross-tenant
+            # source is rejected (403), never silently honoured.
+            source_page = body.get("source_page") or DEFAULT_PAGE_ID
+            target_page = body.get("target_page") or DEFAULT_PAGE_ID
+            write_result = laf_service.copy_settings(
+                tenant_id,
+                source_page,
+                target_page,
+                source_tenant_id=body.get("source_tenant_id"),
+                client_op_id=body.get("client_op_id"),
+            )
+            return _with_resolved_settings(laf_service, tenant_id, target_page, write_result)
+
+        # Default action: author ONE attribute value. An ABSENT `attribute` key is a malformed
+        # request (the one thing this action carries) — surface a caller-safe 422 via the service's
+        # own rejection rather than guessing. `page` defaults to the application form today.
+        if "attribute" not in body:
+            raise LookAndFeelValidationError(
+                "request body must carry an 'attribute' to author (and a 'value', or null to "
+                "clear), or {op: 'copy'} to snapshot another page's values"
+            )
+        page_id = body.get("page") or DEFAULT_PAGE_ID
+        write_result = laf_service.set_setting(
+            tenant_id,
+            page_id,
+            body.get("attribute"),
+            body.get("value"),
+            client_op_id=body.get("client_op_id"),
+        )
+        return _with_resolved_settings(laf_service, tenant_id, page_id, write_result)
 
     return UNHANDLED

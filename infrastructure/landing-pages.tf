@@ -337,21 +337,79 @@ resource "aws_iam_policy" "dynamodb_landing_pages" {
 }
 
 # S3 public pages write access for publish/unpublish
+#
+# SEC-8 (spec 14 Task 9.2) — LEAST-PRIVILEGE, PREFIX-SCOPED publish IAM.
+# A publisher may write ONLY:
+#   - the served artifacts it owns under `{slug}/*` (e.g. `{slug}/index.html`,
+#     `{slug}/form.json`, and the landing plane's `{slug}/landing-pages/*.json`), and
+#   - the control-plane owner markers under `_slugs/*` (`_slugs/{slug}`, design D6).
+# It must NEVER have bucket-wide `s3:PutObject` — over-broad write would let one
+# producer overwrite another producer's marker or served artifact (SEC-8 hijack).
+#
+# Per-slug Resource ARNs are impractical in ONE shared identity policy (the slugs are
+# runtime data, not known at apply time), so we scope to the two PREFIX patterns the
+# producers actually use instead of `bucket/*`:
+#   - `arn:…:{bucket}/*/*`   — any object nested under a top-level `{slug}/` prefix
+#                              (served artifacts live at `{slug}/index.html` etc.).
+#   - `arn:…:{bucket}/_slugs/*` — the reserved control-plane marker prefix.
+# Top-level bucket-root objects (e.g. a stray `foo.html` with no `{slug}/`) are NOT
+# writable — PutObject there is denied, which is the intended least-privilege boundary.
+# `_slugs/` is a strict subset of `*/*` (it has one path separator) but is listed
+# explicitly for intent + in case the marker prefix is ever flattened.
+#
+# Buckets covered — BOTH, to RECONCILE the hosting-migration drift:
+#   - the legacy personal bucket (`aws_s3_bucket.public_pages`, this account), and
+#   - the NONPROFIT bucket (`var.nonprofit_public_pages_bucket_name`, acct 506221081911)
+#     the publish identity was granted on via a LIVE CLI edit (identity-policy v2 in the
+#     hosting-migration findings). Reflecting it here means a future `terraform apply`
+#     will NOT revert the working cross-account publish. The matching BUCKET-POLICY grant
+#     (principal = this user) lives on the NONPROFIT side and must be reconciled in the
+#     hosting-migration spec's `hosting.tf` (see that spec's findings DRIFT NOTE) — it is
+#     NOT this personal-account module's resource to author.
 resource "aws_iam_policy" "s3_public_pages_write" {
   name        = "myadmin-s3-public-pages-write-${var.environment}"
-  description = "S3 write access for myAdmin landing page publishing"
+  description = "Least-privilege, prefix-scoped S3 write for public-pages publishing (SEC-8): {slug}/* artifacts + _slugs/* markers only, never bucket-wide. Covers legacy + nonprofit buckets."
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowPublicPagesWrite"
+        Sid    = "AllowPrefixScopedPublicPagesWrite"
         Effect = "Allow"
         Action = [
           "s3:PutObject",
           "s3:DeleteObject"
         ]
-        Resource = "${aws_s3_bucket.public_pages.arn}/*"
+        Resource = [
+          # Legacy personal bucket — served `{slug}/*` artifacts + `_slugs/*` markers.
+          "${aws_s3_bucket.public_pages.arn}/*/*",
+          "${aws_s3_bucket.public_pages.arn}/_slugs/*",
+          # Nonprofit bucket (hosting migration) — same two prefix scopes.
+          "arn:aws:s3:::${var.nonprofit_public_pages_bucket_name}/*/*",
+          "arn:aws:s3:::${var.nonprofit_public_pages_bucket_name}/_slugs/*"
+        ]
+      },
+      {
+        # ListBucket is needed by the publish/marker-resolve path (the slug-marker
+        # store reverse-reads `_slugs/{slug}`; an unpublish may list a slug's prefix).
+        # Scoped with a prefix condition so the grant cannot enumerate the whole bucket.
+        Sid    = "AllowPrefixScopedList"
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.public_pages.arn,
+          "arn:aws:s3:::${var.nonprofit_public_pages_bucket_name}"
+        ]
+        Condition = {
+          StringLike = {
+            "s3:prefix" = [
+              "_slugs/*",
+              "*/*"
+            ]
+          }
+        }
       }
     ]
   })
@@ -365,9 +423,48 @@ resource "aws_iam_policy" "s3_public_pages_write" {
 }
 
 # CloudFront invalidation access for instant publish/unpublish visibility
+#
+# SEC-8 (spec 14 Task 9.2) — grants `cloudfront:CreateInvalidation` on BOTH:
+#   - the legacy personal distribution (`aws_cloudfront_distribution.public_pages`), and
+#   - the NONPROFIT `*.jabaki.nl` distribution (`var.nonprofit_public_pages_distribution_arn`,
+#     acct 506221081911) the hosting migration cut over to.
+#
+# CROSS-ACCOUNT NOTE (hosting-migration finding): the publish identity
+# `myadmin-railway-backend` is in the PERSONAL account (344561557829) but the
+# live `*.jabaki.nl` distribution (E3GLUX3TWBIJG) is in NONPROFIT (506221081911).
+# `cloudfront:CreateInvalidation` is NOT currently cross-account grantable to an
+# IAM user by a resource policy the way S3 is (CloudFront distributions have no
+# resource policy), so an IDENTITY grant naming a foreign-account distribution
+# ARN alone does NOT authorise the call — the request still evaluates in the
+# RESOURCE owner's (nonprofit) account, which has no matching grant for this
+# principal. The identity statement below is the identity-side HALF of the grant
+# (removes the "unpermitted in the principal's own account" half of the failure).
+#
+# To actually CLOSE the invalidation gap, the correct minimal mechanism is a
+# CROSS-ACCOUNT ROLE in NONPROFIT that this personal user assumes:
+#   - nonprofit defines `role/myadmin-publish-invalidation` whose trust policy allows
+#     `arn:aws:iam::344561557829:user/service-accounts/myadmin-railway-backend` to
+#     `sts:AssumeRole`, and whose permissions policy allows
+#     `cloudfront:CreateInvalidation` on the nonprofit distribution;
+#   - that ROLE + trust belong to the HOSTING-MIGRATION spec's `hosting.tf`
+#     (nonprofit-owned), NOT this personal-account module — so it is FLAGGED there,
+#     not authored here (do not silently author another spec's nonprofit infra).
+# The `sts:AssumeRole` permission for THIS user (the personal-account half of the
+# assume-role mechanism) is NOT added yet — it needs the nonprofit role ARN, which
+# the hosting-migration tf must define first. It is a FOLLOW-UP in THIS module once
+# that role exists; until then the identity grant below is the identity-side half.
+#
+# CODE FOLLOW-UP (flagged, not closed by IAM alone): the backend currently BUILDS
+# the invalidation ARN with the PERSONAL account id (344561557829) while the
+# distribution is in NONPROFIT (506221081911) — see hosting-migration findings and
+# `sam/members/repository/public_page_artifact_store.py`. Even with the grant/role
+# in place, the backend must (a) target the nonprofit distribution id and (b) assume
+# the cross-account role before calling `CreateInvalidation`. That is a CODE change
+# tracked as a follow-up to this IAM task — the invalidation is already best-effort /
+# non-fatal in the publish path, so publishing is NOT blocked by it.
 resource "aws_iam_policy" "cloudfront_invalidation" {
   name        = "myadmin-cloudfront-invalidation-${var.environment}"
-  description = "CloudFront invalidation access for landing page publish/unpublish"
+  description = "CloudFront invalidation access for public-pages publish/unpublish (SEC-8). Identity-side grant for the legacy + nonprofit distributions; cross-account close-out via an assume-role in the hosting-migration tf."
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -378,7 +475,10 @@ resource "aws_iam_policy" "cloudfront_invalidation" {
         Action = [
           "cloudfront:CreateInvalidation"
         ]
-        Resource = aws_cloudfront_distribution.public_pages.arn
+        Resource = [
+          aws_cloudfront_distribution.public_pages.arn,
+          var.nonprofit_public_pages_distribution_arn
+        ]
       }
     ]
   })

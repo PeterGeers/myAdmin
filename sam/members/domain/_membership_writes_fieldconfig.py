@@ -17,6 +17,9 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sam.members.domain import field_formats
+from sam.members.domain._membership_writes_validation import (
+    effective_application_required,
+)
 from sam.members.domain._membership_errors import (
     MEMBERSHIP_TYPE_FIELD_KEY,
 )
@@ -236,6 +239,24 @@ class FieldConfigSurfaceMixin:
             # the config-write path is the authoritative gate that a `format.checker` is a known
             # token (R8.1b) — the frontend dropdown is convenience, never the only guard.
             "field_format_tokens": sorted(field_formats.known_tokens()),
+            # The FORM's own public slug + the tenant's SAM-owned public slug PREFIX, both read
+            # off the SAME `config#fields` row (slug-prefix SAM-owned). Surfaced here so the
+            # Application Form Builder can DISPLAY the resolved public address and gate Publish
+            # (`slug`), and the admin can see/edit the ownership stem every slug must sit under
+            # (`public_prefix`, SEC-4). Both come from the injected form-slug provider — a stable
+            # indirection over a fresh projection reader in production (its `get_form_slug` /
+            # `get_public_prefix` read `config#fields`), `None` in a service built without one.
+            # Empty-is-valid: a tenant that has authored neither surfaces `None` for both (the
+            # builder then states "no public address yet" / "no prefix configured"). Presentation-
+            # only: the module serves them; the author Change-Ops (`set_form_slug` /
+            # `set_public_prefix`) and the SEC-4 rule enforce server-side regardless.
+            "slug": self._form_slug(tenant_id),
+            "public_prefix": self._public_prefix(tenant_id),
+            # Publish-state scalars (Round 3 Defect 4) — `published_version` / `published_at` from
+            # the SAME `config#fields` row, so the builder's `everPublished` is true after a publish
+            # and "Draft has unpublished changes" can clear. Resolved scalars only (steering 39);
+            # absent keys → `None` (never published).
+            **self._published_state(tenant_id),
             # NOTE (spec 03 task 5.3, steering 39 guard): the RAW stored `config#fields` overlay
             # (`fields` / `overrides` / `fixed_overrides` / `functional_groups`, dotted
             # `{group}.{key}` keys) is DELIBERATELY NOT surfaced here. The raw storage shape MUST
@@ -250,6 +271,59 @@ class FieldConfigSurfaceMixin:
             # used only by the Change-Op CRUD service's validate-and-place step — and is never
             # exposed on the API/cross-boundary path.
         }
+
+    def _form_slug(self, tenant_id: str) -> str | None:
+        """The tenant's stored application-form ``slug`` (``config#fields.slug``), or ``None``.
+
+        Read through the injected form-slug provider (a stable indirection over a fresh projection
+        reader in production — its ``get_form_slug`` reads ``config#fields``). Fail-safe: no
+        provider, no ``get_form_slug``, or a read fault all resolve to ``None`` (the builder then
+        states the form has no public address yet). Presentation-only — the author Change-Op is the
+        authoritative write.
+        """
+        provider = getattr(self, "_form_slug_provider", None)
+        if provider is None or not hasattr(provider, "get_form_slug"):
+            return None
+        try:
+            value = provider.get_form_slug(tenant_id)
+        except Exception:  # noqa: BLE001 - a read fault must not black out the whole config read
+            return None
+        return value if isinstance(value, str) and value.strip() else None
+
+    def _published_state(self, tenant_id: str) -> dict[str, Any]:
+        """``{"published_version", "published_at"}`` for the staff field-config read (else ``None``).
+
+        Read through the injected form-slug provider's ``get_published_state`` (the projection
+        reader in production). Fail-safe: no provider / no method / a read fault → both ``None``.
+        """
+        state: Mapping[str, Any] = {}
+        provider = getattr(self, "_form_slug_provider", None)
+        if provider is not None and hasattr(provider, "get_published_state"):
+            try:
+                state = provider.get_published_state(tenant_id) or {}
+            except Exception:  # noqa: BLE001 - a read fault must not black out the config read
+                state = {}
+        return {
+            "published_version": state.get("published_version"),
+            "published_at": state.get("published_at"),
+        }
+
+    def _public_prefix(self, tenant_id: str) -> str | None:
+        """The tenant's SAM-owned public slug ``prefix`` (``config#fields.public_prefix``), or None.
+
+        Read through the SAME injected form-slug provider (its ``get_public_prefix`` reads
+        ``config#fields`` — slug-prefix SAM-owned). Fail-safe to ``None`` on no provider / no method
+        / a read fault (the admin screen then shows "no prefix configured"). Presentation-only — the
+        author Change-Op (``set_public_prefix``) + the SEC-4 rule enforce server-side.
+        """
+        provider = getattr(self, "_form_slug_provider", None)
+        if provider is None or not hasattr(provider, "get_public_prefix"):
+            return None
+        try:
+            value = provider.get_public_prefix(tenant_id)
+        except Exception:  # noqa: BLE001 - a read fault must not black out the whole config read
+            return None
+        return value if isinstance(value, str) and value.strip() else None
 
     # ── Public application-form field config (seam a/c — task 4.1, R5.1–R5.3) ─────────
 
@@ -351,18 +425,57 @@ class FieldConfigSurfaceMixin:
             # The applicant locale selector's options (R6b). The renderer selects each field's
             # label language from the applicant's chosen locale, defaulting to `nl` (R5.3/R6b.1).
             "locales": list(SUPPORTED_LOCALES),
-            # The tenant's CURRENT versioned consent-notice version (D26/R12.1a). The form shows
-            # the notice and the submit stamps THIS server-resolved version (never a client
-            # value). `None` when the tenant authored no notice (empty-is-valid, R12.1c) — the
-            # affirmative consent is still required + recorded by `create_application`. The notice
-            # TEXT body + the readiness 409 are the Flask projection (8.2) / task 4.2 concern;
-            # this surfaces the pinned version the form references.
-            "notice": {
-                "version": self._consent_notice_provider.get_consent_notice_version(
-                    tenant_id
-                )
-            },
+            # The tenant's CURRENT versioned consent notice (D26/R12.1a). The form shows the
+            # notice TEXT and the submit stamps THIS server-resolved version (never a client
+            # value). The FULL notice `{version, text}` is sourced from the consent-notice seam
+            # (`get_consent_notice`) so the published form has the localized body to render + have
+            # the applicant accept — without it consent is posted empty and the backend hard-
+            # rejects with 422 CONSENT_REQUIRED (Round-2 Defect 2). `text` is `{locale: body}`
+            # read off the `config#mail` row; the raw storage item never crosses the boundary
+            # (steering 39) — only `{version, text}` is surfaced. Empty-is-valid (R12.1c): a
+            # tenant that authored no well-formed notice surfaces `{"version": None}` exactly as
+            # before — the affirmative consent is still required + recorded by `create_application`.
+            "notice": self._resolve_public_notice(tenant_id),
+            # Publish-state (Round 3 Defect 4): `published_version` only, so `_next_published_version`
+            # (`ApplicationPublishService`, which reads this SAME public view) advances from the
+            # persisted value instead of always computing 1. Absent when never published
+            # (empty-is-valid) — `published_at` is admin-facing metadata, not part of the public
+            # schema, and stays on the staff read only.
+            "published_version": self._published_state(tenant_id).get(
+                "published_version"
+            ),
         }
+
+    def _resolve_public_notice(self, tenant_id: str) -> dict[str, Any]:
+        """Resolve the PUBLIC consent notice `{version, text}` served to the form (R12.1a/R12.1c).
+
+        Sourced from the injected consent-notice seam. The seam's concrete provider is the
+        DynamoDB-backed projection reader, which exposes the FULL notice via `get_consent_notice`
+        (`{"version", "text"} | None`, the `config#mail` read authority); when present that full
+        notice is surfaced so the published form can render the localized `text` the applicant
+        accepts (Round-2 Defect 2 fix).
+
+        Provider selection (full vs version-only) is by DUCK-TYPING, mirroring the seam's existing
+        `get_consent_notice_version` contract (`consent_notice.ConsentNoticeProvider`):
+
+        - If the provider exposes `get_consent_notice`, call it. A well-formed `{version, text}`
+          is surfaced whole; `None` (empty-is-valid) falls back to the version-only shape below.
+        - Otherwise (a provider that only satisfies the version-only Protocol, e.g. the static
+          test provider / the Round-1 stamp seam) resolve `get_consent_notice_version` and serve
+          `{"version": ...}` exactly as before — no `text` key, no behaviour change.
+
+        Steering 39: only the resolved `{version, text}` domain view crosses the boundary — never
+        the raw `config#mail` item.
+        """
+        provider = self._consent_notice_provider
+        get_full = getattr(provider, "get_consent_notice", None)
+        if callable(get_full):
+            notice = get_full(tenant_id)
+            if isinstance(notice, Mapping) and notice.get("version") is not None:
+                return {"version": notice.get("version"), "text": notice.get("text")}
+        # Version-only fallback (empty-is-valid / provider without the full-notice method): serve
+        # the pinned version alone, exactly the pre-Round-2 shape.
+        return {"version": provider.get_consent_notice_version(tenant_id)}
 
     def _serialize_public_field(
         self,
@@ -379,8 +492,9 @@ class FieldConfigSurfaceMixin:
 
         - ``key`` (the dotted key the form flattens/un-flattens by) / ``group`` (storage bucket) /
           ``type`` / i18n ``label{nl,en}`` / ``functional_group`` (the display section) / ``order``;
-        - ``required`` — the **application-required** flag (R4b.6), the form's own requiredness,
-          NOT the staff ``required`` (an applicant's required set is the tenant's form config);
+        - ``required`` — :func:`effective_application_required`: the sole public-form rule —
+          ``application_required`` OR a public identity key (server-stamped keys never required);
+          the platform ``required`` floor is NOT unioned in (R6, "the form is the boss");
         - ``show_when`` (R4.12) when present — so the form renders/validates a conditional field
           only when actually shown (mirrored authoritatively server-side);
         - ``options`` — the ONE canonical vocabulary the read-assembly seam (design C4 / F8)
@@ -397,10 +511,9 @@ class FieldConfigSurfaceMixin:
             "key": field.key,
             "group": field.group,
             "type": field.type.value,
-            # The PUBLIC-FORM requiredness (R4b.6) — the application-required flag, not the staff
-            # `required`. A platform-required field is also application-required at enforcement
-            # (R4b.3), but what the form marks is this flag; the server stays authoritative.
-            "required": bool(field.application_required),
+            # PUBLIC-FORM requiredness: the sole-rule RENDER authority (task 23.1). The engine's
+            # PUBLIC enforcement is pruned to the same rule separately (task 23.1b) so the two agree.
+            "required": effective_application_required(field),
             "label": dict(field.label),
             "functional_group": field.functional_group or field.group,
             "order": int(field.order),

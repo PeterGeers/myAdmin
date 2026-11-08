@@ -284,6 +284,112 @@ ROUTES: tuple[RouteSpec, ...] = (
             "spec 03 Task 7.1). Gate: members:admin (Tenant_Admin)."
         ),
     ),
+    # ── Application-form SLUG author/change (bugfix-slug-lifecycle task 3.1) ──────────
+    #
+    # The MISSING client-reachable SAM slug WRITE (bugfix defect B). A `members:admin`-gated
+    # POST carrying `{"slug": "<slug>" | null}` that authors / changes / clears the application
+    # form's own public `slug` on `config#fields`. The edge verifies the JWT, resolves
+    # `tenant_id` from the verified token (NEVER the body — steering 39), enforces members:admin,
+    # and delegates to `ConfigFieldsCrudService.set_form_slug`, which validates (format/reserved
+    # then SEC-4 prefix-ownership), claims the shared `_slugs/{slug}` marker, and persists the
+    # slug via a SINGLE identity Change-Op (an explicit `null` CLEARS it). publish-state
+    # (`published_*`) is carried through by construction, never authored here.
+    #
+    # This is DISTINCT from `publish_application_form`: publish CLAIMS an already-stored slug; this
+    # route AUTHORS one in the first place (so a no-SAM-slug tenant like h-dcn can clear the
+    # publish NO_SLUG readiness gate from the SAM plane). The literal `/members/application-form/`
+    # prefix is disjoint from `/members/{member_id}` and every other `/members/...` literal, and
+    # the `.../slug` leaf is distinct from the `.../publish` leaf — no (method, path) collision.
+    #
+    # Gate: members:admin (Tenant_Admin) — authoring a tenant's public address is an
+    # administrative concern (mirrors write_config / the catalog writes), never self-service.
+    RouteSpec(
+        name="set_application_form_slug",
+        method=HttpMethod.POST,
+        path="/members/application-form/slug",
+        group=RouteGroup.MEMBER,
+        capability=CAP_MEMBERS_ADMIN,
+        self_service=False,
+        summary=(
+            "Author / change / clear the application-form public slug on config#fields "
+            "(body {slug: str | null}); validates format + SEC-4 prefix-ownership, claims "
+            "_slugs/{slug}, persists via an identity Change-Op. Gate: members:admin "
+            "(Tenant_Admin)."
+        ),
+    ),
+    # ── Application-form slug PREFIX author (slug-prefix SAM-owned) ───────────────────
+    #
+    # The tenant's own public slug PREFIX (e.g. "h-dcn") — the stem under which every authored
+    # form slug must sit (SEC-4 prefix-ownership). SAM-OWNED: persisted as config#fields.public_prefix
+    # via ConfigFieldsCrudService.set_public_prefix (an identity Change-Op; null/blank CLEARS it).
+    # The prefix is read by get_public_prefix off the SAME config#fields row — Flask no longer
+    # stores or projects it. Same (method, path) disjointness + members:admin gate rationale as
+    # the slug route above; `tenant_id` is AUTHORITATIVE from the verified token, never the body.
+    RouteSpec(
+        name="set_application_form_prefix",
+        method=HttpMethod.POST,
+        path="/members/application-form/prefix",
+        group=RouteGroup.MEMBER,
+        capability=CAP_MEMBERS_ADMIN,
+        self_service=False,
+        summary=(
+            "Author / change / clear the tenant's SAM-owned public slug prefix on "
+            "config#fields (body {prefix: str | null}); validates slug-safe format, persists "
+            "via an identity Change-Op. Gate: members:admin (Tenant_Admin)."
+        ),
+    ),
+    # ── Page look-and-feel — Layer-1 authoring (get / set / copy) (spec 15 Task 8) ───
+    #
+    # The Layer-1 `Look_And_Feel_Capability` authoring surface (design C3 / C6, DD-2): the admin
+    # reads and authors the application-form PAGE's presentation VALUES — the distinct named
+    # `look_and_feel` slice on `config#fields` — never generated CSS (that is Layer 2). Two thin
+    # routes back it:
+    #   * GET  /members/look-and-feel — resolve the tenant's current stored VALUES (absent slice
+    #     / key → empty map; Layer 2 then applies its own SAM-owned defaults, Req 3.3/4.4/5.4);
+    #   * PUT  /members/look-and-feel — author ONE attribute value OR copy a page's values onto
+    #     another (one body carries the action: `{attribute, value}` to set/clear, `{op:"copy",
+    #     source_page, target_page}` to snapshot). The write is a single version-conditional
+    #     Change-Op via `LookAndFeelSettingsService` → the shared `config#fields` `apply_ops`
+    #     seam, so untouched attributes / unrelated slices survive by construction (steering 39).
+    #
+    # The literal `/members/look-and-feel` path (one segment past `/members/`) is disjoint from
+    # `/members/{member_id}` and from every other `/members/...` literal (application-form /
+    # config / analytics-sets / templates / schedules / mail / field-config / column-preferences
+    # / me / search / export), so there is no (method, path) collision or shadowing. DECLARED
+    # BEFORE the `{member_id}` routes so the literal prefix matches first (the router returns the
+    # first matching route in declaration order for a method).
+    #
+    # Gate: members:admin (Tenant_Admin), same as write_config / slug / prefix — authoring a
+    # tenant's page presentation is an administrative concern, never self-service. `tenant_id` is
+    # AUTHORITATIVE from the verified token, NEVER the body (verify-before-trust, steering 39); a
+    # rogue body tenant can never redirect the read/author target. The GET is admin-gated too (the
+    # authoring surface, not the applicant-facing published page — that is served by publish).
+    RouteSpec(
+        name="get_look_and_feel",
+        method=HttpMethod.GET,
+        path="/members/look-and-feel",
+        group=RouteGroup.MEMBER,
+        capability=CAP_MEMBERS_ADMIN,
+        self_service=False,
+        summary=(
+            "Resolve the application-form page's stored look-and-feel VALUES (the look_and_feel "
+            "slice on config#fields; absent → empty = Layer-2 defaults). VALUES only, never CSS. "
+            "Gate: members:admin (Tenant_Admin), verified tenant."
+        ),
+    ),
+    RouteSpec(
+        name="write_look_and_feel",
+        method=HttpMethod.PUT,
+        path="/members/look-and-feel",
+        group=RouteGroup.MEMBER,
+        capability=CAP_MEMBERS_ADMIN,
+        self_service=False,
+        summary=(
+            "Author ONE look-and-feel attribute value ({attribute, value}; null clears) OR copy "
+            "({op:'copy', source_page, target_page}) via a single version-conditional Change-Op "
+            "into the look_and_feel slice. Gate: members:admin (Tenant_Admin), verified tenant."
+        ),
+    ),
     # ── Column preferences — per-user overview columns (session-columns R6) ──────────
     #
     # The per-user chosen-column list for the Members overview, mirroring the preferred-list

@@ -103,6 +103,11 @@ parameter_overrides = [
   #   form hostname is supplied here. (`aanmelden.jabaki.nl` is the intake-form origin; adjust when
   #   the real hostname is finalized — Phase 9/10.)
   "PublicFormAllowedOrigins=https://aanmelden.jabaki.nl",
+  # PublicFormApex (CORS Option B — application-form-submit Round 2 task 7.1, R5.1/R5.5): the PROD
+  #   public-pages apex the published form is served on. The edge admits the form's OWN resolved
+  #   slug host `https://{resolved_slug}.jabaki.nl` only — never a `*.jabaki.nl` wildcard. Matches
+  #   the apex `application_publish` bakes into the canonical `{slug}.jabaki.nl` URL.
+  "PublicFormApex=jabaki.nl",
   # PublicTenantSlugMap REMOVED (spec 12 task 7.1, R7.3): the slug→tenant_id resolution is now
   #   DATA-backed (`_slugs/{slug}` bucket marker, OQ4) — no param/env var to seed per env, and the
   #   `--parameter-overrides` replace-not-merge footgun (decision 1a / D7) can no longer blank it.
@@ -115,6 +120,11 @@ parameter_overrides = [
   # redeploy). TEST runs tighter (below) since it shares the account's API Gateway budget.
   "PublicApiThrottleRateLimit=10",
   "PublicApiThrottleBurstLimit=20",
+  # --- Public-pages hosting (spec 14 Task 9) — shared nonprofit bucket/distribution ---
+  # SAME values as TEST: ONE shared nonprofit public-pages bucket + CloudFront distribution (D7);
+  # the members-plane env boundary is the `test_` table prefix, NOT a separate bucket.
+  "LandingPagesBucket=myadmin-public-pages-nonprofit-506221081911",
+  "CloudFrontPublicPagesDistributionId=E3GLUX3TWBIJG",
   # SECRET — NOT here (steering 43 "no secrets in CI"): `OpenRouterApiKey` (the Members
   # AI-improve key, R2 task 2.4) is a NoEcho template parameter with NO default + an
   # `sk-or-v1-` AllowedPattern. It is supplied at DEPLOY time only, appended by the OIDC
@@ -204,6 +214,12 @@ parameter_overrides = [
   # PublicTenantSlugMap REMOVED here too (spec 12 task 7.1, R7.3): slug→tenant_id is now the
   # DATA-backed `_slugs/{slug}` bucket marker (OQ4), identical contract on TEST without a param.
   "PublicFormAllowedOrigins=https://aanmelden-test.jabaki.nl",
+  # PublicFormApex (CORS Option B — task 7.1, R5.1/R5.5): the TEST public-pages apex the published
+  #   form is served on. Same apex as PROD (`jabaki.nl`) — the TEST published artifact is served on
+  #   `{slug}.jabaki.nl` too (the TEST/PROD split is the static CORS baseline host, not the apex).
+  #   The edge admits only the form's OWN resolved slug host `https://{resolved_slug}.jabaki.nl`,
+  #   never a `*.jabaki.nl` wildcard.
+  "PublicFormApex=jabaki.nl",
   # --- Public API throttle + usage plan (R10.1, D17, task 7.1) — the TEST rate/burst ---
   # TEST siblings of the prod public-edge throttle, run TIGHTER (5/s steady, 10 burst) than prod:
   # TEST shares the nonprofit-deploy account's API Gateway throttle budget with prod, and a TEST
@@ -212,6 +228,11 @@ parameter_overrides = [
   # CORS are the proportionate controls.
   "PublicApiThrottleRateLimit=5",
   "PublicApiThrottleBurstLimit=10",
+  # --- Public-pages hosting (spec 14 Task 9) — shared nonprofit bucket/distribution ---
+  # SAME values as PROD: ONE shared nonprofit public-pages bucket + CloudFront distribution (D7);
+  # the members-plane env boundary is the `test_` table prefix, NOT a separate bucket.
+  "LandingPagesBucket=myadmin-public-pages-nonprofit-506221081911",
+  "CloudFrontPublicPagesDistributionId=E3GLUX3TWBIJG",
   # SECRET — NOT here (steering 43): `OpenRouterApiKey` (R2 task 2.4) is supplied at deploy
   # time by the OIDC workflow via `--parameter-overrides "OpenRouterApiKey=${OPENROUTER_API_KEY}"`
   # from the TEST environment's secret store — never committed, never in CI config.

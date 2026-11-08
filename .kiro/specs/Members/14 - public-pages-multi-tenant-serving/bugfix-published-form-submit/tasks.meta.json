@@ -1,0 +1,896 @@
+{
+  "pbtResults": {
+    "1. Write bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "Exploration test FAILED on UNFIXED code across all 3 facets (the SUCCESS case — bug confirmed). Falsifying example (all facets): config={'tenant_id':'h-dcn','fields':[{'key':'iban','type':'text','label':{'nl':'IBAN','en':'IBAN'},'required':True,'format':{'checker':'IBAN','params':{}}}],'functional_groups':[],'locales':['nl'],'notice':{'version':'v1'}}.\n\nSUBMIT facet: bare native method=post form=True, preventDefault=False, submit <script> with fetch/XHR=False, POST /public/members/{slug}/applications reference=False. Counterexample: applicant clicks Verstuur -> browser native-POSTs form-urlencoded to https://hdcn-aanmelden.jabaki.nl/apply -> 404 Not Found; backend endpoint never called, application lost.\n\nFORMAT facet: the format={'checker':'IBAN'} token is ignored by _render_field; no client-side IBAN check wired. Counterexample: applicant types an IBAN with a bad checksum -> page accepts it with no feedback.\n\nCONSENT_LOCALE facet: consent control bound to notice.version='v1'=False (no consent control rendered at all). Counterexample: config exposes notice.version + locales, but published page shows no consent checkbox -> a correctly-posted body is hard-rejected by the backend for missing consent.",
+      "lastRunTimestamp": 1793719247026
+    },
+    "7.5 Verify Round-2 bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1793735514994
+    },
+    "7.6 Verify Round-2 preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1793735585629
+    },
+    "9. Write Round-3 bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "WIRING: h-dcn config#mail consent_notice {version:'2026-01',text:{nl,en}} -> served notice={'version': None}. CORS_ERROR: Origin https://hdcn-aanmelden.jabaki.nl, 422 -> ACAO=None. FALLBACK: showFieldError `if (!wrap) {return;}` drops the message. PUBLISH_STATE: stored config#fields keys=['slug','tenant_id'] after publish (v1 not persisted).",
+      "lastRunTimestamp": 1793782398238
+    },
+    "11.5 Verify Round-3 bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1793783484214
+    },
+    "11.6 Verify Round-3 preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1793783527164
+    },
+    "13. Write Round-4 bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "IAM: PublicReadSlugMarkers grants s3:GetObject under s3:prefix Condition; PREFLIGHT_ROUTE: no OPTIONS events on either public path (found []); PREFLIGHT_HANDLER: OPTIONS from https://hdcn-aanmelden.jabaki.nl -> 404, no ACAO",
+      "lastRunTimestamp": 1793795032390
+    },
+    "15.4 Verify Round-4 preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1793802254924
+    },
+    "15.3 Verify Round-4 bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1793802258470
+    },
+    "17. Write Round-5 bug condition exploration test": {
+      "status": "passed",
+      "failingExample": "All 7 facet tests FAIL on unfixed code (bug confirmed). KEYS: empty submit 422 errors[].field=['personal.last_name','membership.membership_type','overlay.region','overlay.magazine_pref','personal.email','personal.birth_date'] (all dotted, none a rendered control name). REQUIRED_PARITY: rendered required={'magazine_pref'} vs engine required={'birth_date','email','last_name','magazine_pref','membership_type','region'}. SCRIPT: 422 branch has no errors.validation.required->'Dit veld is verplicht.' map; 'entry.detail' is rendered; no 'aria-invalid'; 422 errors branch contains neutral( and no statusAppend(. CSS: LandingPageStyles lacks .field-error, .form-status-error, .has-error.",
+      "lastRunTimestamp": 1793806046145
+    },
+    "18. Write Round-5 preservation property tests (BEFORE implementing fix)": {
+      "status": "passed",
+      "lastRunTimestamp": 1793806491483
+    },
+    "19.5 Verify Round-5 bug condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1793808744046
+    },
+    "19.6 Verify Round-5 preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1793808783882
+    },
+    "21. Write Round-6 bug condition exploration test": {
+      "status": "unexpected_pass",
+      "failingExample": "FORM_IS_BOSS facet on `personal.gender` PASSES unexpectedly on unfixed code. Probe over the REAL h-dcn fixture: resolved personal.gender has required=True (override) BUT effective_application_required(gender)=False and _platform_required_by_engine(gender)=False. Omitting gender in create_application SUCCEEDS (status=application). Reason: for a FIXED field, _platform_required_by_engine reads the PLATFORM REGISTRY via field_by_key(\"personal.gender\") where gender.required=False — the tenant OVERRIDE required:true never reaches the public floor. The floor union only fires for VARIABLE/overlay fields whose resolved `required` flows directly into the floor. The genuine reproduction is `region` (overlay, platform required:true, NO application_required): RENDER_PARITY facet FAILS with counterexample rendered-only/engine-only = {'region'} (region is demanded of an applicant though the tenant never marked it application_required). So: 3 facets pass (gender FORM_IS_BOSS unexpectedly, FORM_REQUIRED_ENFORCED, SERVER_STAMPED_EXCLUDED), 1 fails as expected (RENDER_PARITY catches the real floor-union bug via region).",
+      "lastRunTimestamp": 1793877771535
+    }
+  },
+  "executionHistory": {
+    "1. Write bug condition exploration test": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719074946
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719084105
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719272086
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075141
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719281727
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719671733
+      }
+    ],
+    "3.1 Bake the public API base into the artifact at publish time (fail-fast, no silent default)": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075290
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719680746
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720092857
+      }
+    ],
+    "3.2 Render a working submit script + honor the `format` token (client checks)": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075403
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720101686
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720568674
+      }
+    ],
+    "3.3 Render the consent control + locale selector, styled with LandingPageStyles": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075522
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720577256
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720965286
+      }
+    ],
+    "3.4 Verify bug condition exploration test now passes": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075688
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793720973867
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721073641
+      }
+    ],
+    "3.5 Verify preservation tests still pass": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075856
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721081891
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721174359
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793719075992
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721184284
+      },
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721961307
+      }
+    ],
+    "3. Fix for the published application form that cannot be submitted": [
+      {
+        "executionId": "e7749fb2-8304-49c7-b4fc-b170b4567b57",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793721174523
+      }
+    ],
+    "5. Write Round-2 bug condition exploration test": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793733979989
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734498130
+      }
+    ],
+    "6. Write Round-2 preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734123532
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734499341
+      }
+    ],
+    "7.1 CORS Option B — allow the resolved slug host (fail-closed otherwise, no wildcard)": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734517932
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734871386
+      }
+    ],
+    "7.2 Surface the full consent notice {version, text} in get_public_field_config": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793734877185
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735126173
+      }
+    ],
+    "7.3 Render the notice TEXT above the consent checkbox, styled with LandingPageStyles": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735136874
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735289052
+      }
+    ],
+    "7.4 Map the consent-required and field 422s inline in the submit script": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735294309
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735458657
+      }
+    ],
+    "7.5 Verify Round-2 bug condition exploration test now passes": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735468704
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735534478
+      }
+    ],
+    "7.6 Verify Round-2 preservation tests still pass": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735538920
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735603510
+      }
+    ],
+    "7. Fix for the published form submit failing in TEST (CORS, notice text, error clarity)": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735603660
+      }
+    ],
+    "8. Round 2 Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735608505
+      },
+      {
+        "executionId": "97183a59-0d8c-40f7-9eb8-7930600e7c02",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793735958907
+      }
+    ],
+    "9. Write Round-3 bug condition exploration test": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968103
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781980221
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782420124
+      }
+    ],
+    "10. Write Round-3 preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968225
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781981143
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782420207
+      }
+    ],
+    "11.1 Wire the consent-notice provider in app.py": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968323
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782430797
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782521861
+      }
+    ],
+    "11.2 CORS on 422/500 with the resolved slug": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968411
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782527509
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782624898
+      }
+    ],
+    "11.3 Submit-script fallback to the form-level message": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968496
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782630230
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782795332
+      }
+    ],
+    "11.4 Persist publish state via a version-conditional Change-Op": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968588
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793782800686
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783351536
+      }
+    ],
+    "11.5 Verify Round-3 bug condition exploration test now passes": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968685
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783358535
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783500481
+      }
+    ],
+    "11.6 Verify Round-3 preservation tests still pass": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968770
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783501415
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783541642
+      }
+    ],
+    "12. Round 3 Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793781968853
+      },
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783547137
+      },
+      {
+        "executionId": "a569fe63-a46d-428f-b1d9-fda33d66a5f9",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793792636610
+      },
+      {
+        "executionId": "c77f3ca4-b828-464c-bd9f-0ee93dd4a65a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793792803504
+      }
+    ],
+    "11. Fix for Round-3 defects (consent wiring, CORS on 422/500, silent errors, publish state)": [
+      {
+        "executionId": "9f83ce13-f3c3-47a8-8d4e-cae96fecaa06",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793783541817
+      }
+    ],
+    "13. Write Round-4 bug condition exploration test": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938214
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794945516
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795517574
+      }
+    ],
+    "14. Write Round-4 preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938394
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794946638
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795518675
+      }
+    ],
+    "15.1 Split the slug-marker IAM statement": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938522
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795525291
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795617660
+      }
+    ],
+    "15.2 Route OPTIONS to the Lambda and answer it per origin": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938666
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795618672
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795958948
+      }
+    ],
+    "15.3 Verify Round-4 bug condition exploration test now passes": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938789
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795959060
+      },
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802274547
+      }
+    ],
+    "15.4 Verify Round-4 preservation tests still pass": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794938911
+      },
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793795959146
+      },
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802228608
+      },
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802275784
+      }
+    ],
+    "16. Round 4 Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "fe669eb7-2d61-4cb8-96f2-842c6d76ee8a",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793794939019
+      },
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802276712
+      },
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802390632
+      }
+    ],
+    "15. Fix for slug-marker IAM and per-origin preflight": [
+      {
+        "executionId": "9c705e1f-4b69-4f4b-abeb-a2fb3db4fbd0",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793802275954
+      }
+    ],
+    "17. Write Round-5 bug condition exploration test": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803819839
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803832803
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793806538075
+      }
+    ],
+    "18. Write Round-5 preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820022
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803832915
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793806538249
+      }
+    ],
+    "19.1 Return bare field keys in the public 422": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820146
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793806561989
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793806788099
+      }
+    ],
+    "19.2 Single authority for required": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820254
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793806788236
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808436652
+      }
+    ],
+    "19.3 Script messages, marking, no overwrite, focus, visible-only": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820361
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808436749
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808607590
+      }
+    ],
+    "19.4 Error and status CSS in LandingPageStyles": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820500
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808607685
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808719999
+      }
+    ],
+    "19.5 Verify Round-5 bug condition exploration test now passes": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820607
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808720160
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808759853
+      }
+    ],
+    "19.6 Verify Round-5 preservation tests still pass": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820717
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808761292
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808805952
+      }
+    ],
+    "20. Round 5 Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793803820819
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808806930
+      },
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793809225772
+      }
+    ],
+    "19. Fix for field-keyed errors, required parity and readable error UX": [
+      {
+        "executionId": "3ead535f-b633-4523-8b8e-50e7397cbe97",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793808806121
+      }
+    ],
+    "21. Write Round-6 bug condition exploration test": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793877470415
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879106600
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879329994
+      }
+    ],
+    "22. Write Round-6 preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879336800
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879625713
+      }
+    ],
+    "23.1 Engine - drop the platform-floor union from the public rule": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879630835
+      }
+    ],
+    "23.1 Engine render authority - drop the platform-floor union from effective_application_required": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793879985677
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793880243536
+      }
+    ],
+    "23.1b Public enforcement prune - stop demanding a floor-only overlay field on the public path": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793880250719
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793880743262
+      }
+    ],
+    "23.2 Builder - drop floor coupling, hide toggle for server-stamped fields": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793880749296
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881308801
+      }
+    ],
+    "23.3 Verify Round-6 bug condition exploration test now passes": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881315036
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881412022
+      }
+    ],
+    "23.4 Verify Round-6 preservation tests still pass": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881316111
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881412885
+      }
+    ],
+    "23. Fix: form-required is the sole public-form requiredness rule": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881428212
+      }
+    ],
+    "24. Round 6 Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793881433338
+      },
+      {
+        "executionId": "daf510aa-dc3b-47f0-abb0-944ba1bc1e5f",
+        "chatSessionId": "sess_3466c784-2448-44b8-8910-3203a9a041a5",
+        "timestamp": 1793882179958
+      }
+    ]
+  }
+}

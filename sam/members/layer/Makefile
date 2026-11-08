@@ -6,7 +6,14 @@
 # module imports at runtime — and nothing else — under `$(ARTIFACTS_DIR)/python`:
 #
 #   python/sam/shared/     the vendored module-plane shared auth toolkit
-#                          (get_verified_claims / has_capability / entitlement codec)
+#                          (get_verified_claims / has_capability / entitlement codec),
+#                          INCLUDING the SAM-owned Layer-2 CSS generator
+#                          `sam/shared/page_styles/` (spec 15 / DD-1) — it ships for free
+#                          via the wholesale `sam/shared/` rsync below, so there is NO
+#                          per-module `cp` for it. This REPLACES the old build-time vendored
+#                          copy of the Flask module `backend/src/services/landing_page_styles.py`
+#                          (removed per Req 3.1: no Flask-plane module as source of truth,
+#                          not even as a vendored copy).
 #   python/sam/members/    the Members module (handler edge + domain + repository +
 #                          tenants), i.e. everything `sam.members.handler.app.handler`
 #                          transitively imports
@@ -73,7 +80,11 @@ build-MembersLayer:
 	#   package is deliberately NOT vendored.
 	cp "$(SERVICES)/dynamodb_client.py" "$(ARTIFACTS_DIR)/python/services/dynamodb_client.py"
 	cp "$(SERVICES)/projection_schema.py" "$(ARTIFACTS_DIR)/python/services/projection_schema.py"
-	printf '"""Vendored services shim: only dynamodb_client is shipped in the Members layer."""\n' \
+	# NOTE (spec 15 / DD-1): the former `cp .../landing_page_styles.py` line is GONE. The
+	#   CSS-generation logic is now SAM-owned at `sam/shared/page_styles/` and ships via the
+	#   wholesale `sam/shared/` rsync above — SAM no longer vendors the Flask-plane module as
+	#   its source of truth (Req 3.1 forbids a Flask module even as a build-time vendored copy).
+	printf '"""Vendored services shim: only the dynamodb_client / projection_schema files are shipped in the Members layer."""\n' \
 		> "$(ARTIFACTS_DIR)/python/services/__init__.py"
 	# --- install the shared auth runtime deps (PyJWT / cryptography / requests) -
 	# Install the shared auth runtime deps as Lambda-PLATFORM manylinux wheels.

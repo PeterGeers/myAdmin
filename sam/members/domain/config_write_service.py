@@ -40,6 +40,7 @@ never reshapes or drops a field's ``scope`` attribute.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 
 from services import projection_schema as schema
@@ -58,6 +59,28 @@ __all__ = [
 #: caller-safe dotted error key for a variable field (``overlay.<key>``) so a rejected write names
 #: the offending field the same way across both planes (R8.3/R8.4).
 OVERLAY_GROUP = "overlay"
+
+#: SEC-7 (design §10, R6.3): a tenant-authored ``application_embed_origins`` entry becomes a token
+#: in the CloudFront CSP ``frame-ancestors`` directive (``'frame-ancestors ' + list.join(' ')``, see
+#: ``infrastructure/application-form.tf``). Framing DEFAULTS CLOSED (a host with no list → no header
+#: → not embeddable), so the write path is the one place that keeps the allow-list well-formed: every
+#: entry MUST be a bare ``https://host[:port]`` serialized origin — NO ``*`` wildcard-all, NO path /
+#: query / fragment, and NO whitespace or CSP-delimiter characters (`` `` ``;`` `` `` `` ``'`` ``"``)
+#: that could inject an extra ``frame-ancestors`` token or a second directive at the edge. An ``http``
+#: origin is rejected too (the form is HTTPS-only). This is deny-by-default's authoring guard — a
+#: malformed/dangerous entry is a clickjacking surface, so it is rejected fail-loud, never stored.
+_EMBED_ORIGIN_RE = re.compile(
+    r"^https://"  # https scheme only (no http, no wildcard scheme)
+    r"(?!-)[A-Za-z0-9-]{1,63}(?<!-)"  # first DNS label
+    r"(?:\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*"  # further labels
+    r"(?::[0-9]{1,5})?"  # optional :port
+    r"$"  # nothing after the authority — no path/query/fragment
+)
+
+#: Bound the list so a hand-edited / abusive row can neither bloat the stored item nor produce an
+#: unreasonably long ``frame-ancestors`` directive at the edge (SEC-7 / defensive).
+_EMBED_ORIGINS_MAX_COUNT = 50
+_EMBED_ORIGIN_MAX_LEN = 255
 
 
 class ConfigWriteValidationError(ValueError):
@@ -691,7 +714,11 @@ class ConfigWriteService:
                     # Keep the first in-use reason per field if a zero-allowed reason already set;
                     # otherwise this becomes the field's reason. Use a distinct key suffix so both
                     # a zero-allowed AND an in-use reason can be surfaced for the same field.
-                    key = dotted if dotted not in reasons else f"{dotted} (option {value!r})"
+                    key = (
+                        dotted
+                        if dotted not in reasons
+                        else f"{dotted} (option {value!r})"
+                    )
                     reasons[key] = (
                         f"option {value!r} is still referenced by a member and cannot be "
                         "removed or renamed; set it allowed:false to retire it instead"
@@ -989,31 +1016,43 @@ class ConfigWriteService:
 
     @staticmethod
     def _shape_embed_origins(raw) -> list[str]:
-        """Shape ``application_embed_origins`` → a list of trimmed, de-duplicated origins (R5.2).
+        """Shape + VALIDATE ``application_embed_origins`` → trimmed, de-duplicated origins (R5.2, SEC-7).
 
         ONE tenant-authored list that later feeds TWO enforcement points (CloudFront
         ``frame-ancestors`` — task 5.2 — and the SAM public API CORS ``Access-Control-Allow-Origin``
         — task 5.3). This shaper is the single authoring guard for both; the consumers read the
         already-shaped attribute back, so writer and both enforcers cannot drift.
 
+        **SEC-7 — framing defaults closed, so the author guard must be strict.** Each entry becomes
+        a token in the edge CSP directive ``'frame-ancestors ' + list.join(' ')``
+        (``infrastructure/application-form.tf``). A host with no list is NOT embeddable (no header);
+        the only way framing opens is a stored origin here. So an entry is INPUT-VALIDATED to a bare
+        ``https://host[:port]`` serialized origin (:data:`_EMBED_ORIGIN_RE`) — **no ``*``
+        wildcard-all** (which would let anyone frame the form), **no ``http://``**, and **no path /
+        query / fragment / whitespace / CSP-delimiter characters** (`` ``, ``;``, ``'``, ``"``) that
+        could inject an extra ``frame-ancestors`` token or a second CSP directive at the edge. The
+        list is bounded (:data:`_EMBED_ORIGINS_MAX_COUNT`, :data:`_EMBED_ORIGIN_MAX_LEN`).
+
         - ``None`` / absent / empty list → ``[]`` (back-compatible = standalone, no embed origins —
           mirrors how ``mail_domain`` / ``mail_reply_to_default`` omit rather than default). The
           caller writes nothing when the result is empty.
-        - a list whose every entry is a non-blank string → each entry is ``strip()``-ed and
-          de-duplicated **preserving first-seen order**, matching the conservative public-edge CORS
-          allow-list convention (``public_app._allowed_origins``: trim + de-dupe, NO scheme check).
-          A scheme check is deliberately NOT imposed — there is no runtime-validation precedent for
-          one in this codebase (the public edge and the SAM template both accept bare origin
-          strings), so the conservative non-blank-string rule is used.
-        - anything else — not a list, or a list containing a non-string / blank-only entry — is
-          REJECTED fail-loud with a clear :class:`ConfigWriteValidationError` (R8), so an admin's
-          malformed embed config surfaces as a 400 instead of silently becoming "standalone".
+        - a list whose every entry is a well-formed ``https://`` origin → each entry is
+          ``strip()``-ed and de-duplicated **preserving first-seen order**.
+        - anything else — not a list, a non-string / blank-only entry, a ``*`` / ``http`` / malformed
+          or injection-bearing origin, an over-long entry, or too many entries — is REJECTED
+          fail-loud with a clear :class:`ConfigWriteValidationError` (R8 / SEC-7), so a malformed or
+          dangerous embed config surfaces as a 400 instead of silently weakening ``frame-ancestors``.
         """
         if raw is None:
             return []
         if not isinstance(raw, (list, tuple)):
             raise ConfigWriteValidationError(
                 "config#mail 'application_embed_origins' must be a list of non-blank origin strings"
+            )
+        if len(raw) > _EMBED_ORIGINS_MAX_COUNT:
+            raise ConfigWriteValidationError(
+                "config#mail 'application_embed_origins' has too many entries "
+                f"(max {_EMBED_ORIGINS_MAX_COUNT})"
             )
         origins: list[str] = []
         seen: set[str] = set()
@@ -1023,6 +1062,19 @@ class ConfigWriteService:
                     "config#mail 'application_embed_origins' entries must be non-blank strings"
                 )
             origin = entry.strip()
+            if len(origin) > _EMBED_ORIGIN_MAX_LEN:
+                raise ConfigWriteValidationError(
+                    "config#mail 'application_embed_origins' entry is too long "
+                    f"(max {_EMBED_ORIGIN_MAX_LEN} characters)"
+                )
+            if not _EMBED_ORIGIN_RE.match(origin):
+                # SEC-7: reject `*`, http://, paths, and whitespace/CSP-delimiter injection — only a
+                # bare https://host[:port] origin may reach the edge frame-ancestors directive.
+                raise ConfigWriteValidationError(
+                    "config#mail 'application_embed_origins' entries must each be a well-formed "
+                    "'https://host[:port]' origin — no '*' wildcard, no 'http://', no path, and no "
+                    f"injection characters (got {origin!r})"
+                )
             if origin not in seen:
                 seen.add(origin)
                 origins.append(origin)

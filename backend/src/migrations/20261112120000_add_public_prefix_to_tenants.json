@@ -1,0 +1,14 @@
+{
+  "name": "add_public_prefix_to_tenants",
+  "description": "Add tenants.public_prefix VARCHAR(20) with a UNIQUE constraint (slug-safe public tenant prefix, spec 14 R2). The tenant record is the system-of-record for the prefix; it is carried read-only to the SAM plane via the governance projection (task 6.2). DDL only — the slug-safe, collision-resolved backfill for existing tenants is the paired Python step migrations/backfill_tenant_public_prefix.py (run once against the resolved DB target). The column is nullable so MySQL permits multiple pre-backfill NULLs under the UNIQUE index. MySQL 9.4: no IF NOT EXISTS on indexes — idempotency comes from the migration tracker, not SQL syntax.",
+  "timestamp": "20261112120000",
+  "up": [
+    "ALTER TABLE tenants ADD COLUMN public_prefix VARCHAR(20) DEFAULT NULL COMMENT 'Short, globally-unique, slug-safe public tenant prefix (spec 14 R2). System-of-record attribute; projected read-only to the SAM plane.'",
+    "ALTER TABLE tenants ADD CONSTRAINT uq_tenants_public_prefix UNIQUE (public_prefix)"
+  ],
+  "down": [
+    "ALTER TABLE tenants DROP INDEX uq_tenants_public_prefix",
+    "ALTER TABLE tenants DROP COLUMN public_prefix"
+  ],
+  "version": "1.0"
+}

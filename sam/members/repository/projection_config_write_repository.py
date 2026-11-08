@@ -10,7 +10,7 @@ Two write verbs, two purposes (spec 03, design C2/C6)
 -----------------------------------------------------
 - :meth:`MembersConfigWriteRepository.put_config` — the whole-row ``put_item`` REPLACE. It is the
   C6 create/migration primitive ONLY (R1.5): tenant-create seeds the ``{fields, overrides,
-  functional_groups}`` skeleton, the LIST→MAP migration backfills it. It is NEVER on the runtime
+  functional_groups, look_and_feel}`` skeleton, the LIST→MAP migration backfills it. It is NEVER on the runtime
   Change-Op path (a partial whole-row replace is the exact truncation bug this spec kills).
 - :meth:`MembersConfigWriteRepository.ensure_skeleton` — the NEW-TENANT, IF-ABSENT create of that
   same ``config#fields`` skeleton + a seeded ``version`` (spec 03 task 2.0a / C6 / Must-fix #1). It
@@ -78,10 +78,19 @@ __all__ = [
 #: The ``config#fields`` parent-map skeleton the Phase-2 path ``update_item`` REQUIRES to exist
 #: (spec 03, design C6 / Must-fix #1). A path ``update_item`` cannot seed a parent map in the same
 #: expression that sets a child (``SET a.b.c`` when ``a.b`` is absent → "paths overlap" / "document
-#: path not found"), so the three parent maps MUST pre-exist before the first Change-Op. These are
+#: path not found"), so these parent maps MUST pre-exist before the first Change-Op. These are
 #: the parent keys :meth:`MembersConfigWriteRepository.ensure_skeleton` guarantees (each an empty
 #: map), matching the empty-is-valid shape the reader already serves for a never-authored tenant.
-FIELDS_SKELETON_PARENTS = ("fields", "overrides", "functional_groups")
+#:
+#: ``look_and_feel`` (spec 15 — SAM Page Look-and-Feel, DD-2 / Layer 1) is the application-form
+#: PAGE's presentation slice: a DISTINCT parent map holding the look-and-feel attribute VALUES
+#: (never generated CSS), separate from the member field-config slices ``fields`` / ``overrides``.
+#: It is seeded empty here for the SAME reason as the others — so the Change-Op path can
+#: ``SET look_and_feel.#attr = :v`` into a pre-existing parent map (a child ``SET`` cannot seed the
+#: parent in the same expression). ``config#fields`` is already in :data:`_WRITABLE_CONFIG_IDS`, so
+#: no write-guard widening is needed; an empty / absent ``look_and_feel`` resolves to Layer-2
+#: defaults. It carries no field/group entries, so it is outside the truncation tripwire's buckets.
+FIELDS_SKELETON_PARENTS = ("fields", "overrides", "functional_groups", "look_and_feel")
 
 #: The two op actions the Change-Op path supports. A ``SET`` writes a value at a path; a
 #: ``REMOVE`` deletes the attribute at a path. These are the ONLY two verbs — there is no
@@ -247,9 +256,10 @@ class MembersConfigWriteRepository:
 
         This is the NEW-TENANT seeding half of C6 (the migration backfills legacy rows). A
         freshly-created tenant must get its ``config#fields`` row seeded with the parent-map
-        skeleton ``{fields: {}, overrides: {}, functional_groups: {}}`` plus a seeded ``version``
-        BEFORE the first Change-Op, because the Phase-2 path ``update_item`` requires those parent
-        maps to exist (Must-fix #1 — an ``if_not_exists``-in-the-same-op seed is rejected by
+        skeleton ``{fields: {}, overrides: {}, functional_groups: {}, look_and_feel: {}}`` plus a
+        seeded ``version`` BEFORE the first Change-Op, because the Phase-2 path ``update_item``
+        requires those parent maps to exist (Must-fix #1 — an ``if_not_exists``-in-the-same-op seed
+        is rejected by
         DynamoDB as "document paths overlap"). Call this from the tenant-create / config-provision
         path (there is no SAM runtime tenant-create path today — see the module/RUNBOOK notes and
         :mod:`sam.members.migration.functional_groups_list_to_map` for the legacy-row backfill).

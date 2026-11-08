@@ -175,3 +175,198 @@ export async function publishApplicationForm(): Promise<MembersApplicationPublis
   );
 }
 
+/**
+ * The authoritative result the SAM application-form slug-author route returns on a 200
+ * (bugfix-slug-lifecycle task 3.1 / R2.3). The write IS the authored state — the slug has been
+ * validated (format/reserved + SEC-4 prefix-ownership), the shared `_slugs/{slug}` marker claimed,
+ * and `config#fields.slug` persisted via a single identity Change-Op. `slug` echoes the stored
+ * value (an explicit `null` clears it); `version` is the row-level write stamp `config#fields` now
+ * carries.
+ */
+export interface MembersApplicationSlugResult {
+  success: boolean;
+  /** The slug now stored on `config#fields.slug` (`null`/absent when the slug was cleared). */
+  slug?: string | null;
+  /** The monotonic write stamp `config#fields` now carries. */
+  version?: string;
+}
+
+/**
+ * POST /members/application-form/slug — author / change / clear the application-form public slug
+ * (bugfix-slug-lifecycle task 3.1 / defect B; R2.3).
+ *
+ * The MISSING client-reachable SAM slug WRITE. A `members:admin`-gated action that carries
+ * `{ slug }` (a non-blank string to set/change, or `null` to clear) and delegates to
+ * `ConfigFieldsCrudService.set_form_slug`, which validates the slug (format/reserved then SEC-4
+ * tenant-prefix-ownership), claims the shared `_slugs/{slug}` marker for the owning tenant, and
+ * persists `config#fields.slug` via a SINGLE identity Change-Op (steering 39 — never a whole-record
+ * replace). `tenant_id` is resolved from the verified JWT at the edge, NEVER from the body
+ * (steering 39), so this is the ONLY payload field. This is the SAM source of truth — NOT the Flask
+ * landing plane (`landingPageApi` is never used here).
+ *
+ * Unwraps the module's `{ data }` envelope so the caller receives `{ success, slug, version }`. A
+ * non-2xx (auth/entitlement 401/403, a format/prefix-ownership validation 400/422, a foreign-owner
+ * `SlugTaken` 409) propagates as the structured ApiError thrown by `postJson` — the caller surfaces
+ * a caller-safe message.
+ */
+export async function setApplicationFormSlug(
+  slug: string | null
+): Promise<MembersApplicationSlugResult> {
+  // postJson throws a structured ApiError on any non-2xx, so reaching here means the write
+  // succeeded (2xx). The platform envelope carries `success` at the TOP level and the service
+  // result under `data` ({ version, idempotent_replay }); unwrapData returns only `data` (no
+  // `success`), so we set success:true explicitly and spread the unwrapped result. (Without this
+  // the caller's `res.success` is undefined and a successful write is misreported as a failure.)
+  const data = unwrapData<{ version?: string; idempotent_replay?: boolean }>(
+    await postJson<unknown>('/members/application-form/slug', { slug })
+  );
+  return { success: true, slug, version: data?.version };
+}
+
+/**
+ * Result of the public-prefix author write.
+ *
+ * The slug PREFIX is the tenant's own short public stem (e.g. `h-dcn`) under which every authored
+ * form slug must sit (SEC-4 prefix ownership). It is SAM-owned: stored as
+ * `config#fields.public_prefix` and read back by the same `config#fields` reader the slug uses.
+ * `prefix` echoes the stored value (an explicit `null` clears it); `version` is the row-level
+ * write stamp `config#fields` carries.
+ */
+export interface MembersApplicationPrefixResult {
+  success: boolean;
+  /** The prefix now stored on `config#fields.public_prefix` (`null`/absent when cleared). */
+  prefix?: string | null;
+  /** The monotonic write stamp `config#fields` now carries. */
+  version?: string;
+}
+
+/**
+ * POST /members/application-form/prefix — author / change / clear the tenant's SAM-owned public
+ * slug prefix (slug-prefix SAM-owned).
+ *
+ * A `members:admin`-gated action carrying `{ prefix }` (a non-blank slug-safe string to set/change,
+ * or `null` to clear) that delegates to `ConfigFieldsCrudService.set_public_prefix`, which validates
+ * slug-safe format and persists `config#fields.public_prefix` via a SINGLE identity Change-Op
+ * (steering 39 — never a whole-record replace). `tenant_id` is resolved from the verified JWT at the
+ * edge, NEVER from the body, so `prefix` is the ONLY payload field. The prefix lives only on the SAM
+ * plane (the former Flask `tenants.public_prefix` column was dropped).
+ *
+ * Unwraps the module's `{ data }` envelope so the caller receives `{ success, prefix, version }`. A
+ * non-2xx (auth/entitlement 401/403, a slug-safe-format validation 422) propagates as the structured
+ * ApiError thrown by `postJson` — the caller surfaces a caller-safe message.
+ */
+export async function setApplicationFormPrefix(
+  prefix: string | null
+): Promise<MembersApplicationPrefixResult> {
+  // See setApplicationFormSlug: reaching here is a 2xx (postJson throws otherwise). The envelope's
+  // `success` is top-level and dropped by unwrapData (which returns only the `data` service
+  // result), so set success:true explicitly and echo the authored prefix + version.
+  const data = unwrapData<{ version?: string; idempotent_replay?: boolean }>(
+    await postJson<unknown>('/members/application-form/prefix', { prefix })
+  );
+  return { success: true, prefix, version: data?.version };
+}
+
+
+// ============================================================================
+// Look-and-feel authoring — Layer-1 VALUES-ONLY Change-Ops (spec 15 — SAM Page
+// Look-and-Feel, task 12 / 12.1; design §C3, DD-2)
+// ============================================================================
+
+/**
+ * The supported look-and-feel attributes the authoring client may send as the `attribute` of a
+ * set/clear Change-Op. Mirrors the SAM-owned `SUPPORTED_ATTRIBUTES`
+ * (Python `sam/shared/page_styles/`): the original seven (Req 3.2) PLUS the three the bugfix
+ * `bugfix-published-form-styling` added as a deliberate, documented extension (bugfix 3.4 /
+ * design §C) — `columns` / `logo` / `header_title`. The authoring UI only ever sends ONE of
+ * these as the `attribute` — it NEVER sends generated CSS and NEVER a whole record (Layer 1 is
+ * values-only, design §C3 / steering 39). `columns` / `logo` / `header_title` are carried as
+ * VALUES-ONLY exactly like the seven: a bounded column count, a URL/asset reference, and
+ * length-bounded header text — never CSS, never a binary upload.
+ */
+export type LookAndFeelAttribute =
+  | 'color_primary'
+  | 'color_accent'
+  | 'font_heading'
+  | 'font_body'
+  | 'base_spacing'
+  | 'border_radius_global'
+  | 'shadow_style'
+  | 'columns'
+  | 'logo'
+  | 'header_title';
+
+/**
+ * The resolved look-and-feel VALUES for the application-form page (the `look_and_feel` slice on
+ * `config#fields`). VALUES only, never CSS. An absent attribute resolves to the Layer-2 default at
+ * render/publish time, so a partial map is valid (Req 3.3/4.4/5.4).
+ */
+export type LookAndFeelSettingsValues = Partial<Record<LookAndFeelAttribute, string | null>>;
+
+/** The shape `GET /members/look-and-feel` returns under the module `{ data }` envelope. */
+export interface LookAndFeelSettingsResult {
+  settings: LookAndFeelSettingsValues;
+}
+
+/**
+ * GET /members/look-and-feel — resolve the application-form page's stored look-and-feel VALUES
+ * (spec 15 task 8; design §C3). VALUES only, never CSS. `tenant_id` is resolved from the verified
+ * JWT at the edge, never the body (steering 39), so this GET carries no parameters. An absent
+ * slice/key resolves to an empty map (→ Layer-2 defaults).
+ *
+ * Unwraps the module `{ data }` envelope to `{ settings }`. A non-2xx (auth/entitlement 401/403)
+ * propagates as the structured {@link ApiError} thrown by `getJson`.
+ */
+export async function getLookAndFeelSettings(): Promise<LookAndFeelSettingsResult> {
+  return unwrapData<LookAndFeelSettingsResult>(
+    await getJson<unknown>('/members/look-and-feel')
+  );
+}
+
+/**
+ * PUT /members/look-and-feel — author ONE attribute VALUE into the `look_and_feel` slice via a
+ * single version-conditional Change-Op (spec 15 task 8; design §C3, steering 39). VALUES ONLY — the
+ * body carries `{ attribute, value }`, never generated CSS and never a whole record. An explicit
+ * `null` value CLEARS the attribute (revert to the Layer-2 default); untouched attributes and
+ * unrelated slices (`fields` / `overrides` / slug / publish-state) survive by construction.
+ *
+ * `page` is an OPTIONAL forward-looking page id (defaults server-side to the application form). A
+ * non-2xx propagates as the structured {@link ApiError} thrown by `putJson`: a 422 identifying the
+ * rejected setting (unsupported attribute / value outside its permitted set), a 401/403
+ * auth/entitlement, or a 409 stale-version (reload-and-retry).
+ */
+export async function setLookAndFeelSetting(
+  attribute: LookAndFeelAttribute,
+  value: string | null,
+  page?: string
+): Promise<LookAndFeelSettingsResult> {
+  const body: Record<string, unknown> = { attribute, value };
+  if (page !== undefined) body.page = page;
+  return unwrapData<LookAndFeelSettingsResult>(
+    await putJson<unknown>('/members/look-and-feel', body)
+  );
+}
+
+/**
+ * PUT /members/look-and-feel (copy action) — one-time snapshot copy of one page's look-and-feel
+ * VALUES onto another within the SAME verified tenant (spec 15 task 8 / Req 9; design §C3). The
+ * body carries `{ op: 'copy', source_page, target_page }` — the target's values are OVERWRITTEN
+ * with a snapshot of the source's current values and NO ongoing link is established. The copy is
+ * values-only; it never moves CSS. `tenant_id` is resolved from the verified JWT at the edge, so a
+ * cross-tenant source is rejected server-side with a caller-safe 403.
+ *
+ * `source_page` / `target_page` are OPTIONAL (default server-side to the application form). A
+ * non-2xx propagates as the structured {@link ApiError} thrown by `putJson`: a 403 forbidden
+ * (cross-tenant source), a 422 (unknown page id), a 401/403 auth, or a 409 stale-version.
+ */
+export async function copyLookAndFeelSettings(
+  sourcePage?: string,
+  targetPage?: string
+): Promise<LookAndFeelSettingsResult> {
+  const body: Record<string, unknown> = { op: 'copy' };
+  if (sourcePage !== undefined) body.source_page = sourcePage;
+  if (targetPage !== undefined) body.target_page = targetPage;
+  return unwrapData<LookAndFeelSettingsResult>(
+    await putJson<unknown>('/members/look-and-feel', body)
+  );
+}

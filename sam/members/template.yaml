@@ -400,6 +400,28 @@ Parameters:
       samconfig (e.g. `https://aanmelden.jabaki.nl`). Empty default = fail-closed, never a wildcard.
     Default: ""
 
+  # PublicFormApex (CORS Option B — application-form-submit Round 2 task 7.1, R5.1/R5.5): the
+  #   per-env PUBLIC-PAGES apex the published application form is served on (e.g. `jabaki.nl`),
+  #   surfaced as the `PUBLIC_FORM_APEX` env var `public_app._form_apex` reads at runtime. The
+  #   published artifact for a slug lives at `https://{slug}.{apex}` (the CloudFront public-pages
+  #   distribution maps `{slug}.{apex}` to the served `{slug}/` prefix — the SAME apex
+  #   `application_publish` bakes into the canonical URL). For a route that has resolved its slug to
+  #   a tenant for THAT request, the edge UNIONS the form's OWN host `https://{resolved_slug}.{apex}`
+  #   into the CORS allow-list (`public_app._resolved_slug_host`), so the published per-tenant host
+  #   can read its own submit response. This is the TIGHTEST widening — a single exact host computed
+  #   from this apex, NEVER a broad `*.{apex}` wildcard, so no foreign `*.{apex}` site is admitted.
+  #   An unset var falls back to the canonical `jabaki.nl` in code; an explicitly BLANK value simply
+  #   SKIPS the slug-host member (CORS stays fail-closed — a missing apex never raises, never widens).
+  PublicFormApex:
+    Type: String
+    Description: >-
+      The per-env public-pages apex the published application form is served on (e.g.
+      `jabaki.nl`), surfaced as the `PUBLIC_FORM_APEX` env var the public edge reads for CORS
+      Option B (R5.1/R5.5). The edge admits the form's OWN resolved slug host
+      `https://{resolved_slug}.{apex}` only — never a `*.{apex}` wildcard. Unset falls back to the
+      canonical apex in code; a blank value skips the slug-host member (fail-closed).
+    Default: "jabaki.nl"
+
   # PublicTenantSlugMap — REMOVED (spec 12 task 7.1, R7.3). The public edge no longer resolves
   #   slug→tenant_id from an env projection; it reads the `_slugs/{slug}` bucket marker
   #   (`S3SlugMarkerStore`, OQ4) via `TenantDirectory` (task 1.4). The slug is now DATA on
@@ -441,6 +463,40 @@ Parameters:
     Default: 20
     MinValue: 1
     MaxValue: 5000
+
+  # --- Public-pages hosting: the shared nonprofit S3 bucket + CloudFront distribution (spec 14 Task 9) ---
+  # The SERVED `{slug}/` publish + the `_slugs/{slug}` control-plane claim both resolve their
+  # bucket fail-fast from the `LANDING_PAGES_BUCKET` env var
+  # (`repository/slug_marker_store.LANDING_PAGES_BUCKET_ENV_VAR` → `require_env`, no default), and
+  # the best-effort CloudFront invalidation resolves its distribution from
+  # `CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID`
+  # (`repository/public_page_artifact_store.CLOUDFRONT_DISTRIBUTION_ENV_VAR`). Those env vars were
+  # NEVER wired into either Lambda's Environment.Variables, so a deployed `members-public-*` 500s on
+  # every public `GET/POST {slug}` (the slug-marker store's `require_env` fails fast) — the bug the
+  # Task-9.4 live end-to-end surfaced. These two parameters carry the concrete per-env values via
+  # `!Ref` into both functions (the house pattern — NO default, concrete values in samconfig), so a
+  # blank value still breaks the deploy loudly rather than silently targeting the wrong bucket
+  # (steering 23 no-dangerous-fallback). The values are the SAME for TEST and PROD: there is ONE
+  # shared nonprofit public-pages bucket + distribution (hosting migration, D7) — the members-plane
+  # environment boundary is the `test_` table prefix, NOT a separate bucket.
+  LandingPagesBucket:
+    Type: String
+    Description: >-
+      Name of the shared public-pages S3 bucket the SAM publish writes served `{slug}/` artifacts +
+      the `_slugs/{slug}` control-plane marker to (spec 14 Task 9). Surfaced as the
+      `LANDING_PAGES_BUCKET` env var the slug-marker + artifact stores resolve fail-fast. The SAME
+      nonprofit bucket for TEST + PROD (one shared hosting bucket, D7). No default — fail-fast
+      (steering 23): a blank name must break the deploy, never silently target the wrong bucket.
+
+  CloudFrontPublicPagesDistributionId:
+    Type: String
+    Description: >-
+      CloudFront distribution id for the public-pages (`*.jabaki.nl`) distribution the SAM publish
+      best-effort invalidates (spec 14 Task 9). Surfaced as the
+      `CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID` env var the artifact store reads (a blank value only
+      skips the non-fatal invalidation — the artifact write is authoritative). The SAME nonprofit
+      distribution for TEST + PROD (one shared hosting distribution, D7). No default — fail-fast
+      (steering 23).
 
 # Stage -> APP_ENV: the deploy stage is the single environment knob; APP_ENV is
 # DERIVED from it so the two cannot drift. `local` and `test` both resolve to the
@@ -732,6 +788,58 @@ Resources:
               Condition:
                 StringEquals:
                   "iam:PassedToService": scheduler.amazonaws.com
+            # --- Public-pages PUBLISH (spec 14 Task 9 — SEC-8, the SAM-plane half) -------------
+            # The authenticated publish route (`POST /members/application-form/publish`) CLAIMS the
+            # slug (PutObject the `_slugs/{slug}` marker, rename = DeleteObject the old marker),
+            # writes the SERVED artifacts (`{slug}/index.html` + `{slug}/form.json`), and best-effort
+            # invalidates the CloudFront cache. This is the WRITE counterpart of the public edge's
+            # read-only `PublicReadSlugMarkers` grant.
+            #
+            # LEAST-PRIVILEGE, PREFIX-SCOPED (mirrors the SEC-8 scoping Task 9.2 chose for the
+            # Railway identity — served `{slug}/` + `_slugs/`, NOT bucket-wide `*`):
+            #   * s3:Get/Put/DeleteObject on the markers (`_slugs/*`) AND the served artifacts
+            #     (`*/index.html` + `*/form.json` — the exact two served filenames under any
+            #     `{slug}/`, tighter than a bucket-root `*`). GetObject is included so a re-publish
+            #     can read-before-write the marker (idempotent same-owner check).
+            #   * s3:ListBucket on the bucket, `s3:prefix`-conditioned to `_slugs/*` + the served
+            #     prefix, so a missing marker/artifact is a clean NoSuchKey (not AccessDenied) and
+            #     the list stays enumeration-safe — never a bucket-wide list.
+            #   * cloudfront:CreateInvalidation on EXACTLY the one public-pages distribution
+            #     (`${CloudFrontPublicPagesDistributionId}`). The distribution lives in the
+            #     NONPROFIT account (same account as this stack, 506221081911), so this grant can
+            #     actually invalidate — the invalidation is best-effort (Task 9.1) and the publish
+            #     does not fail if it is throttled. CloudFront is global, so the ARN carries no
+            #     region. Just CreateInvalidation on that one distribution — no wildcard, no `s3:*`.
+            # ARNs are `!Sub` on `${LandingPagesBucket}` / `${CloudFrontPublicPagesDistributionId}`
+            # — never a hardcode.
+            - Sid: MembersPublishPublicPages
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource:
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}/_slugs/*"
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}/*/index.html"
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}/*/form.json"
+            - Sid: MembersListPublicPages
+              Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource:
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}"
+              Condition:
+                StringLike:
+                  "s3:prefix":
+                    - "_slugs/*"
+                    - "*/index.html"
+                    - "*/form.json"
+            - Sid: MembersInvalidatePublicPages
+              Effect: Allow
+              Action:
+                - cloudfront:CreateInvalidation
+              Resource:
+                - !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontPublicPagesDistributionId}"
       Environment:
         Variables:
           # APP_ENV — the environment selector, DERIVED from the Stage parameter via
@@ -746,6 +854,14 @@ Resources:
           GOVERNANCE_PROJECTION_TABLE: !Ref GovernanceProjectionTableName
           # Shared bucket for mail-template bodies/logos (C4) — fail-fast, no default.
           S3_SHARED_BUCKET: !Ref SharedBucketName
+          # Public application-intake API base baked into the PUBLISHED form artifact at publish
+          # time (bugfix `bugfix-published-form-submit`). The publish path resolves this fail-fast
+          # (`application_publish.resolve_public_api_base` -> `require_env('PUBLIC_API_BASE_URL')`,
+          # no default) and threads it into the rendered static page so its submit script POSTs to
+          # `{base}/public/members/{slug}/applications`. Derived from the SAME `MembersPublicApi`
+          # resource as the `MembersPublicApiBaseUrl` output — one source, no hardcoded URL, correct
+          # per environment; a blank value fails loudly at publish rather than baking a wrong base.
+          PUBLIC_API_BASE_URL: !Sub "https://${MembersPublicApi}.execute-api.${Region}.amazonaws.com/${Stage}"
           # NOTE ON `--env-vars` (local): `sam local start-api --env-vars` can only
           #   OVERRIDE variables that are DECLARED here — it cannot ADD undeclared
           #   ones. So every var the local env-vars JSON supplies (the DynamoDB-Local
@@ -804,6 +920,16 @@ Resources:
           SCHEDULER_TARGET_FUNCTION_ARN: !GetAtt MembersSchedulerTriggerFunction.Arn
           SCHEDULER_EXECUTION_ROLE_ARN: !GetAtt MembersSchedulerExecutionRole.Arn
           SCHEDULER_GROUP_NAME: !Ref SchedulerGroupName
+          # --- Public-pages hosting (spec 14 Task 9) — the authenticated PUBLISH runs HERE ---
+          # The authenticated publish path (slug claim via `S3SlugMarkerStore` + the served
+          # `{slug}/` artifact write + CloudFront invalidation via `S3PublicPageArtifactStore`)
+          # executes in THIS function, so both stores resolve their bucket/distribution fail-fast
+          # from these env vars. The KEYS are the exact code constants:
+          #   LANDING_PAGES_BUCKET                    = slug_marker_store.LANDING_PAGES_BUCKET_ENV_VAR
+          #   CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID = public_page_artifact_store.CLOUDFRONT_DISTRIBUTION_ENV_VAR
+          # Wired via `!Ref` to the new parameters (house pattern — concrete values in samconfig).
+          LANDING_PAGES_BUCKET: !Ref LandingPagesBucket
+          CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID: !Ref CloudFrontPublicPagesDistributionId
           # NOTE: NO MEMBERS_LOCAL_TENANT_ID — the local-dev tenant fallback was removed in
           #       s5c (R6.2, C-UNWIND). Tenant context resolves SOLELY from the verified
           #       entitlement (custom:entitlements); a token with no usable tenant denies
@@ -1391,10 +1517,9 @@ Resources:
   # CORS (R10.3/R10.4): a public POST must not be callable cross-origin from any site, so CORS is
   # restricted to the known form origin(s). The authoritative, per-request CORS decision is made in
   # `public_app._apply_cors_origin` against the `PUBLIC_FORM_ALLOWED_ORIGINS` allow-list (echo the
-  # caller's Origin only when allow-listed; fail-closed otherwise — NEVER `*`). This API-level
-  # `Cors` block only governs the SAM-auto-generated OPTIONS preflight responder; it is pinned to
-  # the SAME first allow-listed origin (not `*`) so the preflight and the real response agree and
-  # the public surface never advertises a wildcard. (Deferred to 7.1: throttle + usage plan.)
+  # caller's Origin only when allow-listed; fail-closed otherwise — NEVER `*`). The same decision
+  # answers the OPTIONS preflight: there is deliberately NO API-level `Cors` block (a static mock
+  # cannot echo the per-slug host); OPTIONS is routed to the Lambda instead (Round 4).
   MembersPublicApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -1411,16 +1536,10 @@ Resources:
           ResourcePath: "/*"
           ThrottlingRateLimit: !Ref PublicApiThrottleRateLimit
           ThrottlingBurstLimit: !Ref PublicApiThrottleBurstLimit
-      Cors:
-        AllowMethods: "'GET,POST,OPTIONS'"
-        AllowHeaders: "'Content-Type'"
-        # The preflight responder's origin — the FIRST configured form origin (the handler makes
-        # the authoritative per-origin decision on real requests). `<<unset>>` when the param is
-        # blank so a fail-closed deploy never emits a wildcard preflight. Quoted per the SAM `Cors`
-        # string convention.
-        AllowOrigin: !Sub
-          - "'${Origin}'"
-          - Origin: !Select [0, !Split [",", !Ref PublicFormAllowedOrigins]]
+      # NO `Cors` block (Round 4): a SAM `Cors` block makes API Gateway answer OPTIONS with a
+      # STATIC mock whose AllowOrigin is one fixed origin — it can never echo the per-slug host
+      # `https://{slug}.{apex}`. OPTIONS is instead routed to `MembersPublicFunction` (explicit
+      # `Method: options` events below) and decided per origin by `public_app._apply_cors_origin`.
 
   # --- Public API usage plan (R10.1, D17, task 7.1) ---------------------------
   # The USAGE PLAN half of R10.1: a managed, inspectable throttle object bound to the public
@@ -1452,7 +1571,8 @@ Resources:
   # `_http` envelope, the `tenant_directory` resolver, and the `tenant_slug_reader`), and the empty-
   # package-over-layer pattern (`CodeUri: function/`) like every other function here.
   #
-  # IAM (task 7.1): this function's LEAST-PRIVILEGE policy — exactly THREE scoped grants, no more.
+  # IAM (task 7.1): this function's LEAST-PRIVILEGE policy — exactly THREE scoped grants (a)-(c), plus the (d) slug-marker READ pair
+  # (GetObject + prefix-conditioned ListBucket, two statements), no more.
   # It mirrors the authenticated MembersFunction's exact-ARN discipline (steering 23: exact ARNs,
   # NO wildcard table, NO cross-account), but is narrower — the public edge only CREATES/UPDATES an
   # application record, reads the projection to decide readiness + resolve recipients for the
@@ -1525,6 +1645,50 @@ Resources:
                 - sqs:SendMessage
               Resource:
                 - !GetAtt MailSendQueue.Arn
+            # (d) slug-marker READ — the SAM-plane half of SEC-8 (Task 9.2) that was MISSING: Task
+            # 9.2 granted the Railway identity (personal acct) but NOT the SAM Lambda roles
+            # (nonprofit acct), so the deployed `members-public-*` role had NO S3 permission on the
+            # public-pages bucket and `slug_marker_store.resolve()` 500'd (AccessDenied → unhandled)
+            # — the bug the live Task-9.4 e2e surfaced AFTER the LANDING_PAGES_BUCKET env fix.
+            #
+            # The public READ edge only RESOLVES markers — it reads `_slugs/{slug}` via GetObject
+            # and NEVER writes (no PutObject/DeleteObject; claiming/renaming is the authenticated
+            # MembersFunction's job). Least-privilege, prefix-scoped to `_slugs/*`.
+            #
+            # BOTH actions are required (in two statements, below) for a clean, enumeration-safe 404:
+            #   * s3:GetObject on `_slugs/*` reads the marker body for a slug that exists.
+            #   * s3:ListBucket on the bucket (conditioned to the `_slugs/*` prefix) is what makes a
+            #     MISSING marker return NoSuchKey (→ clean 404). WITHOUT ListBucket, S3 masks a
+            #     missing key as AccessDenied (403), which the code does not treat as not-found →
+            #     unhandled 500. The `s3:prefix` condition keeps the list enumeration-safe
+            #     (only `_slugs/*`, never a bucket-wide list). ARNs are `!Sub` on the
+            #     `${LandingPagesBucket}` param — never a hardcode, never cross-account.
+            # TWO statements (not one): IAM evaluates a statement's Condition against EVERY action
+            # in it. `s3:prefix` is a context key only for s3:ListBucket; s3:GetObject has no such
+            # key, so a StringLike on `s3:prefix` never matches a GetObject request and the former
+            # single combined statement DENIED GetObject (live AccessDenied). Hence the split,
+            # mirroring MembersFunction's MembersPublishPublicPages / MembersListPublicPages pair:
+            #   * PublicReadSlugMarkers - s3:GetObject ONLY, scoped by its `_slugs/*` object ARN,
+            #     NO Condition.
+            #   * PublicListSlugMarkers - s3:ListBucket ONLY, on the bucket ARN, with the
+            #     `s3:prefix` Condition limiting the list to `_slugs/*`.
+            # Same actions and resources as before - least privilege is unchanged.
+            - Sid: PublicReadSlugMarkers
+              Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource:
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}/_slugs/*"
+            - Sid: PublicListSlugMarkers
+              Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource:
+                - !Sub "arn:aws:s3:::${LandingPagesBucket}"
+              Condition:
+                StringLike:
+                  "s3:prefix":
+                    - "_slugs/*"
       Environment:
         Variables:
           # APP_ENV derived from Stage (same single-knob discipline as the other functions) so the
@@ -1558,6 +1722,24 @@ Resources:
           #   second — R7.3). This also closes the CI `--parameter-overrides` blast radius that
           #   blanked the map (spec 12 decision 1a / D7).
           PUBLIC_FORM_ALLOWED_ORIGINS: !Ref PublicFormAllowedOrigins
+          # PUBLIC_FORM_APEX (CORS Option B — application-form-submit Round 2 task 7.1, R5.1/R5.5):
+          #   the per-env public-pages apex the published form is served on, read per request by
+          #   `public_app._form_apex`. For a route that resolved its slug to a tenant, the edge
+          #   unions the form's OWN host `https://{resolved_slug}.{apex}` into the CORS allow-list
+          #   (`_resolved_slug_host`) — the TIGHTEST widening (one exact host, NEVER a `*.{apex}`
+          #   wildcard). Unset falls back to the canonical `jabaki.nl` in code; a blank value skips
+          #   the slug-host member (fail-closed). No new grant — it is pure DATA from the env.
+          PUBLIC_FORM_APEX: !Ref PublicFormApex
+          # --- Public-pages hosting (spec 14 Task 9) — the served public `GET/POST {slug}` edge ---
+          # The public edge resolves slug→tenant via the `_slugs/{slug}` bucket marker
+          # (`S3SlugMarkerStore`), which resolves its bucket fail-fast from `LANDING_PAGES_BUCKET`
+          # (`require_env`, no default). This var was MISSING, so a deployed `members-public-*` 500s
+          # on every public `GET/POST {slug}` — the bug Task 9.4 surfaced. The artifact store's
+          # distribution id is carried too so a publish-adjacent read path stays consistent. KEYS
+          # are the exact code constants (LANDING_PAGES_BUCKET_ENV_VAR /
+          # CLOUDFRONT_DISTRIBUTION_ENV_VAR); wired via `!Ref` to the new parameters.
+          LANDING_PAGES_BUCKET: !Ref LandingPagesBucket
+          CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID: !Ref CloudFrontPublicPagesDistributionId
       Events:
         # The TWO public routes (design §3), registered on the SEPARATE public API ONLY — never on
         # `MembersApi`. Each is an explicit method+path (NOT a catch-all `{proxy+}`) so the public
@@ -1575,6 +1757,20 @@ Resources:
             RestApiId: !Ref MembersPublicApi
             Path: /public/members/{tenant_slug}/applications
             Method: POST
+        # CORS preflight (Round 4): routed to the Lambda so it is answered per origin (incl. the
+        # per-slug host) by `public_app._preflight_response`, not by a static API Gateway mock.
+        PublicFieldConfigPreflight:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MembersPublicApi
+            Path: /public/members/{tenant_slug}/field-config
+            Method: options
+        PublicApplicationsPreflight:
+          Type: Api
+          Properties:
+            RestApiId: !Ref MembersPublicApi
+            Path: /public/members/{tenant_slug}/applications
+            Method: options
 
 Outputs:
   MembersFunctionArn:

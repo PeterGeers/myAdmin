@@ -435,9 +435,31 @@ def get_config_fields_crud_service() -> Any:
             MembersConfigWriteRepository,
         )
 
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
+        from sam.members.repository.slug_marker_store import S3SlugMarkerStore
+
+        # bugfix-slug-lifecycle task 3.1: the slug-author op (`set_form_slug`) needs the shared
+        # `_slugs/{slug}` marker store (the SAME store the publish path claims through) + the
+        # tenant's own public-prefix reader (its projected `tenant` row) for the SEC-4 ownership
+        # check. Both resolve their AWS resource lazily + fail-fast on first use, so cold import
+        # still touches no AWS; the marker store's S3 client is injectable. A FRESH prefix reader
+        # per build is fine — the prefix read is a plain forward read, not the version-sensitive
+        # placement read the Change-Op write uses (that stays the `_FreshReaderIndirection`).
+        # bugfix-slug-lifecycle task 3.2: a slug CHANGE (the tenant already owns a different stored
+        # slug) is handled by `S3SlugMarkerStore.rename` (claim-new-before-release-old, R4.6) so the
+        # old `_slugs/{old}` marker is not orphaned. The op detects a change via the forward
+        # `get_form_slug` read — the SAME `MembersProjectionReader` already wired as `prefix_reader`
+        # exposes it, so it also serves as the `slug_reader` (a plain forward read, not the
+        # version-sensitive placement read the Change-Op write uses).
+        _slug_projection_reader = MembersProjectionReader()
         _CONFIG_FIELDS_CRUD_SERVICE = ConfigFieldsCrudService(
             MembersConfigWriteRepository(),
             reader=_FreshReaderIndirection(),
+            slug_marker_store=S3SlugMarkerStore(),
+            prefix_reader=_slug_projection_reader,
+            slug_reader=_slug_projection_reader,
         )
     return _CONFIG_FIELDS_CRUD_SERVICE
 
@@ -447,14 +469,16 @@ def get_config_fields_crud_service() -> Any:
 # The `publish_application_form` route (`POST /members/application-form/publish`) is backed by the
 # standalone :class:`~sam.members.domain.application_publish.ApplicationPublishService` (NOT the
 # MembershipService). It owns the readiness gate (slug + certified sender + ≥1 on-form field,
-# R5.4) — REAL and tested here — and the publish seam, whose live S3 render/write + CloudFront
-# invalidation is task 2.2 and stays DORMANT (the seam raises PublishPipelineNotWired). It is
-# resolved lazily once (warm-reuse), mirroring :func:`get_config_write_service`. A test replaces
-# :data:`_APPLICATION_PUBLISH_SERVICE` (or patches :func:`get_application_publish_service`) with a
-# service over in-memory fakes, so no AWS is touched. The service's three seams are satisfied by
-# ONE DynamoDB-backed projection reader (``get_form_slug`` / ``is_mail_certified`` /
-# ``get_mail_domain``) plus the public field-config read (the single filter authority, reused via
-# the MembershipService's ``get_public_field_config``) — no readiness logic is duplicated.
+# R5.4) — REAL and tested here — the shared-shell render, and (spec 14 Task 8.1) the SLUG CLAIM
+# via the shared `_slugs/{slug}` marker store + the SEC-4 prefix-ownership check. The ONLY dormant
+# part is the live S3 artifact write + CloudFront invalidation (Task 9; the seam raises
+# PublishPipelineNotWired AFTER the claim). It is resolved lazily once (warm-reuse), mirroring
+# :func:`get_config_write_service`. A test replaces :data:`_APPLICATION_PUBLISH_SERVICE` (or
+# patches :func:`get_application_publish_service`) with a service over in-memory fakes, so no AWS
+# is touched. The readiness seams are satisfied by ONE DynamoDB-backed projection reader
+# (``get_form_slug`` / ``is_mail_certified`` / ``get_mail_domain`` / ``get_public_prefix``) plus
+# the public field-config read (the single filter authority, reused via the MembershipService's
+# ``get_public_field_config``) and the S3 marker store — no readiness logic is duplicated.
 
 #: The module-global publish service, built once at cold start (``None`` until first use).
 _APPLICATION_PUBLISH_SERVICE: Any = None
@@ -487,13 +511,123 @@ def get_application_publish_service() -> Any:
             MembersProjectionReader,
         )
 
+        from sam.members.repository.public_page_artifact_store import (
+            S3PublicPageArtifactStore,
+        )
+        from sam.members.repository.slug_marker_store import S3SlugMarkerStore
+
         reader = MembersProjectionReader()
         _APPLICATION_PUBLISH_SERVICE = ApplicationPublishService(
             slug_reader=reader,
             readiness_provider=reader,
             field_config_reader=_get_membership_service(),
+            # spec 14 Task 8.1: the publish flow CLAIMS its slug via the shared `_slugs/{slug}`
+            # marker store (Task 1) and resolves the tenant's own public prefix off its projected
+            # `tenant` row (Task 6.3) for the SEC-4 ownership check. The store's S3 client is lazy +
+            # injectable.
+            slug_marker_store=S3SlugMarkerStore(),
+            prefix_reader=reader,
+            # spec 14 Task 9.1 (GATED live wiring): the LIVE write of the SERVED `{slug}/index.html`
+            # + `{slug}/form.json` artifacts + the best-effort CloudFront invalidation. The store
+            # resolves the SAME nonprofit bucket/distribution the landing publish uses
+            # (`LANDING_PAGES_BUCKET` + `CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID`, D7 — never a new
+            # resource); its S3/CloudFront clients are lazy + injectable. A denied invalidation is
+            # non-fatal (known-deferred to Task 9.2 SEC-8 IAM) — the put is authoritative.
+            artifact_writer=S3PublicPageArtifactStore(),
+            # Round 3 Defect 4: persist `published_version` / `published_at` on `config#fields`
+            # after the artifact write, via the CRUD service's version-conditional Change-Op.
+            publish_state_writer=_CrudPublishStateWriter(),
+            # spec 15 Task 9 (C6 — Layer-3 wiring): inject the REAL look-and-feel reader so the
+            # publish path resolves the tenant's stored presentation VALUES (the `look_and_feel`
+            # slice on `config#fields`) and feeds them through Layer 2 (`render_page_styles`) into
+            # the renderer's `branding=` — closing the Req 5 defect. The SAME DynamoDB-backed
+            # `MembersProjectionReader` already wired as `slug_reader` / `readiness_provider` /
+            # `prefix_reader` satisfies the `LookAndFeelSettingsReader` Protocol via its
+            # `get_look_and_feel(tenant_id)` method; reusing the one reader keeps publish on a
+            # single resolved-view read and touches no new AWS. When a test injects a service
+            # WITHOUT this reader the renderer falls back to its defaults (backward compatible).
+            look_and_feel_reader=reader,
         )
     return _APPLICATION_PUBLISH_SERVICE
+
+
+class _CrudPublishStateWriter:
+    """``PublishStateWriter`` backed by ``ConfigFieldsCrudService.set_publish_state`` (lazy)."""
+
+    def record_publish(
+        self, tenant_id: str, *, published_version: int, published_at: str
+    ) -> None:
+        get_config_fields_crud_service().set_publish_state(
+            tenant_id,
+            published_version=published_version,
+            published_at=published_at,
+        )
+
+
+# ── Look-and-feel settings service seam (spec 15 Task 9 — design C6 / Layer 1) ────────
+#
+# The Layer-1 look-and-feel AUTHORING routes (get / set / copy) are backed by the standalone
+# :class:`~sam.members.domain.look_and_feel_settings_service.LookAndFeelSettingsService` (design
+# C3 — NOT the MembershipService). It reads the tenant's resolved ``look_and_feel`` slice and
+# authors it by VALUE through a single version-conditional Change-Op, never touching generated CSS
+# (that is Layer 2). It is resolved lazily once (warm-reuse), mirroring
+# :func:`get_config_fields_crud_service`. A test replaces :data:`_LOOK_AND_FEEL_SETTINGS_SERVICE`
+# (or patches :func:`get_look_and_feel_settings_service`) with a service over in-memory fakes, so
+# no AWS is touched.
+#
+# Its two injected seams are the SAME real adapters used elsewhere in this composition root — no
+# new egress, no new resource:
+#   * READER — the DynamoDB-backed
+#     :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader`; its
+#     ``get_look_and_feel(tenant_id)`` satisfies the service's ``LookAndFeelSettingsReader``
+#     Protocol (the resolved-view read of the ``look_and_feel`` slice — VALUES only, tenant-scoped,
+#     defaults when absent).
+#   * WRITER — the shared :func:`get_config_fields_crud_service` Change-Op service; its
+#     ``set_look_and_feel`` / ``remove_look_and_feel`` / ``copy_look_and_feel`` adapters satisfy the
+#     service's ``LookAndFeelSettingsWriter`` Protocol (each a single path-scoped,
+#     version-conditional ``apply_ops`` write — never a whole-record replace, steering 39). Reusing
+#     that accessor means the authoring write rides the SAME `config#fields` Change-Op contract
+#     (and the same ``StaleVersionError`` 409 path) as slug / prefix / publish-state.
+# Both resolve their AWS resource lazily + fail-fast on first use, so importing the module (and the
+# auth-only tests) never touches AWS.
+
+#: The module-global look-and-feel settings service, built once at cold start (``None`` until first use).
+_LOOK_AND_FEEL_SETTINGS_SERVICE: Any = None
+
+
+def get_look_and_feel_settings_service() -> Any:
+    """Return the module-global look-and-feel settings service, built once at cold start (spec 15 Task 9).
+
+    Wires the :class:`~sam.members.domain.look_and_feel_settings_service.LookAndFeelSettingsService`
+    (design C3 / C6) over its two real seams, both reused from elsewhere in this composition root:
+
+      * the resolved-view READER — the DynamoDB-backed
+        :class:`~sam.members.repository.projection_config_reader.MembersProjectionReader` (its
+        ``get_look_and_feel`` satisfies the service's ``LookAndFeelSettingsReader``);
+      * the Change-Op WRITER — the shared config#fields Change-Op service from
+        :func:`get_config_fields_crud_service` (its ``set_look_and_feel`` /
+        ``remove_look_and_feel`` / ``copy_look_and_feel`` adapters satisfy
+        ``LookAndFeelSettingsWriter``), so the authoring write rides the same version-conditional,
+        path-scoped `apply_ops` contract as every other config#fields write.
+
+    Both resolve their table lazily + fail-fast on first use, so importing the module (and the
+    auth-only tests) never touches AWS. Tests patch this accessor (or set
+    ``_LOOK_AND_FEEL_SETTINGS_SERVICE``) to inject a service over in-memory fakes.
+    """
+    global _LOOK_AND_FEEL_SETTINGS_SERVICE
+    if _LOOK_AND_FEEL_SETTINGS_SERVICE is None:
+        from sam.members.domain.look_and_feel_settings_service import (
+            LookAndFeelSettingsService,
+        )
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
+
+        _LOOK_AND_FEEL_SETTINGS_SERVICE = LookAndFeelSettingsService(
+            reader=MembersProjectionReader(),
+            writer=get_config_fields_crud_service(),
+        )
+    return _LOOK_AND_FEEL_SETTINGS_SERVICE
 
 
 # ── Application-form live preview is IN-BROWSER (spec 12, redesign C / R3) ─────────────

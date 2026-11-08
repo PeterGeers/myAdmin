@@ -37,8 +37,10 @@ from sam.shared.auth_utils import (
     get_verified_claims,
     load_pool_registry,
 )
+from sam.shared.page_shell import HeadMeta, render_page
 
 __all__ = [
+    "HeadMeta",
     "InvalidTokenError",
     "JWTVerifier",
     "PoolConfig",
@@ -50,4 +52,5 @@ __all__ = [
     "get_groups",
     "get_verified_claims",
     "load_pool_registry",
+    "render_page",
 ]

@@ -38,3 +38,34 @@ variable "cognito_cli_profile" {
   type        = string
   default     = "personal"
 }
+
+# ============================================================================
+# Public-pages hosting migration (spec: jabaki-hosting-migration-to-nonprofit)
+# ----------------------------------------------------------------------------
+# The published public-pages bucket + the *.jabaki.nl CloudFront distribution
+# were MIGRATED out of this personal account (344561557829) into the NONPROFIT
+# account (506221081911). Those resources are OWNED by the hosting-migration
+# spec's Terraform (its `hosting.tf`), NOT by this personal-account root module
+# — so we reference them here by VALUE (name / ARN), never with a cross-account
+# `data` source or a hard-coded literal buried in a policy.
+#
+# This lets the personal-account publish IDENTITY (`myadmin-railway-backend`)
+# be granted least-privilege, prefix-scoped write on the nonprofit bucket and
+# `cloudfront:CreateInvalidation` on the nonprofit distribution (spec 14 Task
+# 9.2 / SEC-8), reconciling the live CLI drift the hosting-migration findings
+# recorded (the v2 identity policy that added the nonprofit bucket ARN).
+#
+# Defaults are the live nonprofit resources recorded in the hosting-migration
+# findings. Override per-env via tfvars if they ever change.
+
+variable "nonprofit_public_pages_bucket_name" {
+  description = "Name of the NONPROFIT-account public-pages S3 bucket the publish identity writes to (owned by the hosting-migration tf; referenced here only to grant least-privilege write)."
+  type        = string
+  default     = "myadmin-public-pages-nonprofit-506221081911"
+}
+
+variable "nonprofit_public_pages_distribution_arn" {
+  description = "ARN of the NONPROFIT-account *.jabaki.nl CloudFront distribution the publish identity invalidates (owned by the hosting-migration tf). CloudFront ARNs are account-scoped + region-less."
+  type        = string
+  default     = "arn:aws:cloudfront::506221081911:distribution/E3GLUX3TWBIJG"
+}

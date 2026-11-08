@@ -11,6 +11,7 @@ resolve at runtime via the composed service class.
 
 from __future__ import annotations
 
+import html
 import uuid
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -23,6 +24,9 @@ from sam.members.domain._membership_errors import (
 from sam.members.domain.applicant_locale import (
     locale_record_patch,
     normalize_locale,
+)
+from sam.members.domain._membership_writes_validation import (
+    APPLICATION_SERVER_SET_MEMBERSHIP_KEYS,
 )
 from sam.members.domain.application_choices import (
     validate_application_choice,
@@ -190,8 +194,8 @@ class ApplicationWritesMixin:
     #: verify-before-trust). ``status`` is forced to ``application`` server-side (R3.1) so a body
     #: status is dropped; ``member_number`` / ``created_at`` / ``updated_at`` are staff-owned
     #: (R4.3). These live under the ``membership`` bucket; the create spine never trusts them.
-    _APPLICATION_PRIVILEGED_MEMBERSHIP_KEYS: frozenset[str] = frozenset(
-        {"status", "member_number", "created_at", "updated_at"}
+    _APPLICATION_PRIVILEGED_MEMBERSHIP_KEYS: frozenset[str] = (
+        APPLICATION_SERVER_SET_MEMBERSHIP_KEYS
     )
 
     #: Stable keyword appended to ``overlay.additional_info`` when the public applicant's
@@ -364,7 +368,7 @@ class ApplicationWritesMixin:
         # email is required+valid, IBAN is mod-97'd WHEN incasso is shown (the FieldFormat step,
         # gated by show_when) — all merged into the single 422 `errors[]` (R6/R6.6, task 2.4).
         errors: dict[str, FieldError] = self._collect_member_record_errors(
-            tenant_id, record, partial=False, caller_roles=()
+            tenant_id, record, partial=False, caller_roles=(), public_form=True
         )
         # Public-form required-ness: application-required overlay (R4b) + identity (R6.1/R6.1a).
         self._validate_application_required(config, record, errors)
@@ -547,6 +551,20 @@ class ApplicationWritesMixin:
         ``{personal:{...}, membership:{...}, overlay:{...}}`` shape (so a direct domain caller /
         test need not pre-flatten). Each accepted value is placed under its field's STORAGE group
         (``personal`` / ``membership`` / ``overlay``), i.e. the create spine's nested shape (R4.7).
+
+        **SEC-9 — applicant PII minimization (spec 14 task 4.3).** This method IS the PII
+        minimization boundary: it iterates the tenant's RESOLVED, application-DECLARED field set
+        (``application_visible``) and copies ONLY those fields off the body. The published-field
+        allowlist is the loop itself — an undeclared / unexpected body key is NEVER read (it is
+        not in ``config.fields`` with ``application_visible``), so it can never be persisted. A
+        submission is therefore minimized to exactly the fields the tenant published on the form,
+        and the resulting record is written under the marker-resolved ``tenant_id`` by the caller
+        (``create_application`` stamps ``record["tenant_id"] = tenant_id`` — the SAM members
+        store is ``tenant_id``-partitioned, steering 39). Retention + the GDPR erasure path for the
+        resulting ``status=application`` record are recorded in the spec's
+        ``task-4.3-pii-and-xss-decision.md`` (an application record is a member record, erased by
+        the existing per-tenant ``delete_member`` path — no new infra). SEC-10 free-text
+        neutralization is applied per accepted value here via :meth:`_neutralize_free_text`.
         """
         # The form may nest the field values under a `fields` key (design §3.2) or send them at
         # the top level; accept either. Buckets passed at the top level are also read so a nested
@@ -563,9 +581,67 @@ class ApplicationWritesMixin:
             value = self._lookup_submitted_value(flat_source, field_obj)
             if value is _MISSING:
                 continue
+            # SEC-10 (stored-XSS, spec 14 task 4.3): neutralize applicant FREE-TEXT at the trust
+            # boundary — the public write — so a `<script>`/HTML payload cannot execute when the
+            # record is later re-displayed in the authenticated admin review UI (some admin panels
+            # render field values via `dangerouslySetInnerHTML`). See `_neutralize_free_text`.
+            value = self._neutralize_free_text(field_obj, value)
             group, _, key = dotted.partition(".")
             record.setdefault(group, {})[key] = value
         return record
+
+    #: Field keys whose value is a server-controlled CHOICE from a fixed/closed vocabulary — a
+    #: plain-text code, never applicant free-text. ``membership_type`` is a ``REFERENCE`` field
+    #: (a catalog code), separately re-validated against the published subset + the live catalog
+    #: (R4a.3/R11); escaping it would corrupt a legitimate code, so it is left verbatim.
+    _STRUCTURED_FIELD_KEYS: frozenset[str] = frozenset({MEMBERSHIP_TYPE_FIELD_KEY})
+
+    @classmethod
+    def _neutralize_free_text(cls, field_obj: ResolvedField, value: Any) -> Any:
+        """HTML-escape an applicant FREE-TEXT string at the write boundary (SEC-10, task 4.3).
+
+        Stored-XSS defense-in-depth: an applicant-supplied string that may carry ``<script>`` /
+        ``onerror=`` / other active HTML is HTML-ENCODED here, on the PUBLIC write (the trust
+        boundary design SEC-10 names), BEFORE it is persisted — so when the tenant's AUTHENTICATED
+        admin review UI later re-displays the submission it cannot execute script in an admin's
+        session, even if a future admin-side renderer drops the value into ``innerHTML`` /
+        ``dangerouslySetInnerHTML`` (several first-party panels already do). This is distinct from
+        SEC-1 (which governs the PUBLIC read whitelist); SEC-10 governs the admin-side re-display
+        of inbound data. It complements, never replaces, output-encoding: the email bodies
+        (:mod:`sam.members.domain.application_messages`) already ``html.escape`` on output and the
+        React grid auto-escapes text nodes — this closes the remaining path (a raw-HTML sink).
+
+        Scope — FREE-TEXT ONLY, so legitimate structured data is never corrupted:
+
+        - Applied only to ``str`` values. A non-string (date already typed, number, bool, list)
+          is returned untouched — the escape is a no-op on non-text anyway.
+        - A field whose value is a CLOSED/STRUCTURED choice (``membership_type`` reference code —
+          :data:`_STRUCTURED_FIELD_KEYS`) is left VERBATIM: its value is a server-validated code
+          from a fixed vocabulary, never free-text, and escaping could corrupt a legitimate code.
+        - An enum/choice field (the value must be one of a published option set, re-validated by
+          :meth:`_reject_invalid_overlay_enum_values`) is likewise left verbatim — its value is
+          constrained to a known option, not free-text.
+        - An EMAIL / IBAN / DATE value passes through unchanged in practice: a value that is
+          actually valid carries no HTML metacharacters, so ``html.escape`` is a no-op on it; a
+          value that DID carry ``<``/``&``/``"`` is both neutralized here AND rejected by the
+          server-side format validator (SEC-2, task 4.2), so the record never lands anyway.
+
+        ``html.escape`` (``quote=True``) encodes ``& < > " '`` — the characters that let a string
+        break out of text content or an attribute into active markup — leaving ordinary applicant
+        text (names, addresses, free-text notes) fully readable on re-display.
+        """
+        if not isinstance(value, str):
+            return value
+        if field_obj.key in cls._STRUCTURED_FIELD_KEYS:
+            return value
+        # A field constrained to a published option set is a known-value choice, not free-text.
+        # A selectable field's vocabulary is the canonical `options` (03a); `application_choices`
+        # is the published SUBSET of that vocabulary. The retired bare-value `choices` is NOT
+        # read here — either term above already marks the field as constrained-choice, so the
+        # free-text XSS-escaping is correctly skipped for it.
+        if field_obj.options or field_obj.application_choices:
+            return value
+        return html.escape(value, quote=True)
 
     @staticmethod
     def _lookup_submitted_value(

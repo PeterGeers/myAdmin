@@ -1,0 +1,719 @@
+{
+  "pbtResults": {
+    "1.2 Property test — Layer-2 determinism in the settings": {
+      "status": "passed",
+      "lastRunTimestamp": 1793976167990
+    },
+    "1.5 Property test — absent attributes fall back to defaults without failing": {
+      "status": "passed",
+      "lastRunTimestamp": 1793976203930
+    },
+    "1.4 Property test — different values produce correspondingly different styling": {
+      "status": "passed",
+      "lastRunTimestamp": 1793976230955
+    },
+    "4.4 Property test — tenant isolation on resolve": {
+      "status": "passed",
+      "lastRunTimestamp": 1793977319227
+    },
+    "5.4 Property test — copy is a one-time independent snapshot": {
+      "status": "passed",
+      "lastRunTimestamp": 1793977799393
+    },
+    "7.5 Property test — published form carries styling derived from resolved values": {
+      "status": "passed",
+      "lastRunTimestamp": 1793980844337
+    },
+    "7.4 Property test — publish failure preserves the previously published artifact": {
+      "status": "passed",
+      "lastRunTimestamp": 1793980879370
+    }
+  },
+  "executionHistory": {
+    "1.1 Create `sam/shared/page_styles/` with `render_page_styles(settings) -> PageStyles`": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975847619
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975860319
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976077053
+      }
+    ],
+    "1.2 Property test — Layer-2 determinism in the settings": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975847782
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976088365
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976245806
+      }
+    ],
+    "1.3 Property test — Layer-2 output depends only on the supplied values (page-type-agnostic)": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975847939
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976089753
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976247192
+      }
+    ],
+    "1.4 Property test — different values produce correspondingly different styling": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975848063
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976091159
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976248168
+      }
+    ],
+    "1.5 Property test — absent attributes fall back to defaults without failing": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975848185
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976092578
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976249560
+      }
+    ],
+    "1.6 Property test — unsupported attribute is rejected and produces no styling": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975848327
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976093517
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976250742
+      }
+    ],
+    "2. Layer 2 packaging — remove the Flask-plane vendored copy from the layer build (DD-1)": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975848589
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976256486
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976484306
+      }
+    ],
+    "3. Checkpoint — Layer 2 complete": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975848729
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984223429
+      }
+    ],
+    "4.1 Add the `look_and_feel` slice to the `config#fields` skeleton and new-tenant seeding": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975848863
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976630926
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976823249
+      }
+    ],
+    "4.2 Add a resolved-view reader on `MembersProjectionReader` for the `look_and_feel` slice": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975849013
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976828562
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977143902
+      }
+    ],
+    "4.3 Property test — styling is produced entirely from SAM-owned code (no Flask runtime call)": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975849188
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977151072
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977468672
+      }
+    ],
+    "4.4 Property test — tenant isolation on resolve": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975849326
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977152451
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977467651
+      }
+    ],
+    "4.5 Add the Change-Op writer adapter over `MembersConfigWriteRepository.apply_ops`": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975849493
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976829705
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977144820
+      }
+    ],
+    "4.6 Unit test — unrelated slices survive the Change-Op write by construction": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975849627
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977153668
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977466235
+      }
+    ],
+    "5.1 Implement `LookAndFeelSettingsService` with injected reader + writer": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975849788
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977149630
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977464840
+      }
+    ],
+    "5.2 Property test — invalid value is rejected and stored values are preserved": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975849920
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977475152
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977671333
+      }
+    ],
+    "5.3 Implement `copy_settings` (one-time snapshot, same tenant, no link)": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975850058
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977474197
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977672482
+      }
+    ],
+    "5.4 Property test — copy is a one-time independent snapshot": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975850219
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977680030
+      },
+      {
+        "executionId": "f6da2d37-a879-41d5-a9a0-82da913074bc",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980171777
+      }
+    ],
+    "5.5 Unit tests — copy overwrite + no-link; cross-tenant copy rejected": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975850350
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977677508
+      },
+      {
+        "executionId": "f6da2d37-a879-41d5-a9a0-82da913074bc",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980178298
+      },
+      {
+        "executionId": "f6da2d37-a879-41d5-a9a0-82da913074bc",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980182565
+      }
+    ],
+    "6. Checkpoint — Layer 1 complete": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975850511
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984224817
+      }
+    ],
+    "7.1 Add the `LookAndFeelSettingsReader` Protocol and optional injection": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975850838
+      },
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977678876
+      },
+      {
+        "executionId": "f6da2d37-a879-41d5-a9a0-82da913074bc",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980172940
+      }
+    ],
+    "7.2 Resolve values → Layer 2 → `branding=` into the renderer in `publish()`": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975851007
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980226489
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980675856
+      }
+    ],
+    "7.3 Example/regression test — publish passes branding (the Req 5 defect)": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975851163
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980683157
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980900221
+      }
+    ],
+    "7.4 Property test — publish failure preserves the previously published artifact": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975851362
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980680771
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980901616
+      }
+    ],
+    "7.5 Property test — published form carries styling derived from resolved values": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975851550
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980682128
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980902685
+      }
+    ],
+    "8.1 Unit test — route auth, verified-tenant, and caller-safe error envelope": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975851704
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980908351
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793981561170
+      }
+    ],
+    "9. Composition root — wire real reader/writer (C6)": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975851879
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980909467
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793981196629
+      }
+    ],
+    "10. Checkpoint — SAM plane end-to-end": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975852052
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984226199
+      }
+    ],
+    "11. Real-data round-trip (steering 39, NON-NEGOTIABLE)": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975852302
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793981571000
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793983686243
+      }
+    ],
+    "12.1 Frontend unit tests — authoring UI sends values-only Change-Ops and handles errors": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975852526
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793983693444
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984010296
+      }
+    ],
+    "13.1 Make `ApplicationFormPreview.tsx` mirror the Python Layer-2 output": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975852722
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793981569926
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793983687165
+      }
+    ],
+    "13.2 Shared parity fixture pinning React Layer-2/3 output to the Python output": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975852906
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793983694809
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984011679
+      }
+    ],
+    "14. Checkpoint — all planes delivered": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975853157
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984227209
+      },
+      {
+        "executionId": "a704eb01-f1b2-416f-a496-7ccff7ff2bfc",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793985083698
+      }
+    ],
+    "15. CI/CD — quality gates, deploy paths, and production-release gate (steering 40/43)": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975853327
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793983695870
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984012912
+      },
+      {
+        "executionId": "65f00616-fe7b-473a-bad3-e8b78ec19780",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793985556678
+      },
+      {
+        "executionId": "65f00616-fe7b-473a-bad3-e8b78ec19780",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793985627246
+      }
+    ],
+    "16.1 Rewrite steering 36 for SAM config-authoring autonomy": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975853501
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984018914
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984175752
+      }
+    ],
+    "16.2 Review/update steering 35, 39 and ADRs 0005 / 0006 for consistency": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793975853645
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984020101
+      },
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984176777
+      }
+    ],
+    "1. Layer 2 — relocate the SAM-owned CSS generator and remove Flask-plane vendoring (DD-1)": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793976250909
+      }
+    ],
+    "4. Layer 1 — stored `look_and_feel` slice, reader and writer seams (DD-2)": [
+      {
+        "executionId": "c6d2fcf3-b268-412c-ac63-d450835201a9",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793977468804
+      }
+    ],
+    "5. Layer 1 — `LookAndFeelSettingsService` (get / set / copy) (C3)": [
+      {
+        "executionId": "f6da2d37-a879-41d5-a9a0-82da913074bc",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980182714
+      }
+    ],
+    "7. Layer 3 wiring — close the Req 5 defect in `ApplicationPublishService.publish` (C4)": [
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793980902987
+      }
+    ],
+    "8. Edge — `members:admin`-gated Layer-1 authoring routes (get / set / copy)": [
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793981561324
+      }
+    ],
+    "12. Frontend — Layer-1 authoring UI (preferences editor)": [
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984010461
+      },
+      {
+        "executionId": "a704eb01-f1b2-416f-a496-7ccff7ff2bfc",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793985078346
+      }
+    ],
+    "13. Frontend — admin preview Layer-2/3 React mirror + parity fixture (DD-3, C5)": [
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984011803
+      }
+    ],
+    "16. Governance definition-of-done (steering 40 + design Governance section)": [
+      {
+        "executionId": "e3a79232-a481-4823-9a29-981130a0075c",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984176915
+      }
+    ],
+    "12.2 Build the look-and-feel editor component and wire it into the builder + preview": [
+      {
+        "executionId": "a704eb01-f1b2-416f-a496-7ccff7ff2bfc",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793984596401
+      },
+      {
+        "executionId": "a704eb01-f1b2-416f-a496-7ccff7ff2bfc",
+        "chatSessionId": "sess_77d487a0-d9e6-445e-be24-a1b8fb45ef0c",
+        "timestamp": 1793985078197
+      }
+    ]
+  }
+}

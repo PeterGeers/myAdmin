@@ -224,6 +224,18 @@ def _tenant_id_of(tenant: Mapping[str, Any]) -> str:
     return tenant_id
 
 
+#: Optional tenant-level passthrough attributes that must be OMITTED from the
+#: projected ``tenant`` row when their source value is ``NULL``/absent, rather than
+#: projected as a bogus ``None``. Currently EMPTY: the former ``public_prefix`` entry
+#: was removed when the slug prefix moved to the SAM plane (it is now SAM-owned on the
+#: ``config#fields`` row — authored via ``ConfigFieldsCrudService.set_public_prefix``
+#: and read via ``MembersProjectionReader.get_public_prefix`` — so Flask no longer
+#: stores or projects it; the ``tenants.public_prefix`` column was dropped). The
+#: mechanism is retained (a future nullable tenant column that SAM reads can be added
+#: here) so a clean ABSENCE is projected instead of a bogus ``None``.
+_OPTIONAL_OMIT_IF_NULL_TENANT_ATTRS: frozenset = frozenset()
+
+
 def _tenant_attributes(tenant: Mapping[str, Any]) -> dict[str, Any]:
     """Project a tenant's non-key attributes for the ``tenant`` record.
 
@@ -231,9 +243,22 @@ def _tenant_attributes(tenant: Mapping[str, Any]) -> dict[str, Any]:
     explicitly on the item) so tenant-level attributes modules need travel with
     the item. No per-user or token-only data is present in a ``tenants`` row, so
     nothing here can leak S4 data.
+
+    ADDITIVE passthrough: because the source read is ``SELECT * FROM tenants``, any
+    newly-added tenant column arrives on the source row and is carried 1:1 onto the
+    ``tenant`` item with no source change needed. Columns listed in
+    :data:`_OPTIONAL_OMIT_IF_NULL_TENANT_ATTRS` (currently none) are OMITTED when
+    ``NULL``/absent so a clean absence is projected instead of a bogus ``None`` the
+    SAM read side would have to special-case. (The former ``public_prefix`` passthrough
+    was removed — the slug prefix is now SAM-owned on ``config#fields``, not projected
+    from Flask.)
     """
     excluded = {schema.PARTITION_KEY_ATTR, "administration", *_VERSION_FIELDS}
-    return {k: v for k, v in tenant.items() if k not in excluded}
+    attrs = {k: v for k, v in tenant.items() if k not in excluded}
+    for optional in _OPTIONAL_OMIT_IF_NULL_TENANT_ATTRS:
+        if attrs.get(optional) is None:
+            attrs.pop(optional, None)
+    return attrs
 
 
 def build_projection_items(
