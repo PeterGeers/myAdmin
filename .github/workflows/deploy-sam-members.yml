@@ -107,24 +107,33 @@ jobs:
         # fail-closed). Never committed / never in samconfig (steering 43).
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        # ⚠️ CI FOOTGUN — a bare `--parameter-overrides` REPLACES the whole samconfig param set,
-        #    it does NOT merge (spec 12 D7 / R7.4; root cause of decision 1a).
-        #    When `$OVERRIDE` below is non-empty, SAM uses ONLY the `Key=Val` pairs passed on the
-        #    CLI and IGNORES every `parameter_overrides` entry in samconfig.toml [<config-env>];
-        #    any param not re-passed falls back to its template `Default`. That is exactly how the
-        #    old `PublicTenantSlugMap` silently deployed EMPTY on an OpenRouter-key deploy and the
-        #    `hdcn` slug stopped resolving (spec 12, decision 1a). That specific blast radius is now
-        #    CLOSED — the slug is DATA-backed (`_slugs/{slug}` marker, task 1.4/7.1), so it no
-        #    longer rides a template param. But the footgun is LATENT for ANY other samconfig param
-        #    (e.g. the Cognito pool ARN, table names) the day a second override is added here.
-        #    RECOMMENDED CI FOLLOW-UP (not done here — this is a flagged NOTE, not a behavior
-        #    change; deploy workflows are sensitive, steering 43): make the override MERGE, not
-        #    replace — either re-pass ALL of samconfig's params alongside OpenRouterApiKey, or move
-        #    to a `--parameter-overrides-file` / env-specific param file so a secret-carrying deploy
-        #    can never blank a samconfig param again.
+        # ⚠️ CI FOOTGUN (now FIXED here) — a bare `--parameter-overrides` REPLACES the whole
+        #    samconfig param set, it does NOT merge (spec 12 D7 / R7.4; root cause of decision 1a).
+        #    When any `Key=Val` is passed on the CLI, SAM uses ONLY the CLI pairs and IGNORES every
+        #    `parameter_overrides` entry in samconfig.toml [<config-env>]; any param not re-passed
+        #    falls back to its template `Default`. For a NO-DEFAULT param (e.g. `LandingPagesBucket`
+        #    / `CloudFrontPublicPagesDistributionId`, spec 14 Task 9) that fallback is EMPTY, so
+        #    CreateChangeSet fails: "Parameters: [...] must have values" — exactly the prod deploy
+        #    #117 failure. (It also silently blanked `PublicTenantSlugMap` historically, decision 1a.)
+        #
+        #    FIX (the recommended MERGE, done DRY): when the OpenRouter secret is present, build the
+        #    FULL override set by READING samconfig's `parameter_overrides` for the chosen env
+        #    (Python 3.11 stdlib `tomllib`) and APPENDING `OpenRouterApiKey`. SAM then gets every
+        #    samconfig param PLUS the secret on the CLI, so nothing falls back to a template default
+        #    and no future no-default param can be silently blanked. When the secret is absent, no
+        #    CLI override is passed and SAM uses samconfig as-is (unchanged behavior). The secret is
+        #    passed via argv (not interpolated into the command string) so it never lands in a log.
         run: |
-          OVERRIDE=""
+          CONFIG_ENV="${{ steps.env.outputs.config_env }}"
           if [ -n "$OPENROUTER_API_KEY" ]; then
-            OVERRIDE="--parameter-overrides OpenRouterApiKey=$OPENROUTER_API_KEY"
+            # Read samconfig's parameter_overrides for this env (one Key=Val per line) via a
+            # single `python3 -c` (no heredoc — avoids YAML/Python indentation pitfalls). stdlib
+            # tomllib ships with the Python 3.11 set up above.
+            mapfile -t SAMCONFIG_PARAMS < <(python3 -c 'import sys,tomllib; env=sys.argv[1]; cfg=tomllib.load(open("samconfig.toml","rb")); [print(kv) for kv in cfg[env]["deploy"]["parameters"]["parameter_overrides"]]' "$CONFIG_ENV")
+            # Pass the full samconfig set PLUS the secret as separate argv items (the secret is
+            # never interpolated into the shell command string, so it is not echoed in the log).
+            sam deploy --config-env "$CONFIG_ENV" --no-confirm-changeset --no-fail-on-empty-changeset \
+              --parameter-overrides "${SAMCONFIG_PARAMS[@]}" "OpenRouterApiKey=$OPENROUTER_API_KEY"
+          else
+            sam deploy --config-env "$CONFIG_ENV" --no-confirm-changeset --no-fail-on-empty-changeset
           fi
-          sam deploy --config-env ${{ steps.env.outputs.config_env }} --no-confirm-changeset --no-fail-on-empty-changeset $OVERRIDE
