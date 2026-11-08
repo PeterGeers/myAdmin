@@ -33,7 +33,6 @@ import {
   FormErrorMessage,
   Input,
   Select,
-  SimpleGrid,
   VStack,
 } from '@chakra-ui/react';
 import type { PublicFieldConfig, PublicField, PublicFieldOption } from './applicationFieldConfig';
@@ -115,16 +114,21 @@ export const ApplicationFormRenderer: React.FC<ApplicationFormRendererProps> = (
                 {heading}
               </Box>
             ) : null}
-            {/* Multi-column group layout (R4.2): a single column on a narrow (mobile) viewport
-                (`base`), at least two columns on `md`+ (laptop/desktop). `SimpleGrid` lays out in
-                DOM order, so the logical reading + tab order stays the config-resolved
-                `(group order → field (order,key))` sequence and the error-summary anchors keep
-                focusing the right control (R4.4 / HC2). Driven purely by Chakra's responsive
-                `columns` object — no viewport sniffing (R4.3). */}
-            <SimpleGrid
-              columns={{ base: 1, md: 2 }}
-              spacing={4}
+            {/* Multi-column group layout (R4.2): a width-driven responsive grid — as many
+                ~16rem columns as the container fits, reflowing to a single column on a narrow
+                (mobile) viewport. The grid lays out in DOM order, so the logical reading + tab
+                order stays the config-resolved `(group order → field (order,key))` sequence and
+                the error-summary anchors keep focusing the right control (R4.4 / HC2). Pure CSS
+                auto-fit — no viewport sniffing, no breakpoints (R4.3). */}
+            <Box
               data-testid={`group-grid-${group.key}`}
+              display="grid"
+              gap={4}
+              // Width-driven responsive grid (best-practice auto-fit): as many ~16rem columns as
+              // the container width fits, reflowing continuously down to 1 on a narrow screen and
+              // up to as many as fit on a wide one. No fixed count, no breakpoints. Using a plain
+              // Box (not SimpleGrid) so nothing overrides grid-template-columns.
+              gridTemplateColumns="repeat(auto-fit, minmax(min(100%, var(--form-col-min, 16rem)), 1fr))"
             >
               {visibleFields.map((field) => (
                 <FieldControl
@@ -137,7 +141,7 @@ export const ApplicationFormRenderer: React.FC<ApplicationFormRendererProps> = (
                   onChange={onChange}
                 />
               ))}
-            </SimpleGrid>
+            </Box>
           </Box>
         );
       })}

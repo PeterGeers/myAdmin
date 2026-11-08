@@ -74,6 +74,7 @@ from sam.members.handler._dispatch_services import (  # noqa: F401
     get_config_fields_crud_service,
     get_config_write_service,
     get_execute_and_deliver_service,
+    get_look_and_feel_settings_service,
     get_mail_run_status_service,
     get_template_service,
 )
@@ -142,6 +143,7 @@ __all__ = [
     "get_application_publish_service",
     "get_config_write_service",
     "get_execute_and_deliver_service",
+    "get_look_and_feel_settings_service",
     "get_mail_run_status_service",
     "get_template_service",
 ]

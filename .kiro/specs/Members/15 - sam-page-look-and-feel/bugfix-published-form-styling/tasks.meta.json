@@ -1,0 +1,516 @@
+{
+  "pbtResults": {
+    "2. Write the stale-editor (R-B) bug-condition exploration test": {
+      "status": "passed",
+      "failingExample": "AssertionError: expected 'subtle' to be 'dramatic' // Object.is equality\n\nScenario: real PUT edge contract. After a successful setLookAndFeelSetting('shadow_style', 'dramatic') where the PUT /members/look-and-feel edge (write_look_and_feel) returns the Change-Op write result { version: 'v3', idempotent_replay: false } — the REAL shape, with NO `settings` key — the editor control for shadow_style:\n  Expected: \"dramatic\"  (the authored value)\n  Received: \"subtle\"    (the Layer-2 default)\n\nRoot cause 4 reproduced: handleSetLookAndFeel runs `setLookAndFeel(res.settings ?? {})`; res.settings is undefined on the real PUT shape, so `?? {}` blanks the optimistic edit and the control reverts to the default until a fresh getLookAndFeelSettings GET. No reload occurred in the test, so the control stays blanked — bug confirmed (defect 1.8 / expected 2.8).",
+      "lastRunTimestamp": 1793994309097
+    },
+    "1. Write the published-styling bug-condition exploration test": {
+      "status": "passed",
+      "failingExample": "Falsifying example: test_published_form_does_not_apply_look_and_feel_to_its_own_elements(color_primary='#C01030', logo='https://cdn.jabaki.nl/h-dcn/logo.png', header_title='Word lid van DCN', columns=2)\n\nAll four applied-styling predicates are False on the baked artifact of a SUCCESSFUL publish (result['success'] is True; index_html captured):\n- applies_brand_colour_to_form: False — '#C01030' IS present in the stylesheet but only inside landing-page rules (.hero/.cta/.btn/.pricing-card/…); no rule applies it to the form's own heading/submit/:focus (root cause 1).\n- has_collapsing_multi_column_grid: False — 8 grid-template-columns rules exist, all for landing classes (.gallery-grid-*, .faq-grid, .pricing-grid, .testimonial-cards); none target .application-form groups/fields, and there is no small-screen collapse for the form (root cause 1: single column at all widths).\n- renders_logo: False — no <img> element in the body at all (root cause 2: renderer emits no logo).\n- renders_heading: False — no visible heading element carries the authored title; only the non-visible <title> browser-tab element exists (root cause 2).\n\nThis confirms the false-parity gap: the Layer-2 generator string is present in the artifact, yet the form carries none of the styling. Test correctly FAILS on unfixed code.",
+      "lastRunTimestamp": 1793994455147
+    },
+    "3. Write preservation property tests (BEFORE implementing the fix)": {
+      "status": "passed",
+      "lastRunTimestamp": 1793994535893
+    },
+    "16.1 Re-run the published-styling test from Task 1": {
+      "status": "passed",
+      "lastRunTimestamp": 1793999927648
+    }
+  },
+  "executionHistory": {
+    "1. Write the published-styling bug-condition exploration test": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994158338
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994168634
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994565393
+      }
+    ],
+    "2. Write the stale-editor (R-B) bug-condition exploration test": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994158450
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994170003
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994566741
+      }
+    ],
+    "3. Write preservation property tests (BEFORE implementing the fix)": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994158537
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994170993
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994567774
+      }
+    ],
+    "4. Checkpoint — Phase 0 (reproduce) complete": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994158621
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994596794
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994600225
+      }
+    ],
+    "5.1 Extend `sam/shared/page_styles` with an application-form CSS block (DD-B1)": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994158706
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994605518
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995301896
+      }
+    ],
+    "5.2 Paired Layer-2 tests — brand colours + grid applied; landing CSS preserved": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994158824
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995311556
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995485061
+      }
+    ],
+    "6.1 Extend `build_form_body_html` + `publish` to render logo and header_title": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994158963
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994606482
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995303132
+      }
+    ],
+    "6.2 Paired renderer tests — logo/heading emitted when supplied; unchanged when absent": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159047
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995310514
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995486206
+      }
+    ],
+    "7. Checkpoint — Phase 1 (Option 1) complete": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159133
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995491774
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995495420
+      }
+    ],
+    "8. Layer-2 plane — support `columns`, `logo`, `header_title`": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159230
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995502019
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793996176125
+      }
+    ],
+    "9. Stored-slice plane — the three new values ride the existing Change-Op path": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159326
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995500927
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793996177319
+      }
+    ],
+    "10. Edge + service plane — validate `columns` / `logo` / `header_title`": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159414
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793996182953
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793997549891
+      }
+    ],
+    "11. Authoring-UI plane — logo / header/title / column-count controls (no half-shipped feature)": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159490
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793997555930
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793998162398
+      }
+    ],
+    "12. Preview plane — reflect `logo` / `header_title` / `columns`": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159567
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793997554724
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999115654
+      }
+    ],
+    "13. Checkpoint — Phase 2 (R-A) complete across all planes": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159647
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999120840
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999124263
+      }
+    ],
+    "14.1 Return `{settings}` from `write_look_and_feel` (same shape as GET)": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159722
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999129164
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999349646
+      }
+    ],
+    "14.2 Align the paired tests to the real PUT contract": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159857
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999354284
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999754127
+      }
+    ],
+    "15. Checkpoint — Phase 3 (R-B) complete": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994159932
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999758433
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999761557
+      }
+    ],
+    "16.1 Re-run the published-styling test from Task 1": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994160009
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999784838
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999945858
+      }
+    ],
+    "16.2 Re-run the R-B test from Task 2": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994160084
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999783627
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999801848
+      }
+    ],
+    "16.3 Verify preservation tests still pass": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994160158
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999782255
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999802957
+      }
+    ],
+    "17. Real-data round-trip (steering 39, NON-NEGOTIABLE)": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994160250
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794000159285
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794001431037
+      }
+    ],
+    "18. CI/CD — quality gates, deploy paths, production-release gate (steering 43)": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994160355
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999954518
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794000158103
+      },
+      {
+        "executionId": "2f1a7c55-46f1-485d-9546-04b0cc1aa1af",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794002079688
+      }
+    ],
+    "19. Checkpoint — fix complete and verified (Options 1 + R-A + R-B)": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994160434
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794001435825
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794001439478
+      }
+    ],
+    "20. Applied-appearance parity — preview and published form from the same attributes": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994160511
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794001444020
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794001730812
+      }
+    ],
+    "21. Update steering + spec-15 attribute-contract docs for the seven→ten attribute extension": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994160595
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794001736029
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794001949579
+      }
+    ],
+    "22. Checkpoint — governance complete": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793994160699
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794001953760
+      },
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1794001957162
+      }
+    ],
+    "5. Layer-2 — application-form CSS block (grid + brand colours), landing classes unchanged": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995485168
+      }
+    ],
+    "6. Renderer — emit the logo + visible heading in the body": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793995486360
+      }
+    ],
+    "14. Fix the `PUT /members/look-and-feel` edge to return the resolved `{settings}` (DD-D1)": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999754263
+      }
+    ],
+    "16. Verify the bug-condition exploration tests now pass": [
+      {
+        "executionId": "2d19fc55-563b-4cc7-aff2-301cb9397266",
+        "chatSessionId": "sess_90e075d4-2c37-4a03-ac2c-3e6a01f47f27",
+        "timestamp": 1793999945996
+      }
+    ]
+  }
+}

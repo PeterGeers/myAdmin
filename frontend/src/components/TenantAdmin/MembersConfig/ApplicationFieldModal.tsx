@@ -62,11 +62,15 @@
  * with the remaining per-field application attributes — authored onto the SAME single
  * `field_overlay` object through the SAME origin-aware `upsertField` engine (R1.4 / R2.1/R2.2); no
  * forked write path:
- *   - **`application_required`** — a required-on-the-form toggle. It can TIGHTEN an optional field
- *     to required, but NEVER RELAX a platform-required one (R2 no-relax, carried from spec 11): for
- *     a platform-required field (`field.required === true`) the toggle is FORCED ON + disabled with
- *     an explanatory note — the UI never offers a relax (the SAM write is authoritative regardless).
- *     The membership-type reference field is likewise forced-required when on the form (spec 10 D21).
+ *   - **`application_required`** — a required-on-the-form toggle authoring the tenant's free choice
+ *     of whether the PUBLIC form demands the field. Round 6 (bugfix-published-form-submit, task
+ *     23.2) made form-required the SOLE public-form rule and DROPPED the platform-floor coupling:
+ *     the toggle no longer reads the platform `required` floor, so a platform-required field is
+ *     FREELY settable (a free tighten), NOT forced on. Two exceptions remain: a SERVER-STAMPED
+ *     membership field (`status`, `member_number`, timestamps) is never demanded of the applicant
+ *     (the server stamps it) so the toggle is NOT offered for it; and an EXPOSED membership_type is
+ *     always application-required (spec 10 D21/R11 — the engine's own rule), so the toggle is forced
+ *     ON + disabled for it. (The SAM write stays authoritative regardless.)
  *   - **`format`** — a declarative validator-token picker fed STRICTLY by the platform's KNOWN
  *     tokens (`fieldConfig.field_format_tokens`, the SAME source the retired spec-11
  *     `ApplicationFieldAttributes` panel used — `field_formats.known_tokens()` via SAM). Only a
@@ -112,6 +116,32 @@ import { isMembershipTypeField } from './applicationMembershipType';
 
 /** The back-office STORAGE group whose fields default OFF the public form (R2.4, carried from spec 11). */
 const MEMBERSHIP_STORAGE_GROUP = 'membership';
+
+/**
+ * The SERVER-STAMPED membership keys (Round 6, design §2): `status`, `member_number`, and the
+ * `created_at`/`updated_at` timestamps. These are stamped/forced by the server — an applicant never
+ * supplies them — so the builder does NOT offer a "Verplicht op formulier" toggle for them. This
+ * mirrors the backend authority verbatim: `APPLICATION_SERVER_SET_MEMBERSHIP_KEYS` in
+ * `sam/members/domain/_membership_writes_validation.py` is `{status, member_number, created_at,
+ * updated_at}` scoped to the `membership` storage group, and `effective_application_required`
+ * returns `False` for them (never required, never demanded of the applicant).
+ */
+const SERVER_STAMPED_MEMBERSHIP_KEYS: ReadonlySet<string> = new Set([
+  'status',
+  'member_number',
+  'created_at',
+  'updated_at',
+]);
+
+/**
+ * Is this resolved field SERVER-STAMPED (Round 6)? A membership-storage field whose key the server
+ * stamps/forces (`status`, `member_number`, timestamps). Detected the same way the backend does:
+ * the storage `group` is the membership bucket AND the bare `key` is in the server-set. The public
+ * form never demands these — the required toggle is not offered for them.
+ */
+function isServerStamped(field: FieldConfigField): boolean {
+  return field.group === MEMBERSHIP_STORAGE_GROUP && SERVER_STAMPED_MEMBERSHIP_KEYS.has(field.key);
+}
 
 export interface ApplicationFieldModalProps {
   isOpen: boolean;
@@ -174,16 +204,6 @@ function isOfferable(field: FieldConfigField): boolean {
   if (field.origin === 'calculated') return false;
   if (field.read_only === true) return false;
   return true;
-}
-
-/**
- * Is this resolved field PLATFORM-REQUIRED (R2 no-relax)? A platform-required field's
- * application-required state can never be RELAXED to optional — the modal forces the toggle ON +
- * disabled with an explanatory note (identical to the retired `ApplicationFieldAttributes` panel;
- * the SAM write rejects a relax regardless, R8.1c).
- */
-function isPlatformRequired(field: FieldConfigField): boolean {
-  return field.required === true;
 }
 
 /**
@@ -304,23 +324,30 @@ export const ApplicationFieldModal: React.FC<ApplicationFieldModalProps> = ({
     );
   };
 
-  // ---- application_required (task 4.3 / R2 no-relax) ------------------------------------------
-  // The required-on-the-form toggle. It can TIGHTEN an optional field to required, but NEVER RELAX
-  // a platform-required one: for a platform-required field (and the membership-type reference field
-  // when on the form, spec 10 D21) the toggle is FORCED ON + disabled with an explanatory note (the
-  // UI never offers a relax; the SAM write stays authoritative, R8.1c). Seeds from the working
-  // overlay's authored `application_required`, else off.
+  // ---- application_required (task 4.3 / Round 6: form-required is the sole public rule) --------
+  // The required-on-the-form toggle authors `application_required` — the tenant's free choice of
+  // whether the PUBLIC form demands the field. Round 6 (design §2) DROPPED the platform-floor
+  // coupling: the public form's requiredness no longer reads the platform `required` floor
+  // (`effective_application_required` no longer unions it in), so a field that is platform-required
+  // but not otherwise is NO LONGER forced ON + disabled — the tenant freely sets `application_required`
+  // for it (a free tighten). The toggle therefore reflects the AUTHORED `application_required`
+  // (seeded from the working overlay), not a forced-on floor.
+  //
+  // membership_type keeps its OWN forced-on behavior: the engine treats an EXPOSED membership_type
+  // as application-required (D21/R11 — `effective_application_required` returns True for it when
+  // `application_visible`), so the UI mirrors that by forcing the toggle ON + disabled for it.
   const isMembershipType = field ? isMembershipTypeField(field) : false;
-  const requiredForced = field ? isPlatformRequired(field) || isMembershipType : false;
+  const serverStamped = field ? isServerStamped(field) : false;
+  const requiredForced = isMembershipType;
   const requiredChecked = requiredForced
-    ? true // forced on — a platform-required / membership-type field is always required on the form
+    ? true // forced on — an exposed membership-type field is always required on the form (D21/R11)
     : typeof authoredField?.application_required === 'boolean'
       ? (authoredField.application_required as boolean)
       : false;
 
   const toggleRequired = (on: boolean) => {
     if (!field) return;
-    if (requiredForced) return; // no-relax: a platform-required field is never relaxed (R2)
+    if (requiredForced) return; // membership_type: exposed is always application-required (D21/R11)
     const target = resolveWriteTarget(field);
     if (!target.writable) return;
     // Send the EXPLICIT boolean (spec 03b BU-5 / Req 2.1): turning required OFF must persist as
@@ -514,60 +541,74 @@ export const ApplicationFieldModal: React.FC<ApplicationFieldModalProps> = ({
                         </>
                       )}
 
-                      {/* Required-on-the-form toggle (`application_required`, task 4.3 / R2). It can
-                          TIGHTEN an optional field, but for a platform-required (or membership-type)
-                          field it is FORCED ON + disabled with an explanatory note — the UI never
-                          offers a relax (NO-RELAX, R2). Written onto the ONE overlay via the shared
-                          engine (origin-aware). */}
+                      {/* Required-on-the-form toggle (`application_required`). Round 6 (design §2):
+                          form-required is the SOLE public-form rule — the toggle no longer reads the
+                          platform floor, so a platform-required field is freely settable (a free
+                          tighten), NOT forced on. Two exceptions keep a forced/absent control:
+                            - a SERVER-STAMPED field (`status`, `member_number`, timestamps) is NEVER
+                              demanded of the applicant — the server stamps it — so the toggle is NOT
+                              offered at all (a short note instead);
+                            - an exposed membership_type is always application-required (D21/R11), so
+                              the toggle is forced ON + disabled with an explanatory note.
+                          Written onto the ONE overlay via the shared engine (origin-aware). */}
                       <Divider borderColor="gray.600" my={3} />
-                      <FormControl data-testid="application-field-modal-required">
-                        <HStack justify="space-between" align="start">
-                          <Box>
-                            <FormLabel color="gray.300" mb={0}>
-                              {t('Verplicht op formulier', 'Required on the form')}
-                            </FormLabel>
-                            {isPlatformRequired(field) && (
-                              <Badge colorScheme="orange" fontSize="0.6rem" mt={1}>
-                                {t('platform-verplicht', 'platform-required')}
-                              </Badge>
-                            )}
-                            {isMembershipType && (
-                              <Badge colorScheme="purple" fontSize="0.6rem" mt={1} ml={1}>
-                                {t('lidmaatschapstype', 'membership-type')}
-                              </Badge>
-                            )}
-                          </Box>
-                          <Switch
-                            isChecked={requiredChecked}
-                            isDisabled={requiredForced}
-                            onChange={(e) => toggleRequired(e.target.checked)}
-                            colorScheme="orange"
-                            data-testid="application-field-modal-required-toggle"
-                            aria-label={t(
-                              `${label} verplicht op formulier`,
-                              `${label} required on the form`,
-                            )}
-                          />
-                        </HStack>
-                        {requiredForced && (
+                      {serverStamped ? (
+                        <FormControl data-testid="application-field-modal-required">
+                          <FormLabel color="gray.300" mb={0}>
+                            {t('Verplicht op formulier', 'Required on the form')}
+                          </FormLabel>
                           <Text
                             fontSize="xs"
                             color="gray.500"
                             mt={1}
-                            data-testid="application-field-modal-required-locked-note"
+                            data-testid="application-field-modal-required-server-stamped-note"
                           >
-                            {isPlatformRequired(field)
-                              ? t(
-                                'Een platform-verplicht veld blijft altijd verplicht op het formulier.',
-                                'A platform-required field is always required on the form.',
-                              )
-                              : t(
+                            {t(
+                              'Dit veld wordt door de server ingevuld en nooit op het formulier gevraagd.',
+                              'This field is set by the server and never asked on the form.',
+                            )}
+                          </Text>
+                        </FormControl>
+                      ) : (
+                        <FormControl data-testid="application-field-modal-required">
+                          <HStack justify="space-between" align="start">
+                            <Box>
+                              <FormLabel color="gray.300" mb={0}>
+                                {t('Verplicht op formulier', 'Required on the form')}
+                              </FormLabel>
+                              {isMembershipType && (
+                                <Badge colorScheme="purple" fontSize="0.6rem" mt={1}>
+                                  {t('lidmaatschapstype', 'membership-type')}
+                                </Badge>
+                              )}
+                            </Box>
+                            <Switch
+                              isChecked={requiredChecked}
+                              isDisabled={requiredForced}
+                              onChange={(e) => toggleRequired(e.target.checked)}
+                              colorScheme="orange"
+                              data-testid="application-field-modal-required-toggle"
+                              aria-label={t(
+                                `${label} verplicht op formulier`,
+                                `${label} required on the form`,
+                              )}
+                            />
+                          </HStack>
+                          {requiredForced && (
+                            <Text
+                              fontSize="xs"
+                              color="gray.500"
+                              mt={1}
+                              data-testid="application-field-modal-required-locked-note"
+                            >
+                              {t(
                                 'Een lidmaatschapstype op het formulier is altijd verplicht.',
                                 'A membership-type on the form is always required.',
                               )}
-                          </Text>
-                        )}
-                      </FormControl>
+                            </Text>
+                          )}
+                        </FormControl>
+                      )}
 
                       {/* Format picker (`format`, task 4.3 / R3.3) — fed STRICTLY by the platform's
                           KNOWN tokens; an unknown token is never offerable. "none" clears to null. */}

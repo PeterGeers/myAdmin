@@ -262,6 +262,15 @@ CRUD service/repo pattern, the client-side pivot/list adapter, the result/export
   modules then consuming it. Member Analytics is the first such consumer; the shared analytics
   library is NOT built until the second.
 
+> **Shared `sam/shared/` capabilities today:** the auth/entitlement edge toolkit, and
+> `sam/shared/page_styles/` — the SAM-owned, **dependency-free** page look-and-feel CSS generator
+> (the "Layer-2" styling logic). It exposes a single page-type-agnostic `render_page_styles(values)`
+> function that turns a page's stored look-and-feel *values* into CSS; it holds no page-specific
+> state and no Flask-plane dependency (it relocated the former Flask `LandingPageStyles`, removing
+> the build-time vendored `cp` in `sam/members/layer/Makefile`). The Members application-form publish
+> step is its first consumer; a future SAM landing page is the intended second. See
+> `.kiro/specs/Members/15 - sam-page-look-and-feel/` (DD-1).
+
 ## References
 
 - `20-platform-architecture.md` (two-plane platform, module contract, projection),

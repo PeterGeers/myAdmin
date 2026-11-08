@@ -32,6 +32,7 @@ import type { MembersConfigValue } from '../../../../types/membersConfig';
  */
 import * as membersConfigService from '../../../../services/membersConfigService';
 import * as membersApiService from '../../../../services/membersApiService';
+import { renderPageStyles } from '../pageStyles';
 
 /** A resolved field in the BARE `key` + `group` server shape (R2.3). */
 function field(key: string, group: string, extra: Partial<FieldConfigField> = {}): FieldConfigField {
@@ -138,5 +139,169 @@ describe('ApplicationFormPreview — empty state', () => {
 
     expect(screen.getByTestId('application-form-preview-empty')).toBeInTheDocument();
     expect(screen.queryByTestId('application-form-preview-render')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Look-and-feel parity (spec 15 — SAM Page Look-and-Feel, task 13.1; Req 4.2/4.3/7). The preview
+ * runs the browser-side Layer-2 mirror `renderPageStyles` over the working look-and-feel values and
+ * applies the resulting `:root` CSS variables to the preview container, so what the admin sees
+ * matches what publish bakes. The container exposes the produced variable string on a
+ * `data-lookandfeel-vars` attribute for assertion.
+ */
+describe('ApplicationFormPreview — look-and-feel (spec 15, task 13.1; Req 4.2/4.3/7)', () => {
+  const onFormConfig = () => configWith([field('email', 'personal', { application_visible: true })]);
+
+  it('applies the Layer-2 defaults when no look-and-feel is supplied (Req 7.3)', () => {
+    render(<ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" />);
+
+    const container = screen.getByTestId('application-form-preview-render');
+    // Mirrors exactly what the Python/TS Layer-2 generator emits for empty settings.
+    expect(container.getAttribute('data-lookandfeel-vars')).toBe(
+      renderPageStyles({}).cssVariables,
+    );
+  });
+
+  it('carries the SAME styling the publish Layer-2 would produce for the given values (Req 7)', () => {
+    const lookAndFeel = { color_primary: '#112233', base_spacing: 'relaxed', shadow_style: 'dramatic' };
+    render(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={lookAndFeel}
+      />,
+    );
+
+    const container = screen.getByTestId('application-form-preview-render');
+    // The container carries the exact Layer-2 `:root` block the publish path would bake.
+    expect(container.getAttribute('data-lookandfeel-vars')).toBe(
+      renderPageStyles(lookAndFeel).cssVariables,
+    );
+    // ...and that block carries the relaxed-spacing value the form consumes via var(--spacing-section).
+    expect(renderPageStyles(lookAndFeel).cssVariableMap['--spacing-section']).toBe('3rem');
+    expect(container.getAttribute('data-lookandfeel-vars')).toContain('--spacing-section: 3rem;');
+  });
+
+  it('identical values → identical styling across two renders (Req 4.3)', () => {
+    const lf = { color_primary: '#2D5F8A', border_radius_global: 'pill' };
+    const { unmount } = render(
+      <ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" lookAndFeel={lf} />,
+    );
+    const first = screen
+      .getByTestId('application-form-preview-render')
+      .getAttribute('data-lookandfeel-vars');
+    unmount();
+
+    render(
+      <ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" lookAndFeel={{ ...lf }} />,
+    );
+    const second = screen
+      .getByTestId('application-form-preview-render')
+      .getAttribute('data-lookandfeel-vars');
+    expect(second).toBe(first);
+  });
+
+  it('reflects an UNSAVED look-and-feel edit live — a changed value re-renders new styling (Req 4.2)', () => {
+    const { rerender } = render(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ base_spacing: 'compact' }}
+      />,
+    );
+    const before = screen
+      .getByTestId('application-form-preview-render')
+      .getAttribute('data-lookandfeel-vars');
+
+    rerender(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ base_spacing: 'relaxed' }}
+      />,
+    );
+    const after = screen
+      .getByTestId('application-form-preview-render')
+      .getAttribute('data-lookandfeel-vars');
+
+    expect(after).not.toBe(before);
+    expect(after).toBe(renderPageStyles({ base_spacing: 'relaxed' }).cssVariables);
+  });
+});
+
+/**
+ * The two NEW look-and-feel attributes (bugfix `bugfix-published-form-styling` Task 12, Req 2.6):
+ * the preview REFLECTS `logo` (an <img>) and `header_title` (a visible heading) so the admin
+ * preview matches the published form. An absent/empty value renders nothing (no logo / no heading),
+ * mirroring the published default. (The earlier `columns` attribute was removed — the field-group
+ * grid is now a width-driven responsive auto-fit grid with no authored column count.) Both feed
+ * through the SAME unified `lookAndFeel` prop as the seven, so the preview and editor cannot diverge.
+ */
+describe('ApplicationFormPreview — logo / header_title (bugfix Task 12; Req 2.6)', () => {
+  const onFormConfig = () => configWith([field('email', 'personal', { application_visible: true })]);
+
+  it('renders no logo and no heading when the three new values are absent (published default)', () => {
+    render(<ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" />);
+
+    expect(screen.queryByTestId('application-form-preview-logo')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-preview-title')).not.toBeInTheDocument();
+  });
+
+  it('renders the tenant logo as an <img> when a logo reference is supplied (Req 2.3/2.6)', () => {
+    render(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ logo: 'https://cdn.example.org/logo.png' }}
+      />,
+    );
+
+    const logo = screen.getByTestId('application-form-preview-logo');
+    expect(logo).toBeInTheDocument();
+    expect(logo).toHaveAttribute('src', 'https://cdn.example.org/logo.png');
+  });
+
+  it('renders the header/title as a visible heading when supplied (Req 2.4/2.6)', () => {
+    render(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ header_title: 'Join our association' }}
+      />,
+    );
+
+    const title = screen.getByTestId('application-form-preview-title');
+    expect(title).toBeInTheDocument();
+    expect(title).toHaveTextContent('Join our association');
+  });
+
+  it('reflects an UNSAVED new-attribute edit live — logo/title re-render with no round-trip', () => {
+    const { rerender } = render(
+      <ApplicationFormPreview fieldConfig={onFormConfig()} overlay={{}} lang="en" lookAndFeel={{}} />,
+    );
+    // Nothing rendered for the three new attributes yet.
+    expect(screen.queryByTestId('application-form-preview-logo')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('application-form-preview-title')).not.toBeInTheDocument();
+
+    // The admin authors a logo and a title (an UNSAVED in-memory edit) → the preview reflects
+    // both on the very next render, no save and no server round-trip.
+    rerender(
+      <ApplicationFormPreview
+        fieldConfig={onFormConfig()}
+        overlay={{}}
+        lang="en"
+        lookAndFeel={{ logo: 'https://cdn.example.org/mark.svg', header_title: 'Apply now' }}
+      />,
+    );
+    expect(screen.getByTestId('application-form-preview-logo')).toHaveAttribute(
+      'src',
+      'https://cdn.example.org/mark.svg',
+    );
+    expect(screen.getByTestId('application-form-preview-title')).toHaveTextContent('Apply now');
   });
 });

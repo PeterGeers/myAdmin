@@ -381,24 +381,98 @@ class _HarnessFieldsCrudService:
         return {"version": "harness-v1", "idempotent_replay": False}
 
     def set_field(self, tenant_id, field_key, def_attrs, *, client_op_id=None):
-        return self._record("set_field", tenant_id, field_key, def_attrs, client_op_id=client_op_id)
-
-    def set_field_application(self, tenant_id, field_key, app_attrs, *, client_op_id=None):
         return self._record(
-            "set_field_application", tenant_id, field_key, app_attrs, client_op_id=client_op_id
+            "set_field", tenant_id, field_key, def_attrs, client_op_id=client_op_id
+        )
+
+    def set_field_application(
+        self, tenant_id, field_key, app_attrs, *, client_op_id=None
+    ):
+        return self._record(
+            "set_field_application",
+            tenant_id,
+            field_key,
+            app_attrs,
+            client_op_id=client_op_id,
         )
 
     def reset_field(self, tenant_id, field_key, *, client_op_id=None):
-        return self._record("reset_field", tenant_id, field_key, client_op_id=client_op_id)
+        return self._record(
+            "reset_field", tenant_id, field_key, client_op_id=client_op_id
+        )
 
     def delete_field(self, tenant_id, field_key, *, client_op_id=None):
-        return self._record("delete_field", tenant_id, field_key, client_op_id=client_op_id)
+        return self._record(
+            "delete_field", tenant_id, field_key, client_op_id=client_op_id
+        )
 
     def set_group(self, tenant_id, group_key, attrs, *, client_op_id=None):
-        return self._record("set_group", tenant_id, group_key, attrs, client_op_id=client_op_id)
+        return self._record(
+            "set_group", tenant_id, group_key, attrs, client_op_id=client_op_id
+        )
 
     def delete_group(self, tenant_id, group_key, *, client_op_id=None):
-        return self._record("delete_group", tenant_id, group_key, client_op_id=client_op_id)
+        return self._record(
+            "delete_group", tenant_id, group_key, client_op_id=client_op_id
+        )
+
+    def set_form_slug(self, tenant_id, slug, *, client_op_id=None):
+        # bugfix-slug-lifecycle task 3.1 — the slug-author op behind
+        # POST /members/application-form/slug. The real op validates (format/reserved then SEC-4
+        # prefix-ownership), claims the shared `_slugs/{slug}` marker and persists
+        # `config#fields.slug` via a single identity Change-Op (null clears). Those claim/persist
+        # mechanics have their own dedicated tests (test_config_fields_slug_author.py); the harness
+        # only needs to prove the EDGE dispatches a well-formed `{slug}` body to this service and
+        # answers 200. So the stand-in records the call and returns the uniform result shape.
+        return self._record("set_form_slug", tenant_id, slug, client_op_id=client_op_id)
+
+    def set_public_prefix(self, tenant_id, prefix, *, client_op_id=None):
+        # slug-prefix SAM-owned — the prefix-author op behind POST /members/application-form/prefix.
+        # The real op validates slug-safe format and persists config#fields.public_prefix via a
+        # single identity Change-Op (null clears); those mechanics have dedicated tests
+        # (test_config_fields_slug_author.py). The harness only proves the EDGE dispatches a
+        # well-formed `{prefix}` body here and answers 200, recording the call + uniform result.
+        return self._record(
+            "set_public_prefix", tenant_id, prefix, client_op_id=client_op_id
+        )
+
+
+class _HarnessLookAndFeelService:
+    """Minimal in-memory stand-in for ``LookAndFeelSettingsService`` (spec 15 Task 8 walkthrough).
+
+    Satisfies the three methods the look-and-feel dispatch calls — ``get_settings`` /
+    ``set_setting`` / ``copy_settings`` — and records each call. The real service's
+    validation/placement + the version-conditional Change-Op mechanics have their own dedicated
+    tests (test_look_and_feel_settings_service.py / _dispatch / _writer); the harness only needs to
+    prove the EDGE dispatches the GET + PUT look-and-feel routes to the service and answers 200.
+    VALUES only, never CSS (design C3 / steering 39).
+    """
+
+    def __init__(self):
+        self.calls = []
+        self._values = {}
+
+    def get_settings(self, tenant_id, page_id=None):
+        self.calls.append({"method": "get_settings", "tenant_id": tenant_id})
+        return dict(self._values)
+
+    def set_setting(self, tenant_id, page_id, attribute, value, *, client_op_id=None):
+        self.calls.append(
+            {"method": "set_setting", "tenant_id": tenant_id, "attribute": attribute,
+             "value": value}
+        )
+        if value is None:
+            self._values.pop(attribute, None)
+        else:
+            self._values[attribute] = value
+        return {"version": "harness-v1", "idempotent_replay": False}
+
+    def copy_settings(self, tenant_id, source_page, target_page, *, source_tenant_id=None, client_op_id=None):
+        self.calls.append(
+            {"method": "copy_settings", "tenant_id": tenant_id, "source": source_page,
+             "target": target_page}
+        )
+        return {"version": "harness-v1", "idempotent_replay": False}
 
 
 class MembersParityHarness:
@@ -469,6 +543,10 @@ class MembersParityHarness:
         # satisfies the six op methods and records the call — enough to prove the edge dispatches
         # the Change-Op body to the service (not the whole-overlay generic door). No AWS.
         self.config_fields_crud_service = _HarnessFieldsCrudService()
+        # The Layer-1 look-and-feel authoring service (spec 15 Task 8) — an in-memory
+        # stand-in satisfying get_settings/set_setting/copy_settings, so the GET + PUT
+        # /members/look-and-feel routes dispatch to a service and answer 200. VALUES only.
+        self.look_and_feel_service = _HarnessLookAndFeelService()
         # The application-form publish service (spec 12 Task 2.1). Its readiness gate reads the
         # SAME in-memory FakeDynamoTable: the slug + certified-sender facts come from a
         # MembersProjectionReader over the fake table, the on-form-field count from the harness's
@@ -488,6 +566,7 @@ class MembersParityHarness:
         self._original_config_write_getter: Callable[[], Any] | None = None
         self._original_config_fields_crud_getter: Callable[[], Any] | None = None
         self._original_publish_getter: Callable[[], Any] | None = None
+        self._original_look_and_feel_getter: Callable[[], Any] | None = None
         self._original_scope_config: Any = None
         self._original_overlay: Any = None
         self._original_grants: Any = None
@@ -568,8 +647,8 @@ class MembersParityHarness:
         self._original_config_fields_crud_getter = (
             dispatch_mod.get_config_fields_crud_service
         )
-        dispatch_mod.get_config_fields_crud_service = (
-            lambda: self.config_fields_crud_service
+        dispatch_mod.get_config_fields_crud_service = lambda: (
+            self.config_fields_crud_service
         )  # type: ignore[assignment]
         # The application-form publish dispatch (spec 12 Task 2.1) resolves its service via
         # dispatch_mod.get_application_publish_service; point it at the harness's fake-table-backed
@@ -577,6 +656,12 @@ class MembersParityHarness:
         # (never a live projection table or S3).
         self._original_publish_getter = dispatch_mod.get_application_publish_service
         dispatch_mod.get_application_publish_service = lambda: self.publish_service  # type: ignore[assignment]
+        # The look-and-feel dispatch (spec 15 Task 8/9) resolves its service via
+        # dispatch_mod.get_look_and_feel_settings_service; point it at the harness stand-in so
+        # the GET + PUT /members/look-and-feel walkthrough steps dispatch without touching a
+        # live projection table.
+        self._original_look_and_feel_getter = dispatch_mod.get_look_and_feel_settings_service
+        dispatch_mod.get_look_and_feel_settings_service = lambda: self.look_and_feel_service  # type: ignore[assignment]
         # (The application-form live-preview dispatch seam was RETIRED — spec 12 redesign C / R3,
         #  task 5.2: preview is now in-browser — so there is no preview service getter to override.)
         app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
@@ -623,6 +708,11 @@ class MembersParityHarness:
                     self._original_publish_getter
                 )  # type: ignore[assignment]
                 self._original_publish_getter = None
+            if self._original_look_and_feel_getter is not None:
+                dispatch_mod.get_look_and_feel_settings_service = (
+                    self._original_look_and_feel_getter
+                )  # type: ignore[assignment]
+                self._original_look_and_feel_getter = None
             app._SCOPE_CONFIG_PROVIDER_OVERRIDE = self._original_scope_config
             app._OVERLAY_PROVIDER_OVERRIDE = self._original_overlay
             app._SCOPE_GRANTS_READER_OVERRIDE = self._original_grants
@@ -898,9 +988,7 @@ class MembersParityHarness:
             d,
             "membership_type dropdown lists the field's own inline options",
             "get_field_config",
-            Outcome.PASS
-            if {"erelid", "donateur"} <= assignable
-            else Outcome.FAIL,
+            Outcome.PASS if {"erelid", "donateur"} <= assignable else Outcome.FAIL,
             f"field options={sorted(option_codes)} assignable(allowed)={sorted(assignable)}",
         )
 
@@ -1144,11 +1232,55 @@ class MembersParityHarness:
                 "write_config_fields",
                 "PUT",
                 "/members/config/fields",
-                {"ops": [{"op": "set_group", "group": "personal", "attrs": {"order": 1}}]},
+                {
+                    "ops": [
+                        {"op": "set_group", "group": "personal", "attrs": {"order": 1}}
+                    ]
+                },
                 None,
                 {200},
                 {},
                 "apply a config#fields Change-Op list via the dedicated Change-Op door",
+            ),
+            # ── Application-form SLUG author/change (bugfix-slug-lifecycle task 3.1) ──
+            # The MISSING client-reachable SAM slug WRITE (defect B): the SIBLING write to the
+            # publish route below. Gate: members:admin (non-self-service, the default admin caller
+            # satisfies it) — tenant AUTHORITATIVE from the verified token, the body trusted ONLY
+            # for the slug VALUE. A well-formed `{slug}` body dispatches to
+            # ConfigFieldsCrudService.set_form_slug (the harness's in-memory stand-in records it)
+            # and answers 200 with the uniform {version, idempotent_replay} shape. The validate →
+            # claim-marker → single-identity Change-Op mechanics (and the 422/409 reject/conflict
+            # paths) have their own dedicated tests (test_config_fields_slug_author.py); the parity
+            # point here is that the EDGE dispatches the slug body to the service (not a 404
+            # no-route / 501 not-built). The literal /members/application-form/slug prefix is
+            # declared BEFORE /{member_id}, so it never collides.
+            (
+                "set_application_form_slug",
+                "POST",
+                "/members/application-form/slug",
+                {"slug": "h-dcn-aanmelden"},
+                None,
+                {200},
+                {},
+                "author the application form's public slug (members:admin, task 3.1)",
+            ),
+            # ── Application-form slug PREFIX author (slug-prefix SAM-owned) ──
+            # The tenant's own public slug PREFIX author path (the SEC-4 stem every form slug must
+            # sit under). Same members:admin gate + tenant-from-token contract as the slug route;
+            # a well-formed `{prefix}` body dispatches to ConfigFieldsCrudService.set_public_prefix
+            # (the stand-in records it) and answers 200. The validate → single-identity Change-Op
+            # mechanics have dedicated tests (test_config_fields_slug_author.py); the parity point
+            # is that the EDGE dispatches the prefix body to the service. The literal
+            # /members/application-form/prefix is declared BEFORE /{member_id}, so it never collides.
+            (
+                "set_application_form_prefix",
+                "POST",
+                "/members/application-form/prefix",
+                {"prefix": "h-dcn"},
+                None,
+                {200},
+                {},
+                "author the tenant's public slug prefix (members:admin, slug-prefix SAM-owned)",
             ),
             # The EXPLICIT application-form publish route (spec 12 Task 2.1, §C4/R5). Gate:
             # members:admin — the default admin caller satisfies it. The harness tenant has no
@@ -1167,6 +1299,36 @@ class MembersParityHarness:
                 {409},
                 {},
                 "publish the application form — readiness-gated (409: no slug yet, task 2.1)",
+            ),
+            # ── Page look-and-feel — Layer-1 authoring (get / set) (spec 15 Task 8) ──
+            # The admin-facing authoring surface for the application-form page's presentation
+            # VALUES (the look_and_feel slice on config#fields). Gate: members:admin (the
+            # default admin caller satisfies it), tenant AUTHORITATIVE from the verified token.
+            # GET resolves the stored VALUES (absent → empty map = Layer-2 defaults); PUT
+            # authors ONE attribute value via a single version-conditional Change-Op. Both
+            # dispatch to the harness LookAndFeelSettingsService stand-in and answer 200. The
+            # validation/placement + Change-Op mechanics have dedicated tests
+            # (test_look_and_feel_*.py); the parity point is that the EDGE dispatches both
+            # routes. The literal /members/look-and-feel is declared BEFORE /{member_id}.
+            (
+                "get_look_and_feel",
+                "GET",
+                "/members/look-and-feel",
+                None,
+                None,
+                {200},
+                {},
+                "resolve the application form's stored look-and-feel VALUES (members:admin)",
+            ),
+            (
+                "write_look_and_feel",
+                "PUT",
+                "/members/look-and-feel",
+                {"attribute": "color_primary", "value": "#2D5F8A"},
+                None,
+                {200},
+                {},
+                "author one look-and-feel attribute value (members:admin, values-only)",
             ),
             # ── Membership lifecycle (5 h-dcn behaviours — transition routes retired) ──
             (
