@@ -185,11 +185,21 @@ def _controls(artifact: str) -> _ControlCollector:
 
 
 def _script(artifact: str) -> str:
-    match = re.search(
-        r"<script\b[^>]*>(.*?)</script\s*>", artifact, re.DOTALL | re.IGNORECASE
-    )
-    assert match, "precondition: the artifact embeds the submit script"
-    return match.group(1)
+    """The body of the embedded submit script — the text between ``<script>`` and ``</script>``.
+
+    Sliced between the KNOWN delimiters rather than matched with a regexp. The artifact's submit
+    script is the renderer's author-controlled ``_SUBMIT_SCRIPT`` constant, emitted in the fixed
+    shape ``<script>\\n…\\n</script>``, so there is no untrusted HTML to filter/sanitize here. A
+    regexp HTML tag-filter is exactly what CodeQL flags as ``py/bad-tag-filter`` (a regexp cannot
+    match every end-tag form a browser honours, e.g. ``</script\\t\\n bar>``); per steering
+    ``codeql-script-tag-strip-fix`` — slice, don't strip.
+    """
+    open_tag = artifact.find("<script")
+    assert open_tag != -1, "precondition: the artifact embeds the submit script"
+    body_start = artifact.index(">", open_tag) + 1
+    close_tag = artifact.index("</script", body_start)
+    body_end = artifact.index(">", close_tag)
+    return artifact[body_start:body_end]
 
 
 def _errors_branch(script: str) -> str | None:
