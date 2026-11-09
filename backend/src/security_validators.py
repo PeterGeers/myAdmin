@@ -39,10 +39,18 @@ def validate_input(
 
     rules = validation_rules or INPUT_VALIDATION_RULES
 
+    # XSS script tags — a case-insensitive SUBSTRING probe, deliberately NOT a regexp HTML
+    # tag-filter. Matching `<script …>…</script …>` with a regexp is exactly what CodeQL flags as
+    # `py/bad-tag-filter`, because a browser honours end-tag forms such a regexp cannot match
+    # (e.g. `</script\t\n bar>`). Rejecting any input that merely CONTAINS a script-tag delimiter
+    # has no such blind spot and needs no tag parsing.
+    lowered = str(input_data).lower()
+    if "<script" in lowered or "</script" in lowered:
+        return {"valid": False, "error": "Potential injection pattern detected"}
+
     # Check for common injection patterns
     injection_patterns = [
         r"[\'\";\\]",
-        r"<script\b[^>]*>[\s\S]*?</script\s*>",
         r"javascript:",
         r"&#x?[0-9a-f]+;",
         r"/\*.*?\*/",

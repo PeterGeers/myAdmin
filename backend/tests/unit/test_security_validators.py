@@ -48,14 +48,21 @@ class TestValidateInput:
     @pytest.mark.parametrize(
         "payload",
         [
-            "<SCRIPT>alert(1)</SCRIPT>",  # uppercase — must not evade (py/bad-tag-filter)
+            "<SCRIPT>alert(1)</SCRIPT>",  # uppercase — must not evade (case-insensitive probe)
             '<script type="text/javascript">x</script>',  # attribute-bearing open tag
             "<script\n>x</script>",  # newline before the closing '>' of the open tag
             "<script>x</script\n>",  # whitespace before the closing tag '>'
+            "<script>x</script\t\n bar>",  # junk after the end-tag name — the py/bad-tag-filter evasion
         ],
     )
     def test_script_tag_variants_rejected(self, payload):
-        """The hardened pattern rejects casing / attribute / newline evasions."""
+        """The substring probe rejects casing / attribute / newline / end-tag-junk evasions.
+
+        No regexp HTML tag-filter is involved: a `<script …>…</script …>` regexp can be evaded
+        with an end-tag form the browser still honours (`</script\t\n bar>`), which is exactly
+        CodeQL's `py/bad-tag-filter`; a case-insensitive substring probe has no such blind spot
+        (and would also catch an upper-case `<SCRIPT>`).
+        """
         result = validate_input(payload, "text")
         assert result["valid"] is False
         assert "injection" in result["error"].lower()
