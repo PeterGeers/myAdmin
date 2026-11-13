@@ -7,7 +7,6 @@
  */
 
 import type { FieldConfigField, LocalizedLabel } from '../../../types/members';
-import { resolveLabel as sharedResolveLabel } from '../labelResolver';
 
 /** The always-visible (compact) fixed columns, in display order. Lidnummer (member_number)
  *  leads — it is the member's human-facing identifier (M00000…), NOT the internal member_id UUID. */
@@ -44,22 +43,6 @@ export const INITIAL_FILTERS: Record<string, string> = {
   membership_type: '',
   region: '',
 };
-
-/**
- * Resolve a possibly-localized label to a plain string for the current lang.
- *
- * Delegates to the ONE shared {@link sharedResolveLabel} util with the checklist/analytics
- * `'nl-first'` order (active → nl → en → key, plain strings passed through) so this export
- * stays byte-identical in behavior while the logic lives in
- * `components/members/labelResolver.ts` (code-quality-fixes-2026-10-28 task 1).
- */
-export function resolveLabel(
-  label: string | LocalizedLabel | undefined,
-  lang: string,
-  fallback: string,
-): string {
-  return sharedResolveLabel(label, lang, fallback, 'nl-first');
-}
 
 /**
  * One column in the unified column model (session-columns design C3). A thin

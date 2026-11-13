@@ -64,22 +64,7 @@ import type {
 import type { MemberAnalyticsAreaProps } from './areas/types';
 import { mean, countExcluded } from './memberAggregations';
 import { valueFor, groupForKey } from '../fieldValue';
-import { resolveLabel as sharedResolveLabel } from '../labelResolver';
-
-/**
- * Resolve a localized (`{nl,en}`) or plain-string label to the active language,
- * mirroring the Members table's own label resolution: prefer the active language,
- * then `nl`, then `en`, then the given fallback (R2.4).
- *
- * Delegates to the ONE shared {@link sharedResolveLabel} util with the checklist/analytics
- * `'nl-first'` order so this component's behavior is byte-identical while the logic lives
- * in `components/members/labelResolver.ts` (code-quality-fixes-2026-10-28 task 1).
- */
-const resolveLabel = (
-  label: Parameters<typeof sharedResolveLabel>[0],
-  lang: string,
-  fallback: string,
-): string => sharedResolveLabel(label, lang, fallback, 'nl-first');
+import { resolveLabel } from '../labelResolver';
 
 /**
  * Find the resolved **calculated** field descriptor for `key`, or `undefined`
@@ -287,6 +272,7 @@ const MemberOverviewStats: React.FC<MemberAnalyticsAreaProps> = ({
               ageField.label,
               language,
               AGE_KEY,
+              'nl-first',
             )}`}
             valueTestId="overview-stat-avg-age-value"
             value={formatAverage(stats.avgAge)}
@@ -311,6 +297,7 @@ const MemberOverviewStats: React.FC<MemberAnalyticsAreaProps> = ({
               yearsMemberField.label,
               language,
               YEARS_MEMBER_KEY,
+              'nl-first',
             )}`}
             valueTestId="overview-stat-avg-years-member-value"
             value={formatAverage(stats.avgYearsMember)}
@@ -352,6 +339,7 @@ const MemberOverviewStats: React.FC<MemberAnalyticsAreaProps> = ({
               membershipTypeField.label,
               language,
               MEMBERSHIP_TYPE_KEY,
+              'nl-first',
             )}`}
           >
             {t('analytics.overview.stats.membersPerType')}

@@ -10,17 +10,19 @@ from unittest.mock import Mock, patch
 from flask import Flask
 from functools import wraps
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 
 def _passthrough_cognito(required_permissions=None):
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
-            kwargs['user_email'] = 'test@example.com'
-            kwargs['user_roles'] = ['ZZP_Read', 'ZZP_CRUD']
+            kwargs["user_email"] = "test@example.com"
+            kwargs["user_roles"] = ["ZZP_Read", "ZZP_CRUD"]
             return f(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -28,10 +30,12 @@ def _passthrough_tenant():
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
-            kwargs['tenant'] = 'TestTenant'
-            kwargs['user_tenants'] = ['TestTenant']
+            kwargs["tenant"] = "TestTenant"
+            kwargs["user_tenants"] = ["TestTenant"]
             return f(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -40,7 +44,9 @@ def _passthrough_module(module_name):
         @wraps(f)
         def wrapper(*args, **kwargs):
             return f(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
@@ -53,17 +59,26 @@ def mock_time_service():
 
 @pytest.fixture
 def zzp_client(mock_time_service):
-    with patch('auth.cognito_utils.cognito_required', side_effect=_passthrough_cognito), \
-         patch('auth.tenant_context.tenant_required', side_effect=_passthrough_tenant), \
-         patch('services.module_registry.module_required', side_effect=_passthrough_module), \
-         patch('database.DatabaseManager'):
+    with (
+        patch("auth.cognito_utils.cognito_required", _passthrough_cognito),
+        patch("auth.tenant_context.tenant_required", side_effect=_passthrough_tenant),
+        patch(
+            "services.module_registry.module_required", side_effect=_passthrough_module
+        ),
+        patch("database.DatabaseManager"),
+    ):
         import importlib
         import routes.zzp_routes as zr
+        import routes.zzp_time_routes as zt
+
         importlib.reload(zr)
+        importlib.reload(zt)
         zr._get_time_service = lambda: mock_time_service
+        zt._get_time_service = lambda: mock_time_service
         app = Flask(__name__)
-        app.config['TESTING'] = True
+        app.config["TESTING"] = True
         app.register_blueprint(zr.zzp_bp)
+        app.register_blueprint(zt.zzp_time_bp)
         yield app.test_client()
 
 
@@ -72,22 +87,27 @@ def zzp_client(mock_time_service):
 
 def test_list_time_entries_returns_data(zzp_client, mock_time_service):
     mock_time_service.list_entries.return_value = [
-        {'id': 1, 'hours': 8.0, 'entry_date': '2026-04-15', 'contact_id': 1},
+        {"id": 1, "hours": 8.0, "entry_date": "2026-04-15", "contact_id": 1},
     ]
     mock_time_service.enrich_with_contacts.return_value = [
-        {'id': 1, 'hours': 8.0, 'entry_date': '2026-04-15', 'contact_id': 1,
-         'contact': {'id': 1, 'client_id': 'ACME', 'company_name': 'Acme Corp'}},
+        {
+            "id": 1,
+            "hours": 8.0,
+            "entry_date": "2026-04-15",
+            "contact_id": 1,
+            "contact": {"id": 1, "client_id": "ACME", "company_name": "Acme Corp"},
+        },
     ]
-    resp = zzp_client.get('/api/zzp/time-entries')
+    resp = zzp_client.get("/api/zzp/time-entries")
     assert resp.status_code == 200
-    data = resp.get_json()['data']
+    data = resp.get_json()["data"]
     assert len(data) == 1
-    assert data[0]['contact']['company_name'] == 'Acme Corp'
+    assert data[0]["contact"]["company_name"] == "Acme Corp"
 
 
 def test_list_time_entries_disabled_returns_404(zzp_client, mock_time_service):
     mock_time_service.is_enabled.return_value = False
-    resp = zzp_client.get('/api/zzp/time-entries')
+    resp = zzp_client.get("/api/zzp/time-entries")
     assert resp.status_code == 404
 
 
@@ -95,19 +115,29 @@ def test_list_time_entries_disabled_returns_404(zzp_client, mock_time_service):
 
 
 def test_create_time_entry_success_returns_201(zzp_client, mock_time_service):
-    mock_time_service.create_entry.return_value = {'id': 5, 'hours': 8.0}
-    resp = zzp_client.post('/api/zzp/time-entries',
-                           data=json.dumps({'contact_id': 1, 'entry_date': '2026-04-15',
-                                            'hours': 8.0, 'hourly_rate': 95.0}),
-                           content_type='application/json')
+    mock_time_service.create_entry.return_value = {"id": 5, "hours": 8.0}
+    resp = zzp_client.post(
+        "/api/zzp/time-entries",
+        data=json.dumps(
+            {
+                "contact_id": 1,
+                "entry_date": "2026-04-15",
+                "hours": 8.0,
+                "hourly_rate": 95.0,
+            }
+        ),
+        content_type="application/json",
+    )
     assert resp.status_code == 201
 
 
 def test_create_time_entry_validation_error_returns_400(zzp_client, mock_time_service):
     mock_time_service.create_entry.side_effect = ValueError("Required fields missing")
-    resp = zzp_client.post('/api/zzp/time-entries',
-                           data=json.dumps({'contact_id': 1}),
-                           content_type='application/json')
+    resp = zzp_client.post(
+        "/api/zzp/time-entries",
+        data=json.dumps({"contact_id": 1}),
+        content_type="application/json",
+    )
     assert resp.status_code == 400
 
 
@@ -115,18 +145,24 @@ def test_create_time_entry_validation_error_returns_400(zzp_client, mock_time_se
 
 
 def test_update_time_entry_success_returns_200(zzp_client, mock_time_service):
-    mock_time_service.update_entry.return_value = {'id': 1, 'hours': 10.0}
-    resp = zzp_client.put('/api/zzp/time-entries/1',
-                          data=json.dumps({'hours': 10.0}),
-                          content_type='application/json')
+    mock_time_service.update_entry.return_value = {"id": 1, "hours": 10.0}
+    resp = zzp_client.put(
+        "/api/zzp/time-entries/1",
+        data=json.dumps({"hours": 10.0}),
+        content_type="application/json",
+    )
     assert resp.status_code == 200
 
 
 def test_update_time_entry_billed_returns_400(zzp_client, mock_time_service):
-    mock_time_service.update_entry.side_effect = ValueError("Cannot edit a billed time entry")
-    resp = zzp_client.put('/api/zzp/time-entries/1',
-                          data=json.dumps({'hours': 10.0}),
-                          content_type='application/json')
+    mock_time_service.update_entry.side_effect = ValueError(
+        "Cannot edit a billed time entry"
+    )
+    resp = zzp_client.put(
+        "/api/zzp/time-entries/1",
+        data=json.dumps({"hours": 10.0}),
+        content_type="application/json",
+    )
     assert resp.status_code == 400
 
 
@@ -135,13 +171,15 @@ def test_update_time_entry_billed_returns_400(zzp_client, mock_time_service):
 
 def test_delete_time_entry_success_returns_200(zzp_client, mock_time_service):
     mock_time_service.delete_entry.return_value = True
-    resp = zzp_client.delete('/api/zzp/time-entries/1')
+    resp = zzp_client.delete("/api/zzp/time-entries/1")
     assert resp.status_code == 200
 
 
 def test_delete_time_entry_billed_returns_400(zzp_client, mock_time_service):
-    mock_time_service.delete_entry.side_effect = ValueError("Cannot delete a billed time entry")
-    resp = zzp_client.delete('/api/zzp/time-entries/1')
+    mock_time_service.delete_entry.side_effect = ValueError(
+        "Cannot delete a billed time entry"
+    )
+    resp = zzp_client.delete("/api/zzp/time-entries/1")
     assert resp.status_code == 400
 
 
@@ -150,16 +188,16 @@ def test_delete_time_entry_billed_returns_400(zzp_client, mock_time_service):
 
 def test_get_time_summary_returns_data(zzp_client, mock_time_service):
     mock_time_service.get_summary.return_value = [
-        {'contact_id': 1, 'total_hours': 40.0, 'total_amount': 3800.0},
+        {"contact_id": 1, "total_hours": 40.0, "total_amount": 3800.0},
     ]
-    resp = zzp_client.get('/api/zzp/time-entries/summary?group_by=contact')
+    resp = zzp_client.get("/api/zzp/time-entries/summary?group_by=contact")
     assert resp.status_code == 200
-    assert len(resp.get_json()['data']) == 1
+    assert len(resp.get_json()["data"]) == 1
 
 
 def test_get_time_summary_disabled_returns_404(zzp_client, mock_time_service):
     mock_time_service.is_enabled.return_value = False
-    resp = zzp_client.get('/api/zzp/time-entries/summary')
+    resp = zzp_client.get("/api/zzp/time-entries/summary")
     assert resp.status_code == 404
 
 
@@ -173,54 +211,67 @@ def mock_invoice_service():
 
 @pytest.fixture
 def zzp_client_with_invoice(mock_time_service, mock_invoice_service):
-    with patch('auth.cognito_utils.cognito_required', side_effect=_passthrough_cognito), \
-         patch('auth.tenant_context.tenant_required', side_effect=_passthrough_tenant), \
-         patch('services.module_registry.module_required', side_effect=_passthrough_module), \
-         patch('database.DatabaseManager'):
+    with (
+        patch("auth.cognito_utils.cognito_required", side_effect=_passthrough_cognito),
+        patch("auth.tenant_context.tenant_required", side_effect=_passthrough_tenant),
+        patch(
+            "services.module_registry.module_required", side_effect=_passthrough_module
+        ),
+        patch("database.DatabaseManager"),
+    ):
         import importlib
         import routes.zzp_routes as zr
+
         importlib.reload(zr)
         zr._get_time_service = lambda: mock_time_service
         zr._get_invoice_service = lambda: mock_invoice_service
         app = Flask(__name__)
-        app.config['TESTING'] = True
+        app.config["TESTING"] = True
         app.register_blueprint(zr.zzp_bp)
         yield app.test_client()
 
 
-def test_create_invoice_from_time_entries_success(zzp_client_with_invoice, mock_invoice_service):
+def test_create_invoice_from_time_entries_success(
+    zzp_client_with_invoice, mock_invoice_service
+):
     mock_invoice_service.create_invoice_from_time_entries.return_value = {
-        'id': 10, 'invoice_number': 'INV-2026-0001', 'status': 'draft',
+        "id": 10,
+        "invoice_number": "INV-2026-0001",
+        "status": "draft",
     }
     resp = zzp_client_with_invoice.post(
-        '/api/zzp/invoices/from-time-entries',
-        data=json.dumps({'contact_id': 1, 'entry_ids': [10, 11], 'data': {}}),
-        content_type='application/json',
+        "/api/zzp/invoices/from-time-entries",
+        data=json.dumps({"contact_id": 1, "entry_ids": [10, 11], "data": {}}),
+        content_type="application/json",
     )
     assert resp.status_code == 201
     body = resp.get_json()
-    assert body['success'] is True
-    assert body['data']['invoice_number'] == 'INV-2026-0001'
+    assert body["success"] is True
+    assert body["data"]["invoice_number"] == "INV-2026-0001"
 
 
-def test_create_invoice_from_time_entries_missing_contact_returns_400(zzp_client_with_invoice):
+def test_create_invoice_from_time_entries_missing_contact_returns_400(
+    zzp_client_with_invoice,
+):
     resp = zzp_client_with_invoice.post(
-        '/api/zzp/invoices/from-time-entries',
-        data=json.dumps({'entry_ids': [10]}),
-        content_type='application/json',
+        "/api/zzp/invoices/from-time-entries",
+        data=json.dumps({"entry_ids": [10]}),
+        content_type="application/json",
     )
     assert resp.status_code == 400
-    assert 'contact_id' in resp.get_json()['error']
+    assert "contact_id" in resp.get_json()["error"]
 
 
-def test_create_invoice_from_time_entries_missing_entries_returns_400(zzp_client_with_invoice):
+def test_create_invoice_from_time_entries_missing_entries_returns_400(
+    zzp_client_with_invoice,
+):
     resp = zzp_client_with_invoice.post(
-        '/api/zzp/invoices/from-time-entries',
-        data=json.dumps({'contact_id': 1}),
-        content_type='application/json',
+        "/api/zzp/invoices/from-time-entries",
+        data=json.dumps({"contact_id": 1}),
+        content_type="application/json",
     )
     assert resp.status_code == 400
-    assert 'entry_ids' in resp.get_json()['error']
+    assert "entry_ids" in resp.get_json()["error"]
 
 
 def test_create_invoice_from_time_entries_validation_error_returns_400(
@@ -230,9 +281,72 @@ def test_create_invoice_from_time_entries_validation_error_returns_400(
         "Time entry 10 is already billed"
     )
     resp = zzp_client_with_invoice.post(
-        '/api/zzp/invoices/from-time-entries',
-        data=json.dumps({'contact_id': 1, 'entry_ids': [10], 'data': {}}),
-        content_type='application/json',
+        "/api/zzp/invoices/from-time-entries",
+        data=json.dumps({"contact_id": 1, "entry_ids": [10], "data": {}}),
+        content_type="application/json",
     )
     assert resp.status_code == 400
-    assert 'already billed' in resp.get_json()['error']
+    assert "already billed" in resp.get_json()["error"]
+
+
+class TestZzpTimeGuards:
+    """Direct guard/envelope coverage for routes/zzp_time_routes.py."""
+
+    def test_module_disabled_returns_403_envelope(self):
+        with (
+            patch("auth.cognito_utils.cognito_required", _passthrough_cognito),
+            patch(
+                "auth.tenant_context.tenant_required", side_effect=_passthrough_tenant
+            ),
+            patch("services.module_registry.has_module", return_value=False),
+            patch("database.DatabaseManager"),
+        ):
+            import importlib
+            import routes.zzp_time_routes as zt
+
+            importlib.reload(zt)
+            app = Flask(__name__)
+            app.config["TESTING"] = True
+            app.register_blueprint(zt.zzp_time_bp)
+            resp = app.test_client().get("/api/zzp/time-entries")
+        assert resp.status_code == 403
+        assert resp.get_json() == {"error": "ZZP module not enabled for this tenant"}
+
+    def test_create_requires_request_body(self, zzp_client):
+        resp = zzp_client.post("/api/zzp/time-entries", json={})
+        assert resp.status_code == 400
+        assert resp.get_json() == {"success": False, "error": "Request body required"}
+
+    def test_unexpected_error_returns_generic_envelope(
+        self, zzp_client, mock_time_service
+    ):
+        mock_time_service.list_entries.side_effect = RuntimeError(
+            "db down: zzp_time_entries"
+        )
+        resp = zzp_client.get("/api/zzp/time-entries")
+        assert resp.status_code == 500
+        assert resp.get_json() == {
+            "success": False,
+            "error": "An internal error occurred",
+        }
+        assert "db down" not in resp.get_data(as_text=True)
+
+    def test_time_routes_carry_cognito_and_tenant_guards(self):
+        import importlib
+        import routes.zzp_time_routes as zt
+
+        importlib.reload(zt)
+        app = Flask(__name__)
+        app.register_blueprint(zt.zzp_time_bp)
+        checked = 0
+        for endpoint, view in app.view_functions.items():
+            if not endpoint.startswith("zzp_time."):
+                continue
+            assert getattr(view, "_cognito_required", False), (
+                f"{endpoint} missing @cognito_required"
+            )
+            assert getattr(view, "_tenant_required", False), (
+                f"{endpoint} missing @tenant_required"
+            )
+            checked += 1
+        assert checked == 5, f"expected 5 zzp_time routes, found {checked}"

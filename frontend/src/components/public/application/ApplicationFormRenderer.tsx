@@ -37,7 +37,6 @@ import {
 } from '@chakra-ui/react';
 import type { PublicFieldConfig, PublicField, PublicFieldOption } from './applicationFieldConfig';
 import {
-  resolveLabel,
   resolveLocale,
   evaluateShowWhen,
   groupFieldsByFunctionalGroup,
@@ -46,6 +45,7 @@ import {
   isWideField,
   optionEntries,
 } from './applicationForm.model';
+import { resolveLabel } from '../../members/labelResolver';
 
 export interface ApplicationFormRendererProps {
   /** The public field-config the form is driven by (from `fetchPublicFieldConfig`). */

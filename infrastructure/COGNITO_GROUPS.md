@@ -253,5 +253,5 @@ aws cognito-idp create-group `
 ## Related Documentation
 
 - Frontend RBAC: `frontend/RBAC_MENU_IMPLEMENTATION.md`
-- Backend RBAC: `backend/docs/RBAC_IMPLEMENTATION_SUMMARY.md`
+- Backend RBAC: `docs/archive/RBAC_IMPLEMENTATION_SUMMARY.md`
 - Cognito Setup: `infrastructure/COGNITO_QUICK_START.md`

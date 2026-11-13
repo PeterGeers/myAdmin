@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import re
+from typing import Any
 
 import requests
 
@@ -27,7 +28,7 @@ class BudgetAIService:
     registry's "text_generation" task profile — no hardcoded model IDs.
     """
 
-    def __init__(self, db=None):
+    def __init__(self, db: Any = None) -> None:
         self.api_key = os.getenv("OPENROUTER_API_KEY")
         self.api_url = "https://openrouter.ai/api/v1/chat/completions"
         self.db = db
