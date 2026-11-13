@@ -15,7 +15,7 @@ from flask import Blueprint, jsonify, request, send_file
 from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import get_current_tenant, get_user_tenants, is_tenant_admin
+from auth.tenant_context import tenant_admin_required
 from database import DatabaseManager
 from routes.error_responses import error_payload
 
@@ -35,7 +35,8 @@ def _has_fin_module(tenant: str) -> bool:
     "/api/tenant-admin/chart-of-accounts/export", methods=["GET"]
 )
 @cognito_required(required_permissions=[])
-def export_accounts(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def export_accounts(user_email, user_roles, tenant) -> ResponseReturnValue:
     """Export all accounts to Excel file.
 
     Returns:
@@ -43,19 +44,6 @@ def export_accounts(user_email, user_roles) -> ResponseReturnValue:
     """
     try:
         # Get tenant from request
-        tenant = get_current_tenant(request)
-
-        # Extract user tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Check if user is tenant admin
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
 
         # Check FIN module access
         if not _has_fin_module(tenant):
@@ -91,7 +79,8 @@ def export_accounts(user_email, user_roles) -> ResponseReturnValue:
     "/api/tenant-admin/chart-of-accounts/import", methods=["POST"]
 )
 @cognito_required(required_permissions=[])
-def import_accounts(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def import_accounts(user_email, user_roles, tenant) -> ResponseReturnValue:
     """Import accounts from Excel file.
 
     Request:
@@ -102,19 +91,6 @@ def import_accounts(user_email, user_roles) -> ResponseReturnValue:
     """
     try:
         # Get tenant from request
-        tenant = get_current_tenant(request)
-
-        # Extract user tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Check if user is tenant admin
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
 
         # Check FIN module access
         if not _has_fin_module(tenant):

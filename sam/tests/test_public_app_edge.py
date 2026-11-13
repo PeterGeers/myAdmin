@@ -32,7 +32,7 @@ import json
 
 import pytest
 
-from sam.members.handler import public_app
+from sam.members.handler import public_app, public_guards
 
 
 # ── Fake slug reader (task 1.4 — the `_slugs/{slug}` marker store behind the Protocol) ──
@@ -1268,7 +1268,7 @@ def test_tenant_configured_embed_origin_is_reflected_in_cors(monkeypatch):
     # tenant's `application_embed_origins` is echoed back — the tenant's own embedding site may
     # call the public endpoints cross-origin. (`h-dcn` slug → `h-dcn-tenant` via the fixture.)
     monkeypatch.setattr(
-        public_app,
+        public_guards,
         "MembersProjectionReader",
         lambda *a, **k: _FakeEmbedOriginReader(
             {"h-dcn-tenant": [_TENANT_EMBED_ORIGIN]}
@@ -1287,7 +1287,7 @@ def test_static_baseline_still_reflected_alongside_tenant_origins(monkeypatch):
     # stack-wide `PUBLIC_FORM_ALLOWED_ORIGINS` is still echoed for a tenant that also has its own
     # (distinct) embed origins configured.
     monkeypatch.setattr(
-        public_app,
+        public_guards,
         "MembersProjectionReader",
         lambda *a, **k: _FakeEmbedOriginReader(
             {"h-dcn-tenant": [_TENANT_EMBED_ORIGIN]}
@@ -1307,7 +1307,7 @@ def test_unconfigured_tenant_does_not_reflect_a_non_baseline_origin(monkeypatch)
     # static baseline → fail-closed: the header is dropped, never a `*`. The reader returns [] for
     # the resolved tenant.
     monkeypatch.setattr(
-        public_app,
+        public_guards,
         "MembersProjectionReader",
         lambda *a, **k: _FakeEmbedOriginReader({}),  # h-dcn-tenant has no origins
     )
@@ -1322,7 +1322,7 @@ def test_origin_allowed_for_one_tenant_is_not_reflected_for_another(monkeypatch)
     # DIFFERENT tenant's route. `form-slug` → `form-tenant` (seeded by the fixture) has no origins,
     # so `h-dcn-tenant`'s embed origin is not reflected there.
     monkeypatch.setattr(
-        public_app,
+        public_guards,
         "MembersProjectionReader",
         lambda *a, **k: _FakeEmbedOriginReader(
             {"h-dcn-tenant": [_TENANT_EMBED_ORIGIN]}
@@ -1346,7 +1346,7 @@ def test_tenant_embed_origin_is_not_reflected_on_a_non_probeable_404(monkeypatch
     # unknown-path 404. A tenant's embed origin must NOT leak onto an unknown-slug 404 (there is no
     # resolved tenant to read it from).
     monkeypatch.setattr(
-        public_app,
+        public_guards,
         "MembersProjectionReader",
         lambda *a, **k: _FakeEmbedOriginReader(
             {"h-dcn-tenant": [_TENANT_EMBED_ORIGIN]}
@@ -1377,7 +1377,7 @@ def test_confirmed_v1_targets_are_reflected_for_the_configured_tenant(
     # tenant has authored them. Neither is on the static baseline, so this exercises the
     # per-tenant union path with the REAL targets the spec names (not a stand-in origin).
     monkeypatch.setattr(
-        public_app,
+        public_guards,
         "MembersProjectionReader",
         lambda *a, **k: _FakeEmbedOriginReader(
             {
@@ -1401,7 +1401,7 @@ def test_confirmed_v1_target_denied_for_an_unconfigured_tenant(monkeypatch):
     # never a `*`. This is the deny-half of "reflect the configured origins and deny others" with
     # the confirmed target.
     monkeypatch.setattr(
-        public_app,
+        public_guards,
         "MembersProjectionReader",
         lambda *a, **k: _FakeEmbedOriginReader(
             {"h-dcn-tenant": ["https://sites.google.com", "https://portal.h-dcn.nl"]}
@@ -1429,7 +1429,7 @@ def test_cors_degrades_to_static_baseline_when_projection_read_errors(monkeypatc
             raise RuntimeError("projection unavailable")
 
     monkeypatch.setattr(
-        public_app, "MembersProjectionReader", lambda *a, **k: _BoomReader()
+        public_guards, "MembersProjectionReader", lambda *a, **k: _BoomReader()
     )
     # A static-baseline Origin is still echoed despite the per-tenant read blowing up.
     static_ok = public_app.handler(

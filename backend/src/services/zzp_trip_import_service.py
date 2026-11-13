@@ -28,6 +28,7 @@ pure split — behavior is unchanged.
 
 import io
 import logging
+from typing import Any
 
 from db_exceptions import DatabaseError
 from services.zzp_trip_import import parsing, validation
@@ -58,7 +59,7 @@ __all__ = [
 class TripImportService:
     """CSV/Excel import with validation and preview."""
 
-    def __init__(self, db, parameter_service=None):
+    def __init__(self, db: Any, parameter_service: Any = None) -> None:
         """Initialize TripImportService.
 
         Args:
@@ -69,7 +70,7 @@ class TripImportService:
         self.parameter_service = parameter_service
 
     def parse_file(
-        self, file_stream, filename: str, column_mapping: dict | None = None
+        self, file_stream: Any, filename: str, column_mapping: dict | None = None
     ) -> dict:
         """Parse a CSV or Excel file and apply column mapping.
 
@@ -572,12 +573,14 @@ class TripImportService:
         return parsing.get_extension(filename)
 
     @staticmethod
-    def _read_dataframe(file_stream, ext: str, required_headers=None):
+    def _read_dataframe(
+        file_stream: Any, ext: str, required_headers: Any = None
+    ) -> Any:
         """Read file stream into a DataFrame (see parsing.read_dataframe)."""
         return parsing.read_dataframe(file_stream, ext, required_headers)
 
     @staticmethod
-    def _restore_excel_error_markers(df, raw: bytes, sheet_name: str):
+    def _restore_excel_error_markers(df: Any, raw: bytes, sheet_name: str) -> Any:
         """Recover Excel error-marker strings (see parsing.restore_excel_error_markers)."""
         return parsing.restore_excel_error_markers(df, raw, sheet_name)
 
@@ -642,7 +645,7 @@ class TripImportService:
         validation.validate_error_markers(row)
 
     @staticmethod
-    def _normalize_date(date_value) -> str | None:
+    def _normalize_date(date_value: Any) -> str | None:
         """Normalize a date value to YYYY-MM-DD (see validation.normalize_date)."""
         return validation.normalize_date(date_value)
 

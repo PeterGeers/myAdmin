@@ -14,6 +14,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.1
 """
 
 import logging
+from typing import Any
 
 from db_exceptions import IntegrityError
 
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 class VehicleService:
     """Vehicle CRUD scoped by tenant."""
 
-    def __init__(self, db, parameter_service=None):
+    def __init__(self, db: Any, parameter_service: Any = None) -> None:
         self.db = db
         self.parameter_service = parameter_service
 

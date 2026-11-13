@@ -14,6 +14,8 @@ Reference: .kiro/specs/zzp-module/design-parameter-enhancements.md §14.7
 
 import logging
 from datetime import datetime
+from io import BytesIO
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +25,11 @@ class ZZPInvoiceDeliveryHelper:
 
     def __init__(
         self,
-        db,
-        parameter_service=None,
-        booking_helper=None,
-        pdf_generator=None,
-        email_service=None,
+        db: Any,
+        parameter_service: Any = None,
+        booking_helper: Any = None,
+        pdf_generator: Any = None,
+        email_service: Any = None,
     ) -> None:
         self.db = db
         self.parameter_service = parameter_service
@@ -40,8 +42,8 @@ class ZZPInvoiceDeliveryHelper:
         tenant: str,
         invoice_id: int,
         options: dict,
-        get_invoice_fn,
-        output_service=None,
+        get_invoice_fn: Any,
+        output_service: Any = None,
     ) -> dict:
         """Send invoice or credit note with strict ordering guarantees.
 
@@ -185,7 +187,7 @@ class ZZPInvoiceDeliveryHelper:
         return result
 
     def get_invoice_pdf(
-        self, tenant: str, invoice_id: int, get_invoice_fn
+        self, tenant: str, invoice_id: int, get_invoice_fn: Any
     ) -> dict | None:
         """Retrieve stored PDF or regenerate as copy."""
         invoice = get_invoice_fn(tenant, invoice_id)
@@ -217,7 +219,9 @@ class ZZPInvoiceDeliveryHelper:
 
         return None
 
-    def preview_invoice(self, tenant: str, invoice_id: int, get_invoice_fn):
+    def preview_invoice(
+        self, tenant: str, invoice_id: int, get_invoice_fn: Any
+    ) -> BytesIO:
         """Generate a preview PDF for a draft invoice.
 
         Fetches the invoice with tenant isolation, validates draft status,
@@ -244,7 +248,9 @@ class ZZPInvoiceDeliveryHelper:
         except Exception as e:
             raise RuntimeError(f"PDF generation failed: {e}")
 
-    def get_email_preview(self, tenant: str, invoice_id: int, get_invoice_fn) -> dict:
+    def get_email_preview(
+        self, tenant: str, invoice_id: int, get_invoice_fn: Any
+    ) -> dict:
         """Compose an email preview without sending.
 
         Returns:
@@ -268,9 +274,9 @@ class ZZPInvoiceDeliveryHelper:
         self,
         tenant: str,
         invoice: dict,
-        pdf_bytes,
+        pdf_bytes: Any,
         destination: str,
-        output_service=None,
+        output_service: Any = None,
     ) -> dict:
         """Store PDF via OutputService using tenant's configured storage provider.
 
@@ -307,7 +313,9 @@ class ZZPInvoiceDeliveryHelper:
         logger.info("PDF stored: %s → %s (%s)", filename, url, destination)
         return {"url": url, "filename": filename}
 
-    def _update_status(self, tenant, invoice_id, status, sent_at=None):
+    def _update_status(
+        self, tenant: Any, invoice_id: Any, status: Any, sent_at: Any = None
+    ) -> None:
         """Update invoice status and optionally sent_at timestamp."""
         if sent_at:
             self.db.execute_query(
