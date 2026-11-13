@@ -22,11 +22,7 @@ from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import (
-    get_current_tenant,
-    get_user_tenants,
-    is_tenant_admin,
-)
+from auth.tenant_context import tenant_admin_required
 from database import DatabaseManager
 from routes.error_responses import error_payload
 from routes.tenant_admin_template_constants import (
@@ -52,8 +48,9 @@ tenant_admin_templates_bp = Blueprint("tenant_admin_templates", __name__)
     "/api/tenant-admin/templates/<template_type>", methods=["GET"]
 )
 @cognito_required(required_permissions=[])
+@tenant_admin_required()
 def get_current_template_endpoint(
-    template_type, user_email, user_roles
+    template_type, user_email, user_roles, tenant
 ) -> ResponseReturnValue:
     """
     Get current active template (Tenant_Admin only)
@@ -64,18 +61,6 @@ def get_current_template_endpoint(
         template_type: Type of template (str_invoice_nl, btw_aangifte, etc.)
     """
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         if template_type not in VALID_TEMPLATE_TYPES:
             return jsonify(
                 {"error": "Invalid template type", "valid_types": VALID_TEMPLATE_TYPES}
@@ -172,25 +157,14 @@ def get_current_template_endpoint(
     "/api/tenant-admin/templates/<template_type>/default", methods=["GET"]
 )
 @cognito_required(required_permissions=[])
+@tenant_admin_required()
 def get_default_template_endpoint(
-    template_type, user_email, user_roles
+    template_type, user_email, user_roles, tenant
 ) -> ResponseReturnValue:
     """
     Download the built-in default template for a template type (Tenant_Admin only).
     """
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         if template_type not in VALID_TEMPLATE_TYPES:
             return jsonify(
                 {"error": "Invalid template type", "valid_types": VALID_TEMPLATE_TYPES}
@@ -252,23 +226,12 @@ def get_default_template_endpoint(
     "/api/tenant-admin/templates/preview", methods=["POST"]
 )
 @cognito_required(required_permissions=[])
-def preview_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def preview_template_endpoint(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Generate template preview with sample data (Tenant_Admin only)
     """
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         data = request.get_json()
         if not data:
             return jsonify({"error": "Request body required"}), 400
@@ -313,23 +276,12 @@ def preview_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
     "/api/tenant-admin/templates/validate", methods=["POST"]
 )
 @cognito_required(required_permissions=[])
-def validate_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def validate_template_endpoint(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Validate template without generating preview (Tenant_Admin only)
     """
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         data = request.get_json()
         if not data:
             return jsonify({"error": "Request body required"}), 400
@@ -371,23 +323,12 @@ def validate_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
     "/api/tenant-admin/templates/approve", methods=["POST"]
 )
 @cognito_required(required_permissions=[])
-def approve_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def approve_template_endpoint(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Approve and activate template (Tenant_Admin only)
     """
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         data = request.get_json()
         if not data:
             return jsonify({"error": "Request body required"}), 400
@@ -442,23 +383,12 @@ def approve_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
 
 @tenant_admin_templates_bp.route("/api/tenant-admin/templates/reject", methods=["POST"])
 @cognito_required(required_permissions=[])
-def reject_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def reject_template_endpoint(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Reject template with reason (Tenant_Admin only)
     """
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         data = request.get_json()
         if not data:
             return jsonify({"error": "Request body required"}), 400

@@ -16,7 +16,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
 
 import json
 import logging
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from db_exceptions import IntegrityError
 
@@ -43,7 +43,7 @@ class TripCrudService:
         "notes",
     ]
 
-    def __init__(self, service):
+    def __init__(self, service: Any) -> None:
         """Initialize with reference to the parent TripService.
 
         Args:

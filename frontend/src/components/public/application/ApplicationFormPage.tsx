@@ -46,8 +46,8 @@ import {
 } from '@chakra-ui/react';
 
 import { ApplicationFormRenderer } from './ApplicationFormRenderer';
+import { resolveLabel } from '../../members/labelResolver';
 import {
-  resolveLabel,
   resolveLocale,
   buildInitialValues,
   SUPPORTED_LOCALES,

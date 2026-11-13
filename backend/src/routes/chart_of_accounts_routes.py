@@ -23,12 +23,7 @@ from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import (
-    get_current_tenant,
-    get_user_tenants,
-    is_tenant_admin,
-    tenant_required,
-)
+from auth.tenant_context import tenant_admin_required, tenant_required
 from database import DatabaseManager
 from dialect_helpers import dialect
 from routes.error_responses import error_payload
@@ -157,7 +152,8 @@ def lookup_accounts(
 
 @chart_of_accounts_bp.route("/api/tenant-admin/chart-of-accounts", methods=["GET"])
 @cognito_required(required_permissions=[])
-def list_accounts(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def list_accounts(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Get all accounts for current tenant with search, sorting, and pagination.
 
@@ -180,19 +176,6 @@ def list_accounts(user_email, user_roles) -> ResponseReturnValue:
     """
     try:
         # Get tenant from request
-        tenant = get_current_tenant(request)
-
-        # Extract user tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Check if user is tenant admin
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
 
         # Check FIN module access
         if not has_fin_module(tenant):
@@ -302,7 +285,8 @@ def list_accounts(user_email, user_roles) -> ResponseReturnValue:
     "/api/tenant-admin/chart-of-accounts/<account>", methods=["GET"]
 )
 @cognito_required(required_permissions=[])
-def get_account(user_email, user_roles, account) -> ResponseReturnValue:
+@tenant_admin_required()
+def get_account(user_email, user_roles, account, tenant) -> ResponseReturnValue:
     """
     Get single account details.
 
@@ -322,19 +306,6 @@ def get_account(user_email, user_roles, account) -> ResponseReturnValue:
     """
     try:
         # Get tenant from request
-        tenant = get_current_tenant(request)
-
-        # Extract user tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Check if user is tenant admin
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
 
         # Check FIN module access
         if not has_fin_module(tenant):
@@ -371,7 +342,8 @@ def get_account(user_email, user_roles, account) -> ResponseReturnValue:
 
 @chart_of_accounts_bp.route("/api/tenant-admin/chart-of-accounts", methods=["POST"])
 @cognito_required(required_permissions=[])
-def create_account(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def create_account(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Create new account.
 
@@ -391,19 +363,6 @@ def create_account(user_email, user_roles) -> ResponseReturnValue:
     """
     try:
         # Get tenant from request
-        tenant = get_current_tenant(request)
-
-        # Extract user tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Check if user is tenant admin
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
 
         # Check FIN module access
         if not has_fin_module(tenant):
@@ -515,7 +474,8 @@ def create_account(user_email, user_roles) -> ResponseReturnValue:
     "/api/tenant-admin/chart-of-accounts/<account>", methods=["PUT"]
 )
 @cognito_required(required_permissions=[])
-def update_account(user_email, user_roles, account) -> ResponseReturnValue:
+@tenant_admin_required()
+def update_account(user_email, user_roles, account, tenant) -> ResponseReturnValue:
     """
     Update existing account.
 
@@ -539,19 +499,6 @@ def update_account(user_email, user_roles, account) -> ResponseReturnValue:
     """
     try:
         # Get tenant from request
-        tenant = get_current_tenant(request)
-
-        # Extract user tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Check if user is tenant admin
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
 
         # Check FIN module access
         if not has_fin_module(tenant):
@@ -702,7 +649,8 @@ def update_account(user_email, user_roles, account) -> ResponseReturnValue:
     "/api/tenant-admin/chart-of-accounts/<account>", methods=["DELETE"]
 )
 @cognito_required(required_permissions=[])
-def delete_account(user_email, user_roles, account) -> ResponseReturnValue:
+@tenant_admin_required()
+def delete_account(user_email, user_roles, account, tenant) -> ResponseReturnValue:
     """
     Delete account (only if not used in transactions).
 
@@ -723,19 +671,6 @@ def delete_account(user_email, user_roles, account) -> ResponseReturnValue:
     """
     try:
         # Get tenant from request
-        tenant = get_current_tenant(request)
-
-        # Extract user tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Check if user is tenant admin
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
 
         # Check FIN module access
         if not has_fin_module(tenant):

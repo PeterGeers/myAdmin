@@ -15,7 +15,6 @@ This directory contains comprehensive documentation for the STR Reports backend 
 
 - **`tenant_filtering_migration_guide.md`** - Tenant filtering implementation guide
 - **`TENANT_CONTEXT_QUICK_REFERENCE.md`** - Quick reference for tenant context
-- **`RBAC_IMPLEMENTATION_SUMMARY.md`** - Role-based access control summary
 
 ### Phase Documentation
 

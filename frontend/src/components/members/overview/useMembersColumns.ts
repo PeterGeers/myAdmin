@@ -15,8 +15,9 @@
 import React, { useMemo, useCallback } from 'react';
 import {
   COMPACT_FIELD_KEYS, MEMBER_NUMBER_KEY, FIXED_COLUMN_LABEL_KEYS,
-  INITIAL_FILTERS, resolveLabel, type OverviewColumn,
+  INITIAL_FILTERS, type OverviewColumn,
 } from './membersOverviewModel';
+import { resolveLabel } from '../labelResolver';
 import {
   renderFieldValue, isColumnCandidate, valueFor,
   buildEnumLabelMap, enumValueToFilterText,
@@ -150,7 +151,7 @@ export function useMembersColumns({
       }
       const legacyKey = FIXED_COLUMN_LABEL_KEYS[field.key];
       if (legacyKey) return t(legacyKey);
-      return resolveLabel(field.label, lang, field.key);
+      return resolveLabel(field.label, lang, field.key, 'nl-first');
     },
     [t, lang],
   );

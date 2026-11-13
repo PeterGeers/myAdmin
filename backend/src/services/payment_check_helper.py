@@ -5,6 +5,7 @@ Reference: design.md 5.5
 """
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 DEFAULT_TOLERANCE = 0.01
@@ -13,7 +14,7 @@ DEFAULT_TOLERANCE = 0.01
 class PaymentCheckHelper:
     """Match bank transactions to open invoices."""
 
-    def __init__(self, db):
+    def __init__(self, db: Any) -> None:
         self.db = db
 
     def run_payment_check(self, tenant: str) -> dict:

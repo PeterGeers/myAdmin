@@ -23,7 +23,8 @@ import fc from 'fast-check';
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, cleanup } from '@/test-utils';
 import { GroupedFieldSelect } from './GroupedFieldSelect';
-import { sectionFields, resolveLabel, DEFAULT_FG_SECTION_KEY } from './FieldChecklist';
+import { sectionFields, DEFAULT_FG_SECTION_KEY } from './FieldChecklist';
+import { resolveLabel } from './labelResolver';
 import type { FieldConfigField, FunctionalGroup } from '../../types/members';
 
 afterEach(() => {
@@ -144,7 +145,7 @@ function expectedSections(
     groupLabel:
       section.key === DEFAULT_FG_SECTION_KEY
         ? null
-        : resolveLabel(section.label, lang, section.key),
+        : resolveLabel(section.label, lang, section.key, 'nl-first'),
     fieldKeys: section.fields.map((f) => f.key),
   }));
 }

@@ -20,7 +20,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
 import logging
 from datetime import date, datetime
 from decimal import Decimal
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from services.field_config_mixin import FieldConfigMixin
 from services.zzp_trip_calculation_service import TripCalculationService
@@ -69,7 +69,7 @@ class TripService(FieldConfigMixin):
     # Miles-to-km conversion factor
     MILES_TO_KM = 1.60934
 
-    def __init__(self, db, parameter_service=None):
+    def __init__(self, db: Any, parameter_service: Any = None) -> None:
         self.db = db
         self.parameter_service = parameter_service
 
@@ -164,7 +164,7 @@ class TripService(FieldConfigMixin):
         return dict(rows[0])
 
     @staticmethod
-    def _normalize_for_comparison(value):
+    def _normalize_for_comparison(value: Any) -> Any:
         """Normalize a value for field comparison (handles type mismatches)."""
         if value is None:
             return None
@@ -179,7 +179,7 @@ class TripService(FieldConfigMixin):
         return str(value)
 
     @staticmethod
-    def _serialize_value(value):
+    def _serialize_value(value: Any) -> Any:
         """Serialize a value for JSON storage in changed_fields."""
         if value is None:
             return None
@@ -199,7 +199,7 @@ class TripService(FieldConfigMixin):
         """Fetch vehicle type and odometer_unit for summary calculations."""
         return self._calc._get_vehicle_info(tenant, vehicle_id)
 
-    def _get_ritten_param(self, key: str, tenant: str, default=None):
+    def _get_ritten_param(self, key: str, tenant: str, default: Any = None) -> Any:
         """Fetch a zzp_ritten parameter with fallback to MODULE_REGISTRY default."""
         return self._calc._get_ritten_param(key, tenant, default)
 
@@ -239,7 +239,7 @@ class TripService(FieldConfigMixin):
             raise ValueError(f"Vehicle {vehicle_id} not found for this tenant")
 
     @staticmethod
-    def _parse_date(value) -> date:
+    def _parse_date(value: Any) -> date:
         """Parse a date value, accepting date objects or ISO format strings.
 
         Raises ValueError if the date is invalid.

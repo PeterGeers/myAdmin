@@ -31,17 +31,18 @@ import pytest
 
 # repo root + backend/src on sys.path (mirrors test_members_repository.py) so
 # `sam.members...` and its `services.dynamodb_client` dependency both import.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.repository import members_repository as repo_mod
+from sam.members.repository import _members_repository_lifecycle as repo_lifecycle
 from sam.members.repository import table_design as td
 from sam.members.repository.members_repository import DynamoDbMembersRepository
-
 
 # ---------------------------------------------------------------------------
 # In-memory fake DynamoDB table honouring the attribute_not_exists conditional put
@@ -85,13 +86,15 @@ class FakeTable:
 
 @pytest.fixture(autouse=True)
 def _patch_client_error(monkeypatch):
-    """Rebind the repository module's ``ClientError`` to the fake so ``except`` catches it.
+    """Rebind the lifecycle mixin module's ``ClientError`` to the fake so ``except`` catches it.
 
-    The repository does ``from botocore.exceptions import ClientError`` at module top, so the
+    The claim op (lifecycle mixin) does ``from botocore.exceptions import ClientError`` at module
     fake table raises a stand-in that the repository's ``except ClientError`` must catch — done
-    by rebinding the name in the repository's namespace.
+    top, so the fake table raises a stand-in that its ``except ClientError`` must catch —
+    done by rebinding the name in that module's namespace. (Split out of members_repository.py
+    in code-quality-fixes-2026-11-12 task 6.)
     """
-    monkeypatch.setattr(repo_mod, "ClientError", FakeClientError)
+    monkeypatch.setattr(repo_lifecycle, "ClientError", FakeClientError)
 
 
 @pytest.fixture
@@ -179,8 +182,14 @@ class TestClaimApplicationSession:
         assert repo.claim_application_session("tenant-A", "sess-1", "member-A") is True
         assert repo.claim_application_session("tenant-B", "sess-1", "member-B") is True
         assert len(table.items) == 2
-        assert table.items[("tenant-A", td.app_session_sk("sess-1"))]["member_id"] == "member-A"
-        assert table.items[("tenant-B", td.app_session_sk("sess-1"))]["member_id"] == "member-B"
+        assert (
+            table.items[("tenant-A", td.app_session_sk("sess-1"))]["member_id"]
+            == "member-A"
+        )
+        assert (
+            table.items[("tenant-B", td.app_session_sk("sess-1"))]["member_id"]
+            == "member-B"
+        )
 
     def test_claim_requires_a_tenant(self, repo):
         with pytest.raises(ValueError):

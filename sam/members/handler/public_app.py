@@ -83,8 +83,6 @@ probed (R2.3/R1a.4). The abuse guards (honeypot / payload cap / malformed body) 
 from __future__ import annotations
 
 import logging
-import os
-import uuid
 from collections.abc import Mapping
 from typing import Any
 
@@ -95,7 +93,6 @@ from sam.members.domain.tenant_directory import TenantDirectory
 from sam.members.handler._http import (
     ParsedRequest,
     _error,
-    _field_errors_array,  # SEC-2 (task 4.2): shapes the deliberate validation 422 per-field array
     _parse_request,
     _response,
 )
@@ -117,413 +114,43 @@ __all__ = [
     "handler",
 ]
 
-
-# ── Owner-plane / kind the public read path serves (D-SLUG, Property 2 / R4.2) ────────
-
-#: The ONLY ``owner_plane`` the SAM public read path serves. Ownership/kind/tenant are decided by
-#: READING the ``_slugs/{slug}`` marker BODY (Property 2, D-SLUG) — never by parsing the slug
-#: string — so a slug whose marker names a DIFFERENT plane (a future Flask-owned landing page, say)
-#: resolved at the SAM edge is a clean, non-probeable MISMATCH (treated identically to a missing
-#: slug, R5.3/SEC-5), not a leak and not a cross-plane read (steering 35 rule 5a / Property 3).
-PUBLIC_OWNER_PLANE = "sam"
-
-#: The ONLY ``kind`` the public ``GET {slug}`` field-config read serves today — the application
-#: form (C2, the first producer). ``kind`` is an OPEN set platform-wide (``webshop`` /
-#: ``event_calendar`` / … are expected future kinds, R3.5), but THIS read path returns the
-#: applicant schema, so a marker of any OTHER kind resolved here is a non-match (non-probeable
-#: 404), exactly like a cross-plane marker — never a wrong-kind body served as a form schema.
-PUBLIC_PAGE_KIND = "application_form"
-
-
-# ── Abuse-guard configuration (R10.2) ─────────────────────────────────────────────────
-
-#: The honeypot field name. A real applicant's browser never fills it (it is visually hidden
-#: on the form, task 9.x); a naive spam bot that fills every input trips it. A submission whose
-#: ``fields`` (or top-level body) carries a NON-BLANK value under this key is rejected as spam
-#: with a neutral 400 BEFORE any tenant resolution or write (R10.2) — the bot is never told WHY
-#: (the 400 is the same neutral ``errors.api.badRequest`` as a malformed/oversized body) so the
-#: trap is not trivially discoverable. A blank / absent honeypot is the normal, accepted case.
-HONEYPOT_FIELD = "website"
-
-#: The hard payload-size cap in bytes (R10.2). A public POST must not let an unauthenticated
-#: caller stream an arbitrarily large body into the Lambda (memory / cost abuse), so a raw body
-#: whose byte length exceeds this is rejected with a neutral 400 BEFORE parsing / delegation. An
-#: application form is small (a few dozen fields), so 64 KiB is generous head-room while still
-#: bounding abuse; the value is overridable per environment via ``PUBLIC_MAX_PAYLOAD_BYTES`` for
-#: a tenant with an unusually large field set, resolved at call time (:func:`_max_payload_bytes`)
-#: so a test / a stack param can tune it without a redeploy of this code.
-MAX_PAYLOAD_BYTES = 64 * 1024
-
-#: The env var the separate public API's stack sets (task 1.3 / 7.1) with the comma-separated
-#: allow-list of the public form's origin(s) for the CORS ``Access-Control-Allow-Origin`` header
-#: (R10.3/R10.4). Unset / empty → no cross-origin browser client is permitted (fail-closed: the
-#: header is simply not set, so a browser blocks the read) rather than silently echoing ``*`` —
-#: the public write must not be callable from any origin.
-ALLOWED_ORIGINS_ENV = "PUBLIC_FORM_ALLOWED_ORIGINS"
-
-#: The env var carrying the per-env PUBLIC-PAGES APEX the published application form is served on
-#: (task 7.1 / R5.1). The published artifact for a slug lives at ``https://{slug}.{apex}`` — the
-#: CloudFront public-pages distribution maps ``{slug}.{apex}`` to the served ``{slug}/`` prefix
-#: (``application_publish``/``public_page_artifact_store`` write the canonical ``{slug}.jabaki.nl``
-#: URL). CORS Option B (R5.1/5.5) admits that form's OWN resolved slug host — computed from the
-#: apex HERE, never a hardcode and NEVER a broad ``*.{apex}`` wildcard. The canonical public-pages
-#: apex is ``jabaki.nl`` (the SAME value ``application_publish`` bakes into the canonical URL), so
-#: that is the resolved default; a stack/test may override it per env via this var. An explicitly
-#: BLANK override resolves to NO apex, so the slug-host union member is simply SKIPPED (CORS stays
-#: fail-closed — a missing apex never raises and never widens the allow-list, it only declines to
-#: add the one slug-host member).
-APEX_ENV = "PUBLIC_FORM_APEX"
-
-#: The canonical public-pages apex the published form is served on when :data:`APEX_ENV` is unset.
-#: Mirrors the apex ``application_publish`` already bakes into the canonical ``{slug}.jabaki.nl``
-#: URL, so the CORS slug-host and the served host cannot drift.
-_DEFAULT_FORM_APEX = "jabaki.nl"
-
-
-class _PublicResult:
-    """A completed public read/write result + the RESOLVED tenant (for the 200's per-tenant CORS).
-
-    :func:`_dispatch_public` returns this on a success so :func:`handler` can both shape the
-    ``{data}`` body AND apply the resolved tenant's ``application_embed_origins`` CORS allow-list
-    (task 5.3) to the 200 — exactly as the recognised-route 501 already does via
-    :attr:`PublicRouteNotImplemented.tenant_id`. The tenant is the slug-resolved, verified one
-    (verify-before-trust) — never a client value.
-    """
-
-    __slots__ = ("data", "tenant_id", "resolved_slug")
-
-    def __init__(
-        self,
-        data: Any,
-        *,
-        tenant_id: str | None = None,
-        resolved_slug: str | None = None,
-    ):
-        self.data = data
-        self.tenant_id = tenant_id
-        # The slug the route resolved to this tenant for THIS request (CORS Option B, task 7.1) —
-        # so the 200 admits the form's OWN host `https://{resolved_slug}.{apex}`.
-        self.resolved_slug = resolved_slug
-
-
-class PublicAbuseRejected(Exception):
-    """A request tripped an abuse guard (honeypot / payload cap) — mapped to a neutral 400.
-
-    Raised by :func:`_guard_abuse` BEFORE any tenant resolution or write, so a scripted flood
-    is turned away at the edge (R10.2). The message is for the CloudWatch log only; the client
-    gets the SAME neutral ``errors.api.badRequest`` 400 a malformed body gets — the guard never
-    tells the caller WHICH control tripped (a honeypot that announced itself is trivial to
-    defeat, R1a.4).
-    """
-
-
-class PublicTenantNotFound(Exception):
-    """The path slug did not resolve to an allow-listed tenant → non-probeable 404 (R2.3/R1a.4).
-
-    Raised by :func:`_dispatch_public` when the Task-1.2 :class:`TenantDirectory` resolver returns
-    a not-found outcome for the request's slug (unknown / forged / blank / oversized — all uniform
-    by construction, so this carries no signal). :func:`handler` maps it to the SAME
-    ``404 errors.api.notFound`` an UNRECOGNISED path returns, so a real-but-unknown slug is
-    deliberately indistinguishable from "no such endpoint" — the allow-list cannot be probed for
-    valid tenant slugs (no enumeration oracle, R2.3/R1a.4).
-    """
-
-
-class PublicRouteNotImplemented(Exception):
-    """A recognised public route whose domain behaviour is not built yet → honest 501.
-
-    The delegation seam (:func:`_dispatch_public`) raises this until the later same-phase tasks
-    land (slug resolver 1.2, route wiring 1.3, ``get_public_field_config`` Phase 4,
-    ``create_application`` Phase 2). It maps to ``501 Not Implemented`` ("route exists, behaviour
-    pending"), mirroring how :class:`sam.members.handler._dispatch.RouteNotImplemented` is mapped
-    by ``app.handler`` — an honest answer, never a silent 200 or a 404 that would hide the route.
-
-    It carries the RESOLVED ``tenant_id`` (the slug already resolved to an allow-listed tenant
-    before this was raised) so :func:`handler` can apply that tenant's per-tenant embed-origin
-    CORS allow-list (task 5.3) to the 501 response — the recognised route's CORS already honours
-    the tenant's ``application_embed_origins`` even while the service behind it is pending.
-    """
-
-    def __init__(
-        self,
-        message: str = "",
-        *,
-        tenant_id: str | None = None,
-        resolved_slug: str | None = None,
-    ):
-        super().__init__(message)
-        self.tenant_id = tenant_id
-        # The slug the route resolved to this tenant (CORS Option B, task 7.1) so even the 501
-        # honours the form's OWN slug host, consistent with the 200.
-        self.resolved_slug = resolved_slug
-
-
-# ── CORS (R10.3) — restrict the one Access-Control-Allow-Origin header ────────────────
-
-
-def _allowed_origins() -> list[str]:
-    """The STATIC (stack-wide) public-form origin allow-list (R10.3), resolved at call time.
-
-    Reads :data:`ALLOWED_ORIGINS_ENV` (comma-separated), trims blanks, and de-duplicates while
-    preserving order. Resolved per request (not import-time) so a stack param / a test
-    ``monkeypatch.setenv`` is honoured without reloading the module. Empty / unset → an empty
-    list = fail-closed (no cross-origin client permitted at the stack level), never a wildcard.
-
-    This is the stack-wide baseline (e.g. the canonical ``aanmelden.jabaki.nl`` form host). A
-    tenant may additionally publish its OWN embed origin(s) via ``application_embed_origins`` on
-    ``config#mail`` (task 5.1); those are resolved PER TENANT by :func:`_tenant_embed_origins` and
-    unioned with this baseline by :func:`_apply_cors_origin` — the SAME tenant-authored list that
-    feeds the CloudFront form's ``frame-ancestors`` (task 5.2), so the two enforcement points
-    cannot drift. The union stays fail-closed: an unset env AND an unconfigured tenant → ``[]``.
-    """
-    raw = os.environ.get(ALLOWED_ORIGINS_ENV, "") or ""
-    seen: dict[str, None] = {}
-    for part in raw.split(","):
-        origin = part.strip()
-        if origin and origin not in seen:
-            seen[origin] = None
-    return list(seen)
-
-
-def _tenant_embed_origins(tenant_id: str | None) -> list[str]:
-    """The PER-TENANT embed-origin allow-list for ``tenant_id`` from ``config#mail`` (R5.2, D27).
-
-    Reads the tenant-authored ``application_embed_origins`` list off the projected ``config#mail``
-    row via the SAME read-only governance-projection reader the rest of the public edge uses
-    (:class:`~sam.members.repository.projection_config_reader.MembersProjectionReader`,
-    ``get_application_embed_origins`` — trim + de-dupe, empty-is-valid). This is the SAM public
-    API half of the ONE tenant-authored list (task 5.3): an origin on it is echoed into
-    ``Access-Control-Allow-Origin`` for THAT tenant's public routes, so the tenant's own embedding
-    site may call the public field-config / submit endpoints cross-origin.
-
-    Resolved ONLY for a route that has already resolved to an allow-listed tenant (the recognised
-    field-config / submit routes) — never for the non-probeable 404 branches, so an unknown-slug
-    404 and an unknown-path 404 keep the SAME (static-only) CORS header and remain indistinguishable
-    (R2.3/R1a.4). A blank/absent ``tenant_id`` → ``[]``.
-
-    **Fail-safe — never raises.** The CORS decision must not crash a public response, so ANY error
-    resolving the projection (a missing table env, a DynamoDB error, a malformed row) degrades to
-    ``[]`` = the tenant permits no extra cross-origin embed (the static baseline still applies).
-    """
-    if not tenant_id:
-        return []
-    try:
-        return MembersProjectionReader().get_application_embed_origins(tenant_id)
-    except Exception:  # pragma: no cover — defensive: CORS never crashes a response
-        logger.warning(
-            "Public intake: failed to resolve embed origins for tenant %r; "
-            "falling back to the static CORS allow-list only",
-            tenant_id,
-        )
-        return []
-
-
-def _form_apex() -> str | None:
-    """The per-env PUBLIC-PAGES apex the published form is served on (R5.1), resolved at call time.
-
-    Reads :data:`APEX_ENV` and trims it; an UNSET var resolves to the canonical
-    :data:`_DEFAULT_FORM_APEX` (``jabaki.nl`` — the SAME apex ``application_publish`` bakes into the
-    served canonical URL, so the CORS slug-host and the served host cannot drift). An explicitly
-    BLANK override resolves to ``None`` so the slug-host union member is SKIPPED — a missing apex
-    NEVER raises and NEVER widens the allow-list (CORS stays fail-closed); it only declines to add
-    the one slug-host member. Resolved per request (not import-time) so a stack param / a test
-    ``monkeypatch.setenv`` is honoured without reloading the module (mirrors :func:`_allowed_origins`).
-    """
-    raw = os.environ.get(APEX_ENV)
-    if raw is None:
-        return _DEFAULT_FORM_APEX
-    apex = raw.strip()
-    return apex or None
-
-
-def _resolved_slug_host(resolved_slug: str | None) -> str | None:
-    """The published form's OWN origin ``https://{resolved_slug}.{apex}`` for CORS Option B (R5.1).
-
-    The TIGHTEST CORS match (design Round 2 "CORS Option B"): the form's OWN host for the slug the
-    route ALREADY resolved from the ``_slugs/{slug}`` marker for THIS request (verify-before-trust —
-    never a raw/client value). Returns ``None`` — so NO slug-host member is unioned into the
-    allow-list — when there is no resolved slug (e.g. the non-probeable 404 branches, where no slug
-    resolved) OR when the apex is unset/blank (:func:`_form_apex`). Both cases keep CORS fail-closed:
-    a request is admitted by the slug host ONLY when a real resolved slug AND a configured apex
-    compose the form's own origin — never a broad ``*.{apex}`` wildcard, never a foreign host.
-    """
-    if not isinstance(resolved_slug, str) or not resolved_slug.strip():
-        return None
-    apex = _form_apex()
-    if not apex:
-        return None
-    return f"https://{resolved_slug.strip()}.{apex}"
-
-
-def _apply_cors_origin(
-    response: dict,
-    request: ParsedRequest,
-    *,
-    tenant_id: str | None = None,
-    resolved_slug: str | None = None,
-) -> dict:
-    """Restrict the response's ``Access-Control-Allow-Origin`` to the form origin(s) (R10.3/R5.2).
-
-    The shared :func:`_http._response` sets ``Access-Control-Allow-Origin: *`` (correct for the
-    token-gated authenticated edge). A public POST must NOT be callable cross-origin from any
-    site, so this REPLACES that one header per the allow-list, leaving the rest of the shared
-    envelope (and the authenticated edge) untouched. The allow-list is the UNION of:
-
-    - the STATIC stack-wide baseline (:func:`_allowed_origins`, e.g. the canonical form host);
-    - the PER-TENANT ``application_embed_origins`` (:func:`_tenant_embed_origins`) — supplied ONLY
-      when the route resolved to an allow-listed ``tenant_id`` (task 5.3). On the non-probeable
-      404 branches ``tenant_id`` is ``None``, so those responses carry the static baseline ONLY
-      and an unknown-slug / unknown-path 404 stay indistinguishable (R2.3/R1a.4); and
-    - CORS Option B (task 7.1, R5.1/R5.5): the form's OWN resolved slug host
-      ``https://{resolved_slug}.{apex}`` (:func:`_resolved_slug_host`) — supplied ONLY when the
-      route has resolved the slug to its tenant for THIS request (never a raw/client value), so the
-      published per-tenant host ``{slug}.{apex}`` the form is served on can read its own submit
-      response. This is the TIGHTEST widening: a single exact host, computed from the per-env apex
-      (:func:`_form_apex`), NEVER a broad ``*.{apex}`` wildcard — so no foreign ``*.{apex}`` site is
-      admitted. On the non-probeable 404 branches ``resolved_slug`` is ``None`` (nothing resolved),
-      so no slug-host member is added and those responses stay indistinguishable.
-
-    Decision (fail-closed, never ``*``):
-
-    - the request's ``Origin`` is in the union → echo exactly that origin (and ``Vary: Origin``
-      so a shared cache does not serve the wrong origin's header);
-    - the request has no ``Origin`` (a non-browser / same-origin caller) → drop the header
-      entirely rather than leave a stale ``*`` (a non-browser client does not enforce CORS);
-    - the ``Origin`` is not in the union, or the union is empty → drop the header, so a browser
-      on a foreign origin blocks the read (fail-closed, no ``*``).
-
-    CORS is applied to EVERY response — success AND error — so a browser can read the body in
-    all cases (R1a.1/R10.3); this helper is the single place that decides the origin header.
-    """
-    headers = dict(response.get("headers") or {})
-    origin = _request_origin(request)
-    allowed = _allowed_origins() + _tenant_embed_origins(tenant_id)
-    # CORS Option B (task 7.1): union the form's OWN resolved slug host when the route resolved a
-    # slug for THIS request (and the apex is configured). ``None`` (no resolved slug / no apex) adds
-    # nothing — the union stays the static baseline ∪ tenant embed origins (fail-closed).
-    slug_host = _resolved_slug_host(resolved_slug)
-    if slug_host and slug_host not in allowed:
-        allowed = allowed + [slug_host]
-    if origin and origin in allowed:
-        headers["Access-Control-Allow-Origin"] = origin
-        # A shared cache must key on Origin so it never serves origin A its cached
-        # Access-Control-Allow-Origin: B (which B's browser would then reject).
-        existing_vary = headers.get("Vary")
-        headers["Vary"] = f"{existing_vary}, Origin" if existing_vary else "Origin"
-    else:
-        # No origin, foreign origin, or an empty allow-list → fail-closed: never echo `*` on
-        # the public edge. Drop the header the shared envelope set.
-        headers.pop("Access-Control-Allow-Origin", None)
-    response["headers"] = headers
-    return response
-
-
-def _request_origin(request: ParsedRequest) -> str | None:
-    """The request's ``Origin`` header value, case-insensitive on the header NAME, or ``None``.
-
-    API Gateway REST v1 preserves the client header casing (``Origin``); HTTP API v2 lowercases
-    to ``origin`` — so match the name case-insensitively (mirroring
-    ``app._requested_tenant_from_request``). A list value (multi-valued header) takes the first
-    entry; a blank value reads as ``None``.
-    """
-    for name, value in (request.headers or {}).items():
-        if isinstance(name, str) and name.lower() == "origin":
-            if isinstance(value, list):
-                value = value[0] if value else None
-            if isinstance(value, str):
-                v = value.strip()
-                return v or None
-    return None
-
-
-# ── Abuse guards (R10.2) — run BEFORE any tenant resolution / write ───────────────────
-
-
-def _max_payload_bytes() -> int:
-    """The active payload cap (R10.2), resolved at call time from the env override else default.
-
-    Reads :data:`MAX_PAYLOAD_BYTES` unless ``PUBLIC_MAX_PAYLOAD_BYTES`` is set to a positive int
-    (a stack param / a test may tune it); a blank / non-int / non-positive override falls back to
-    the default rather than disabling the cap (fail-safe — a public write is never uncapped).
-    """
-    raw = os.environ.get("PUBLIC_MAX_PAYLOAD_BYTES")
-    if raw:
-        try:
-            value = int(raw)
-            if value > 0:
-                return value
-        except (TypeError, ValueError):
-            pass
-    return MAX_PAYLOAD_BYTES
-
-
-def _raw_body_byte_length(event: Mapping[str, Any]) -> int:
-    """The RAW request body size in bytes, before JSON parsing (R10.2 payload cap).
-
-    Measured on the raw API Gateway ``body`` string (UTF-8) so an oversized body is rejected
-    WITHOUT first being fully parsed into Python objects (the parse is the expensive step we are
-    guarding against). A base64-encoded body (``isBase64Encoded``) is measured on its decoded
-    length. A missing / non-string body is zero (nothing to cap).
-    """
-    body = event.get("body")
-    if not isinstance(body, str) or not body:
-        return 0
-    if event.get("isBase64Encoded"):
-        import base64
-
-        try:
-            return len(base64.b64decode(body, validate=False))
-        except (ValueError, TypeError):
-            # Undecodable "base64" — measure the raw string; the parse step rejects it anyway.
-            return len(body.encode("utf-8"))
-    return len(body.encode("utf-8"))
-
-
-def _honeypot_tripped(body: Any) -> bool:
-    """True when the honeypot field carries a NON-BLANK value (R10.2) — a spam-bot tell.
-
-    Checks the :data:`HONEYPOT_FIELD` key both at the top level of the parsed body and inside a
-    nested ``fields`` object (the form posts its values under ``fields``, design §3.2), so the
-    trap holds wherever a naive bot drops the value. A blank string / absent key is the normal,
-    accepted case (a real browser leaves the hidden field empty). A non-mapping body is not a
-    honeypot trip (it fails the malformed-body check instead).
-    """
-    if not isinstance(body, Mapping):
-        return False
-    for container in (body, body.get("fields")):
-        if isinstance(container, Mapping):
-            value = container.get(HONEYPOT_FIELD)
-            if isinstance(value, str) and value.strip():
-                return True
-            if value not in (None, "", {}, []) and not isinstance(value, str):
-                # A bot that posted a non-string truthy value (number / object) still trips.
-                return True
-    return False
-
-
-def _guard_abuse(event: Mapping[str, Any], request: ParsedRequest) -> None:
-    """Run the pre-write abuse guards (R10.2); raise :class:`PublicAbuseRejected` on any trip.
-
-    Order (cheapest first): payload cap on the raw body, then malformed-body, then honeypot.
-    All three raise the SAME :class:`PublicAbuseRejected` so the edge answers ONE neutral 400 —
-    the caller is never told which control tripped (R1a.4). Runs BEFORE tenant resolution and
-    before any delegation, so a flood is turned away at the edge without touching the domain.
-    """
-    cap = _max_payload_bytes()
-    size = _raw_body_byte_length(event)
-    if size > cap:
-        raise PublicAbuseRejected(f"payload too large ({size} > {cap} bytes)")
-
-    # A JSON body is parsed by `_parse_request` into a mapping; a body that stayed a raw string
-    # (undecodable JSON) or is otherwise not an object is malformed for the public endpoints,
-    # which always expect a JSON object. A GET (field-config) carries no body — that is fine.
-    body = request.body
-    if request.method == "POST" and not isinstance(body, Mapping):
-        raise PublicAbuseRejected("request body is not a JSON object")
-
-    if _honeypot_tripped(body):
-        raise PublicAbuseRejected("honeypot field populated")
-
+from ._public_shared import (  # noqa: F401 (surface compat)
+    _DEFAULT_FORM_APEX,
+    ALLOWED_ORIGINS_ENV,
+    APEX_ENV,
+    HONEYPOT_FIELD,
+    MAX_PAYLOAD_BYTES,
+    PUBLIC_OWNER_PLANE,
+    PUBLIC_PAGE_KIND,
+    PublicAbuseRejected,
+    PublicRouteNotImplemented,
+    PublicTenantNotFound,
+    _PublicResult,
+)
+from .public_guards import (  # noqa: F401 (surface compat)
+    _allowed_origins,
+    _apply_cors_origin,
+    _form_apex,
+    _guard_abuse,
+    _honeypot_tripped,
+    _max_payload_bytes,
+    _raw_body_byte_length,
+    _request_origin,
+    _resolved_slug_host,
+    _tenant_embed_origins,
+)
+from .public_submission import (  # noqa: F401 (surface compat)
+    _LOCALE_BODY_KEYS,
+    _RAW_SHAPE_KEYS,
+    _SESSION_KEY_BODY_KEYS,
+    _assert_fail_closed_public_schema,
+    _public_field_errors_array,
+    _public_field_key,
+    _reject_raw_shape_keys,
+    _submission_consent,
+    _submission_locale,
+    _submission_session_key,
+)
 
 # ── Public route recognition + slug extraction (routes wired on MembersPublicApi, task 1.3) ──
 
@@ -665,157 +292,6 @@ def _resolve_sam_form_tenant(slug: str) -> str | None:
 
 
 # ── SEC-1 fail-closed edge guard: no raw record shape may cross the public boundary ──
-
-
-#: Raw-storage-shape keys that MUST NEVER appear in a public response (steering 39 / SEC-1). The
-#: resolved-view contract keeps the physical two-map/dotted-key layout (``fields`` vs ``overrides``
-#: vs ``fixed_overrides``, dotted ``{group}.{key}``) INSIDE the repository; a public response
-#: carries only the RESOLVED view. The authority (``get_public_field_config``) already builds that
-#: resolved view by constructing an explicit, named key set — it never copies the raw item — so
-#: nothing raw can ride along by construction. This set names the exact keys the access guard
-#: (``scripts/check_sam_service_access.py``) also forbids, so the two enforcement points agree.
-_RAW_SHAPE_KEYS = frozenset({"field_overlay", "overrides", "fixed_overrides"})
-
-
-def _assert_fail_closed_public_schema(schema: Any) -> Any:
-    """SEC-1 defense-in-depth: assert the resolved public schema leaks NO raw/physical shape.
-
-    The applicant schema is an ALLOWLIST authored upstream in
-    :meth:`MembershipService.get_public_field_config`: a field is exposed ONLY when the tenant
-    explicitly marked it ``application_visible`` (default ``False`` → an unknown / newly-added
-    field defaults HIDDEN, fail-closed), and each exposed field is projected into an EXPLICIT,
-    named key set (``key``/``type``/``label``/``functional_group``/``order``/``required``/
-    ``show_when``/``options``/``format``) — never a copy of the raw item, so no secret VALUE and no
-    physical-layout key can ride along. A secret can therefore surface at most as a boolean
-    existence flag, never its value.
-
-    This guard is the LAST trust boundary (the public edge) re-checking that invariant rather than
-    blindly trusting the upstream view: if a future change to the authority ever regressed to
-    leaking a raw-shape key (``field_overlay`` / ``overrides`` / ``fixed_overrides``) or a dotted
-    ``{group}.{key}`` key — at the schema top level OR inside any field — this FAILS CLOSED by
-    raising, so the regression surfaces as a bodied 500 server-side instead of silently
-    over-exposing tenant data on an unauthenticated endpoint. It mirrors the committed access guard
-    (``scripts/check_sam_service_access.py``) and the boundary test, moving the same rule to
-    runtime on the one surface with no authentication in front of it.
-
-    Returns ``schema`` unchanged on success (so it is a transparent pass-through at the call site).
-    """
-    if isinstance(schema, Mapping):
-        _reject_raw_shape_keys(schema.keys())
-        for field in schema.get("fields") or ():
-            if isinstance(field, Mapping):
-                _reject_raw_shape_keys(field.keys())
-    return schema
-
-
-def _reject_raw_shape_keys(keys: Any) -> None:
-    """Raise if any key is a forbidden raw-shape key or a dotted ``{group}.{key}`` key (SEC-1)."""
-    for key in keys:
-        if not isinstance(key, str):
-            continue
-        if key in _RAW_SHAPE_KEYS or "." in key:
-            # A raw-shape / dotted physical key reached the public boundary — fail closed. The
-            # message is server-log-only (the edge maps the raised error to a neutral bodied 500,
-            # never echoing the offending key to the unauthenticated caller).
-            raise ValueError(
-                f"public schema carried a forbidden raw-shape key {key!r} (SEC-1 / steering 39)"
-            )
-
-
-# ── Submit-request sourcing (task 4.1) — the NON-TRUSTED values the submit write needs ──
-#
-# The POST submit carries three non-field inputs the write needs beside the resolved tenant and
-# the applicant ``body``. NONE of them confers tenant or identity (steering 39: the tenant comes
-# ONLY from the verified marker, never the request body); they are read from the request in a
-# non-trusted way and the authoritative service owns their meaning:
-#
-#   * ``session_key`` — a per-submission idempotency/de-dup value (R3a). The FIRST submit of a
-#     session CREATES; a same-key resend (a correction, a double-click) UPDATES that same record.
-#     A client that supplies one gets resend-coalescing; one that supplies none gets a fresh,
-#     server-minted uuid4 (so every submit lands, never silently coalesced to another's record).
-#   * ``locale`` — the applicant's preferred locale; the service owns normalization + fallback.
-#   * ``consent`` — the applicant's affirmative acceptance of the tenant's versioned notice; the
-#     service REQUIRES it (a submit without it is a hard reject) and stamps a server-authoritative
-#     consent record (version/timestamp/locale resolved server-side, never client-trusted).
-
-#: The body keys the submit reads its session value / locale from. Accept both the camelCase the
-#: SPA form posts and the snake_case the domain uses, so the edge is tolerant of either client.
-_SESSION_KEY_BODY_KEYS = ("session_key", "sessionKey", "session_id", "sessionId")
-_LOCALE_BODY_KEYS = ("locale", "lang")
-
-
-def _submission_session_key(body: Mapping[str, Any]) -> str:
-    """The per-submission de-dup ``session_key`` for ``create_application`` (R3a), NON-TRUSTED.
-
-    Read from the request body (one of :data:`_SESSION_KEY_BODY_KEYS`) so a resend within one
-    fill-in session coalesces onto the SAME record; a server-minted ``uuid4`` is used when the
-    client sends none (a fresh session), so a submission is NEVER silently lost or coalesced onto
-    an unrelated record. The value is a de-dup token ONLY — it carries no tenant and no identity
-    (the tenant is the verified, marker-resolved one; the ``member_id`` is server-minted), so
-    trusting it for de-dup grants a caller no cross-tenant or cross-record reach.
-    """
-    if isinstance(body, Mapping):
-        for key in _SESSION_KEY_BODY_KEYS:
-            value = body.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-    return uuid.uuid4().hex
-
-
-def _submission_locale(body: Mapping[str, Any]) -> str | None:
-    """The applicant's requested locale off the body, or ``None`` (the service owns fallback)."""
-    if isinstance(body, Mapping):
-        for key in _LOCALE_BODY_KEYS:
-            value = body.get(key)
-            if isinstance(value, str) and value.strip():
-                return value.strip()
-    return None
-
-
-def _submission_consent(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    """The applicant's consent object off the body, or ``None`` (the service REQUIRES/validates it).
-
-    Passed through verbatim for the service to gate on (affirmative consent is mandatory — a
-    submit without it is rejected) and to stamp server-authoritatively; the edge neither trusts
-    nor interprets its contents.
-    """
-    if isinstance(body, Mapping):
-        consent = body.get("consent")
-        if isinstance(consent, Mapping):
-            return consent
-    return None
-
-
-def _public_field_key(engine_key: Any) -> str:
-    """Map an engine error key to the BARE key the published form names its control by.
-
-    The engine keys errors by physical identity (``personal.last_name``, ``membership.membership_type``,
-    ``overlay.region``); the public field config emits the bare ``key`` (``last_name`` ...) and the
-    form's controls carry that name. Steering 39: no dotted ``{group}.{key}`` crosses the public
-    boundary. The bare key IS the last dotted segment (the group / ``overlay`` prefix is the
-    physical placement), so this is derived from the key alone: no extra read, no boto3. A key
-    with no dot (``consent``) is returned unchanged. For an unrecognised shape the last segment is
-    still used, so a message is never dropped.
-    """
-    key = str(engine_key)
-    return key.rsplit(".", 1)[-1] or key
-
-
-def _public_field_errors_array(errors: Mapping[str, Any]) -> list[dict[str, Any]]:
-    """The shared per-field ``errors`` array with ``field`` rewritten to the bare public key.
-
-    Entry shape is unchanged (``{field, code, detail, params?}``). When two engine keys collapse
-    to the same bare key, the FIRST entry wins (no duplicates).
-    """
-    seen: set[str] = set()
-    out: list[dict[str, Any]] = []
-    for entry in _field_errors_array(errors):
-        bare = _public_field_key(entry.get("field"))
-        if bare in seen:
-            continue
-        seen.add(bare)
-        out.append({**entry, "field": bare})
-    return out
 
 
 def _dispatch_public(

@@ -286,7 +286,7 @@ Despite the authentication mocking issue, the tests are **high quality**:
 
 4. **Update documentation**
    - Mark API Tests as complete in TASKS.md
-   - Update TESTING_COMPLETE_SUMMARY.md
+   - Update docs/archive/TESTING_COMPLETE_SUMMARY.md
    - Estimated time: 10 minutes
 
 **Total estimated time to fix: 1 hour**
