@@ -376,7 +376,7 @@ class YearEndClosureService:
         closure_transaction_number: str,
         opening_transaction_number: str,
         notes: str,
-        cursor,
+        cursor: Any,
     ) -> None:
         """
         Record year closure in status table.

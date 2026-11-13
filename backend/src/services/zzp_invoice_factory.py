@@ -13,6 +13,7 @@ Reference: .kiro/specs/zzp-module/design.md §5.3
 
 import logging
 from datetime import date, timedelta
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 class ZZPInvoiceFactoryHelper:
     """Creates invoices from time entries, trips, and by copying previous invoices."""
 
-    def __init__(self, db, parameter_service=None) -> None:
+    def __init__(self, db: Any, parameter_service: Any = None) -> None:
         self.db = db
         self.parameter_service = parameter_service
 
@@ -31,8 +32,8 @@ class ZZPInvoiceFactoryHelper:
         entry_ids: list,
         data: dict,
         created_by: str,
-        create_invoice_fn,
-        time_tracking_service=None,
+        create_invoice_fn: Any,
+        time_tracking_service: Any = None,
     ) -> dict:
         """Create a draft invoice from selected time entries.
 
@@ -96,7 +97,7 @@ class ZZPInvoiceFactoryHelper:
         return invoice
 
     def copy_last_invoice(
-        self, tenant: str, contact_id: int, created_by: str, create_invoice_fn
+        self, tenant: str, contact_id: int, created_by: str, create_invoice_fn: Any
     ) -> dict:
         """Create a new draft by copying the most recent invoice for a contact."""
         last = self.db.execute_query(
@@ -153,11 +154,11 @@ class ZZPInvoiceFactoryHelper:
         tenant: str,
         original_invoice_id: int,
         created_by: str,
-        get_invoice_fn,
-        generate_invoice_number_fn,
-        get_credit_note_prefix_fn,
-        save_lines_fn,
-        update_totals_fn,
+        get_invoice_fn: Any,
+        generate_invoice_number_fn: Any,
+        get_credit_note_prefix_fn: Any,
+        save_lines_fn: Any,
+        update_totals_fn: Any,
     ) -> dict:
         """Create a credit note linked to an original invoice with negated lines.
 
@@ -231,7 +232,7 @@ class ZZPInvoiceFactoryHelper:
 
         return get_invoice_fn(tenant, cn_id)
 
-    def _advance_date(self, tenant: str, contact_id: int, last_date) -> date:
+    def _advance_date(self, tenant: str, contact_id: int, last_date: Any) -> date:
         """Calculate next invoice date based on gap between last two invoices.
 
         If only one invoice exists, defaults to +1 month.

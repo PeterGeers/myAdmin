@@ -16,6 +16,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.5
 
 import io
 import logging
+from typing import Any
 
 import pandas as pd
 from openpyxl import Workbook
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 class TripExportService:
     """PDF/CSV/XLSX export generation."""
 
-    def __init__(self, db, parameter_service=None):
+    def __init__(self, db: Any, parameter_service: Any = None) -> None:
         """Initialize TripExportService.
 
         Args:

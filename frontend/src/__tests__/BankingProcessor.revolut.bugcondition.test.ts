@@ -28,7 +28,7 @@ const ENGLISH_HEADER = [
 ];
 
 // Minimal bankLookup matching the Revolut IBAN pattern used in production
-const bankLookup = { Account: '1023', administration: 'PeterPrive' };
+const bankLookup = { Account: '1023', administration: 'PeterPrive', rekeningNummer: 'NL00REVO0000000000' };
 
 describe('Bug Condition Exploration — Revolut Dutch Status Filter', () => {
   // -----------------------------------------------------------------------

@@ -8,6 +8,41 @@ import { authenticatedGet, authenticatedPost } from '../services/apiService';
 import { useTypedTranslation } from '../hooks/useTypedTranslation';
 import { STRPricingTable, PricingRecommendation } from './STRPricingTable';
 
+/** One aggregated pricing-multiplier row from /api/pricing/multipliers. */
+interface PricingMultiplier {
+  listing_name: string;
+  avg_base_rate?: number | null;
+  avg_historical_mult?: number | null;
+  avg_occupancy_mult?: number | null;
+  avg_pace_mult?: number | null;
+  avg_event_mult?: number | null;
+  avg_ai_correction?: number | null;
+  record_count?: number | null;
+}
+
+/** One point in the recommended-vs-historical trend chart. */
+interface PricingTrendPoint {
+  period: string;
+  recommended_adr: number | null;
+  historical_adr: number | null;
+  base_rate: number | null;
+}
+
+/** Accumulated multiplier values per listing (or per listing-month). */
+interface MultiplierBuckets {
+  base_rate: number[];
+  historical_mult: number[];
+  occupancy_mult: number[];
+  pace_mult: number[];
+  event_mult: number[];
+  ai_correction: number[];
+  btw_adjustment: number[];
+}
+
+interface MonthMultiplierBuckets extends MultiplierBuckets {
+  monthName: string;
+}
+
 
 
 
@@ -16,7 +51,7 @@ const STRPricing: React.FC = () => {
   const [listings, setListings] = useState<string[]>([]);
   const [selectedListing, setSelectedListing] = useState<string>('');
   const [recommendations, setRecommendations] = useState<PricingRecommendation[]>([]);
-  const [multipliers, setMultipliers] = useState<any[]>([]);
+  const [multipliers, setMultipliers] = useState<PricingMultiplier[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [expandedListings, setExpandedListings] = useState<Set<string>>(new Set());
@@ -147,7 +182,7 @@ const STRPricing: React.FC = () => {
   // Prepare trend chart data from pricing recommendations only
   const prepareTrendData = () => {
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const trendData: any[] = [];
+    const trendData: PricingTrendPoint[] = [];
 
     // Group pricing recommendations by month
     const monthlyData = new Map<string, {recommended: number[], historical: number[]}>();
@@ -350,8 +385,8 @@ const STRPricing: React.FC = () => {
                 <Tbody>
                   {(() => {
                     // Group recommendations by listing and calculate monthly averages
-                    const listingAverages = new Map();
-                    const listingMonthlyData = new Map();
+                    const listingAverages = new Map<string, MultiplierBuckets>();
+                    const listingMonthlyData = new Map<string, Map<number, MonthMultiplierBuckets>>();
                     
                     const dataToProcess = selectedListing ? 
                       recommendations.filter(rec => rec.listing_name === selectedListing) : 
@@ -375,8 +410,8 @@ const STRPricing: React.FC = () => {
                         listingMonthlyData.set(listing, new Map());
                       }
                       
-                      const data = listingAverages.get(listing);
-                      const monthlyData = listingMonthlyData.get(listing);
+                      const data = listingAverages.get(listing)!;
+                      const monthlyData = listingMonthlyData.get(listing)!;
                       
                       if (!monthlyData.has(month)) {
                         monthlyData.set(month, {
@@ -391,7 +426,7 @@ const STRPricing: React.FC = () => {
                         });
                       }
                       
-                      const monthData = monthlyData.get(month);
+                      const monthData = monthlyData.get(month)!;
                       
                       if (rec.base_rate) {
                         data.base_rate.push(rec.base_rate);
@@ -441,7 +476,7 @@ const STRPricing: React.FC = () => {
                       const avgBTW = data.btw_adjustment.length > 0 ? 
                         data.btw_adjustment.reduce((a: number, b: number) => a + b, 0) / data.btw_adjustment.length : 0;
                       
-                      const monthlyData = listingMonthlyData.get(listing);
+                      const monthlyData = listingMonthlyData.get(listing)!;
                       const isExpanded = expandedListings.has(listing);
                       
                       // Main listing row
@@ -476,9 +511,8 @@ const STRPricing: React.FC = () => {
                       // Monthly detail rows
                       if (isExpanded) {
                         const monthlyOptions = Array.from(monthlyData.entries())
-                          .sort((a: any, b: any) => a[0] - b[0])
-                          .map((entry: any) => {
-                            const [, monthData] = entry;
+                          .sort(([a], [b]) => a - b)
+                          .map(([, monthData]) => {
                             return {
                               month: monthData.monthName,
                               base_rate: monthData.base_rate.length > 0 ? monthData.base_rate.reduce((a: number, b: number) => a + b, 0) / monthData.base_rate.length : 0,

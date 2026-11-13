@@ -40,6 +40,12 @@ interface BnbFutureRecord {
   items: number;
 }
 
+/** One point in the projected-revenue chart: { date, [listing]: amount }. */
+interface BnbFutureChartPoint {
+  date: string;
+  [listing: string]: string | number;
+}
+
 const INITIAL_TABLE_FILTERS: Record<string, string> = {
   date: '',
   channel: '',
@@ -123,17 +129,15 @@ const BnbFutureReport: React.FC = () => {
 
   // Prepare chart data - group by date and listing (uses dropdown-filtered data for chart)
   const chartData = useMemo(() => {
-    const grouped = dropdownFilteredData.reduce((acc, row) => {
+    const grouped = dropdownFilteredData.reduce<Record<string, BnbFutureChartPoint>>((acc, row) => {
       if (!acc[row.date]) {
         acc[row.date] = { date: row.date };
       }
-      if (!acc[row.date][row.listing]) {
-        acc[row.date][row.listing] = 0;
-      }
-      acc[row.date][row.listing] += row.amount || 0;
+      const point = acc[row.date];
+      point[row.listing] = ((point[row.listing] as number) || 0) + (row.amount || 0);
       return acc;
-    }, {} as any);
-    return Object.values(grouped).sort((a: any, b: any) =>
+    }, {});
+    return Object.values(grouped).sort((a, b) =>
       new Date(a.date).getTime() - new Date(b.date).getTime()
     );
   }, [dropdownFilteredData]);

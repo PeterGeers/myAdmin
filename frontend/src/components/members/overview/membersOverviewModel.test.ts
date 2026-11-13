@@ -15,41 +15,41 @@
 import { describe, it, expect } from 'vitest';
 import type { LocalizedLabel } from '../../../types/members';
 import {
-  resolveLabel,
   COMPACT_FIELD_KEYS,
   MEMBER_NUMBER_KEY,
   FIXED_COLUMN_LABEL_KEYS,
   INITIAL_FILTERS,
 } from './membersOverviewModel';
+import { resolveLabel } from '../labelResolver';
 
 describe('membersOverviewModel.resolveLabel', () => {
   const label: LocalizedLabel = { nl: 'Naam', en: 'Name' };
 
   it('returns the active-language label when present', () => {
-    expect(resolveLabel(label, 'nl', 'key')).toBe('Naam');
-    expect(resolveLabel(label, 'en', 'key')).toBe('Name');
+    expect(resolveLabel(label, 'nl', 'key', 'nl-first')).toBe('Naam');
+    expect(resolveLabel(label, 'en', 'key', 'nl-first')).toBe('Name');
   });
 
   it('falls back nl-first when the active locale is missing (checklist order)', () => {
     // active locale 'fr' absent → nl preferred over en (nl-first order)
-    expect(resolveLabel(label, 'fr', 'key')).toBe('Naam');
+    expect(resolveLabel(label, 'fr', 'key', 'nl-first')).toBe('Naam');
   });
 
   it('falls back to en when nl is absent and active locale is missing', () => {
-    expect(resolveLabel({ en: 'Name' }, 'fr', 'key')).toBe('Name');
+    expect(resolveLabel({ en: 'Name' }, 'fr', 'key', 'nl-first')).toBe('Name');
   });
 
   it('falls back to the provided key when no locale resolves', () => {
-    expect(resolveLabel({}, 'nl', 'the.key')).toBe('the.key');
+    expect(resolveLabel({}, 'nl', 'the.key', 'nl-first')).toBe('the.key');
   });
 
   it('passes a non-empty plain string through verbatim', () => {
-    expect(resolveLabel('Plain', 'nl', 'key')).toBe('Plain');
+    expect(resolveLabel('Plain', 'nl', 'key', 'nl-first')).toBe('Plain');
   });
 
   it('returns the fallback for an undefined or empty-string label', () => {
-    expect(resolveLabel(undefined, 'nl', 'fallback')).toBe('fallback');
-    expect(resolveLabel('', 'nl', 'fallback')).toBe('fallback');
+    expect(resolveLabel(undefined, 'nl', 'fallback', 'nl-first')).toBe('fallback');
+    expect(resolveLabel('', 'nl', 'fallback', 'nl-first')).toBe('fallback');
   });
 });
 

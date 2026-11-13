@@ -18,6 +18,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.3
 """
 
 import logging
+from typing import Any
 
 from dialect_helpers import dialect
 
@@ -27,7 +28,7 @@ logger = logging.getLogger(__name__)
 class RoutePresetService:
     """Route preset management with auto-learning."""
 
-    def __init__(self, db, parameter_service=None):
+    def __init__(self, db: Any, parameter_service: Any = None) -> None:
         self.db = db
         self.parameter_service = parameter_service
 

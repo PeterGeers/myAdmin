@@ -38,7 +38,8 @@ import { vi, describe, it, expect } from 'vitest';
 import React from 'react';
 
 import { render, screen, fireEvent } from '@/test-utils';
-import FieldChecklist, { resolveLabel } from './FieldChecklist';
+import FieldChecklist from './FieldChecklist';
+import { resolveLabel } from './labelResolver';
 import type { FieldConfigField, FunctionalGroup } from '../../types/members';
 
 /** The checkbox <input> inside a testid'd Chakra Checkbox wrapper. */
@@ -247,14 +248,14 @@ describe('FieldChecklist', () => {
     });
 
     it('resolveLabel follows the active-language → nl → en → fallback chain', () => {
-      expect(resolveLabel({ nl: 'Naam', en: 'Name' }, 'nl', 'k')).toBe('Naam');
-      expect(resolveLabel({ nl: 'Naam', en: 'Name' }, 'en', 'k')).toBe('Name');
+      expect(resolveLabel({ nl: 'Naam', en: 'Name' }, 'nl', 'k', 'nl-first')).toBe('Naam');
+      expect(resolveLabel({ nl: 'Naam', en: 'Name' }, 'en', 'k', 'nl-first')).toBe('Name');
       // Active language absent → nl, then en.
-      expect(resolveLabel({ en: 'Name' }, 'nl', 'k')).toBe('Name');
-      expect(resolveLabel({ nl: 'Naam' }, 'en', 'k')).toBe('Naam');
+      expect(resolveLabel({ en: 'Name' }, 'nl', 'k', 'nl-first')).toBe('Name');
+      expect(resolveLabel({ nl: 'Naam' }, 'en', 'k', 'nl-first')).toBe('Naam');
       // Plain string passes through; empty/undefined → fallback.
-      expect(resolveLabel('Plain', 'en', 'k')).toBe('Plain');
-      expect(resolveLabel(undefined, 'en', 'k')).toBe('k');
+      expect(resolveLabel('Plain', 'en', 'k', 'nl-first')).toBe('Plain');
+      expect(resolveLabel(undefined, 'en', 'k', 'nl-first')).toBe('k');
     });
   });
 });

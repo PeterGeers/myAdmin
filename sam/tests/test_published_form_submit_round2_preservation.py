@@ -260,7 +260,14 @@ class TestConsentStampPreserved:
 
     @pytest.mark.parametrize(
         "submitted, expected",
-        [("en", "en"), ("nl", "nl"), ("EN", "en"), (" nl ", "nl"), ("de", "nl"), (None, "nl")],
+        [
+            ("en", "en"),
+            ("nl", "nl"),
+            ("EN", "en"),
+            (" nl ", "nl"),
+            ("de", "nl"),
+            (None, "nl"),
+        ],
     )
     def test_stamp_locale_is_normalized(self, submitted, expected):
         # R6.2: the stamped locale is the normalized applicant locale (nl fallback).
@@ -312,7 +319,9 @@ def _reader_over_config_mail(consent_notice):
     }
     if consent_notice is not None:
         row["consent_notice"] = consent_notice
-    reader = MembersProjectionReader(table=object())  # table never queried (cache pre-seeded)
+    reader = MembersProjectionReader(
+        table=object()
+    )  # table never queried (cache pre-seeded)
     reader._partition_cache[_TENANT] = [row]
     return reader
 
@@ -371,11 +380,15 @@ class TestRealConfigMailNoticeRoundTrip:
 
 @settings(max_examples=60)
 @given(
-    version=st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789-.", min_size=1, max_size=12),
+    version=st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyz0123456789-.", min_size=1, max_size=12
+    ),
     nl_body=st.text(min_size=1, max_size=40).filter(lambda s: s.strip()),
     en_body=st.text(min_size=1, max_size=40).filter(lambda s: s.strip()),
 )
-def test_preserve_wellformed_notice_round_trips_version_and_nonblank_bodies(version, nl_body, en_body):
+def test_preserve_wellformed_notice_round_trips_version_and_nonblank_bodies(
+    version, nl_body, en_body
+):
     """R6.4: for any well-formed `config#mail` consent notice (a non-blank version + at least one
     non-blank locale body), the REAL reader round-trips it to `{version, text}` with the version
     trimmed and only non-blank bodies surviving — the stable shape the fix surfaces.
@@ -424,10 +437,18 @@ class TestPublicFieldConfigSingleAuthorityPreserved:
     def test_single_authority_shape_is_stable(self, config):
         # R6.4: the resolved single-authority shape (fields list + functional_groups + locales +
         # notice) is what the renderer consumes — unchanged by the Round-2 surfacing.
-        assert set(config.keys()) >= {"tenant_id", "fields", "functional_groups", "locales", "notice"}
+        assert set(config.keys()) >= {
+            "tenant_id",
+            "fields",
+            "functional_groups",
+            "locales",
+            "notice",
+        }
         assert isinstance(config["fields"], list)
         assert all("key" in f for f in config["fields"])
-        assert "version" in config["notice"]  # the stable version is present (text is the fix)
+        assert (
+            "version" in config["notice"]
+        )  # the stable version is present (text is the fix)
 
     def test_no_raw_record_shape_crosses_the_boundary(self, config):
         # R6.4 / steering 39: no raw storage-shape key leaks into the public config — the stable
@@ -474,22 +495,27 @@ def _apply_cors(origin, *, allowed_env, tenant_id=None, embed_origins=()):
     boto3 (the reader resolve is monkeypatched on the module). Returns the response headers dict.
     """
     import sam.members.handler.public_app as public_app
+    import sam.members.handler.public_guards as public_guards
 
     prior_env = os.environ.get(public_app.ALLOWED_ORIGINS_ENV)
-    prior_embed = public_app._tenant_embed_origins
+    prior_embed = public_guards._tenant_embed_origins
     try:
         if allowed_env is None:
             os.environ.pop(public_app.ALLOWED_ORIGINS_ENV, None)
         else:
             os.environ[public_app.ALLOWED_ORIGINS_ENV] = allowed_env
-        public_app._tenant_embed_origins = lambda tid: list(embed_origins) if tid else []
-        response = {"headers": {"Access-Control-Allow-Origin": "*"}}  # the shared `*` envelope
+        public_guards._tenant_embed_origins = lambda tid: (
+            list(embed_origins) if tid else []
+        )
+        response = {
+            "headers": {"Access-Control-Allow-Origin": "*"}
+        }  # the shared `*` envelope
         out = public_app._apply_cors_origin(
             response, _parsed_request_with_origin(origin), tenant_id=tenant_id
         )
         return out["headers"]
     finally:
-        public_app._tenant_embed_origins = prior_embed
+        public_guards._tenant_embed_origins = prior_embed
         if prior_env is None:
             os.environ.pop(public_app.ALLOWED_ORIGINS_ENV, None)
         else:
@@ -555,7 +581,10 @@ class TestCorsFailClosedPreserved:
     def test_empty_allow_list_drops_the_header(self):
         # R6.5: an unset baseline AND no embed origins → empty union → header dropped (never `*`).
         headers = _apply_cors(
-            "https://anything.example.com", allowed_env=None, tenant_id=None, embed_origins=()
+            "https://anything.example.com",
+            allowed_env=None,
+            tenant_id=None,
+            embed_origins=(),
         )
         assert "Access-Control-Allow-Origin" not in headers
 
@@ -568,7 +597,9 @@ _FOREIGN_HOST = st.text(
 
 
 @settings(max_examples=120)
-@given(sub=_FOREIGN_HOST, apex=st.sampled_from(["jabaki.nl", "example.com", "evil.net"]))
+@given(
+    sub=_FOREIGN_HOST, apex=st.sampled_from(["jabaki.nl", "example.com", "evil.net"])
+)
 def test_preserve_foreign_origin_never_admitted_and_never_wildcard(sub, apex):
     """R6.5: for ANY foreign origin (a random `*.jabaki.nl` host included) that is not the resolved
     slug host, the static baseline, or an embed origin, the CORS header is DROPPED — never echoed,
@@ -641,7 +672,9 @@ def test_preserve_round2_module_never_imports_flask_landing_plane(module_name):
 
 
 @pytest.mark.parametrize("module_name", _ROUND2_MODULES)
-def test_preserve_round2_module_does_not_reach_config_mail_write_path_or_spa(module_name):
+def test_preserve_round2_module_does_not_reach_config_mail_write_path_or_spa(
+    module_name,
+):
     """R6.3: no Round-2-touched SAM module reaches the `config#mail` WRITE path
     (`config_write_service._shape_consent_notice`) — Round 2 only READS the notice
     (`get_consent_notice`), it never touches the write-shaper. (The in-app SPA form is a frontend

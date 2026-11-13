@@ -16,7 +16,7 @@ from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import get_current_tenant
+from auth.tenant_context import get_current_tenant, tenant_admin_required
 from database import DatabaseManager
 from routes.error_responses import error_response
 
@@ -323,33 +323,15 @@ def delete_config(user_email, user_roles, config_id) -> ResponseReturnValue:
     "/api/tenant/config", methods=["GET"], endpoint="legacy_get_config"
 )
 @cognito_required(required_permissions=[])
-def get_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def get_tenant_config_legacy(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Get tenant configuration (Tenant_Admin only) — legacy endpoint.
 
     Returns non-secret configs with values and secret configs with keys only.
     Uses the older /api/tenant/config URL pattern.
     """
-    from auth.tenant_context import (
-        get_user_tenants,
-    )
-    from auth.tenant_context import (
-        is_tenant_admin as check_tenant_admin,
-    )
-
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not check_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         db = DatabaseManager()
 
         query = """
@@ -390,33 +372,16 @@ def get_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
     "/api/tenant/config", methods=["POST"], endpoint="legacy_set_config"
 )
 @cognito_required(required_permissions=[])
-def set_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def set_tenant_config_legacy(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Set tenant configuration (Tenant_Admin only) — legacy endpoint.
 
     Uses the older /api/tenant/config URL pattern.
     """
-    from auth.tenant_context import (
-        get_user_tenants,
-        set_tenant_config,
-    )
-    from auth.tenant_context import (
-        is_tenant_admin as check_tenant_admin,
-    )
+    from auth.tenant_context import set_tenant_config
 
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not check_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         data = request.get_json()
         config_key = data.get("config_key")
         config_value = data.get("config_value")
@@ -460,34 +425,16 @@ def set_tenant_config_legacy(user_email, user_roles) -> ResponseReturnValue:
     endpoint="legacy_delete_config",
 )
 @cognito_required(required_permissions=[])
+@tenant_admin_required()
 def delete_tenant_config_legacy(
-    config_key, user_email, user_roles
+    config_key, user_email, user_roles, tenant
 ) -> ResponseReturnValue:
     """
     Delete tenant configuration (Tenant_Admin only) — legacy endpoint.
 
     Uses the older /api/tenant/config/<config_key> URL pattern.
     """
-    from auth.tenant_context import (
-        get_user_tenants,
-    )
-    from auth.tenant_context import (
-        is_tenant_admin as check_tenant_admin,
-    )
-
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not check_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         db = DatabaseManager()
 
         query = """

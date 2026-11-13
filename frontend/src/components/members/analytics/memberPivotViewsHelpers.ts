@@ -14,7 +14,6 @@ import type { PivotConfig } from '../../../types/pivot';
 import type { AggregateFunction } from '../../../types/pivot';
 import type { LocalizedLabel } from '../../../types/members';
 import { getAnalyticsSet } from '../../../services/membersApiService';
-import { resolveLabel as sharedResolveLabel } from '../labelResolver';
 
 /**
  * A selectable set in the dropdown — a materialized preset or a saved member
@@ -49,24 +48,6 @@ export function optionValueToRef(optionValue: string): string | null {
     return `${SET_PREFIX}${optionValue.slice(MODEL_PREFIX.length)}`;
   }
   return null;
-}
-
-/**
- * Resolve a localized (`{nl,en}`) or plain-string label to the active language,
- * mirroring the field picker's label resolution (prefer active language, then
- * `nl`, then `en`, then the fallback) so the result-header label map is built
- * from the SAME field config the picker lists (no hardcoded English).
- *
- * Delegates to the ONE shared {@link sharedResolveLabel} util with the checklist/analytics
- * `'nl-first'` order so this export stays byte-identical in behavior while the logic lives
- * in `components/members/labelResolver.ts` (code-quality-fixes-2026-10-28 task 1).
- */
-export function resolveLabel(
-  label: string | LocalizedLabel | undefined,
-  lang: string,
-  fallback: string,
-): string {
-  return sharedResolveLabel(label, lang, fallback, 'nl-first');
 }
 
 /**

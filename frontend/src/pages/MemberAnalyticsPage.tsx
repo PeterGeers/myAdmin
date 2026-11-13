@@ -62,7 +62,7 @@ import { listMembers, getFieldConfig } from '../services/membersApiService';
 import type { Member, MemberRow, FieldConfig, LocalizedLabel } from '../types/members';
 import { MemberAnalyticsPanel, assessDataVolume } from '../components/members/analytics';
 import AnalyticsStateNotice from '../components/members/analytics/areas/AnalyticsStateNotice';
-import { resolveLabel as sharedResolveLabel } from '../components/members/labelResolver';
+import { resolveLabel } from '../components/members/labelResolver';
 
 /** Roles that satisfy the `members:read` capability for this page (R1.2). */
 const MEMBERS_READ_ROLES = ['Members_Read', 'Members_CRUD'];
@@ -127,21 +127,6 @@ const FILTER_COLUMNS: { key: string; labelKey: string }[] = [
   { key: 'membership_type', labelKey: 'columns.membershipType' },
   { key: 'region', labelKey: 'columns.region' },
 ];
-
-/**
- * Resolve a possibly-localized label to a plain string for the current lang.
- *
- * Delegates to the ONE shared {@link sharedResolveLabel} util with the checklist/analytics
- * `'nl-first'` order so behavior is byte-identical while the logic lives in
- * `components/members/labelResolver.ts` (code-quality-fixes-2026-10-28 task 1).
- */
-function resolveLabel(
-  label: string | LocalizedLabel | undefined,
-  lang: string,
-  fallback: string,
-): string {
-  return sharedResolveLabel(label, lang, fallback, 'nl-first');
-}
 
 const MemberAnalyticsPage: React.FC = () => {
   const { t, i18n } = useTypedTranslation('members');
@@ -345,7 +330,7 @@ const MemberAnalyticsPage: React.FC = () => {
                     {FILTER_COLUMNS.map(col => (
                       <FilterableHeader
                         key={col.key}
-                        label={resolveLabel(fieldLabel(col.key), lang, t(col.labelKey))}
+                        label={resolveLabel(fieldLabel(col.key), lang, t(col.labelKey), 'nl-first')}
                         filterValue={filters[col.key] ?? ''}
                         onFilterChange={(v) => setFilter(col.key, v)}
                         placeholder={t('filters.placeholder')}

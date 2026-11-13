@@ -15,20 +15,27 @@ Endpoints:
 """
 
 import json
-import os
 
-import boto3
 from botocore.exceptions import ClientError
 from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
 from auth.admin_pool_resolver import PoolResolutionError
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import get_current_tenant, get_user_tenants
+from auth.tenant_context import tenant_membership_required
 from database import DatabaseManager
+from routes._tenant_admin_users_notifications import (
+    send_new_user_invitation,
+    send_tenant_added_notification,
+)
+from routes._tenant_admin_users_shared import (
+    cognito_client,
+    cognito_service,
+    get_available_roles_for_tenant,
+    get_user_attribute,
+)
 from routes.error_responses import error_response
 from routes.sysadmin_helpers import _resolve_pool_id
-from services.cognito_service import CognitoService
 from services.email_template_service import EmailTemplateService
 from services.invitation_service import InvitationService
 
@@ -37,87 +44,11 @@ tenant_admin_users_bp = Blueprint(
     "tenant_admin_users", __name__, url_prefix="/api/tenant-admin"
 )
 
-# Initialize Cognito client
-AWS_REGION = os.getenv("AWS_REGION", "eu-west-1")
-cognito_client = boto3.client("cognito-idp", region_name=AWS_REGION)
-cognito_service = CognitoService()
-
-
-# ============================================================================
-# Helper Functions
-# ============================================================================
-
-
-# ``_caller_token`` / ``_resolve_pool_id`` are the canonical copies imported from
-# ``routes.sysadmin_helpers`` (task H2). They are re-exported into this module's
-# namespace so handlers call them as module globals and existing patch points
-# (``routes.tenant_admin_users._resolve_pool_id``) keep working unchanged.
-
-
-def get_user_attribute(user_attributes, attribute_name) -> str | None:
-    """Extract attribute value from Cognito user attributes"""
-    for attr in user_attributes:
-        if attr["Name"] == attribute_name:
-            value = attr["Value"]
-            # Handle JSON arrays (custom:tenants)
-            if attribute_name == "custom:tenants":
-                try:
-                    return json.loads(value) if value else []
-                except Exception:
-                    return [value] if value else []
-            return value
-    return None
-
-
-def is_tenant_admin(user_roles) -> bool:
-    """Check if user has Tenant_Admin role"""
-    return "Tenant_Admin" in user_roles
-
-
-def get_tenant_enabled_modules(tenant) -> list[str]:
-    """Get enabled modules for tenant from database"""
-    try:
-        db = DatabaseManager()
-
-        query = """
-            SELECT module_name 
-            FROM tenant_modules 
-            WHERE administration = %s AND is_active = TRUE
-        """
-        result = db.execute_query(query, [tenant], fetch=True)
-        return [row["module_name"] for row in (result or [])]
-    except Exception as e:
-        print(f"Error getting tenant modules: {e}", flush=True)
-        return []
-
-
-def get_available_roles_for_tenant(tenant) -> list[dict[str, str]]:
-    """Get list of roles available for tenant based on enabled modules.
-
-    Reads required_roles from MODULE_REGISTRY so new modules are picked up
-    automatically without changing this function.
-    """
-    from services.module_registry import MODULE_REGISTRY
-
-    enabled_modules = get_tenant_enabled_modules(tenant)
-
-    roles = ["Tenant_Admin"]  # Always available
-
-    # Add module-specific roles dynamically from MODULE_REGISTRY
-    for module_name in enabled_modules:
-        module_def = MODULE_REGISTRY.get(module_name)
-        if module_def:
-            roles.extend(module_def.get("required_roles", []))
-
-    # Deduplicate while preserving order
-    seen = set()
-    available_roles = []
-    for r in roles:
-        if r not in seen:
-            seen.add(r)
-            available_roles.append(r)
-
-    return available_roles
+# Cognito clients and the user/role lookup helpers live in
+# ``routes._tenant_admin_users_shared`` (task 15 split) and are imported above.
+# Re-exporting them keeps ``routes.tenant_admin_roles`` and the existing patch
+# points (``routes.tenant_admin_users.cognito_client``, ``.cognito_service``,
+# ``.get_available_roles_for_tenant``, ``.get_user_attribute``) working unchanged.
 
 
 # ============================================================================
@@ -127,7 +58,8 @@ def get_available_roles_for_tenant(tenant) -> list[dict[str, str]]:
 
 @tenant_admin_users_bp.route("/users", methods=["GET"])
 @cognito_required(required_roles=["Tenant_Admin"])
-def list_tenant_users(user_email, user_roles) -> ResponseReturnValue:
+@tenant_membership_required()
+def list_tenant_users(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     List all users who have access to the current tenant
 
@@ -135,24 +67,6 @@ def list_tenant_users(user_email, user_roles) -> ResponseReturnValue:
     """
     try:
         # Get current tenant from request header
-        tenant = get_current_tenant(request)
-
-        # Extract user's tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Verify user has access to this tenant
-        if tenant not in user_tenants:
-            return jsonify(
-                {
-                    "error": "Access denied",
-                    "message": f"You do not have access to tenant: {tenant}",
-                }
-            ), 403
 
         # Resolve the target Cognito pool from the caller token (token mode)
         try:
@@ -248,7 +162,8 @@ def list_tenant_users(user_email, user_roles) -> ResponseReturnValue:
 
 @tenant_admin_users_bp.route("/users", methods=["POST"])
 @cognito_required(required_roles=["Tenant_Admin"])
-def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
+@tenant_membership_required()
+def create_tenant_user(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Create a new user and assign to current tenant
 
@@ -264,24 +179,6 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
     """
     try:
         # Get current tenant from request header
-        tenant = get_current_tenant(request)
-
-        # Extract user's tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Verify user has access to this tenant
-        if tenant not in user_tenants:
-            return jsonify(
-                {
-                    "error": "Access denied",
-                    "message": f"You do not have access to tenant: {tenant}",
-                }
-            ), 403
 
         # Resolve the target Cognito pool from the caller token (token mode)
         try:
@@ -391,67 +288,12 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
             )
 
             # Send notification email (no password — user already has credentials)
-            try:
-                from services.ses_email_service import SESEmailService
-                from utils.frontend_url import get_frontend_url
-
-                email_service = EmailTemplateService(administration=tenant)
-                ses = SESEmailService()
-                login_url = get_frontend_url()
-
-                # Get user's display name
-                user_name = email.split("@")[0]
-                for attr in user_response.get("UserAttributes", []):
-                    if attr["Name"] == "name":
-                        user_name = attr["Value"]
-                        break
-
-                html_content = email_service.render_template(
-                    template_name="tenant_added",
-                    variables={
-                        "email": email,
-                        "tenant": tenant,
-                        "name": user_name,
-                        "login_url": login_url,
-                    },
-                    format="html",
-                )
-
-                text_content = (
-                    f"Hi {user_name},\n\n"
-                    f"You have been added to the {tenant} tenant in myAdmin.\n\n"
-                    f"You can log in with your existing credentials at: {login_url}\n\n"
-                    f"Regards,\nmyAdmin"
-                )
-
-                subject = f"You've been added to {tenant} in myAdmin"
-
-                result = ses.send_invitation(
-                    to_email=email,
-                    subject=subject,
-                    html_body=html_content or text_content,
-                    text_body=text_content,
-                    administration=tenant,
-                    sent_by=user_email,
-                )
-
-                if result["success"]:
-                    print(
-                        f"AUDIT: Tenant-added notification sent to {email} for tenant {tenant}",
-                        flush=True,
-                    )
-                else:
-                    print(
-                        f"WARNING: Failed to send tenant-added notification to {email}: {result.get('error')}",
-                        flush=True,
-                    )
-
-            except Exception as e:
-                # Don't fail the operation if email fails
-                print(
-                    f"WARNING: Failed to send tenant-added notification to {email}: {e}",
-                    flush=True,
-                )
+            send_tenant_added_notification(
+                tenant=tenant,
+                email=email,
+                user_email=user_email,
+                user_response=user_response,
+            )
 
             return jsonify(
                 {
@@ -550,78 +392,14 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
             invalidate_new(email, tenant)
 
             # Send invitation email
-            try:
-                # Render email templates using render_user_invitation which detects language
-                from utils.frontend_url import get_frontend_url
-
-                login_url = get_frontend_url()
-
-                html_content = email_service.render_user_invitation(
-                    email=email,
-                    temporary_password=temp_password,
-                    tenant=tenant,
-                    login_url=login_url,
-                    format="html",
-                )
-
-                text_content = email_service.render_user_invitation(
-                    email=email,
-                    temporary_password=temp_password,
-                    tenant=tenant,
-                    login_url=login_url,
-                    format="txt",
-                )
-
-                # Send via SES (direct to recipient)
-                from services.ses_email_service import SESEmailService
-
-                ses = SESEmailService()
-                # Get subject with detected language
-                subject = email_service.get_invitation_subject(
-                    tenant, language=email_service._detect_user_language(email, tenant)
-                )
-
-                result = ses.send_invitation(
-                    to_email=email,
-                    subject=subject,
-                    html_body=html_content,
-                    text_body=text_content
-                    or f"Welcome to {tenant}! Your temporary password: {temp_password}",
-                    administration=tenant,
-                    sent_by=user_email,
-                )
-
-                if result["success"]:
-                    # Mark invitation as sent
-                    invitation_service.mark_invitation_sent(
-                        administration=tenant, email=email
-                    )
-                    print(
-                        f"AUDIT: Invitation email sent to {email} by {user_email} for tenant {tenant}",
-                        flush=True,
-                    )
-                else:
-                    print(
-                        f"WARNING: SES failed to send invitation to {email}: {result.get('error')}",
-                        flush=True,
-                    )
-                    invitation_service.mark_invitation_failed(
-                        administration=tenant,
-                        email=email,
-                        error_message=f"SES send failed: {result.get('error')}",
-                    )
-
-            except Exception as e:
-                # Don't fail user creation if email fails, but log it
-                print(
-                    f"WARNING: Failed to send invitation email to {email}: {e}",
-                    flush=True,
-                )
-                invitation_service.mark_invitation_failed(
-                    administration=tenant,
-                    email=email,
-                    error_message=f"Email send failed: {e!s}",
-                )
+            send_new_user_invitation(
+                tenant=tenant,
+                email=email,
+                user_email=user_email,
+                temp_password=temp_password,
+                email_service=email_service,
+                invitation_service=invitation_service,
+            )
 
             print(
                 f"AUDIT: User {email} created by {user_email} for tenant {tenant}",
@@ -656,7 +434,8 @@ def create_tenant_user(user_email, user_roles) -> ResponseReturnValue:
 
 @tenant_admin_users_bp.route("/users/<username>", methods=["PUT"])
 @cognito_required(required_roles=["Tenant_Admin"])
-def update_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
+@tenant_membership_required()
+def update_tenant_user(username, user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Update user attributes (name, status)
 
@@ -668,24 +447,6 @@ def update_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
     """
     try:
         # Get current tenant from request header
-        tenant = get_current_tenant(request)
-
-        # Extract user's tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Verify user has access to this tenant
-        if tenant not in user_tenants:
-            return jsonify(
-                {
-                    "error": "Access denied",
-                    "message": f"You do not have access to tenant: {tenant}",
-                }
-            ), 403
 
         # Resolve the target Cognito pool from the caller token (token mode)
         try:
@@ -762,31 +523,14 @@ def update_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
 
 @tenant_admin_users_bp.route("/users/<username>", methods=["DELETE"])
 @cognito_required(required_roles=["Tenant_Admin"])
-def delete_tenant_user(username, user_email, user_roles) -> ResponseReturnValue:
+@tenant_membership_required()
+def delete_tenant_user(username, user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Delete user from current tenant. Uses CognitoService.remove_tenant_from_user()
     as the single code path for tenant removal / user deletion.
     """
     try:
         # Get current tenant from request header
-        tenant = get_current_tenant(request)
-
-        # Extract user's tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Verify user has access to this tenant
-        if tenant not in user_tenants:
-            return jsonify(
-                {
-                    "error": "Access denied",
-                    "message": f"You do not have access to tenant: {tenant}",
-                }
-            ), 403
 
         # Resolve the target Cognito pool from the caller token (token mode) and
         # thread it through CognitoService so it acts on the caller's registry pool.

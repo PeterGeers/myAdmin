@@ -26,7 +26,6 @@ import type {
 } from '../../../types/pivot';
 import { normalizeClause } from '../../../types/pivot';
 import { operatorTakesNoValue } from './analyticsConfig';
-import { resolveLabel as sharedResolveLabel } from '../labelResolver';
 
 /** The aggregate functions the framework supports (mirrors `AggregateFunction`). */
 export const AGGREGATE_FUNCTIONS: readonly AggregateFunction[] = [
@@ -39,23 +38,6 @@ export const AGGREGATE_FUNCTIONS: readonly AggregateFunction[] = [
 
 /** The COUNT(*) sentinel — count all rows in a group, not a specific column. */
 export const COUNT_STAR = '*';
-
-/**
- * Resolve a localized (`{nl,en}`) or plain-string label to the active language,
- * mirroring the Members table's label resolution (prefer active language, then
- * `nl`, then `en`, then the fallback).
- *
- * Delegates to the ONE shared {@link sharedResolveLabel} util with the checklist/analytics
- * `'nl-first'` order so this export stays byte-identical in behavior while the logic lives
- * in `components/members/labelResolver.ts` (code-quality-fixes-2026-10-28 task 1).
- */
-export function resolveLabel(
-  label: string | LocalizedLabel | undefined,
-  lang: string,
-  fallback: string,
-): string {
-  return sharedResolveLabel(label, lang, fallback, 'nl-first');
-}
 
 /** A single composable aggregate-measure row in local state (stable id for React keys). */
 export interface MeasureDraft {

@@ -13,9 +13,25 @@ import {
   Tr
 } from '@chakra-ui/react';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
+import type { BnbDataRow } from './BnbActualsReport';
+
+/** Amount fields the year/month matrix can display. */
+type BnbAmountKey =
+  | 'amountGross'
+  | 'amountNett'
+  | 'amountChannelFee'
+  | 'amountTouristTax'
+  | 'amountVat';
+
+/** Accumulated totals per month (every displayable amount initialised to 0). */
+type BnbMonthTotals = Record<BnbAmountKey, number>;
+
+/** Read a monthly total by dynamic amount key; missing values count as 0. */
+const readAmount = (totals: BnbMonthTotals | undefined, key: string): number =>
+  totals ? (totals as Record<string, number>)[key] ?? 0 : 0;
 
 interface BnbYearMonthMatrixProps {
-  data: any[];
+  data: BnbDataRow[];
   viewType: 'listing' | 'channel';
   displayFormat: string;
   selectedAmounts: string[];
@@ -49,8 +65,8 @@ const BnbYearMonthMatrix: React.FC<BnbYearMonthMatrixProps> = ({
 
   // Group data by year and month
   const yearMonthData = data.reduce((acc, row) => {
-    const year = row.year;
-    const month = row.m || 1;
+    const year = String(row.year ?? '');
+    const month = Number(row.m) || 1;
     
     if (!acc[year]) {
       acc[year] = {};
@@ -72,7 +88,7 @@ const BnbYearMonthMatrix: React.FC<BnbYearMonthMatrixProps> = ({
     acc[year][month].amountVat += Number(row.amountVat) || 0;
     
     return acc;
-  }, {} as any);
+  }, {} as Record<string, Record<number, BnbMonthTotals>>);
 
   const years = Object.keys(yearMonthData).sort((a, b) => parseInt(b) - parseInt(a));
   
@@ -131,7 +147,7 @@ const BnbYearMonthMatrix: React.FC<BnbYearMonthMatrixProps> = ({
               {years.map(year => {
                 const yearData = yearMonthData[year];
                 const yearTotal = Object.values(yearData).reduce(
-                  (sum: number, monthData: any) => sum + (monthData[primaryAmount] || 0),
+                  (sum: number, monthData: BnbMonthTotals) => sum + readAmount(monthData, primaryAmount),
                   0
                 );
                 
@@ -149,7 +165,7 @@ const BnbYearMonthMatrix: React.FC<BnbYearMonthMatrixProps> = ({
                     </Td>
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => (
                       <Td key={month} color="white" textAlign="right">
-                        {formatAmount(yearData[month]?.[primaryAmount] || 0, displayFormat)}
+                        {formatAmount(readAmount(yearData[month], primaryAmount), displayFormat)}
                       </Td>
                     ))}
                     <Td color="white" textAlign="right" fontWeight="bold" bg="gray.600">
@@ -173,7 +189,7 @@ const BnbYearMonthMatrix: React.FC<BnbYearMonthMatrixProps> = ({
                   </Td>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(month => {
                     const monthTotal = years.reduce((sum, year) => {
-                      return sum + (yearMonthData[year][month]?.[primaryAmount] || 0);
+                      return sum + readAmount(yearMonthData[year][month], primaryAmount);
                     }, 0);
                     return (
                       <Td key={month} color="white" textAlign="right" fontWeight="bold">
@@ -185,7 +201,7 @@ const BnbYearMonthMatrix: React.FC<BnbYearMonthMatrixProps> = ({
                     {formatAmount(
                       years.reduce((sum, year) => {
                         return sum + Object.values(yearMonthData[year]).reduce(
-                          (yearSum: number, monthData: any) => yearSum + (monthData[primaryAmount] || 0),
+                          (yearSum: number, monthData: BnbMonthTotals) => yearSum + readAmount(monthData, primaryAmount),
                           0
                         );
                       }, 0),

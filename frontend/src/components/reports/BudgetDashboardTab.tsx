@@ -20,7 +20,7 @@ import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { FilterableHeader } from '../filters/FilterableHeader';
 import { useFilterableTable } from '../../hooks/useFilterableTable';
 import { BudgetVersion, DashboardData, DashboardLevel, DashboardPeriod, DashboardRow } from '../../types/budget';
-import { listVersions, getDashboard, generateNarrative, queryBudget } from '../../services/budgetService';
+import { listVersions, getDashboard, generateNarrative, queryBudget, type DashboardParams } from '../../services/budgetService';
 
 /** Format a number to 2 decimal places using Dutch locale */
 const formatAmount = (value: number): string =>
@@ -106,7 +106,7 @@ const BudgetDashboardTab: React.FC = () => {
     if (!selectedVersionId) return;
     try {
       setLoading(true);
-      const params: any = { version_id: selectedVersionId, level, period };
+      const params: DashboardParams = { version_id: selectedVersionId, level, period };
       if (parentCode) params.parent_code = parentCode;
       if (subparentCode) params.subparent_code = subparentCode;
       if (referenceNumber.trim()) params.reference_number = referenceNumber.trim();
@@ -143,8 +143,9 @@ const BudgetDashboardTab: React.FC = () => {
       setNarrativeLoading(true);
       const resp = await generateNarrative({ year, level, period });
       if (resp.success) { setNarrativeText(resp.data.narrative); setShowNarrative(true); }
-    } catch (err: any) {
-      toast({ title: err.message, status: 'error', duration: 4000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : t('messages.loadError');
+      toast({ title: message, status: 'error', duration: 4000 });
     } finally { setNarrativeLoading(false); }
   };
 
@@ -161,8 +162,9 @@ const BudgetDashboardTab: React.FC = () => {
         setSubparentCode(interpreted_params.subparent_code || null);
         if (interpreted_params.reference_number) setReferenceNumber(interpreted_params.reference_number);
       }
-    } catch (err: any) {
-      toast({ title: err.message, status: 'warning', duration: 5000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : t('messages.loadError');
+      toast({ title: message, status: 'warning', duration: 5000 });
     } finally { setQueryLoading(false); }
   };
 
