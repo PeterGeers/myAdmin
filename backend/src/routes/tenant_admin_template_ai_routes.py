@@ -17,11 +17,7 @@ from flask import Blueprint, jsonify, request
 from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import (
-    get_current_tenant,
-    get_user_tenants,
-    is_tenant_admin,
-)
+from auth.tenant_context import tenant_admin_required
 from database import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -37,21 +33,10 @@ from routes.tenant_admin_template_constants import VALID_TEMPLATE_TYPES
     "/api/tenant-admin/templates/ai-help", methods=["POST"]
 )
 @cognito_required(required_permissions=[])
-def ai_help_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def ai_help_template_endpoint(user_email, user_roles, tenant) -> ResponseReturnValue:
     """Get AI-powered fix suggestions for template errors (Tenant_Admin only)."""
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         data = request.get_json()
         if not data:
             return jsonify({"error": "Request body required"}), 400
@@ -134,21 +119,10 @@ def ai_help_template_endpoint(user_email, user_roles) -> ResponseReturnValue:
     "/api/tenant-admin/templates/apply-ai-fixes", methods=["POST"]
 )
 @cognito_required(required_permissions=[])
-def apply_ai_fixes_endpoint(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def apply_ai_fixes_endpoint(user_email, user_roles, tenant) -> ResponseReturnValue:
     """Apply AI-suggested fixes to template (Tenant_Admin only)."""
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         data = request.get_json()
         if not data:
             return jsonify({"error": "Request body required"}), 400
@@ -199,8 +173,9 @@ def apply_ai_fixes_endpoint(user_email, user_roles) -> ResponseReturnValue:
     "/api/tenant-admin/templates/<template_type>", methods=["DELETE"]
 )
 @cognito_required(required_permissions=[])
+@tenant_admin_required()
 def delete_tenant_template_endpoint(
-    template_type, user_email, user_roles
+    template_type, user_email, user_roles, tenant
 ) -> ResponseReturnValue:
     """Delete (deactivate) a tenant-specific template (Tenant_Admin only).
 
@@ -208,18 +183,6 @@ def delete_tenant_template_endpoint(
     status = 'archived'. The system will then fall back to the built-in default.
     """
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not is_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         if template_type not in VALID_TEMPLATE_TYPES:
             return jsonify(
                 {"error": "Invalid template type", "valid_types": VALID_TEMPLATE_TYPES}

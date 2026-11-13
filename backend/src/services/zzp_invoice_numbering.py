@@ -10,6 +10,7 @@ Reference: .kiro/specs/zzp-module/design.md §5.3 (Req 5)
 """
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 class ZZPInvoiceNumberingHelper:
     """Generates unique invoice/credit-note numbers using DB row locking."""
 
-    def __init__(self, db, parameter_service=None) -> None:
+    def __init__(self, db: Any, parameter_service: Any = None) -> None:
         self.db = db
         self.parameter_service = parameter_service
 

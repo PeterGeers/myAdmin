@@ -24,7 +24,7 @@ class OutputService:
     Google Drive upload, and S3 upload (future).
     """
 
-    def __init__(self, db_manager):
+    def __init__(self, db_manager: Any) -> None:
         """
         Initialize the output service.
 
@@ -36,7 +36,7 @@ class OutputService:
 
     def handle_output(
         self,
-        content,
+        content: Any,
         filename: str,
         destination: str,
         administration: str,
@@ -206,7 +206,7 @@ class OutputService:
             raise RuntimeError(f"Failed to upload to Google Drive: {e!s}") from e
 
     def _handle_s3_upload(
-        self, content, filename: str, administration: str, content_type: str
+        self, content: Any, filename: str, administration: str, content_type: str
     ) -> dict[str, Any]:
         """
         Handle S3 upload destination using MediaAssetService.
@@ -345,7 +345,9 @@ class OutputService:
             logger.warning(f"S3 health check failed for '{administration}': {e}")
             return {"healthy": False, "reason": f"S3 unavailable: {e!s}"}
 
-    def _get_or_create_reports_folder(self, drive_service, administration: str) -> str:
+    def _get_or_create_reports_folder(
+        self, drive_service: Any, administration: str
+    ) -> str:
         """
         Get or create Reports folder for tenant in Google Drive.
 

@@ -33,6 +33,7 @@ import inspect
 import json
 
 from sam.members.handler import app
+from sam.members.handler import authorization as auth
 from sam.shared.auth_utils import (
     InvalidTokenError,
     ServiceUnavailableError,
@@ -109,7 +110,7 @@ def test_jwks_outage_on_fallback_returns_503(monkeypatch):
     def _boom(_event, verifier=None):
         raise ServiceUnavailableError()
 
-    monkeypatch.setattr(app, "get_verified_claims", _boom)
+    monkeypatch.setattr(auth, "get_verified_claims", _boom)
     resp = app.handler(event)
     assert resp["statusCode"] == 503
 
@@ -124,7 +125,7 @@ def test_invalid_token_returns_401(monkeypatch):
     def _boom(_event, verifier=None):
         raise InvalidTokenError()
 
-    monkeypatch.setattr(app, "get_verified_claims", _boom)
+    monkeypatch.setattr(auth, "get_verified_claims", _boom)
     resp = app.handler(event)
     assert resp["statusCode"] == 401
 
@@ -215,7 +216,9 @@ def test_single_tenant_absent_header_resolves_the_only_tenant():
     # s5f R2.1 (back-compat): one entitled tenant + no X-Tenant → that tenant is the active
     # context (unchanged pilot behaviour). No region grant → deny-by-default scope → 200 + [].
     event = _authorizer_event(
-        "GET", "/members", claims=_entitled_claims(tenant="h-dcn", capabilities=("members:read",))
+        "GET",
+        "/members",
+        claims=_entitled_claims(tenant="h-dcn", capabilities=("members:read",)),
     )
     resp = app.handler(event)
     assert resp["statusCode"] == 200
@@ -339,7 +342,10 @@ def test_context_carries_verified_tenant_sub_and_groups(monkeypatch):
         "GET",
         "/members",
         claims=_entitled_claims(
-            tenant="h-dcn", capabilities=("members:read",), groups=("Members_Read",), sub="abc"
+            tenant="h-dcn",
+            capabilities=("members:read",),
+            groups=("Members_Read",),
+            sub="abc",
         ),
     )
     resp = app.handler(event)
@@ -384,7 +390,9 @@ def test_scope_seam_is_a_wired_integration_point(monkeypatch):
     # s5d task 4.1: the seam now returns a PER-DIMENSION map {dimension: [values]}; the stub
     # returns one and asserts it flows onto the context verbatim.
     monkeypatch.setattr(
-        app, "_resolve_scope_access", lambda spec, tenant, claims, **kw: {"region": ["region-a"]}
+        auth,
+        "_resolve_scope_access",
+        lambda spec, tenant, claims, **kw: {"region": ["region-a"]},
     )
     captured = {}
 
@@ -497,8 +505,8 @@ def test_response_serializes_dynamodb_decimals():
     )
     assert resp["statusCode"] == 200
     body = json.loads(resp["body"])  # would raise if the body were not valid JSON
-    assert body["data"]["member_number"] == 42          # integral -> int
-    assert body["data"]["balance"] == 12.5               # fractional -> float
+    assert body["data"]["member_number"] == 42  # integral -> int
+    assert body["data"]["balance"] == 12.5  # fractional -> float
     # And the raw body must not contain a spurious '42.0' for the integral value.
     assert '"member_number": 42' in resp["body"]
 
@@ -510,6 +518,7 @@ def test_json_default_rejects_unknown_types():
 
     with _pytest.raises(TypeError):
         app._json_default(object())
+
 
 # ── Capability comes SOLELY from the verified entitlement (R6.1, C-UNWIND — s5c) ───────
 #
@@ -523,7 +532,7 @@ def test_json_default_rejects_unknown_types():
 
 def _none_capability(monkeypatch):
     """Force has_capability → None (the 'token does not answer' condition)."""
-    monkeypatch.setattr(app, "has_capability", lambda claims, tenant, capability: None)
+    monkeypatch.setattr(auth, "has_capability", lambda claims, tenant, capability: None)
 
 
 def test_no_capability_fallback_symbols_remain():
@@ -541,7 +550,9 @@ def test_none_capability_answer_denies_even_with_members_group(monkeypatch):
     event = _authorizer_event(
         "GET",
         "/members",
-        claims=_entitled_claims(capabilities=("members:read",), groups=("Members_CRUD", "Regio_All")),
+        claims=_entitled_claims(
+            capabilities=("members:read",), groups=("Members_CRUD", "Regio_All")
+        ),
     )
     resp = app.handler(event)
     assert resp["statusCode"] == 403
@@ -549,14 +560,19 @@ def test_none_capability_answer_denies_even_with_members_group(monkeypatch):
 
 def test_false_capability_denial_denies(monkeypatch):
     # A token-backed denial (False) must 403 regardless of a Members group.
-    monkeypatch.setattr(app, "has_capability", lambda claims, tenant, capability: False)
+    monkeypatch.setattr(
+        auth, "has_capability", lambda claims, tenant, capability: False
+    )
     event = _authorizer_event(
         "GET",
         "/members",
-        claims=_entitled_claims(capabilities=("members:read",), groups=("Members_CRUD",)),
+        claims=_entitled_claims(
+            capabilities=("members:read",), groups=("Members_CRUD",)
+        ),
     )
     resp = app.handler(event)
     assert resp["statusCode"] == 403
+
 
 # ── Tenant fallback REMOVED (R6.2, C-UNWIND) — tenant resolves from the verified entitlement
 #

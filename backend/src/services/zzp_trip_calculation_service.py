@@ -15,6 +15,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
 """
 
 import logging
+from typing import Any
 
 from dialect_helpers import dialect
 
@@ -27,7 +28,7 @@ MILES_TO_KM = 1.60934
 class TripCalculationService:
     """Trip calculation operations: summaries, bijtelling, parameters."""
 
-    def __init__(self, service):
+    def __init__(self, service: Any) -> None:
         """Initialize with reference to the parent TripService.
 
         Args:
@@ -234,7 +235,7 @@ class TripCalculationService:
         )
         return rows[0] if rows else None
 
-    def _get_ritten_param(self, key: str, tenant: str, default=None):
+    def _get_ritten_param(self, key: str, tenant: str, default: Any = None) -> Any:
         """Fetch a zzp_ritten parameter with fallback to MODULE_REGISTRY default.
 
         Args:

@@ -63,7 +63,7 @@ import { MembersViewBody } from '../components/members/MembersViewBody';
 import { generateCsv, downloadCsv, exportFileName } from '../utils/csvExport';
 import { renderFieldValue, valueFor } from '../components/members/fieldValue';
 import { formFields, groupFieldsBySection } from '../components/members/fieldForm';
-import { resolveLabel } from '../components/members/overview/membersOverviewModel';
+import { resolveLabel } from '../components/members/labelResolver';
 import { useMembersData } from '../components/members/overview/useMembersData';
 import { useMembersColumns } from '../components/members/overview/useMembersColumns';
 import { useMembersCursorPaging } from '../components/members/overview/useMembersCursorPaging';
@@ -266,7 +266,7 @@ const MembersPage: React.FC = () => {
       const sections = groupFieldsBySection(fields, fieldConfig?.functional_groups);
       const orderedFields: FieldConfigField[] = sections.flatMap(s => s.fields);
 
-      const headers = orderedFields.map(f => resolveLabel(f.label, lang, f.key));
+      const headers = orderedFields.map(f => resolveLabel(f.label, lang, f.key, 'nl-first'));
       const rows = exportRows.map(row =>
         orderedFields.map(f => renderFieldValue(f, valueFor(row, f.group, f.key), lang)),
       );

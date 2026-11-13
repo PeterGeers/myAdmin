@@ -11,7 +11,8 @@ Reference: .kiro/specs/zzp-module/design.md §5.3
 
 import logging
 from datetime import date, timedelta
-from typing import ClassVar
+from io import BytesIO
+from typing import Any, ClassVar
 
 from dialect_helpers import dialect
 from services.field_config_mixin import FieldConfigMixin
@@ -30,12 +31,12 @@ class ZZPInvoiceService(FieldConfigMixin):
 
     def __init__(
         self,
-        db,
-        tax_rate_service=None,
-        parameter_service=None,
-        booking_helper=None,
-        pdf_generator=None,
-        email_service=None,
+        db: Any,
+        tax_rate_service: Any = None,
+        parameter_service: Any = None,
+        booking_helper: Any = None,
+        pdf_generator: Any = None,
+        email_service: Any = None,
     ) -> None:
         self.db = db
         self.tax_rate_service = tax_rate_service
@@ -418,7 +419,7 @@ class ZZPInvoiceService(FieldConfigMixin):
 
     # ── Delegated: Delivery (PDF, Email, Send) ────────────────
 
-    def preview_invoice(self, tenant: str, invoice_id: int):
+    def preview_invoice(self, tenant: str, invoice_id: int) -> BytesIO:
         """Generate a preview PDF for a draft invoice (delegated to delivery helper)."""
         return self._delivery.preview_invoice(tenant, invoice_id, self.get_invoice)
 
@@ -427,7 +428,7 @@ class ZZPInvoiceService(FieldConfigMixin):
         return self._delivery.get_email_preview(tenant, invoice_id, self.get_invoice)
 
     def send_invoice(
-        self, tenant: str, invoice_id: int, options: dict, output_service=None
+        self, tenant: str, invoice_id: int, options: dict, output_service: Any = None
     ) -> dict:
         """Send invoice or credit note (delegated to delivery helper)."""
         return self._delivery.send_invoice(
@@ -438,13 +439,22 @@ class ZZPInvoiceService(FieldConfigMixin):
         """Retrieve stored PDF or regenerate as copy (delegated to delivery helper)."""
         return self._delivery.get_invoice_pdf(tenant, invoice_id, self.get_invoice)
 
-    def _store_pdf(self, tenant, invoice, pdf_bytes, destination, output_service=None):
+    def _store_pdf(
+        self,
+        tenant: Any,
+        invoice: Any,
+        pdf_bytes: Any,
+        destination: Any,
+        output_service: Any = None,
+    ) -> dict:
         """Store PDF via OutputService (delegated to delivery helper)."""
         return self._delivery._store_pdf(
             tenant, invoice, pdf_bytes, destination, output_service
         )
 
-    def _update_status(self, tenant, invoice_id, status, sent_at=None):
+    def _update_status(
+        self, tenant: Any, invoice_id: Any, status: Any, sent_at: Any = None
+    ) -> None:
         """Update invoice status (delegated to delivery helper)."""
         self._delivery._update_status(tenant, invoice_id, status, sent_at)
 
@@ -472,7 +482,7 @@ class ZZPInvoiceService(FieldConfigMixin):
         entry_ids: list,
         data: dict,
         created_by: str,
-        time_tracking_service=None,
+        time_tracking_service: Any = None,
     ) -> dict:
         """Create a draft invoice from selected time entries (delegated to factory helper)."""
         return self._factory.create_invoice_from_time_entries(
@@ -494,7 +504,7 @@ class ZZPInvoiceService(FieldConfigMixin):
             create_invoice_fn=self.create_invoice,
         )
 
-    def _advance_date(self, tenant: str, contact_id: int, last_date) -> date:
+    def _advance_date(self, tenant: str, contact_id: int, last_date: Any) -> date:
         """Calculate next invoice date (delegated to factory helper)."""
         return self._factory._advance_date(tenant, contact_id, last_date)
 

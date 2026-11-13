@@ -38,7 +38,8 @@
 import React, { useMemo } from 'react';
 import { Select } from '@chakra-ui/react';
 import type { FieldConfigField, FunctionalGroup } from '../../types/members';
-import { resolveLabel, sectionFields, DEFAULT_FG_SECTION_KEY } from './FieldChecklist';
+import { sectionFields, DEFAULT_FG_SECTION_KEY } from './FieldChecklist';
+import { resolveLabel } from './labelResolver';
 
 // Native <option>/<optgroup> elements render with the OS dropdown palette and do
 // NOT inherit the Chakra Select's bg/color — so without an explicit inline style
@@ -121,19 +122,19 @@ export const GroupedFieldSelect: React.FC<GroupedFieldSelectProps> = ({
           <React.Fragment key={section.key}>
             {section.fields.map((f) => (
               <option key={f.key} value={f.key} style={OPTION_STYLE}>
-                {resolveLabel(f.label, lang, f.key)}
+                {resolveLabel(f.label, lang, f.key, 'nl-first')}
               </option>
             ))}
           </React.Fragment>
         ) : (
           <optgroup
             key={section.key}
-            label={resolveLabel(section.label, lang, section.key)}
+            label={resolveLabel(section.label, lang, section.key, 'nl-first')}
             style={OPTGROUP_STYLE}
           >
             {section.fields.map((f) => (
               <option key={f.key} value={f.key} style={OPTION_STYLE}>
-                {resolveLabel(f.label, lang, f.key)}
+                {resolveLabel(f.label, lang, f.key, 'nl-first')}
               </option>
             ))}
           </optgroup>

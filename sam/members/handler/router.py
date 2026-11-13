@@ -65,7 +65,7 @@ class MethodNotAllowed:
 class NoRouteMatch(Exception):
     """Raised when no route pattern matches the path at all (→ 404)."""
 
-    def __init__(self, method: str, path: str):
+    def __init__(self, method: str, path: str) -> None:
         self.method = method
         self.path = path
         super().__init__(f"no route matches {method} {path}")
@@ -88,7 +88,7 @@ def _compile_path_pattern(path: str) -> Pattern[str]:
     pos = 0
     parts: list[str] = []
     for match in _PLACEHOLDER_RE.finditer(path):
-        parts.append(re.escape(path[pos:match.start()]))
+        parts.append(re.escape(path[pos : match.start()]))
         name = match.group(1)
         parts.append(rf"(?P<{name}>[^/]+)")
         pos = match.end()
@@ -120,13 +120,13 @@ class Router:
     3. Otherwise raise :class:`NoRouteMatch` (→ 404).
     """
 
-    def __init__(self, specs: tuple[RouteSpec, ...] = ROUTES):
+    def __init__(self, specs: tuple[RouteSpec, ...] = ROUTES) -> None:
         self._compiled: tuple[_CompiledRoute, ...] = tuple(
             _CompiledRoute(spec=spec, pattern=_compile_path_pattern(spec.path))
             for spec in specs
         )
 
-    def resolve(self, method: str, path: str):
+    def resolve(self, method: str, path: str) -> RouteMatch | MethodNotAllowed:
         """Resolve a request to a :class:`RouteMatch` or a :class:`MethodNotAllowed`.
 
         Args:
@@ -150,7 +150,9 @@ class Router:
                 continue
             # The path matches this route's pattern; does the method line up?
             if compiled.spec.method.value == method_upper:
-                return RouteMatch(spec=compiled.spec, path_params=dict(match.groupdict()))
+                return RouteMatch(
+                    spec=compiled.spec, path_params=dict(match.groupdict())
+                )
             allowed.append(compiled.spec.method.value)
 
         if allowed:

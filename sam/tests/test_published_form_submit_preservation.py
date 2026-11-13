@@ -435,7 +435,9 @@ def test_preserve_config_origin_label_is_html_escaped(label):
     body = build_form_body_html(_config(fields=[{"key": "f", "label": {"nl": label}}]))
     # The escaped form is present; the raw `<...>` tag form is NOT.
     assert _html.escape(label) in body
-    assert "<" + label.strip("<").split(">")[0] + ">" not in body
+    # The RAW label never appears verbatim (the page legitimately renders its own <main>
+    # wrapper, so a reconstructed-tag check would false-positive on inner == "main").
+    assert label not in body
 
 
 @settings(max_examples=60)

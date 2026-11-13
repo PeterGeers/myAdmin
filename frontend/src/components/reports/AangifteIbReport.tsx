@@ -49,6 +49,13 @@ interface XlsxExportProgress {
   };
 }
 
+/** Parent group produced for the expandable statement table. */
+interface AangifteIbGroup {
+  parent: string;
+  items: AangifteIbRecord[];
+  total: number;
+}
+
 const AangifteIbReport: React.FC = () => {
   const { t } = useTypedTranslation('reports');
   const { currentTenant } = useTenant();
@@ -216,7 +223,7 @@ const AangifteIbReport: React.FC = () => {
   }, [currentTenant]);
 
   const renderTableRows = () => {
-    const grouped = aangifteIbData.reduce((acc, row) => {
+    const grouped = aangifteIbData.reduce<Record<string, AangifteIbGroup>>((acc, row) => {
       // Skip rows with zero amounts
       const amount = Number(row.Amount) || 0;
       if (Math.abs(amount) < 0.01) return acc;
@@ -227,11 +234,11 @@ const AangifteIbReport: React.FC = () => {
       acc[row.Parent].items.push(row);
       acc[row.Parent].total += amount;
       return acc;
-    }, {} as any);
+    }, {});
     
     const rows: React.ReactElement[] = [];
     
-    Object.values(grouped).forEach((group: any) => {
+    Object.values(grouped).forEach((group) => {
       // Skip parent groups with zero total
       if (Math.abs(group.total) < 0.01) return;
       
@@ -268,7 +275,7 @@ const AangifteIbReport: React.FC = () => {
       
       // Detail rows
       if (isExpanded) {
-        group.items.forEach((item: any) => {
+        group.items.forEach((item) => {
           // Skip items with zero amounts
           const itemAmount = Number(item.Amount) || 0;
           if (Math.abs(itemAmount) < 0.01) return;
