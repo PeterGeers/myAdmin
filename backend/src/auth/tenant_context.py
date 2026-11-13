@@ -9,6 +9,7 @@ Based on the architecture at .kiro/specs/Common/Multitennant/architecture.md
 
 import base64
 import functools
+import inspect
 import json
 import logging
 from typing import Any
@@ -369,6 +370,123 @@ def tenant_required(allow_sysadmin: bool = False):
         return decorated_function
 
     return decorator
+
+
+def _extract_request_tenant_context(
+    request_obj,
+) -> tuple[str | None, list[str], dict[str, Any] | None]:
+    """Extract the tenant + the caller's verified tenant list from a request.
+
+    Single home for the legacy tenant-admin route guard's request handling
+    (code-quality-fixes-2026-11-12 task 1). Returns
+    ``(tenant, user_tenants, auth_error)``; ``auth_error`` is the legacy 401
+    body when the request carries no ``Bearer`` token.
+    """
+    tenant = get_current_tenant(request_obj)
+
+    auth_header = request_obj.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return tenant, [], {"error": "Invalid authorization"}
+
+    jwt_token = auth_header.replace("Bearer ", "").strip()
+    return tenant, get_user_tenants(jwt_token), None
+
+
+def _legacy_tenant_guard(*, require_tenant_admin: bool):
+    """Build the guard decorator shared by the tenant-admin route modules.
+
+    The ONE implementation behind :func:`tenant_admin_required` and
+    :func:`tenant_membership_required`; it replaces the per-handler guards that
+    were copy-pasted across eight route modules
+    (code-quality-fixes-2026-11-12 task 1).
+
+    Response envelopes are byte-identical to the deleted inline guards:
+
+    - missing/non-Bearer ``Authorization`` -> 401
+      ``{"error": "Invalid authorization"}``
+    - ``require_tenant_admin=True`` and the caller is not ``Tenant_Admin`` for
+      the tenant -> 403 ``{"error": "Tenant admin access required"}``
+    - ``require_tenant_admin=False`` and the caller cannot access the tenant ->
+      403 ``{"error": "Access denied", "message": ...}``
+
+    Args:
+        require_tenant_admin: When True the guard additionally requires the
+            ``Tenant_Admin`` role for the resolved tenant.
+    """
+
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Flask is imported lazily for the same Flask-free SAM-plane reason
+            # documented on `tenant_required` above.
+            from flask import jsonify, request
+
+            tenant, user_tenants, auth_error = _extract_request_tenant_context(request)
+            if auth_error is not None:
+                return jsonify(auth_error), 401
+
+            if require_tenant_admin:
+                allowed = is_tenant_admin(
+                    kwargs.get("user_roles", []), tenant, user_tenants
+                )
+            else:
+                allowed = tenant in user_tenants
+
+            if not allowed:
+                if require_tenant_admin:
+                    return jsonify({"error": "Tenant admin access required"}), 403
+                return (
+                    jsonify(
+                        {
+                            "error": "Access denied",
+                            "message": f"You do not have access to tenant: {tenant}",
+                        }
+                    ),
+                    403,
+                )
+
+            # Inject tenant context into the route function. ``user_tenants`` is
+            # only passed when the handler asks for it, so the guard can also be
+            # used by handlers that need no more than the resolved tenant.
+            kwargs["tenant"] = tenant
+            if "user_tenants" in inspect.signature(f).parameters:
+                kwargs["user_tenants"] = user_tenants
+            return f(*args, **kwargs)
+
+        # Sentinel marker so route-coverage audits/tests can detect tenant
+        # scoping by introspection (same convention as `tenant_required`).
+        decorated_function._tenant_required = True
+
+        return decorated_function
+
+    return decorator
+
+
+def tenant_admin_required():
+    """Require ``Tenant_Admin`` for the request's verified tenant.
+
+    Decorator counterpart of the legacy inline guard. Expects
+    ``@cognito_required(...)`` to run first (it injects ``user_roles``) and
+    injects ``tenant`` (plus ``user_tenants`` when the handler declares it).
+
+    Usage:
+        @app.route('/api/tenant-admin/example')
+        @cognito_required(required_permissions=[])
+        @tenant_admin_required()
+        def example(user_email, user_roles, tenant):
+            ...
+    """
+    return _legacy_tenant_guard(require_tenant_admin=True)
+
+
+def tenant_membership_required():
+    """Require the caller to have access to the request's verified tenant.
+
+    Membership-only counterpart of the legacy inline guard, used where
+    ``@cognito_required(required_roles=["Tenant_Admin"])`` already enforces the
+    admin role. Injects ``tenant`` (plus ``user_tenants`` when declared).
+    """
+    return _legacy_tenant_guard(require_tenant_admin=False)
 
 
 def add_tenant_filter(

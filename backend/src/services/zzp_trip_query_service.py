@@ -11,6 +11,7 @@ Reference: .kiro/specs/ZZP/rittenregistratie/design.md §4.2
 
 import json
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ _TRIP_COLUMNS = (
 class TripQueryService:
     """Trip query operations: get, list, history, gaps."""
 
-    def __init__(self, service):
+    def __init__(self, service: Any) -> None:
         """Initialize with reference to the parent TripService.
 
         Args:

@@ -84,7 +84,7 @@ export const resolveAccountCandidates = (
 // Revolut Transaction Processing
 // ---------------------------------------------------------------------------
 
-export const processRevolutTransaction = (columns: string[], index: number, bankLookup: any, fileName: string, header?: string[]): Transaction[] => {
+export const processRevolutTransaction = (columns: string[], index: number, bankLookup: BankAccount | undefined, fileName: string, header?: string[]): Transaction[] => {
   if (!bankLookup) {
     throw new Error('Bank account not configured for Revolut. Please add it in Chart of Accounts with the bank_account flag.');
   }

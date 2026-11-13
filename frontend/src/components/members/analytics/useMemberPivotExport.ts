@@ -33,7 +33,8 @@ import { recordAnalyticsOutput } from '../../../services/memberAnalyticsAuditSer
 import type { MemberTemplateDto } from '../../../services/memberTemplateService';
 import type { MemberAnalyticsCapabilities } from './areas/types';
 import type { SelectableSet } from './memberPivotViewsHelpers';
-import { resolveLabel, parseAggregateName } from './memberPivotViewsHelpers';
+import { parseAggregateName } from './memberPivotViewsHelpers';
+import { resolveLabel } from '../labelResolver';
 
 /** The members-namespace translator (key + optional interpolation bag → string). */
 type TFunction = (key: string, options?: Record<string, unknown>) => string;
@@ -110,7 +111,7 @@ export function useMemberPivotExport({
       }
     }
     const labelForKey = (key: string): string =>
-      resolveLabel(byKey.get(key)?.label, lang, key);
+      resolveLabel(byKey.get(key)?.label, lang, key, 'nl-first');
 
     const map: Record<string, string> = {};
     for (const col of result?.columns ?? []) {

@@ -19,7 +19,10 @@ from flask.typing import ResponseReturnValue
 
 from auth.admin_pool_resolver import PoolResolutionError
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import get_current_tenant, get_user_tenants
+from auth.tenant_context import (
+    tenant_admin_required,
+    tenant_membership_required,
+)
 from database import DatabaseManager
 from routes.error_responses import error_response
 from routes.sysadmin_helpers import _resolve_pool_id
@@ -61,7 +64,8 @@ tenant_admin_roles_bp = Blueprint(
 
 @tenant_admin_roles_bp.route("/users/<username>/groups", methods=["POST"])
 @cognito_required(required_roles=["Tenant_Admin"])
-def assign_user_group(username, user_email, user_roles) -> ResponseReturnValue:
+@tenant_membership_required()
+def assign_user_group(username, user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Assign role (group) to user
 
@@ -72,24 +76,6 @@ def assign_user_group(username, user_email, user_roles) -> ResponseReturnValue:
     """
     try:
         # Get current tenant from request header
-        tenant = get_current_tenant(request)
-
-        # Extract user's tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Verify user has access to this tenant
-        if tenant not in user_tenants:
-            return jsonify(
-                {
-                    "error": "Access denied",
-                    "message": f"You do not have access to tenant: {tenant}",
-                }
-            ), 403
 
         # Resolve the target Cognito pool from the caller token (token mode)
         try:
@@ -196,32 +182,15 @@ def assign_user_group(username, user_email, user_roles) -> ResponseReturnValue:
     "/users/<username>/groups/<group_name>", methods=["DELETE"]
 )
 @cognito_required(required_roles=["Tenant_Admin"])
+@tenant_membership_required()
 def remove_user_group(
-    username, group_name, user_email, user_roles
+    username, group_name, user_email, user_roles, tenant
 ) -> ResponseReturnValue:
     """
     Remove role (group) from user
     """
     try:
         # Get current tenant from request header
-        tenant = get_current_tenant(request)
-
-        # Extract user's tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Verify user has access to this tenant
-        if tenant not in user_tenants:
-            return jsonify(
-                {
-                    "error": "Access denied",
-                    "message": f"You do not have access to tenant: {tenant}",
-                }
-            ), 403
 
         # Resolve the target Cognito pool from the caller token (token mode)
         try:
@@ -308,7 +277,8 @@ def remove_user_group(
 
 @tenant_admin_roles_bp.route("/roles", methods=["GET"])
 @cognito_required(required_roles=["Tenant_Admin"])
-def get_available_roles(user_email, user_roles) -> ResponseReturnValue:
+@tenant_membership_required()
+def get_available_roles(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Get list of roles available for current tenant
 
@@ -316,24 +286,6 @@ def get_available_roles(user_email, user_roles) -> ResponseReturnValue:
     """
     try:
         # Get current tenant from request header
-        tenant = get_current_tenant(request)
-
-        # Extract user's tenants from JWT
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        # Verify user has access to this tenant
-        if tenant not in user_tenants:
-            return jsonify(
-                {
-                    "error": "Access denied",
-                    "message": f"You do not have access to tenant: {tenant}",
-                }
-            ), 403
 
         # Get available roles for tenant
         available_roles = get_available_roles_for_tenant(tenant)
@@ -371,28 +323,16 @@ def get_available_roles(user_email, user_roles) -> ResponseReturnValue:
     "/api/tenant/users", methods=["GET"], endpoint="legacy_get_tenant_users"
 )
 @cognito_required(required_permissions=[])
-def get_tenant_users_legacy(user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def get_tenant_users_legacy(user_email, user_roles, tenant) -> ResponseReturnValue:
     """
     Get users in tenant (Tenant_Admin only) — legacy endpoint.
 
     Returns list of users with their roles who have access to this tenant.
     Uses the older /api/tenant/users URL pattern.
     """
-    from auth.tenant_context import is_tenant_admin as check_tenant_admin
 
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not check_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         # Resolve the target Cognito pool from the caller token (token mode)
         user_pool_id = _resolve_pool_id()
 
@@ -456,27 +396,17 @@ def get_tenant_users_legacy(user_email, user_roles) -> ResponseReturnValue:
     endpoint="legacy_assign_role",
 )
 @cognito_required(required_permissions=[])
-def assign_tenant_role_legacy(username, user_email, user_roles) -> ResponseReturnValue:
+@tenant_admin_required()
+def assign_tenant_role_legacy(
+    username, user_email, user_roles, tenant
+) -> ResponseReturnValue:
     """
     Assign role to user within tenant (Tenant_Admin only) — legacy endpoint.
 
     Uses the older /api/tenant/users/<username>/roles URL pattern.
     """
-    from auth.tenant_context import is_tenant_admin as check_tenant_admin
 
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not check_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         data = request.get_json()
         role = data.get("role")
 
@@ -552,29 +482,17 @@ def assign_tenant_role_legacy(username, user_email, user_roles) -> ResponseRetur
     endpoint="legacy_remove_role",
 )
 @cognito_required(required_permissions=[])
+@tenant_admin_required()
 def remove_tenant_role_legacy(
-    username, role, user_email, user_roles
+    username, role, user_email, user_roles, tenant
 ) -> ResponseReturnValue:
     """
     Remove role from user within tenant (Tenant_Admin only) — legacy endpoint.
 
     Uses the older /api/tenant/users/<username>/roles/<role> URL pattern.
     """
-    from auth.tenant_context import is_tenant_admin as check_tenant_admin
 
     try:
-        tenant = get_current_tenant(request)
-
-        auth_header = request.headers.get("Authorization", "")
-        if auth_header.startswith("Bearer "):
-            jwt_token = auth_header.replace("Bearer ", "").strip()
-            user_tenants = get_user_tenants(jwt_token)
-        else:
-            return jsonify({"error": "Invalid authorization"}), 401
-
-        if not check_tenant_admin(user_roles, tenant, user_tenants):
-            return jsonify({"error": "Tenant admin access required"}), 403
-
         allowed_roles = [
             "Finance_CRUD",
             "Finance_Read",

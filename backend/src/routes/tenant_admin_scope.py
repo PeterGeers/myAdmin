@@ -37,7 +37,7 @@ from flask.typing import ResponseReturnValue
 
 from auth.admin_pool_resolver import PoolResolutionError
 from auth.cognito_utils import cognito_required
-from auth.tenant_context import get_current_tenant, get_user_tenants
+from auth.tenant_context import tenant_membership_required
 from database import DatabaseManager
 from routes.error_responses import error_payload, error_response
 from routes.sysadmin_helpers import _resolve_pool_id
@@ -112,93 +112,25 @@ def _build_scope_service() -> UserTenantScopeService:
     return UserTenantScopeService(db, parameter_service)
 
 
-def _resolve_verified_tenant():
-    """Resolve + access-check the verified tenant (no target user involved).
+def _resolve_tenant_and_target(username: str, tenant: str):
+    """Resolve the target user's email for the already-verified tenant.
 
-    Returns ``(tenant, None)`` on success, or ``(None, (json_response, status))``
-    on any auth/resolution failure — the caller returns that tuple directly. The
-    tenant comes from the verified context (X-Tenant header or JWT), NEVER from a
-    body value (Property 1); the caller must have access to it (403 otherwise).
-    Mirrors the tenant half of :func:`_resolve_tenant_and_target` for routes that
-    act on the current tenant itself (no per-user target).
+    The caller's tenant comes from :func:`tenant_membership_required` (verified
+    context, NEVER a body value), which also enforces that the caller can access
+    it. Returns ``(target_email, None)`` on success, or ``(None,
+    (json_response, status))`` when the target user cannot be resolved or does
+    not belong to the tenant (404/403 respectively).
     """
-    tenant = get_current_tenant(request)
-    if not tenant:
-        return None, (jsonify({"error": "No tenant specified"}), 400)
-
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        jwt_token = auth_header.replace("Bearer ", "").strip()
-        user_tenants = get_user_tenants(jwt_token)
-    else:
-        return None, (jsonify({"error": "Invalid authorization"}), 401)
-
-    if tenant not in user_tenants:
-        return None, (
-            jsonify(
-                {
-                    "error": "Access denied",
-                    "message": f"You do not have access to tenant: {tenant}",
-                }
-            ),
-            403,
-        )
-
-    return tenant, None
-
-
-def _resolve_tenant_and_target(username: str):
-    """Resolve the verified tenant + target user's email, mirroring roles routes.
-
-    Returns ``(tenant, target_email, None)`` on success, or ``(None, None,
-    (json_response, status))`` on any auth/resolution failure — the caller returns
-    that tuple directly. The tenant comes from the verified context (X-Tenant /
-    JWT), NEVER from a body value (Property 1); the caller must have access to it
-    (403 otherwise), and the target user must belong to it (403/404 otherwise).
-    """
-    # Tenant from verified context (X-Tenant header or JWT) — never a body value.
-    tenant = get_current_tenant(request)
-    if not tenant:
-        return None, None, (jsonify({"error": "No tenant specified"}), 400)
-
-    # Extract the caller's tenants from the verified JWT.
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        jwt_token = auth_header.replace("Bearer ", "").strip()
-        user_tenants = get_user_tenants(jwt_token)
-    else:
-        return None, None, (jsonify({"error": "Invalid authorization"}), 401)
-
-    # Verify the caller has access to this tenant.
-    if tenant not in user_tenants:
-        return (
-            None,
-            None,
-            (
-                jsonify(
-                    {
-                        "error": "Access denied",
-                        "message": f"You do not have access to tenant: {tenant}",
-                    }
-                ),
-                403,
-            ),
-        )
-
     # Resolve the target Cognito pool from the caller token (token mode).
     try:
         user_pool_id = _resolve_pool_id()
     except PoolResolutionError as e:
-        return (
-            None,
-            None,
-            error_response(
-                e,
-                "Failed to resolve admin pool",
-                status=500,
-                include_success=False,
-                log_context="scope _resolve_pool_id",
-            ),
+        return None, error_response(
+            e,
+            "Failed to resolve admin pool",
+            status=500,
+            include_success=False,
+            log_context="scope _resolve_pool_id",
         )
 
     # Resolve the target user and verify they belong to this tenant.
@@ -210,37 +142,35 @@ def _resolve_tenant_and_target(username: str):
             user_response.get("UserAttributes", []), "custom:tenants"
         )
     except ClientError:
-        return None, None, (jsonify({"error": f"User not found: {username}"}), 404)
+        return None, (jsonify({"error": f"User not found: {username}"}), 404)
 
     if not target_user_tenants or tenant not in target_user_tenants:
-        return (
-            None,
-            None,
-            (
-                jsonify(
-                    {
-                        "error": "User not in this tenant",
-                        "message": f"User {username} does not have access to tenant {tenant}",
-                    }
-                ),
-                403,
+        return None, (
+            jsonify(
+                {
+                    "error": "User not in this tenant",
+                    "message": f"User {username} does not have access to tenant {tenant}",
+                }
             ),
+            403,
         )
 
     target_email = (
         get_user_attribute(user_response.get("UserAttributes", []), "email") or username
     )
-    return tenant, target_email, None
+    return target_email, None
 
 
-# ============================================================================
 # Scope Authoring Endpoints
 # ============================================================================
 
 
 @tenant_admin_scope_bp.route("/users/<username>/scope/<module>", methods=["GET"])
 @cognito_required(required_roles=["Tenant_Admin"])
-def get_user_scope(username, module, user_email, user_roles) -> ResponseReturnValue:
+@tenant_membership_required()
+def get_user_scope(
+    username, module, user_email, user_roles, tenant
+) -> ResponseReturnValue:
     """Return the user's current scope grant for the current tenant + module.
 
     ``{ "scopes": {...} }`` — an empty object when no grant exists (R1.1).
@@ -249,7 +179,7 @@ def get_user_scope(username, module, user_email, user_roles) -> ResponseReturnVa
     if canonical_module is None:
         return jsonify({"error": f"Unknown module: {module}"}), 404
 
-    tenant, target_email, err = _resolve_tenant_and_target(username)
+    target_email, err = _resolve_tenant_and_target(username, tenant)
     if err is not None:
         return err
 
@@ -268,7 +198,10 @@ def get_user_scope(username, module, user_email, user_roles) -> ResponseReturnVa
 
 @tenant_admin_scope_bp.route("/users/<username>/scope/<module>", methods=["PUT"])
 @cognito_required(required_roles=["Tenant_Admin"])
-def set_user_scope(username, module, user_email, user_roles) -> ResponseReturnValue:
+@tenant_membership_required()
+def set_user_scope(
+    username, module, user_email, user_roles, tenant
+) -> ResponseReturnValue:
     """Atomically overwrite the user's scope grant for the current tenant + module.
 
     Body ``{ "scopes": { "<dimension>": ["<value>", ...] | ["*"] } }``. The service
@@ -280,7 +213,7 @@ def set_user_scope(username, module, user_email, user_roles) -> ResponseReturnVa
     if canonical_module is None:
         return jsonify({"error": f"Unknown module: {module}"}), 404
 
-    tenant, target_email, err = _resolve_tenant_and_target(username)
+    target_email, err = _resolve_tenant_and_target(username, tenant)
     if err is not None:
         return err
 
@@ -323,7 +256,8 @@ def set_user_scope(username, module, user_email, user_roles) -> ResponseReturnVa
 
 @tenant_admin_scope_bp.route("/scope-dimensions/<module>", methods=["GET"])
 @cognito_required(required_roles=["Tenant_Admin"])
-def get_scope_dimensions(module, user_email, user_roles) -> ResponseReturnValue:
+@tenant_membership_required()
+def get_scope_dimensions(module, user_email, user_roles, tenant) -> ResponseReturnValue:
     """Return the enabled scope dimensions + canonical values for the picker.
 
     Sourced DIRECTLY from the MySQL ``<module>.scope_dimensions`` param for the
@@ -333,27 +267,6 @@ def get_scope_dimensions(module, user_email, user_roles) -> ResponseReturnValue:
     canonical_module = _canonical_module(module)
     if canonical_module is None:
         return jsonify({"error": f"Unknown module: {module}"}), 404
-
-    # Tenant from the verified context (never a body value) — the picker is
-    # tenant-scoped like every other read (Property 1).
-    tenant = get_current_tenant(request)
-    if not tenant:
-        return jsonify({"error": "No tenant specified"}), 400
-
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        jwt_token = auth_header.replace("Bearer ", "").strip()
-        user_tenants = get_user_tenants(jwt_token)
-    else:
-        return jsonify({"error": "Invalid authorization"}), 401
-
-    if tenant not in user_tenants:
-        return jsonify(
-            {
-                "error": "Access denied",
-                "message": f"You do not have access to tenant: {tenant}",
-            }
-        ), 403
 
     # Read the dimensions param directly (namespace = module token lower-cased,
     # matching the service's _load_dimension_meta / the projection builder).
@@ -403,7 +316,8 @@ def get_scope_dimensions(module, user_email, user_roles) -> ResponseReturnValue:
 
 @tenant_admin_scope_bp.route("/projection/resync", methods=["POST"])
 @cognito_required(required_roles=["Tenant_Admin"])
-def resync_projection(user_email, user_roles) -> ResponseReturnValue:
+@tenant_membership_required()
+def resync_projection(user_email, user_roles, tenant) -> ResponseReturnValue:
     """Force a full re-projection of the CURRENT tenant (convenience + recovery).
 
     A manual "Re-sync now" action (design → "Projection invocation + freshness"):
@@ -423,10 +337,6 @@ def resync_projection(user_email, user_roles) -> ResponseReturnValue:
     Tenant comes from the verified context (X-Tenant / JWT), NEVER a body value;
     the caller must have access to it (403 otherwise).
     """
-    tenant, err = _resolve_verified_tenant()
-    if err is not None:
-        return err
-
     # Resolve the production-configured ProjectionSync the same way the on-change
     # trigger does (lazily-built DatabaseSourceProvider + ProjectionSync, steering
     # 31 fail-fast env), then run the FORCED full re-projection for this tenant

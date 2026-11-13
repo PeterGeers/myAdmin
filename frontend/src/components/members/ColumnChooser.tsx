@@ -52,7 +52,8 @@ import {
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import type { FieldConfig } from '../../types/members';
 import { isColumnCandidate } from './fieldValue';
-import FieldChecklist, { resolveLabel } from './FieldChecklist';
+import FieldChecklist from './FieldChecklist';
+import { resolveLabel } from './labelResolver';
 
 /**
  * The one always-on, non-toggleable column (R7.2). It is handed to the checklist
@@ -130,7 +131,7 @@ export const ColumnChooser: React.FC<ColumnChooserProps> = ({
     const needle = filter.trim().toLowerCase();
     const filtered = needle
       ? toggleable.filter((f) =>
-          resolveLabel(f.label, lang, f.key).toLowerCase().includes(needle),
+          resolveLabel(f.label, lang, f.key, 'nl-first').toLowerCase().includes(needle),
         )
       : toggleable;
     // Prepend the always-on member_number descriptor (unfiltered) so it is
