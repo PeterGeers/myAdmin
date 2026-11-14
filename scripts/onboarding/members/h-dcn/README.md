@@ -43,3 +43,25 @@ The Google service-account key, spreadsheet ID, worksheet, and Drive folder IDs 
 `scripts/tenants/h-dcn/secrets.local.json` (git-ignored, co-located credential). The runners
 resolve them from there unless overridden on the CLI. Template:
 `scripts/tenants/h-dcn/secrets.example.json`.
+
+## Faster re-onboarding and safety (added 2026-11-13)
+
+- onboard-hdcn-members.sh: one command = seed config then dry-run then apply --reconcile (dedup guarded).
+- backfill-hdcn-members.py --dedup: pre-flight duplicate guard. Refuses --apply (exit 2) if the tenant already has duplicate member_numbers; with --reconcile it also re-verifies after apply.
+- verify-hdcn-members.py: read-only table-vs-source verification (counts, duplicates, drift).
+- DynamoDB PITR is ENABLED on the sam-members table (35-day restore window).
+
+### Secrets (never commit)
+- Real secrets live in scripts/tenants/h-dcn/secrets.local.json plus the Google service-account key beside it.
+- Both are git-ignored (scripts/tenants/*/* plus the google-service-account.json patterns). Only secrets.example.json is committed.
+
+#  Commands
+## Run full onboarding (single command):
+AWS_PROFILE=nonprofit-deploy bash scripts/onboarding/members/h-dcn/onboard-hdcn-members.sh
+
+## Dry-run only:
+SKIP_SEED=1 SKIP_DRY=1 bash scripts/onboarding/members/h-dcn/onboard-hdcn-members.sh
+
+## Verify only:
+backend/.venv/bin/python scripts/onboarding/members/h-dcn/verify-hdcn-members.py --tenant h-dcn
+

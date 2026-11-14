@@ -494,6 +494,29 @@ def _print_reconcile_report(recon: ReconcilePlan) -> None:
             print(f"    {number!r}: members {ids}")
 
 
+def _print_dedup_report(dups, blanks, *, table_name, apply):
+    """Render the duplicate-member guard report (pre-flight / post-apply verify)."""
+    print("=" * 68)
+    print("Duplicate member_number guard")
+    print("=" * 68)
+    print("  table     : " + str(table_name))
+    if apply:
+        print("  mode      : APPLY")
+    else:
+        print("  mode      : DRY-RUN")
+    print("-" * 68)
+    if dups:
+        print("  DUPLICATE member_number(s) PRESENT:")
+        for n in sorted(dups):
+            ids = dups[n]
+            print("    " + str(n) + " -> member ids " + str(ids))
+    else:
+        print("  DUPLICATE member_number(s) : NONE - clean.")
+    if blanks:
+        print("  BLANK member_number (unmatchable): " + str(blanks))
+    print("-" * 68)
+
+
 def _apply_reconcile_plan(recon: ReconcilePlan, repo: DynamoDbMembersRepository) -> dict[str, int]:
     """Apply the reconcile plan: UPSERT candidates + soft-flag absent records (D7/R7.3/R7.4).
 
@@ -554,6 +577,7 @@ def backfill(
     region: str,
     apply: bool,
     reconcile: bool = False,
+    dedup: bool = False,
     tenant_id: str = HDCN_TENANT_ID,
     fmt: str | None = None,
     sheet_id: str | None = None,
@@ -584,6 +608,16 @@ def backfill(
     # Fail-fast table-name resolution up front (even in dry-run) so a misconfigured target is
     # caught before any transform work — mirrors the provisioner.
     table_name = td.resolve_members_table_name()
+
+    # Dedup guard (pre-flight): if --dedup, scan the tenant partition for
+    # member_number values carried by more than one record; refuse apply if so.
+    if dedup:
+        _guard_repo = repo or DynamoDbMembersRepository()
+        _guard_by_number, _guard_dups, _guard_blanks = _index_sam_by_number(_guard_repo, tenant_id)
+        _print_dedup_report(_guard_dups, _guard_blanks, table_name=table_name, apply=apply)
+        if apply and _guard_dups:
+            print("REFUSING --apply: duplicate member_number(s) present in tenant table.", file=sys.stderr)
+            return 2
 
     type_mapper = MembershipTypeMapper(known_codes=known_codes) if known_codes else MembershipTypeMapper()
 
@@ -781,6 +815,15 @@ def build_parser() -> argparse.ArgumentParser:
         "omitted, regions are kept verbatim (and would surface as R9.5 offenders).",
     )
     parser.add_argument(
+        "--dedup",
+        action="store_true",
+        default=False,
+        help="Pre-flight guard: scan DynamoDB for duplicate member_number(s) in the tenant "
+        "before applying. Refuse with exit code 2 if any duplicates exist (R5.2). With "
+        "--reconcile, also re-verify after apply that no new duplicates were introduced. "
+        "Default: off.",
+    )
+    parser.add_argument(
         "--reconcile",
         "--sync",
         dest="reconcile",
@@ -859,6 +902,7 @@ def main(argv: list[str] | None = None) -> int:
             credentials_file=credentials_file,
             known_codes=args.known_codes,
             members_config_path=args.members_config,
+            dedup=args.dedup,
         )
     except SecretsFileNotFoundError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
