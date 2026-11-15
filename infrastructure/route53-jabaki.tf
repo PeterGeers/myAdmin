@@ -252,3 +252,19 @@ output "jabaki_nameservers" {
   description = "NS records for jabaki.nl — set these as nameservers at Squarespace"
   value       = aws_route53_zone.jabaki.name_servers
 }
+
+# --- ACM validation CNAME for the Amplify app jabaki-rentals (serves the apex) ---
+# Amplify manages its own certificate for jabaki.nl and renews it through this
+# record. It was missing from this (live) zone, so renewal would have failed.
+# Value from `aws amplify list-domain-associations --app-id <jabaki-rentals>`
+# (certificateVerificationDNSRecord). Added 2026-11-15.
+resource "aws_route53_record" "jabaki_amplify_cert_validation" {
+  zone_id = aws_route53_zone.jabaki.zone_id
+  name    = "_5f38a1b655adabc2631d6ea62a5dabe3.jabaki.nl"
+  type    = "CNAME"
+  ttl     = 300
+
+  records = [
+    "_a45033afe8733bc4e27577919c07e8b5.jkddzztszm.acm-validations.aws.",
+  ]
+}
