@@ -176,7 +176,8 @@ const MembersPage: React.FC = () => {
     const total = memberRows.length;
     const filtered = processedData.length;
     const active = processedData.filter(
-      r => String(r.status ?? '').toLowerCase() === 'active',
+      r => String((r as MemberRow & { status_raw?: unknown }).status_raw ?? r.status ?? '')
+        .toLowerCase() === 'active',
     ).length;
     const regions = new Set(
       processedData
