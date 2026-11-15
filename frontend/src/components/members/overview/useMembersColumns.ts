@@ -241,9 +241,16 @@ export function useMembersColumns({
       for (const f of promotable) {
         const labelMap = enumLabelMaps.get(f.key) ?? null;
         const raw = valueFor(row, f.group, f.key);
-        extra[f.key] = labelMap
-          ? enumValueToFilterText(labelMap, raw)
-          : coerceByType(f, raw);
+        // Preserve the raw stored key for enum columns (e.g. status) alongside the
+        // display-text version, so callers that need the canonical key (active count,
+        // export, scope enforcement) can read it even after the column is flattened
+        // to its active-language label for filter/search/sort.
+        if (labelMap) {
+          extra[f.key] = enumValueToFilterText(labelMap, raw);
+          extra[`${f.key}_raw`] = raw;
+        } else {
+          extra[f.key] = coerceByType(f, raw);
+        }
       }
       return { ...row, ...extra };
     });
