@@ -532,6 +532,16 @@ resource "aws_iam_policy" "custom_domains_management" {
           "cloudfront-keyvaluestore:DescribeKeyValueStore"
         ]
         Resource = aws_cloudfront_key_value_store.domain_mapping.arn
+      },
+      {
+        # Personal half of the cross-account mechanism: the live *.jabaki.nl
+        # distribution, its ACM certs and KVS are in NONPROFIT (506221081911);
+        # the backend assumes this role there (env PUBLIC_PAGES_AWS_ROLE_ARN).
+        # The role + trust live in nonprofit-public-pages/hosting.tf.
+        Sid      = "AssumeNonprofitPublicPagesRole"
+        Effect   = "Allow"
+        Action   = "sts:AssumeRole"
+        Resource = var.nonprofit_public_pages_backend_role_arn
       }
     ]
   })

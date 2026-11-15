@@ -69,3 +69,9 @@ variable "nonprofit_public_pages_distribution_arn" {
   type        = string
   default     = "arn:aws:cloudfront::506221081911:distribution/E3GLUX3TWBIJG"
 }
+
+variable "nonprofit_public_pages_backend_role_arn" {
+  description = "ARN of the NONPROFIT role the Railway backend assumes for custom domains (shared ACM cert, distribution aliases/cert, KVS). Defined in nonprofit-public-pages/hosting.tf."
+  type        = string
+  default     = "arn:aws:iam::506221081911:role/myadmin-public-pages-backend-production"
+}

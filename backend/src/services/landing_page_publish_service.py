@@ -54,7 +54,13 @@ class LandingPagePublishService:
             "CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID", ""
         )
         self.base_url = os.environ.get("LANDING_PAGE_BASE_URL", "https://myadmin.app")
-        self._cloudfront = boto3.client("cloudfront", region_name=region)
+        # The *.jabaki.nl distribution is in the nonprofit account; invalidate
+        # through the cross-account role (PUBLIC_PAGES_AWS_ROLE_ARN). If the
+        # role cannot be assumed, fall back to default credentials: publishing
+        # must not break — invalidation is best-effort (cache TTL <= 1h).
+        self._cloudfront = boto3.client(
+            "cloudfront", region_name=region, **self._public_pages_credentials()
+        )
 
     # ========================================================================
     # Publish
@@ -379,6 +385,17 @@ class LandingPagePublishService:
                 "Failed to query landing page assets for slug=%s: %s", slug, e
             )
             return []
+
+    @staticmethod
+    def _public_pages_credentials() -> dict:
+        """Assumed-role client kwargs for the nonprofit hosting, or {}."""
+        from services.cloudfront_domain_service import CloudFrontDomainService
+
+        try:
+            return CloudFrontDomainService._assumed_role_credentials()
+        except Exception as e:
+            logger.warning("Could not assume public-pages role: %s", e)
+            return {}
 
     def _invalidate_cache(self, slug: str) -> None:
         """Invalidate CloudFront cache for a tenant's landing page files."""

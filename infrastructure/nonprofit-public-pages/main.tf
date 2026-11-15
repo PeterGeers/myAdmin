@@ -20,8 +20,10 @@
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
+      source = "hashicorp/aws"
+      # >= 6.28 for aws_cloudfront_multitenant_distribution (custom-domains.tf).
+      # This stack only; the personal monolith stays on ~> 5.0.
+      version = "~> 6.28"
     }
   }
 
