@@ -18,41 +18,70 @@ resource "aws_route53_zone" "jabaki" {
 # Phase 0: Domain Migration — Step 2
 # ============================================================================
 
-# --- A record: jabaki.nl → CloudFront distribution (alias, replaces hardcoded IPs) ---
+# Alias targets. Both live outside this personal-account stack, so they are
+# plain values rather than resource references:
+#   - apex jabaki.nl → the Amplify app `jabaki-rentals` (personal account), which
+#     serves jabaki.nl and redirects to www. Repointed 2026-11-15 when the old
+#     personal public-pages distribution was retired.
+#   - *.jabaki.nl → the nonprofit public-pages distribution E3GLUX3TWBIJG
+#     (infrastructure/nonprofit-public-pages, output cloudfront_distribution_domain).
+#     Cut over 2026-10-31.
+# Z2FDTNDATAQYW2 is the fixed Route 53 hosted-zone id for every CloudFront alias.
+locals {
+  cloudfront_alias_zone_id     = "Z2FDTNDATAQYW2"
+  jabaki_apex_alias_target     = "d2v50o5l2km56h.cloudfront.net"
+  jabaki_wildcard_alias_target = "d3le4vf2nffsil.cloudfront.net"
+}
+
+# --- A record: jabaki.nl → Amplify app jabaki-rentals (alias) ---
 resource "aws_route53_record" "jabaki_a" {
   zone_id = aws_route53_zone.jabaki.zone_id
   name    = "jabaki.nl"
   type    = "A"
 
   alias {
-    name                   = aws_cloudfront_distribution.public_pages.domain_name
-    zone_id                = aws_cloudfront_distribution.public_pages.hosted_zone_id
+    name                   = local.jabaki_apex_alias_target
+    zone_id                = local.cloudfront_alias_zone_id
     evaluate_target_health = false
   }
 }
 
-# --- AAAA record: jabaki.nl → CloudFront distribution (alias, replaces hardcoded IPv6) ---
+# --- AAAA record: jabaki.nl → Amplify app jabaki-rentals (alias) ---
 resource "aws_route53_record" "jabaki_aaaa" {
   zone_id = aws_route53_zone.jabaki.zone_id
   name    = "jabaki.nl"
   type    = "AAAA"
 
   alias {
-    name                   = aws_cloudfront_distribution.public_pages.domain_name
-    zone_id                = aws_cloudfront_distribution.public_pages.hosted_zone_id
+    name                   = local.jabaki_apex_alias_target
+    zone_id                = local.cloudfront_alias_zone_id
     evaluate_target_health = false
   }
 }
 
-# --- Wildcard A record: *.jabaki.nl → CloudFront distribution (NEW for landing pages) ---
+# --- Wildcard A record: *.jabaki.nl → nonprofit public-pages distribution ---
 resource "aws_route53_record" "jabaki_wildcard" {
   zone_id = aws_route53_zone.jabaki.zone_id
   name    = "*.jabaki.nl"
   type    = "A"
 
   alias {
-    name                   = aws_cloudfront_distribution.public_pages.domain_name
-    zone_id                = aws_cloudfront_distribution.public_pages.hosted_zone_id
+    name                   = local.jabaki_wildcard_alias_target
+    zone_id                = local.cloudfront_alias_zone_id
+    evaluate_target_health = false
+  }
+}
+
+# --- Wildcard AAAA record: *.jabaki.nl → nonprofit public-pages distribution ---
+# Created by hand during the 2026-10-31 cutover; imported into state 2026-11-15.
+resource "aws_route53_record" "jabaki_wildcard_aaaa" {
+  zone_id = aws_route53_zone.jabaki.zone_id
+  name    = "*.jabaki.nl"
+  type    = "AAAA"
+
+  alias {
+    name                   = local.jabaki_wildcard_alias_target
+    zone_id                = local.cloudfront_alias_zone_id
     evaluate_target_health = false
   }
 }
