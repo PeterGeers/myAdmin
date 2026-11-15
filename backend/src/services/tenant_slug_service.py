@@ -274,7 +274,7 @@ class TenantSlugService:
         4. Update MySQL s3_asset_references.entity_id
         5. Delete old S3 CDN files
         6. Republish under new slug
-        7. Update CloudFront KVS if custom domain exists
+        7. Update the custom domain's distribution tenant (slug parameter)
         8. Invalidate CloudFront cache for old slug
 
         Non-atomic: partial failures are reported as warnings.
@@ -407,7 +407,7 @@ class TenantSlugService:
                 "Republish failed after rename %s→%s: %s", old_slug, new_slug, e
             )
 
-        # Step 7: Update CloudFront KVS if custom domain exists
+        # Step 7: Point the custom domain's distribution tenant at the new slug
         try:
             custom_domain_query = """
                 SELECT domain FROM tenant_custom_domains
@@ -420,14 +420,17 @@ class TenantSlugService:
                 cf_svc = CloudFrontDomainService()
                 for row in domains:
                     domain = row["domain"]
-                    if not cf_svc.put_kvs_mapping(domain, new_slug):
+                    if not cf_svc.update_domain_tenant_slug(domain, new_slug):
                         warnings.append(
-                            f"Failed to update KVS mapping for domain {domain}"
+                            f"Failed to update custom domain routing for {domain}"
                         )
         except Exception as e:
-            warnings.append(f"KVS update error: {e}")
+            warnings.append(f"Custom domain routing update error: {e}")
             logger.warning(
-                "KVS update failed for rename %s→%s: %s", old_slug, new_slug, e
+                "Custom domain routing update failed for rename %s→%s: %s",
+                old_slug,
+                new_slug,
+                e,
             )
 
         # Step 8: Invalidate CloudFront cache for old slug
