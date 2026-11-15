@@ -6,7 +6,7 @@ The Landing Page feature lets you create a professional public webpage for your 
 
 ## Setting up your slug
 
-The slug is the unique part of your page URL (e.g., `my-company` → `https://d3afn46os9e9nc.cloudfront.net/my-company`).
+The slug is the unique part of your page URL (e.g., `my-company` → `https://my-company.jabaki.nl`).
 
 1. Go to **Tenant Admin** → **Landing Page** tab
 2. Enter a slug (lowercase letters, numbers, and hyphens only, minimum 3 characters)

@@ -6,7 +6,7 @@ Met de Landing Page functie maak je een professionele publieke webpagina voor je
 
 ## Slug instellen
 
-De slug is het unieke deel van je pagina-URL (bijv. `mijn-bedrijf` → `https://d3afn46os9e9nc.cloudfront.net/mijn-bedrijf`).
+De slug is het unieke deel van je pagina-URL (bijv. `mijn-bedrijf` → `https://mijn-bedrijf.jabaki.nl`).
 
 1. Ga naar **Tenant Admin** → **Landing Page** tab
 2. Vul een slug in (alleen kleine letters, cijfers en streepjes, minimaal 3 tekens)
