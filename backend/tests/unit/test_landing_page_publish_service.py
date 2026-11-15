@@ -1769,3 +1769,36 @@ class TestThemePresetBranding:
         assert branding["section_bg"] == "#0d0d0d"
         assert branding["font_heading"] == "Playfair Display"
         assert branding["font_body"] == "Lato"
+
+
+class TestPublicPagesCredentials:
+    """CloudFront invalidation uses the cross-account role, with a safe fallback."""
+
+    def test_role_credentials_returned_when_assumable(self):
+        from unittest.mock import patch
+
+        from services.landing_page_publish_service import LandingPagePublishService
+
+        creds = {
+            "aws_access_key_id": "AK",
+            "aws_secret_access_key": "SK",
+            "aws_session_token": "ST",
+        }
+        with patch(
+            "services.cloudfront_domain_service.CloudFrontDomainService."
+            "_assumed_role_credentials",
+            return_value=creds,
+        ):
+            assert LandingPagePublishService._public_pages_credentials() == creds
+
+    def test_role_assume_failure_falls_back_to_default(self):
+        from unittest.mock import patch
+
+        from services.landing_page_publish_service import LandingPagePublishService
+
+        with patch(
+            "services.cloudfront_domain_service.CloudFrontDomainService."
+            "_assumed_role_credentials",
+            side_effect=RuntimeError("AccessDenied"),
+        ):
+            assert LandingPagePublishService._public_pages_credentials() == {}
