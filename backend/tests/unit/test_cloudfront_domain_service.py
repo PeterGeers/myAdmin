@@ -1,8 +1,8 @@
 """
 Unit Tests for CloudFrontDomainService
 
-Tests CloudFront distribution CNAME management (Task 4.4)
-and KeyValueStore domain→slug mappings (Task 4.5).
+Tests custom domains as CloudFront distribution tenants (multi-tenant
+distribution), the embed-origins KeyValueStore, and the cross-account role.
 Uses unittest.mock to mock boto3 clients.
 """
 
@@ -31,6 +31,8 @@ def mock_env(monkeypatch):
         "arn:aws:cloudfront::123456789:key-value-store/embed-origins-kvs",
     )
     monkeypatch.setenv("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "d1234abcd.cloudfront.net")
+    monkeypatch.setenv("CLOUDFRONT_CUSTOM_DOMAINS_DISTRIBUTION_ID", "EMULTITENANT")
+    monkeypatch.delenv("PUBLIC_PAGES_AWS_ROLE_ARN", raising=False)
 
 
 @pytest.fixture
@@ -59,221 +61,10 @@ def mock_boto3(mock_env):
         yield service, mock_cloudfront, mock_acm, mock_kvs
 
 
-class TestAddDomainToDistribution:
-    """Tests for CloudFrontDomainService.add_domain_to_distribution (Task 4.4)."""
-
-    def test_add_domain_success(self, mock_boto3):
-        """Add a new domain to distribution — succeeds."""
-        service, mock_cf, _, _ = mock_boto3
-
-        mock_cf.get_distribution_config.return_value = {
-            "DistributionConfig": {
-                "Aliases": {"Quantity": 1, "Items": ["*.jabaki.nl"]},
-                "ViewerCertificate": {},
-            },
-            "ETag": "ETAG123",
-        }
-        mock_cf.update_distribution.return_value = {}
-
-        result = service.add_domain_to_distribution(
-            "www.acme-rentals.nl",
-            "arn:aws:acm:us-east-1:123:certificate/abc",
-        )
-
-        assert result is True
-        mock_cf.update_distribution.assert_called_once()
-        call_kwargs = mock_cf.update_distribution.call_args[1]
-        assert call_kwargs["IfMatch"] == "ETAG123"
-        config = call_kwargs["DistributionConfig"]
-        assert "www.acme-rentals.nl" in config["Aliases"]["Items"]
-        assert config["Aliases"]["Quantity"] == 2
-
-    def test_add_domain_already_present(self, mock_boto3):
-        """Add a domain that's already in aliases — returns True without update."""
-        service, mock_cf, _, _ = mock_boto3
-
-        mock_cf.get_distribution_config.return_value = {
-            "DistributionConfig": {
-                "Aliases": {
-                    "Quantity": 2,
-                    "Items": ["*.jabaki.nl", "www.acme-rentals.nl"],
-                },
-            },
-            "ETag": "ETAG456",
-        }
-
-        result = service.add_domain_to_distribution(
-            "www.acme-rentals.nl",
-            "arn:aws:acm:us-east-1:123:certificate/abc",
-        )
-
-        assert result is True
-        mock_cf.update_distribution.assert_not_called()
-
-    def test_add_domain_client_error(self, mock_boto3):
-        """CloudFront API error — returns False."""
-        service, mock_cf, _, _ = mock_boto3
-
-        mock_cf.get_distribution_config.side_effect = ClientError(
-            {"Error": {"Code": "NoSuchDistribution", "Message": "Not found"}},
-            "GetDistributionConfig",
-        )
-
-        result = service.add_domain_to_distribution(
-            "www.acme-rentals.nl",
-            "arn:aws:acm:us-east-1:123:certificate/abc",
-        )
-
-        assert result is False
-
-
-class TestRemoveDomainFromDistribution:
-    """Tests for CloudFrontDomainService.remove_domain_from_distribution (Task 4.4)."""
-
-    def test_remove_domain_success(self, mock_boto3):
-        """Remove an existing domain from distribution — succeeds."""
-        service, mock_cf, _, _ = mock_boto3
-
-        mock_cf.get_distribution_config.return_value = {
-            "DistributionConfig": {
-                "Aliases": {
-                    "Quantity": 2,
-                    "Items": ["*.jabaki.nl", "www.acme-rentals.nl"],
-                },
-            },
-            "ETag": "ETAG789",
-        }
-        mock_cf.update_distribution.return_value = {}
-
-        result = service.remove_domain_from_distribution("www.acme-rentals.nl")
-
-        assert result is True
-        call_kwargs = mock_cf.update_distribution.call_args[1]
-        assert call_kwargs["IfMatch"] == "ETAG789"
-        config = call_kwargs["DistributionConfig"]
-        assert "www.acme-rentals.nl" not in config["Aliases"]["Items"]
-        assert config["Aliases"]["Quantity"] == 1
-
-    def test_remove_domain_not_present(self, mock_boto3):
-        """Remove a domain not in aliases — returns True without update."""
-        service, mock_cf, _, _ = mock_boto3
-
-        mock_cf.get_distribution_config.return_value = {
-            "DistributionConfig": {
-                "Aliases": {"Quantity": 1, "Items": ["*.jabaki.nl"]},
-            },
-            "ETag": "ETAG000",
-        }
-
-        result = service.remove_domain_from_distribution("www.acme-rentals.nl")
-
-        assert result is True
-        mock_cf.update_distribution.assert_not_called()
-
-    def test_remove_domain_client_error(self, mock_boto3):
-        """CloudFront API error — returns False."""
-        service, mock_cf, _, _ = mock_boto3
-
-        mock_cf.get_distribution_config.side_effect = ClientError(
-            {"Error": {"Code": "AccessDenied", "Message": "No access"}},
-            "GetDistributionConfig",
-        )
-
-        result = service.remove_domain_from_distribution("www.acme-rentals.nl")
-
-        assert result is False
-
-
-class TestPutKvsMapping:
-    """Tests for CloudFrontDomainService.put_kvs_mapping (Task 4.5)."""
-
-    def test_put_mapping_success(self, mock_boto3):
-        """Put a new domain→slug mapping — succeeds."""
-        service, _, _, mock_kvs = mock_boto3
-
-        mock_kvs.describe_key_value_store.return_value = {"ETag": "KVS_ETAG1"}
-        mock_kvs.put_key.return_value = {}
-
-        result = service.put_kvs_mapping("www.acme-rentals.nl", "acme-rentals")
-
-        assert result is True
-        mock_kvs.put_key.assert_called_once_with(
-            KvsARN="arn:aws:cloudfront::123456789:key-value-store/test-kvs",
-            Key="www.acme-rentals.nl",
-            Value="acme-rentals",
-            IfMatch="KVS_ETAG1",
-        )
-
-    def test_put_mapping_client_error(self, mock_boto3):
-        """KVS API error — returns False."""
-        service, _, _, mock_kvs = mock_boto3
-
-        mock_kvs.describe_key_value_store.return_value = {"ETag": "KVS_ETAG1"}
-        mock_kvs.put_key.side_effect = ClientError(
-            {"Error": {"Code": "ValidationException", "Message": "Invalid"}},
-            "PutKey",
-        )
-
-        result = service.put_kvs_mapping("www.acme-rentals.nl", "acme-rentals")
-
-        assert result is False
-
-
-class TestDeleteKvsMapping:
-    """Tests for CloudFrontDomainService.delete_kvs_mapping (Task 4.5)."""
-
-    def test_delete_mapping_success(self, mock_boto3):
-        """Delete an existing domain mapping — succeeds."""
-        service, _, _, mock_kvs = mock_boto3
-
-        mock_kvs.describe_key_value_store.return_value = {"ETag": "KVS_ETAG2"}
-        mock_kvs.delete_key.return_value = {}
-
-        result = service.delete_kvs_mapping("www.acme-rentals.nl")
-
-        assert result is True
-        mock_kvs.delete_key.assert_called_once_with(
-            KvsARN="arn:aws:cloudfront::123456789:key-value-store/test-kvs",
-            Key="www.acme-rentals.nl",
-            IfMatch="KVS_ETAG2",
-        )
-
-    def test_delete_mapping_not_found(self, mock_boto3):
-        """Delete a key that doesn't exist — returns True (idempotent)."""
-        service, _, _, mock_kvs = mock_boto3
-
-        mock_kvs.describe_key_value_store.return_value = {"ETag": "KVS_ETAG3"}
-        mock_kvs.delete_key.side_effect = ClientError(
-            {
-                "Error": {
-                    "Code": "ResourceNotFoundException",
-                    "Message": "Key not found",
-                }
-            },
-            "DeleteKey",
-        )
-
-        result = service.delete_kvs_mapping("www.nonexistent.nl")
-
-        assert result is True
-
-    def test_delete_mapping_other_error(self, mock_boto3):
-        """Delete with non-NotFound error — returns False."""
-        service, _, _, mock_kvs = mock_boto3
-
-        mock_kvs.describe_key_value_store.return_value = {"ETag": "KVS_ETAG4"}
-        mock_kvs.delete_key.side_effect = ClientError(
-            {"Error": {"Code": "AccessDenied", "Message": "No access"}},
-            "DeleteKey",
-        )
-
-        result = service.delete_kvs_mapping("www.acme-rentals.nl")
-
-        assert result is False
-
-
-EMBED_KVS_ARN = "arn:aws:cloudfront::123456789:key-value-store/embed-origins-kvs"
+# Application-form public host used as the embed-origins KVS key.
 FORM_HOST = "tenant-member-application.jabaki.nl"
+# Must match CLOUDFRONT_EMBED_ORIGINS_KVS_ARN in the mock_env fixture.
+EMBED_KVS_ARN = "arn:aws:cloudfront::123456789:key-value-store/embed-origins-kvs"
 
 
 class TestFormatFrameAncestorsValue:
@@ -428,3 +219,270 @@ class TestDeleteApplicationEmbedOrigins:
 
         assert result is True
         mock_kvs.delete_key.assert_not_called()
+
+
+def _client_error(code, op="Op"):
+    return ClientError({"Error": {"Code": code, "Message": code}}, op)
+
+
+class TestCreateDomainTenant:
+    """Custom domain -> distribution tenant with a CloudFront-managed cert."""
+
+    def test_create_tenant_success_returns_routing_endpoint(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.create_distribution_tenant.return_value = {
+            "DistributionTenant": {"Id": "dt_1", "ConnectionGroupId": "cg_1"}
+        }
+        mock_cf.get_connection_group.return_value = {
+            "ConnectionGroup": {"RoutingEndpoint": "d999.cloudfront.net"}
+        }
+
+        result = service.create_domain_tenant("www.acme.nl", "acme")
+
+        assert result == {
+            "success": True,
+            "tenant_id": "dt_1",
+            "routing_endpoint": "d999.cloudfront.net",
+        }
+        kwargs = mock_cf.create_distribution_tenant.call_args[1]
+        assert kwargs["DistributionId"] == "EMULTITENANT"
+        assert kwargs["Name"] == "www.acme.nl"
+        assert kwargs["Domains"] == [{"Domain": "www.acme.nl"}]
+        assert kwargs["Parameters"] == [{"Name": "slug", "Value": "acme"}]
+        assert (
+            kwargs["ManagedCertificateRequest"]["ValidationTokenHost"] == "cloudfront"
+        )
+        assert kwargs["ManagedCertificateRequest"]["PrimaryDomainName"] == "www.acme.nl"
+        mock_cf.get_connection_group.assert_called_once_with(Identifier="cg_1")
+
+    def test_create_tenant_cname_taken_returns_clear_error(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.create_distribution_tenant.side_effect = _client_error(
+            "CNAMEAlreadyExists", "CreateDistributionTenant"
+        )
+
+        result = service.create_domain_tenant("www.acme.nl", "acme")
+
+        assert result["success"] is False
+        assert "already connected" in result["error"]
+
+    def test_create_tenant_not_configured_returns_error(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        service.custom_domains_distribution_id = ""
+
+        result = service.create_domain_tenant("www.acme.nl", "acme")
+
+        assert result["success"] is False
+        mock_cf.create_distribution_tenant.assert_not_called()
+
+
+class TestGetDomainStatus:
+    """Managed-cert status is mapped to ISSUED / PENDING_VALIDATION / FAILED."""
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("issued", "ISSUED"),
+            ("pending-validation", "PENDING_VALIDATION"),
+            ("validation-timed-out", "FAILED"),
+            ("failed", "FAILED"),
+            ("revoked", "FAILED"),
+            ("expired", "FAILED"),
+            ("inactive", "FAILED"),
+        ],
+    )
+    def test_status_mapping(self, mock_boto3, raw, expected):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.get_distribution_tenant_by_domain.return_value = {
+            "DistributionTenant": {"Id": "dt_1"},
+            "ETag": "E1",
+        }
+        mock_cf.get_managed_certificate_details.return_value = {
+            "ManagedCertificateDetails": {
+                "CertificateStatus": raw,
+                "CertificateArn": "arn:cert",
+            }
+        }
+
+        result = service.get_domain_status("www.acme.nl")
+
+        assert result == {
+            "success": True,
+            "status": expected,
+            "certificate_arn": "arn:cert",
+        }
+        mock_cf.get_distribution_tenant_by_domain.assert_called_once_with(
+            Domain="www.acme.nl"
+        )
+        mock_cf.get_managed_certificate_details.assert_called_once_with(
+            Identifier="dt_1"
+        )
+
+    def test_status_tenant_missing_returns_not_found(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.get_distribution_tenant_by_domain.side_effect = _client_error(
+            "EntityNotFound"
+        )
+
+        result = service.get_domain_status("www.acme.nl")
+
+        assert result["success"] is False
+
+    def test_status_api_error_returns_failure(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.get_distribution_tenant_by_domain.side_effect = _client_error(
+            "AccessDenied"
+        )
+
+        assert service.get_domain_status("www.acme.nl")["success"] is False
+
+
+class TestUpdateDomainTenantSlug:
+    def test_update_slug_sets_parameter_with_etag(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.get_distribution_tenant_by_domain.return_value = {
+            "DistributionTenant": {"Id": "dt_1"},
+            "ETag": "E1",
+        }
+
+        assert service.update_domain_tenant_slug("www.acme.nl", "acme-new") is True
+        mock_cf.update_distribution_tenant.assert_called_once_with(
+            Id="dt_1",
+            IfMatch="E1",
+            Parameters=[{"Name": "slug", "Value": "acme-new"}],
+        )
+
+    def test_update_slug_missing_tenant_returns_false(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.get_distribution_tenant_by_domain.side_effect = _client_error(
+            "EntityNotFound"
+        )
+
+        assert service.update_domain_tenant_slug("www.acme.nl", "x") is False
+        mock_cf.update_distribution_tenant.assert_not_called()
+
+
+class TestDeleteDomainTenant:
+    def test_delete_enabled_tenant_disables_then_deletes(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.get_distribution_tenant_by_domain.return_value = {
+            "DistributionTenant": {"Id": "dt_1", "Enabled": True},
+            "ETag": "E1",
+        }
+        mock_cf.update_distribution_tenant.return_value = {"ETag": "E2"}
+
+        assert service.delete_domain_tenant("www.acme.nl") is True
+        mock_cf.update_distribution_tenant.assert_called_once_with(
+            Id="dt_1", IfMatch="E1", Enabled=False
+        )
+        mock_cf.delete_distribution_tenant.assert_called_once_with(
+            Id="dt_1", IfMatch="E2"
+        )
+
+    def test_delete_missing_tenant_is_idempotent(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.get_distribution_tenant_by_domain.side_effect = _client_error(
+            "EntityNotFound"
+        )
+
+        assert service.delete_domain_tenant("www.acme.nl") is True
+        mock_cf.delete_distribution_tenant.assert_not_called()
+
+    def test_delete_refused_returns_false(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.get_distribution_tenant_by_domain.return_value = {
+            "DistributionTenant": {"Id": "dt_1", "Enabled": False},
+            "ETag": "E1",
+        }
+        mock_cf.delete_distribution_tenant.side_effect = _client_error(
+            "ResourceNotDisabled", "DeleteDistributionTenant"
+        )
+
+        assert service.delete_domain_tenant("www.acme.nl") is False
+        mock_cf.update_distribution_tenant.assert_not_called()
+
+
+class TestCrossAccountRole:
+    """PUBLIC_PAGES_AWS_ROLE_ARN makes every client use assumed-role creds."""
+
+    def test_role_arn_set_clients_use_assumed_credentials(self, mock_env, monkeypatch):
+        monkeypatch.setenv(
+            "PUBLIC_PAGES_AWS_ROLE_ARN", "arn:aws:iam::506221081911:role/test-role"
+        )
+        with patch("boto3.client") as factory:
+            sts = MagicMock()
+            sts.assume_role.return_value = {
+                "Credentials": {
+                    "AccessKeyId": "AK",
+                    "SecretAccessKey": "SK",
+                    "SessionToken": "ST",
+                }
+            }
+            factory.side_effect = lambda name, **kw: (
+                sts if name == "sts" else MagicMock()
+            )
+
+            from services.cloudfront_domain_service import CloudFrontDomainService
+
+            service = CloudFrontDomainService()
+
+        assert sts.assume_role.call_args[1]["RoleArn"].endswith("role/test-role")
+        for name in ("cloudfront", "acm"):
+            call = next(c for c in factory.call_args_list if c[0][0] == name)
+            assert call[1]["aws_session_token"] == "ST"
+        assert service._cli_env()["AWS_SESSION_TOKEN"] == "ST"
+
+    def test_role_arn_unset_uses_default_credentials(self, mock_boto3):
+        service, _, _, _ = mock_boto3
+        assert service._client_kwargs == {}
+        assert service._cli_env() is None
+
+
+class TestTenantDnsPrerequisite:
+    """Tenant creation needs the CNAME in place; the target is known up front."""
+
+    def test_create_tenant_ownership_not_verified_is_dns_not_ready(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.create_distribution_tenant.side_effect = ClientError(
+            {
+                "Error": {
+                    "Code": "InvalidArgument",
+                    "Message": "The provided Domain Name is not valid. Could not "
+                    "verify Domain Name ownership.",
+                }
+            },
+            "CreateDistributionTenant",
+        )
+
+        result = service.create_domain_tenant("www.acme.nl", "acme")
+
+        assert result["success"] is False
+        assert result["dns_not_ready"] is True
+
+    def test_get_routing_endpoint_returns_default_group(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.list_connection_groups.return_value = {
+            "ConnectionGroups": [
+                {"IsDefault": False, "RoutingEndpoint": "dother.cloudfront.net"},
+                {"IsDefault": True, "RoutingEndpoint": "ddefault.cloudfront.net"},
+            ]
+        }
+
+        assert service.get_routing_endpoint() == "ddefault.cloudfront.net"
+
+    def test_get_routing_endpoint_error_returns_none(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.list_connection_groups.side_effect = _client_error("AccessDenied")
+
+        assert service.get_routing_endpoint() is None
+
+    def test_status_without_tenant_flags_not_found(self, mock_boto3):
+        service, mock_cf, _, _ = mock_boto3
+        mock_cf.get_distribution_tenant_by_domain.side_effect = _client_error(
+            "EntityNotFound"
+        )
+
+        result = service.get_domain_status("www.acme.nl")
+
+        assert result["success"] is False
+        assert result["not_found"] is True

@@ -262,7 +262,13 @@ resource "aws_s3_bucket_policy" "public_pages" {
         Action    = "s3:GetObject"
         Resource  = "${aws_s3_bucket.public_pages.arn}/*"
         Condition = {
-          StringEquals = { "AWS:SourceArn" = aws_cloudfront_distribution.public_pages.arn }
+          StringEquals = {
+            # *.jabaki.nl distribution + the custom-domains multi-tenant one
+            "AWS:SourceArn" = [
+              aws_cloudfront_distribution.public_pages.arn,
+              aws_cloudfront_multitenant_distribution.custom_domains.arn
+            ]
+          }
         }
       },
       {
@@ -336,6 +342,105 @@ resource "aws_iam_policy" "kvs_access" {
     }]
   })
 }
+
+# ============================================================================
+# Cross-account role for the Railway backend (personal-account IAM user).
+# CloudFront has no resource policies, so the personal-account backend assumes
+# this role (env PUBLIC_PAGES_AWS_ROLE_ARN) to manage custom-domain distribution
+# tenants (custom-domains.tf), clean up their managed ACM certs, invalidate the
+# *.jabaki.nl distribution, and write both KVS.
+# The personal half (sts:AssumeRole on this ARN) is in ../landing-pages.tf.
+# ============================================================================
+resource "aws_iam_role" "public_pages_backend" {
+  name        = "myadmin-public-pages-backend-${var.environment}"
+  description = "Assumed by the Railway backend (personal acct) to manage nonprofit public-pages hosting"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { AWS = var.railway_backend_user_arn }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  max_session_duration = 3600
+
+  tags = {
+    Environment = var.environment
+    Project     = var.project_name
+    ManagedBy   = "terraform"
+  }
+}
+
+resource "aws_iam_role_policy" "public_pages_backend" {
+  name = "public-pages-backend"
+  role = aws_iam_role.public_pages_backend.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # Distribution tenants have no ARN until created and connection groups
+        # are account-level, so these actions cannot be pinned to one ARN.
+        Sid    = "CustomDomainTenants"
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateDistributionTenant",
+          "cloudfront:GetDistributionTenant",
+          "cloudfront:GetDistributionTenantByDomain",
+          "cloudfront:UpdateDistributionTenant",
+          "cloudfront:DeleteDistributionTenant",
+          "cloudfront:GetManagedCertificateDetails",
+          "cloudfront:GetConnectionGroup",
+          "cloudfront:ListConnectionGroups",
+          "cloudfront:TagResource"
+        ]
+        Resource = "*"
+      },
+      {
+        # CloudFront requests the tenant's managed cert on the caller's behalf
+        # (RequestCertificate has no resource ARN); the backend itself only
+        # deletes the leftover cert after a custom domain is removed.
+        Sid    = "ManagedCertificates"
+        Effect = "Allow"
+        Action = [
+          "acm:RequestCertificate",
+          "acm:AddTagsToCertificate",
+          "acm:DescribeCertificate",
+          "acm:DeleteCertificate"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = { "aws:RequestedRegion" = "us-east-1" }
+        }
+      },
+      {
+        Sid      = "JabakiInvalidation"
+        Effect   = "Allow"
+        Action   = ["cloudfront:CreateInvalidation"]
+        Resource = aws_cloudfront_distribution.public_pages.arn
+      },
+      {
+        Sid    = "KeyValueStores"
+        Effect = "Allow"
+        Action = [
+          "cloudfront-keyvaluestore:DescribeKeyValueStore",
+          "cloudfront-keyvaluestore:GetKey",
+          "cloudfront-keyvaluestore:PutKey",
+          "cloudfront-keyvaluestore:DeleteKey",
+          "cloudfront-keyvaluestore:ListKeys"
+        ]
+        Resource = [
+          aws_cloudfront_key_value_store.domain_mapping.arn,
+          aws_cloudfront_key_value_store.application_embed_origins.arn
+        ]
+      }
+    ]
+  })
+}
+
+output "public_pages_backend_role_arn" { value = aws_iam_role.public_pages_backend.arn }
 
 # ============================================================================
 # Outputs — the values Phase 6 needs to repoint Railway + the frontend
