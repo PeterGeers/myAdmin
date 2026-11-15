@@ -32,14 +32,18 @@ AWS_ACCESS_KEY_ID=<from terraform output railway_backend_access_key_id>
 AWS_SECRET_ACCESS_KEY=<from terraform output -raw railway_backend_secret_access_key>
 AWS_DEFAULT_REGION=eu-west-1
 
-# Landing Pages
-CLOUDFRONT_PUBLIC_PAGES_DOMAIN=<from terraform output cloudfront_public_pages_domain_name>
-CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID=<from terraform output cloudfront_public_pages_distribution_id>
-LANDING_PAGES_BUCKET=<from terraform output s3_public_pages_bucket_name>
+# Landing Pages — hosted in the NONPROFIT account (506221081911).
+# Values come from: terraform -chdir=infrastructure/nonprofit-public-pages output
+CLOUDFRONT_PUBLIC_PAGES_DOMAIN=<output cloudfront_distribution_domain>
+CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID=<output cloudfront_distribution_id>
+LANDING_PAGES_BUCKET=<output public_pages_bucket_name>
 LANDING_PAGE_BASE_URL=https://<cloudfront-domain>
+PUBLIC_PAGES_AWS_ROLE_ARN=<output public_pages_backend_role_arn>
 
-# Custom Domains (KVS for domain→slug mapping at CloudFront edge)
-CLOUDFRONT_KVS_ARN=<from terraform output cloudfront_kvs_domain_mapping_arn>
+# Custom Domains (CloudFront multi-tenant distribution + KVS)
+CLOUDFRONT_KVS_ARN=<output domain_mapping_kvs_arn>
+CLOUDFRONT_EMBED_ORIGINS_KVS_ARN=<output application_embed_origins_kvs_arn>
+CLOUDFRONT_CUSTOM_DOMAINS_DISTRIBUTION_ID=<id of the multi-tenant distribution, custom-domains.tf>
 
 # SES Email
 SES_SENDER_EMAIL=<from terraform output ses_sender_email>

@@ -97,7 +97,7 @@ through Phase 6 (old stack untouched); irreversibility begins at Phase 7.
   - _Precondition: Phase 0. Verification: nonprofit can create ACM/S3/CloudFront (scoped
     describe/dry-run); `personal` can edit the zone. Rollback: remove added IAM. Design ref: Phase 1._
 
-- [ ] 2. ⚠ Provision the new nonprofit stack (no DNS traffic yet)
+- [x] 2. ⚠ Provision the new nonprofit stack (no DNS traffic yet)
   - [x] 2.1 ⚠ Decide + record the Terraform strategy (design §9/D5): nonprofit provider +
     **separate state key** scoped to hosting; EXCLUDE `route53-jabaki.tf` zone/email/root-alias.
   - _**STRATEGY (2026-10-31):** New isolated Terraform root `infrastructure/nonprofit-public-pages/` (main.tf+hosting.tf+README.md), separate state key, nonprofit provider. Mirrors personal `landing-pages.tf` (url-rewrite fn verbatim) but EXCLUDES the jabaki zone/email (stay in personal) and the deferred CSP viewer-response fn. New bucket `myadmin-public-pages-nonprofit-506221081911` (name-checked free). `terraform validate` + `fmt` clean; NOT applied. Open: Q1 wildcard ownership for Phase 5 flip (recommend `state rm` + CLI UPSERT, owner-run) & Q2 state-bucket location — deferred to their phases._
@@ -120,7 +120,7 @@ through Phase 6 (old stack untouched); irreversibility begins at Phase 7.
 
   - _**DONE (2026-10-31):** Phase-2 stack applied. dist `E3GLUX3TWBIJG` (`d3le4vf2nffsil.cloudfront.net`, zone `Z2FDTNDATAQYW2`) built with NO alias (Option A — alias moves at Phase 5 to avoid CNAMEAlreadyExists). bucket `myadmin-public-pages-nonprofit-506221081911`; KVS domain=`76ac2d6f-a02a-4321-afb8-3fd5dbf88c43` embed=`f52da9c3-cea7-48f6-9f1d-d189fc563645`; cert `28aefddd…` ISSUED; IAM s3-write/invalidation/kvs-access created. No DNS, old stack untouched._
 
-- [ ] 3. ⚠ Cross-account content copy (personal → nonprofit)
+- [x] 3. ⚠ Cross-account content copy (personal → nonprofit)
   - [x] 3.1 ⚠ Apply a TEMPORARY cross-account grant for the copy.
   - [x] 3.2 ⚠ `aws s3 sync s3://myadmin-public-pages-production/ s3://<new-bucket>/` — ALL **8**
     prefixes (7 tenants + the `h-dcn/` asset) with their `index.html`/`landing.json`/asset.
@@ -131,7 +131,7 @@ through Phase 6 (old stack untouched); irreversibility begins at Phase 7.
 
   - _**DONE (2026-10-31):** Chose push-from-nonprofit-role (Option 2 variant): temp READ grant added to OLD bucket policy (additive, OAC statement preserved), `s3 sync` copied 225/225 objects, integrity verified — all 9 prefixes match baseline count+bytes exactly, 0 missing/0 extra. Temp grant REMOVED; old bucket policy restored byte-identical to original. New bucket holds full content; nothing serves it yet (no DNS)._
 
-- [ ] 4. ⚠ Blue/green validation before any DNS flip (test host only)
+- [x] 4. ⚠ Blue/green validation before any DNS flip (test host only)
   - [x] 4.1 ⚠ Validate the new dist end-to-end WITHOUT touching production DNS — per-tenant Host
     header to the new `*.cloudfront.net`. Optional disposable `migration-test.jabaki.nl` to test
     TLS/SNI (created + deleted in isolation, never the wildcard).
@@ -140,7 +140,7 @@ through Phase 6 (old stack untouched); irreversibility begins at Phase 7.
 
   - _**DONE (2026-10-31):** New dist `E3GLUX3TWBIJG` Deployed. Host-header spoof tests return 421 (expected: no `*.jabaki.nl` alias yet under Option A, so CloudFront rejects non-matching Host). Validated instead via PATH route on the native cf domain `d3le4vf2nffsil.cloudfront.net`: peter/vandenheuvelhoveniers/thecategorystudio/mytest = 200; kimgeers/GoodwinSolutions/h-dcn = 404 — and OLD live dist returns the SAME codes for all (no regression; those 3 serve via host-based KVS route, which needs the alias). `/404.html`=200; peter/index.html serves real content (`<title>Peter Geers</title>`). Host-based branch untestable pre-cutover but is byte-identical function + byte-identical content, so parity is assured; full host-based check happens right after the Phase-5 alias move._
 
-- [ ] 5. ⚠⚠ DNS cutover — flip ONLY the `*.jabaki.nl` wildcard alias (HIGHEST RISK — rides the
+- [x] 5. ⚠⚠ DNS cutover — flip ONLY the `*.jabaki.nl` wildcard alias (HIGHEST RISK — rides the
   production-email zone; change batch = the two wildcard records ONLY)
   - [x] 5.1 ⚠⚠ Pre-flip: confirm Phases 2–4 verified + explicit go.
   - [x] 5.2 ⚠⚠ `UPSERT` ONLY the `*.jabaki.nl` A and AAAA alias records (personal profile, personal
@@ -165,66 +165,85 @@ through Phase 6 (old stack untouched); irreversibility begins at Phase 7.
     bucket + invalidates NEW dist + URL serves. Rollback: restore previous Railway env + creds.
     Design ref: Phase 6._
 
-  - _**STATUS (2026-10-31):**
-    - **6.1 Railway env — NEEDS OWNER (dashboard, no repo/CLI access).** 
-    - **2026-11-15 re-check:** `kimgeers`/`goodwinsolutions`/`h-dcn` `.jabaki.nl` still 404 (host-routed via
-      `domain_mapping`). New KVS contents could not be confirmed — `NonprofitDeployRole` lacks
-      `cloudfront-keyvaluestore:*`. 6.3 is therefore UNVERIFIED. Fix staged (not deployed) in
-      `h-dcn/infrastructure/iam-roles.yaml` (stack `h-dcn-iam-roles`): KVS data-plane actions scoped to the
-      two nonprofit KVS ARNs. Old personal KVS (source for re-seed): domain `68a4b429-9660-4a2f-969c-3006e8f14e18`,
-      embed `e0b80d51-35f8-4a58-8d31-3909043d0959`.
-    - **2026-11-15 role fix DEPLOYED:** `h-dcn-iam-roles` change set touched only `NonprofitDeployRole.Policies`
-      (no replacement) → `UPDATE_COMPLETE`; all 5 inline policies still present (out-of-band
-      `ACMAndOIDCAccess`/`EventBridgeAccess`/`SNSMembersAccess`/`SQSMembersAccess` untouched; backups in
-      `.agent-output/p7-role-backup/`).
-    - **6.3 = NO-OP (verified):** all four KVS (old personal + new nonprofit, both kinds) are EMPTY (`Items: []`).
-      Parity holds; the `kimgeers`/`goodwinsolutions`/`h-dcn` host 404s pre-date the migration (no mapping ever
-      existed) — not a regression.
-    - **6.1/6.2 evidence:** the NEW bucket received publishes on 2026-11-13 (`hdcn-aanmelden-lidmaatschap/`, h-dcn
-      favicons) + 3 Completed invalidations on `E3GLUX3TWBIJG` the same day → Railway now targets nonprofit.
-    - **⚠ CONTENT DRIFT (blocks Phase 7):** the OLD bucket still received writes AFTER the 2026-10-31 copy
-      (2026-11-02 `vandenheuvelhoveniers/*`, 2026-11-06 h-dcn logo) — i.e. Railway was repointed between
-      11-06 and 11-13. vs NEW bucket: MISSING `h-dcn/landing-pages/ast_01M6SJYH78GAW1H9CPANXMP1JD_h-dcn-logo.png`,
-      `vandenheuvelhoveniers/landing-pages/ast_01M6EWP2A1PA4K7QPVSEQXFY14_landing.json`,
-      `vandenheuvelhoveniers/landing-pages/ast_01M6EWP2RSKRAJ1JT4PX36A60H_index.html`; DIFF
-      `vandenheuvelhoveniers/index.html`, `vandenheuvelhoveniers/landing.json`. Must reconcile (copy old→new, or
-      republish the tenant) before the old bucket is deleted._
+  - _**STATUS (updated 2026-11-15) — DONE:**
+    - **6.1 Railway env:** verified via `railway variables` — `LANDING_PAGES_BUCKET`,
+      `CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID` (`E3GLUX3TWBIJG`), `CLOUDFRONT_PUBLIC_PAGES_DOMAIN`,
+      `CLOUDFRONT_KVS_ARN`, `CLOUDFRONT_EMBED_ORIGINS_KVS_ARN` all point at nonprofit.
+    - **6.2 credentials:** S3 publishes worked since the 2026-10-31 bucket-policy grant, but Flask-plane
+      CloudFront invalidations failed (AccessDenied: personal Railway user on the nonprofit distribution).
+      Fixed in PR #224/#225: the backend now assumes `myadmin-public-pages-backend-production`
+      (`PUBLIC_PAGES_AWS_ROLE_ARN`), with fallback to default credentials. Deployed 2026-11-15 (Railway
+      `5774f2c0`); first live confirmation = a publish logging "CloudFront invalidation created" (see A.4).
+    - **6.3 = NO-OP (verified):** all four KVS (old personal + new nonprofit) are empty (`Items: []`), so
+      there was nothing to re-seed. The `kimgeers`/`goodwinsolutions`/`h-dcn` `.jabaki.nl` 404s pre-date the
+      migration (no mapping ever existed) — not a regression. `NonprofitDeployRole` got KVS data-plane access
+      via stack `h-dcn-iam-roles` (only `Policies` changed; the 4 out-of-band inline policies untouched).
+    - **Content drift since the 2026-10-31 copy:** the old bucket still received writes until Railway was
+      repointed (11-02 vandenheuvelhoveniers, 11-06 h-dcn logo). vandenheuvelhoveniers is resolved: the tenant
+      was published and then deliberately unpublished on the new stack on 2026-11-15 (Railway log). **Still
+      open:** `h-dcn/landing-pages/ast_01M6SJYH78GAW1H9CPANXMP1JD_h-dcn-logo.png` exists only in the old
+      bucket — copy it or confirm it is unused before task 7.2._
 
-- [ ] 7. ⚠⚠ Post-cutover verification & retirement (DELETES — LAST, irreversible, after soak)
-  - [ ] 7.1 ⚠ Final full verification: all 8 prefixes serve from nonprofit; fresh publish
+- [x] 7. ⚠⚠ Post-cutover verification & retirement (DELETES — LAST, irreversible, after soak)
+  - [x] 7.1 ⚠ Final full verification: all 8 prefixes serve from nonprofit; fresh publish
     round-trips; email diff clean.
-  - [ ] 7.2 ⚠⚠ ONLY after 7.1 + explicit confirmation: retire the old personal stack —
+  - [x] 7.2 ⚠⚠ ONLY after 7.1 + explicit confirmation: retire the old personal stack —
     disable→delete old dist `E28OSWC7A9O9K2`; delete old bucket `myadmin-public-pages-production`
     (after a final content diff); delete old ACM cert `da81c484…`. **Each deletion = a separate
     approval.**
-  - _**2026-11-15 BLOCKERS for 7.2:** (a) content drift in the old bucket (see task 6 note). (b) The ROOT
-    `jabaki.nl` A/AAAA alias (personal zone, "stays in personal" per D1) still points to the OLD dist
-    `d3afn46os9e9nc.cloudfront.net` (= `E28OSWC7A9O9K2`), which currently answers `https://jabaki.nl/` with a
-    301 → `https://www.jabaki.nl/`. Deleting the old dist would break the apex AND leave a dangling CloudFront
-    alias. Needs a decision first: move the apex redirect to the new dist (add `jabaki.nl` alias + cert SAN), or a
-    separate tiny redirect dist/S3 website, then repoint the root alias._
+  - _**2026-11-15 DONE.** Blockers resolved first: (a) the h-dcn logo was copied to the nonprofit
+    bucket; (b) the apex `jabaki.nl` A/AAAA was repointed from the old dist to the Amplify app
+    `jabaki-rentals` (`d2v50o5l2km56h.cloudfront.net`, which already served jabaki.nl → www), change
+    `C0912026237Z19AT6PTCF`; zone backups `.agent-output/p7-zone-{before,after}.json`.
+    7.1: A.1 content match ×5 published slugs, A.4 publish invalidation via the role, email records unchanged.
+    7.2: backup of the old bucket (57 objects) + distribution config in
+    `/home/peter/backups/jabaki-old-public-pages-2026-11-15/`; then deleted in personal: distribution
+    `E28OSWC7A9O9K2` (disabled → deleted), bucket `myadmin-public-pages-production`, cert `da81c484…` and
+    its validation CNAME `_2b910b01…` (zone now 21 records, email records untouched), OAC
+    `E1Z34IRKVOT9LB`, functions `myadmin-public-pages-url-rewrite-production` +
+    `myadmin-application-form-frame-ancestors-production`, both empty KVS. The 4
+    vandenheuvelhoveniers objects that only existed in the old bucket are kept only in the backup
+    (deliberate unpublish, C.6).
+    Terraform (personal `infrastructure/`, PR #226): the retired resources were dropped from state with
+    `removed { destroy = false }` blocks, the hand-made wildcard AAAA was imported, apex/wildcard records
+    point at their real targets, IAM policies drop the dead ARNs. **Applied 2026-11-15** (owner-approved
+    saved plan): `1 imported, 0 added, 3 changed, 0 destroyed`. A follow-up full untargeted plan says
+    "No changes" — the unsafe-apply drift in findings.md (2026-11-08) is gone. The one-shot
+    `removed`/`import` blocks were then deleted (`acm-jabaki.tf`, `application-form.tf` removed).
+    Verified after apply: IAM simulation allows PutObject/DeleteObject on `{slug}/…` + `_slugs/…`,
+    ListBucket with a slug prefix, and `sts:AssumeRole`; inside Railway the role assume + bucket list
+    work; `peter`/`thecategorystudio.jabaki.nl` 200, `jabaki.nl` 301 → www._
   - _Precondition: Phases 5–6 verified + soak. Verification: old resources removed; nonprofit sole
     owner. Rollback: NOT trivial post-deletion — hence soak + explicit gates. Design ref: Phase 7._
 
-- [ ] A. Acceptance (from design "Testing Strategy")
-  - [ ] A.1 Tenant continuity: each live slug serves correct content over `<slug>.jabaki.nl`
+- [x] A. Acceptance (from design "Testing Strategy")
+  - [x] A.1 Tenant continuity: each live slug serves correct content over `<slug>.jabaki.nl`
     (200 + content match vs baseline).
-  - [ ] A.2 Email untouched: post-cutover zone diff clean vs Phase-0 baseline for every
+  - [x] A.2 Email untouched: post-cutover zone diff clean vs Phase-0 baseline for every
     MX/TXT/DMARC/DKIM/SES record.
-  - [ ] A.3 Account ownership: new bucket/distribution/ACM/both KVS in `506221081911`;
+  - [x] A.3 Account ownership: new bucket/distribution/ACM/both KVS in `506221081911`;
     `*.jabaki.nl` resolves to the nonprofit distribution.
-  - [ ] A.4 Publish path: a backend republish of a disposable test tenant writes to the new bucket
+  - [x] A.4 Publish path: a backend republish of a disposable test tenant writes to the new bucket
     + invalidates the new distribution.
-  - [ ] A.5 Rollback drill (pre-flip): confirm the Phase-5 revert is a single reversible change
-    while the old stack still exists.
+  - [x] A.5 ~~Rollback drill (pre-flip)~~ **Superseded:** the cutover has been live since 2026-10-31
+    without a rollback; task 7.2 removed the old stack on purpose, so there is nothing left to roll
+    back to.
+  - _**2026-11-15 final:** A.1 PASS — all 5 published slugs byte-identical between the live sites and
+    the nonprofit bucket. A.4 PASS — run inside Railway (`railway run`): the backend user assumed
+    `myadmin-public-pages-backend-production`, logged "CloudFront invalidation created for slug=peter",
+    and read the custom-domain routing endpoint; S3 writes to the new bucket were already proven._
   - _**2026-11-15 status:** A.2 PASS — zone now 22 records; all email records (MX improvmx, SPF/stripe/google
     TXT, `_amazonses`, `_dmarc`, 3 SES + 6 Stripe DKIM, `bounce`) present and unchanged; the only changes vs
     the original zone are the wildcard A→new dist, the added wildcard AAAA, and the 2.3 cert CNAME. A.3 PASS —
     new dist `E3GLUX3TWBIJG` Deployed, alias `*.jabaki.nl`, cert `28aefddd…` (506221081911), TLS on
     `peter.jabaki.nl` serves `CN=*.jabaki.nl` valid to 2027-05-16; bucket + both KVS in nonprofit; old dist has 0
-    aliases. A.1 PARTIAL — peter/vandenheuvelhoveniers/thecategorystudio/mytest/hdcn-aanmelden(-lidmaatschap)
-    = 200, but vandenheuvelhoveniers serves the pre-11-02 version (drift). A.4 PASS by evidence (11-13 publishes
-    + invalidations on the new stack), not by a fresh disposable-tenant test. A.5 still possible (old dist intact)._
+    aliases.
+    **Open:** A.1 — peter / thecategorystudio / mytest / hdcn-aanmelden(-lidmaatschap) = 200 after the
+    2026-11-15 deploy; vandenheuvelhoveniers 404 is a deliberate unpublish (not a failure); a content match vs
+    baseline has not been done. A.4 — S3 writes to the new bucket are proven (2026-11-13 / 11-15 publishes), but
+    Flask-plane invalidation only works since the 2026-11-15 role fix: tick after one republish logs
+    "CloudFront invalidation created for slug=…". A.5 — revert is still possible (old dist intact) but not
+    drilled._
 
 - [ ] C. Custom domains ("Eigen Domein") on a CloudFront MULTI-TENANT distribution (2026-11-15)
   - _Why: the old flow (backend ACM cert + alias on the *.jabaki.nl distribution) could never
@@ -232,8 +251,8 @@ through Phase 6 (old stack untouched); irreversibility begins at Phase 7.
     touch nonprofit CloudFront/ACM. www.thecategorystudio.nl failed with VALIDATION_TIMED_OUT._
   - [x] C.1 Backend: each custom domain = a distribution tenant (origin path `/{{slug}}`,
     CloudFront-managed HTTP-validated cert → tenant adds ONE CNAME). Slug rename updates the tenant
-    parameter. All calls via cross-account role `PUBLIC_PAGES_AWS_ROLE_ARN`. 147 domain/slug unit
-    tests green.
+    parameter. All calls via cross-account role `PUBLIC_PAGES_AWS_ROLE_ARN`. 159 domain/slug/publish
+    unit tests green; shipped in PR #224 (test) → #225 (main).
   - [x] C.2 Terraform nonprofit stack (provider → ~> 6.28): `custom-domains.tf` (multi-tenant dist,
     cache policy 300/3600, index-rewrite fn), backend role `myadmin-public-pages-backend-production`,
     bucket policy + new dist ARN. Plan 5 add / 2 change / 0 destroy; `*.jabaki.nl` dist untouched.
@@ -246,16 +265,22 @@ through Phase 6 (old stack untouched); irreversibility begins at Phase 7.
     **Applied as IAM policy version v2 (CLI), NOT terraform:** even `-target` pulled in
     `aws_cloudfront_distribution.public_pages` and would re-add `*.jabaki.nl` to the legacy dist
     (outage, see findings.md 2026-11-08). v2 content == the `.tf`, so no drift for this policy.
-  - [ ] C.4 Railway env `PUBLIC_PAGES_AWS_ROLE_ARN` + `CLOUDFRONT_CUSTOM_DOMAINS_DISTRIBUTION_ID`
-    **set (no redeploy)**; deploy backend via PR #224 (test) → test→main.
+  - [x] C.4 Railway env `PUBLIC_PAGES_AWS_ROLE_ARN` + `CLOUDFRONT_CUSTOM_DOMAINS_DISTRIBUTION_ID`
+    set; backend deployed via PR #224 (test) → PR #225 (main), Railway deploy `5774f2c0` SUCCESS.
   - [x] C.5 www.thecategorystudio.nl re-registered (tenant `kimgeers`, slug `thecategorystudio`,
     `pending_dns`). Finding: CloudFront creates a tenant ONLY once the CNAME points at it, so
     register shows the CNAME and verify / the job create the tenant later. Old personal ACM cert
     `22e2fb2c…` (VALIDATION_TIMED_OUT) deleted.
-    **Owner action (theory7):** `www` CNAME `d3cae492lrd6sc.cloudfront.net` (replace the A record).
+    **Owner action (theory7):** `www` CNAME `d3cae492lrd6sc.cloudfront.net` (replace the `www` A +
+    AAAA records) — step-by-step in [theory7.md](theory7.md).
   - [x] C.6 vandenheuvelhoveniers 404 = deliberate unpublish by peter@pgeers.nl 2026-11-15 19:55
     (Railway log) — not data loss, left as is. Same log showed publish invalidations failing
     (AccessDenied, personal user on nonprofit dist) → fixed in PR #224 (invalidate via the role).
+  - [ ] C.7 **Owner:** DNS change at theory7 for www.thecategorystudio.nl — delete the `www` A + AAAA
+    records, add `www` CNAME `d3cae492lrd6sc.cloudfront.net.` ([theory7.md](theory7.md)).
+  - [ ] C.8 After C.7: Eigen Domein → Controleren moves the domain pending_dns → validating → active,
+    and `https://www.thecategorystudio.nl` serves the thecategorystudio page with a valid certificate. This
+    is also the first live proof that Railway can assume the cross-account role.
 
 ## Notes
 
