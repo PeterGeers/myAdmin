@@ -204,10 +204,15 @@ through Phase 6 (old stack untouched); irreversibility begins at Phase 7.
     `myadmin-application-form-frame-ancestors-production`, both empty KVS. The 4
     vandenheuvelhoveniers objects that only existed in the old bucket are kept only in the backup
     (deliberate unpublish, C.6).
-    Terraform (personal `infrastructure/`): retired resources moved to `removed { destroy = false }`
-    blocks, apex/wildcard records point at their real targets, the hand-made wildcard AAAA is adopted
-    with an `import` block, IAM policies drop the dead ARNs. PR `fix/retire-personal-public-pages`;
-    the apply of that plan is the last step (see PR)._
+    Terraform (personal `infrastructure/`, PR #226): the retired resources were dropped from state with
+    `removed { destroy = false }` blocks, the hand-made wildcard AAAA was imported, apex/wildcard records
+    point at their real targets, IAM policies drop the dead ARNs. **Applied 2026-11-15** (owner-approved
+    saved plan): `1 imported, 0 added, 3 changed, 0 destroyed`. A follow-up full untargeted plan says
+    "No changes" — the unsafe-apply drift in findings.md (2026-11-08) is gone. The one-shot
+    `removed`/`import` blocks were then deleted (`acm-jabaki.tf`, `application-form.tf` removed).
+    Verified after apply: IAM simulation allows PutObject/DeleteObject on `{slug}/…` + `_slugs/…`,
+    ListBucket with a slug prefix, and `sts:AssumeRole`; inside Railway the role assume + bucket list
+    work; `peter`/`thecategorystudio.jabaki.nl` 200, `jabaki.nl` 301 → www._
   - _Precondition: Phases 5–6 verified + soak. Verification: old resources removed; nonprofit sole
     owner. Rollback: NOT trivial post-deletion — hence soak + explicit gates. Design ref: Phase 7._
 

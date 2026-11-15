@@ -73,13 +73,7 @@ resource "aws_route53_record" "jabaki_wildcard" {
 }
 
 # --- Wildcard AAAA record: *.jabaki.nl → nonprofit public-pages distribution ---
-# Created by hand during the 2026-10-31 cutover; the import block adopts it into
-# state on the next apply. Delete the import block once that apply has run.
-import {
-  to = aws_route53_record.jabaki_wildcard_aaaa
-  id = "Z08387971HTZZ7C0VCJYP_*.jabaki.nl_AAAA"
-}
-
+# Created by hand during the 2026-10-31 cutover; imported into state 2026-11-15.
 resource "aws_route53_record" "jabaki_wildcard_aaaa" {
   zone_id = aws_route53_zone.jabaki.zone_id
   name    = "*.jabaki.nl"
