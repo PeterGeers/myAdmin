@@ -1,63 +1,32 @@
-# ACM Wildcard Certificate for *.jabaki.nl
-# Must be in us-east-1 for CloudFront integration.
-# DNS validation via Route 53 hosted zone.
+# ACM Wildcard Certificate for *.jabaki.nl — RETIRED (2026-11-15)
+#
+# The personal-account *.jabaki.nl certificate (da81c484…) and its Route 53
+# validation CNAME were deleted when the public-pages hosting moved to the
+# nonprofit account (506221081911). The live *.jabaki.nl certificate is
+# `aws_acm_certificate.jabaki_wildcard` in infrastructure/nonprofit-public-pages/.
+# Spec: .kiro/specs/myBacklog/jabaki-hosting-migration-to-nonprofit (task 7.2).
+#
+# The `removed` blocks drop the (already deleted) objects from state without
+# Terraform trying to destroy anything. Delete these blocks once an apply has
+# run with them.
 
-# ============================================================================
-# ACM Certificate — *.jabaki.nl (us-east-1)
-# ============================================================================
-
-resource "aws_acm_certificate" "jabaki_wildcard" {
-  provider          = aws.us_east_1
-  domain_name       = "*.jabaki.nl"
-  validation_method = "DNS"
-
-  tags = {
-    Name        = "jabaki-wildcard-cert"
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "terraform"
-  }
-
+removed {
+  from = aws_acm_certificate.jabaki_wildcard
   lifecycle {
-    create_before_destroy = true
+    destroy = false
   }
 }
 
-# ============================================================================
-# DNS Validation Record(s) in Route 53
-# ============================================================================
-
-resource "aws_route53_record" "jabaki_cert_validation" {
-  for_each = {
-    for dvo in aws_acm_certificate.jabaki_wildcard.domain_validation_options : dvo.domain_name => {
-      name   = dvo.resource_record_name
-      type   = dvo.resource_record_type
-      record = dvo.resource_record_value
-    }
+removed {
+  from = aws_acm_certificate_validation.jabaki_wildcard
+  lifecycle {
+    destroy = false
   }
-
-  zone_id = aws_route53_zone.jabaki.zone_id
-  name    = each.value.name
-  type    = each.value.type
-  ttl     = 60
-  records = [each.value.record]
 }
 
-# ============================================================================
-# Certificate Validation — waits for ACM to confirm issuance
-# ============================================================================
-
-resource "aws_acm_certificate_validation" "jabaki_wildcard" {
-  provider                = aws.us_east_1
-  certificate_arn         = aws_acm_certificate.jabaki_wildcard.arn
-  validation_record_fqdns = [for record in aws_route53_record.jabaki_cert_validation : record.fqdn]
-}
-
-# ============================================================================
-# Outputs
-# ============================================================================
-
-output "jabaki_wildcard_cert_arn" {
-  description = "ARN of the *.jabaki.nl wildcard certificate (us-east-1)"
-  value       = aws_acm_certificate.jabaki_wildcard.arn
+removed {
+  from = aws_route53_record.jabaki_cert_validation
+  lifecycle {
+    destroy = false
+  }
 }

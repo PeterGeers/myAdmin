@@ -1,6 +1,13 @@
-# Landing Page Infrastructure
-# DynamoDB table, S3 public bucket, CloudFront distribution, and IAM policies
-# for the tenant landing page feature.
+# Landing Page Infrastructure (personal account 344561557829)
+#
+# What is left here: the DynamoDB drafts/versions table and the IAM policies for
+# the Railway backend user `myadmin-railway-backend`.
+#
+# The public-pages HOSTING (S3 bucket, CloudFront distribution, url-rewrite
+# function, OAC, domain->slug KVS) moved to the nonprofit account (506221081911)
+# and lives in infrastructure/nonprofit-public-pages/. The personal copies were
+# retired on 2026-11-15 (spec .kiro/specs/myBacklog/jabaki-hosting-migration-to-nonprofit,
+# task 7.2; bucket backup in /home/peter/backups/jabaki-old-public-pages-2026-11-15).
 
 # ============================================================================
 # DynamoDB Table — Landing Page Drafts & Versions
@@ -32,273 +39,66 @@ resource "aws_dynamodb_table" "landing_pages" {
 }
 
 # ============================================================================
-# S3 Bucket — Published Landing Pages (served via CloudFront)
+# Retired personal hosting — drop from state, do NOT destroy (already deleted)
 # ============================================================================
+# The objects were deleted by hand after a backup. These `removed` blocks make the
+# next plan forget them instead of trying to recreate or destroy them. Delete the
+# blocks once an apply has run with them.
 
-resource "aws_s3_bucket" "public_pages" {
-  bucket        = "myadmin-public-pages-${var.environment}"
-  force_destroy = false
-
-  tags = {
-    Name        = "myAdmin-Public-Pages"
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "terraform"
-    Purpose     = "landing-page-delivery"
+removed {
+  from = aws_s3_bucket.public_pages
+  lifecycle {
+    destroy = false
   }
 }
 
-# Server-Side Encryption (AES-256)
-resource "aws_s3_bucket_server_side_encryption_configuration" "public_pages" {
-  bucket = aws_s3_bucket.public_pages.id
-
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
-    }
+removed {
+  from = aws_s3_bucket_server_side_encryption_configuration.public_pages
+  lifecycle {
+    destroy = false
   }
 }
 
-# Block All Public Access (CloudFront OAC provides read access)
-resource "aws_s3_bucket_public_access_block" "public_pages" {
-  bucket = aws_s3_bucket.public_pages.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-# ============================================================================
-# CloudFront Function — URL Rewrite (host-based + path-based routing)
-# ============================================================================
-
-resource "aws_cloudfront_function" "public_pages_url_rewrite" {
-  name    = "myadmin-public-pages-url-rewrite-${var.environment}"
-  runtime = "cloudfront-js-2.0"
-  comment = "Rewrites landing page URLs: host-based (*.jabaki.nl, custom domains) and path-based (/p/{slug})"
-  publish = true
-
-  key_value_store_associations = [aws_cloudfront_key_value_store.domain_mapping.arn]
-
-  code = <<-EOF
-    import cf from 'cloudfront';
-
-    // KVS binding — associated via Terraform key_value_store_associations
-    var kvsId = '${aws_cloudfront_key_value_store.domain_mapping.id}';
-    var kvs;
-    try {
-      kvs = cf.kvs(kvsId);
-    } catch (err) {
-      // KVS not available — custom domain lookup disabled
-    }
-
-    async function handler(event) {
-      var request = event.request;
-      var uri = request.uri;
-      var host = request.headers.host ? request.headers.host.value : '';
-
-      // --- Static subdomain redirects (Squarespace migration) ---
-      var redirects = {
-        'gscheckin.jabaki.nl':  'https://sites.google.com/pgeers.nl/jabaki/checkingreenstudio',
-        'rscheckin.jabaki.nl':  'https://sites.google.com/pgeers.nl/jabaki/checkinredstudio',
-        'gascheckin.jabaki.nl': 'https://sites.google.com/pgeers.nl/jabaki/checkingardenstudio',
-      };
-      if (redirects[host]) {
-        return {
-          statusCode: 302,
-          statusDescription: 'Found',
-          headers: { location: { value: redirects[host] } },
-        };
-      }
-
-      // --- Host-based routing: Jabaki subdomain (slug.jabaki.nl) ---
-      if (host.endsWith('.jabaki.nl')) {
-        var slug = host.replace('.jabaki.nl', '');
-        if (slug && slug.length > 0 && slug !== 'www') {
-          if (uri === '/' || uri === '') {
-            request.uri = '/' + slug + '/index.html';
-          } else if (!uri.includes('.')) {
-            // Non-file path → serve index.html
-            request.uri = '/' + slug + '/index.html';
-          } else {
-            // File request (images, json, etc.) → prefix with slug
-            request.uri = '/' + slug + uri;
-          }
-          return request;
-        }
-      }
-
-      // --- Host-based routing: Custom domain (e.g. www.acme-rentals.nl) ---
-      // Custom domain → slug mapping is stored in CloudFront KeyValueStore
-      if (kvs && host && !host.endsWith('.cloudfront.net') && !host.endsWith('.jabaki.nl')) {
-        try {
-          var slug = await kvs.get(host);
-          if (slug) {
-            if (uri === '/' || uri === '') {
-              request.uri = '/' + slug + '/index.html';
-            } else if (!uri.includes('.')) {
-              request.uri = '/' + slug + '/index.html';
-            } else {
-              request.uri = '/' + slug + uri;
-            }
-            return request;
-          }
-        } catch (e) {
-          // KVS lookup failed or key not found — fall through to 404
-        }
-      }
-
-      // --- Unknown host fallback: prevent content leak from unconfigured domains ---
-      if (host && !host.endsWith('.cloudfront.net') && !host.endsWith('.jabaki.nl')) {
-        // Host didn't match KVS — return 404
-        return {
-          statusCode: 404,
-          statusDescription: 'Not Found',
-          body: {
-            encoding: 'text',
-            data: '<html><body><h1>404 - Domain Not Found</h1><p>This domain is not configured.</p></body></html>'
-          }
-        };
-      }
-
-      // --- Existing path-based routing (fallback: /p/{slug}) ---
-
-      // Match /p/{slug} or /p/{slug}/ → /{slug}/index.html
-      if (uri.startsWith('/p/')) {
-        var slug = uri.replace(/^\/p\//, '').replace(/\/$/, '');
-        if (slug && slug.length > 0) {
-          request.uri = '/' + slug + '/index.html';
-        }
-        return request;
-      }
-
-      // Match /{slug}/ (trailing slash, no file extension) → /{slug}/index.html
-      if (uri.match(/^\/[a-z0-9-]+\/?$/) && !uri.includes('.')) {
-        var path = uri.replace(/\/$/, '');
-        request.uri = path + '/index.html';
-        return request;
-      }
-
-      return request;
-    }
-  EOF
-}
-
-# ============================================================================
-# CloudFront Distribution — Public Landing Page Delivery
-# ============================================================================
-
-# Origin Access Control for S3
-resource "aws_cloudfront_origin_access_control" "public_pages" {
-  name                              = "myadmin-public-pages-oac-${var.environment}"
-  description                       = "OAC for landing page S3 bucket"
-  origin_access_control_origin_type = "s3"
-  signing_behavior                  = "always"
-  signing_protocol                  = "sigv4"
-}
-
-resource "aws_cloudfront_distribution" "public_pages" {
-  enabled             = true
-  comment             = "myAdmin public landing pages (${var.environment})"
-  default_root_object = "index.html"
-  aliases             = ["*.jabaki.nl"]
-
-  origin {
-    domain_name              = aws_s3_bucket.public_pages.bucket_regional_domain_name
-    origin_id                = "S3-public-pages"
-    origin_access_control_id = aws_cloudfront_origin_access_control.public_pages.id
-  }
-
-  default_cache_behavior {
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "S3-public-pages"
-    viewer_protocol_policy = "redirect-to-https"
-
-    min_ttl     = 0
-    default_ttl = 300
-    max_ttl     = 3600
-
-    forwarded_values {
-      query_string = false
-
-      cookies {
-        forward = "none"
-      }
-    }
-
-    function_association {
-      event_type   = "viewer-request"
-      function_arn = aws_cloudfront_function.public_pages_url_rewrite.arn
-    }
-
-    # viewer-response: set CSP frame-ancestors on the application form from the
-    # tenant's application_embed_origins (KVS). Defined in application-form.tf.
-    # No-op for landing pages whose host has no embed-origins KVS entry (the
-    # function omits the header when the host is not configured).
-    function_association {
-      event_type   = "viewer-response"
-      function_arn = aws_cloudfront_function.application_form_frame_ancestors.arn
-    }
-  }
-
-  custom_error_response {
-    error_code            = 403
-    response_code         = 404
-    response_page_path    = "/404.html"
-    error_caching_min_ttl = 60
-  }
-
-  custom_error_response {
-    error_code            = 404
-    response_code         = 404
-    response_page_path    = "/404.html"
-    error_caching_min_ttl = 60
-  }
-
-  restrictions {
-    geo_restriction {
-      restriction_type = "none"
-    }
-  }
-
-  viewer_certificate {
-    acm_certificate_arn      = aws_acm_certificate_validation.jabaki_wildcard.certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
-  }
-
-  tags = {
-    Name        = "myAdmin-Public-Pages-CDN"
-    Environment = var.environment
-    Project     = var.project_name
-    ManagedBy   = "terraform"
-    Purpose     = "landing-page-delivery"
+removed {
+  from = aws_s3_bucket_public_access_block.public_pages
+  lifecycle {
+    destroy = false
   }
 }
 
-# S3 Bucket Policy — Allow CloudFront OAC to read objects
-resource "aws_s3_bucket_policy" "public_pages" {
-  bucket = aws_s3_bucket.public_pages.id
+removed {
+  from = aws_s3_bucket_policy.public_pages
+  lifecycle {
+    destroy = false
+  }
+}
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "AllowCloudFrontOAC"
-        Effect    = "Allow"
-        Principal = { Service = "cloudfront.amazonaws.com" }
-        Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.public_pages.arn}/*"
-        Condition = {
-          StringEquals = {
-            "AWS:SourceArn" = aws_cloudfront_distribution.public_pages.arn
-          }
-        }
-      }
-    ]
-  })
+removed {
+  from = aws_cloudfront_function.public_pages_url_rewrite
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = aws_cloudfront_origin_access_control.public_pages
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = aws_cloudfront_distribution.public_pages
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = aws_cloudfront_key_value_store.domain_mapping
+  lifecycle {
+    destroy = false
+  }
 }
 
 # ============================================================================
@@ -336,7 +136,7 @@ resource "aws_iam_policy" "dynamodb_landing_pages" {
   }
 }
 
-# S3 public pages write access for publish/unpublish
+# S3 public pages write access for publish/unpublish (nonprofit bucket)
 #
 # SEC-8 (spec 14 Task 9.2) — LEAST-PRIVILEGE, PREFIX-SCOPED publish IAM.
 # A publisher may write ONLY:
@@ -349,26 +149,17 @@ resource "aws_iam_policy" "dynamodb_landing_pages" {
 # Per-slug Resource ARNs are impractical in ONE shared identity policy (the slugs are
 # runtime data, not known at apply time), so we scope to the two PREFIX patterns the
 # producers actually use instead of `bucket/*`:
-#   - `arn:…:{bucket}/*/*`   — any object nested under a top-level `{slug}/` prefix
-#                              (served artifacts live at `{slug}/index.html` etc.).
+#   - `arn:…:{bucket}/*/*`      — any object nested under a top-level `{slug}/` prefix.
 #   - `arn:…:{bucket}/_slugs/*` — the reserved control-plane marker prefix.
-# Top-level bucket-root objects (e.g. a stray `foo.html` with no `{slug}/`) are NOT
-# writable — PutObject there is denied, which is the intended least-privilege boundary.
-# `_slugs/` is a strict subset of `*/*` (it has one path separator) but is listed
-# explicitly for intent + in case the marker prefix is ever flattened.
+# Top-level bucket-root objects are NOT writable — the intended boundary.
 #
-# Buckets covered — BOTH, to RECONCILE the hosting-migration drift:
-#   - the legacy personal bucket (`aws_s3_bucket.public_pages`, this account), and
-#   - the NONPROFIT bucket (`var.nonprofit_public_pages_bucket_name`, acct 506221081911)
-#     the publish identity was granted on via a LIVE CLI edit (identity-policy v2 in the
-#     hosting-migration findings). Reflecting it here means a future `terraform apply`
-#     will NOT revert the working cross-account publish. The matching BUCKET-POLICY grant
-#     (principal = this user) lives on the NONPROFIT side and must be reconciled in the
-#     hosting-migration spec's `hosting.tf` (see that spec's findings DRIFT NOTE) — it is
-#     NOT this personal-account module's resource to author.
+# The bucket is in the NONPROFIT account; the matching bucket-policy grant (principal
+# = this user) lives in infrastructure/nonprofit-public-pages/hosting.tf.
 resource "aws_iam_policy" "s3_public_pages_write" {
-  name        = "myadmin-s3-public-pages-write-${var.environment}"
-  description = "Least-privilege, prefix-scoped S3 write for public-pages publishing (SEC-8): {slug}/* artifacts + _slugs/* markers only, never bucket-wide. Covers legacy + nonprofit buckets."
+  name = "myadmin-s3-public-pages-write-${var.environment}"
+  # Description kept identical to the live policy: changing it forces a
+  # destroy/re-create of the attached policy (a short permission gap).
+  description = "S3 write access for myAdmin landing page publishing"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -381,10 +172,6 @@ resource "aws_iam_policy" "s3_public_pages_write" {
           "s3:DeleteObject"
         ]
         Resource = [
-          # Legacy personal bucket — served `{slug}/*` artifacts + `_slugs/*` markers.
-          "${aws_s3_bucket.public_pages.arn}/*/*",
-          "${aws_s3_bucket.public_pages.arn}/_slugs/*",
-          # Nonprofit bucket (hosting migration) — same two prefix scopes.
           "arn:aws:s3:::${var.nonprofit_public_pages_bucket_name}/*/*",
           "arn:aws:s3:::${var.nonprofit_public_pages_bucket_name}/_slugs/*"
         ]
@@ -399,7 +186,6 @@ resource "aws_iam_policy" "s3_public_pages_write" {
           "s3:ListBucket"
         ]
         Resource = [
-          aws_s3_bucket.public_pages.arn,
           "arn:aws:s3:::${var.nonprofit_public_pages_bucket_name}"
         ]
         Condition = {
@@ -422,49 +208,18 @@ resource "aws_iam_policy" "s3_public_pages_write" {
   }
 }
 
-# CloudFront invalidation access for instant publish/unpublish visibility
+# CloudFront invalidation — identity-side grant on the NONPROFIT distribution.
 #
-# SEC-8 (spec 14 Task 9.2) — grants `cloudfront:CreateInvalidation` on BOTH:
-#   - the legacy personal distribution (`aws_cloudfront_distribution.public_pages`), and
-#   - the NONPROFIT `*.jabaki.nl` distribution (`var.nonprofit_public_pages_distribution_arn`,
-#     acct 506221081911) the hosting migration cut over to.
-#
-# CROSS-ACCOUNT NOTE (hosting-migration finding): the publish identity
-# `myadmin-railway-backend` is in the PERSONAL account (344561557829) but the
-# live `*.jabaki.nl` distribution (E3GLUX3TWBIJG) is in NONPROFIT (506221081911).
-# `cloudfront:CreateInvalidation` is NOT currently cross-account grantable to an
-# IAM user by a resource policy the way S3 is (CloudFront distributions have no
-# resource policy), so an IDENTITY grant naming a foreign-account distribution
-# ARN alone does NOT authorise the call — the request still evaluates in the
-# RESOURCE owner's (nonprofit) account, which has no matching grant for this
-# principal. The identity statement below is the identity-side HALF of the grant
-# (removes the "unpermitted in the principal's own account" half of the failure).
-#
-# To actually CLOSE the invalidation gap, the correct minimal mechanism is a
-# CROSS-ACCOUNT ROLE in NONPROFIT that this personal user assumes:
-#   - nonprofit defines `role/myadmin-publish-invalidation` whose trust policy allows
-#     `arn:aws:iam::344561557829:user/service-accounts/myadmin-railway-backend` to
-#     `sts:AssumeRole`, and whose permissions policy allows
-#     `cloudfront:CreateInvalidation` on the nonprofit distribution;
-#   - that ROLE + trust belong to the HOSTING-MIGRATION spec's `hosting.tf`
-#     (nonprofit-owned), NOT this personal-account module — so it is FLAGGED there,
-#     not authored here (do not silently author another spec's nonprofit infra).
-# The `sts:AssumeRole` permission for THIS user (the personal-account half of the
-# assume-role mechanism) is NOT added yet — it needs the nonprofit role ARN, which
-# the hosting-migration tf must define first. It is a FOLLOW-UP in THIS module once
-# that role exists; until then the identity grant below is the identity-side half.
-#
-# CODE FOLLOW-UP (flagged, not closed by IAM alone): the backend currently BUILDS
-# the invalidation ARN with the PERSONAL account id (344561557829) while the
-# distribution is in NONPROFIT (506221081911) — see hosting-migration findings and
-# `sam/members/repository/public_page_artifact_store.py`. Even with the grant/role
-# in place, the backend must (a) target the nonprofit distribution id and (b) assume
-# the cross-account role before calling `CreateInvalidation`. That is a CODE change
-# tracked as a follow-up to this IAM task — the invalidation is already best-effort /
-# non-fatal in the publish path, so publishing is NOT blocked by it.
+# CloudFront distributions have no resource policy, so this identity grant alone
+# does not authorise a cross-account call. The backend actually invalidates by
+# assuming `var.nonprofit_public_pages_backend_role_arn` (see the
+# AssumeNonprofitPublicPagesRole statement below and
+# landing_page_publish_service._public_pages_credentials). This statement is kept
+# as the identity half; it grants nothing in this account.
 resource "aws_iam_policy" "cloudfront_invalidation" {
-  name        = "myadmin-cloudfront-invalidation-${var.environment}"
-  description = "CloudFront invalidation access for public-pages publish/unpublish (SEC-8). Identity-side grant for the legacy + nonprofit distributions; cross-account close-out via an assume-role in the hosting-migration tf."
+  name = "myadmin-cloudfront-invalidation-${var.environment}"
+  # Description kept identical to the live policy (a change forces replacement).
+  description = "CloudFront invalidation access for landing page publish/unpublish"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -476,7 +231,6 @@ resource "aws_iam_policy" "cloudfront_invalidation" {
           "cloudfront:CreateInvalidation"
         ]
         Resource = [
-          aws_cloudfront_distribution.public_pages.arn,
           var.nonprofit_public_pages_distribution_arn
         ]
       }
@@ -491,53 +245,22 @@ resource "aws_iam_policy" "cloudfront_invalidation" {
   }
 }
 
-# Custom Domains management — ACM, CloudFront, and KVS access
+# Custom Domains management — cross-account role only.
+#
+# The custom-domain tenants (CloudFront multi-tenant distribution), their
+# certificates and the KVS are all in NONPROFIT. The backend assumes this role
+# there (env PUBLIC_PAGES_AWS_ROLE_ARN); the role + trust live in
+# infrastructure/nonprofit-public-pages/hosting.tf. The former personal ACM,
+# CloudFront and KVS statements pointed at retired resources and were dropped.
 resource "aws_iam_policy" "custom_domains_management" {
-  name        = "myadmin-custom-domains-${var.environment}"
+  name = "myadmin-custom-domains-${var.environment}"
+  # Description kept identical to the live policy (a change forces replacement).
   description = "Permissions for managing custom domain certificates and routing"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ACMCertificateManagement"
-        Effect = "Allow"
-        Action = [
-          "acm:RequestCertificate",
-          "acm:DescribeCertificate",
-          "acm:DeleteCertificate",
-          "acm:ListCertificates",
-          "acm:AddTagsToCertificate"
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "CloudFrontDistributionUpdate"
-        Effect = "Allow"
-        Action = [
-          "cloudfront:GetDistribution",
-          "cloudfront:GetDistributionConfig",
-          "cloudfront:UpdateDistribution"
-        ]
-        Resource = aws_cloudfront_distribution.public_pages.arn
-      },
-      {
-        Sid    = "CloudFrontKeyValueStore"
-        Effect = "Allow"
-        Action = [
-          "cloudfront-keyvaluestore:GetKey",
-          "cloudfront-keyvaluestore:PutKey",
-          "cloudfront-keyvaluestore:DeleteKey",
-          "cloudfront-keyvaluestore:ListKeys",
-          "cloudfront-keyvaluestore:DescribeKeyValueStore"
-        ]
-        Resource = aws_cloudfront_key_value_store.domain_mapping.arn
-      },
-      {
-        # Personal half of the cross-account mechanism: the live *.jabaki.nl
-        # distribution, its ACM certs and KVS are in NONPROFIT (506221081911);
-        # the backend assumes this role there (env PUBLIC_PAGES_AWS_ROLE_ARN).
-        # The role + trust live in nonprofit-public-pages/hosting.tf.
         Sid      = "AssumeNonprofitPublicPagesRole"
         Effect   = "Allow"
         Action   = "sts:AssumeRole"
@@ -555,17 +278,10 @@ resource "aws_iam_policy" "custom_domains_management" {
 }
 
 # ============================================================================
-# CloudFront KeyValueStore — Custom Domain → Slug Mapping
-# ============================================================================
-
-resource "aws_cloudfront_key_value_store" "domain_mapping" {
-  name    = "myadmin-domain-slug-mapping"
-  comment = "Maps custom domains to tenant slugs for landing page routing"
-}
-
-# ============================================================================
 # Outputs
 # ============================================================================
+# Hosting outputs (bucket, distribution, KVS) come from
+# `terraform -chdir=infrastructure/nonprofit-public-pages output`.
 
 output "dynamodb_landing_pages_table_name" {
   description = "Name of the DynamoDB table for landing pages"
@@ -575,26 +291,6 @@ output "dynamodb_landing_pages_table_name" {
 output "dynamodb_landing_pages_table_arn" {
   description = "ARN of the DynamoDB table for landing pages"
   value       = aws_dynamodb_table.landing_pages.arn
-}
-
-output "s3_public_pages_bucket_name" {
-  description = "Name of the S3 bucket for published landing pages"
-  value       = aws_s3_bucket.public_pages.bucket
-}
-
-output "s3_public_pages_bucket_arn" {
-  description = "ARN of the S3 bucket for published landing pages"
-  value       = aws_s3_bucket.public_pages.arn
-}
-
-output "cloudfront_public_pages_domain_name" {
-  description = "Domain name of the CloudFront distribution for landing pages"
-  value       = aws_cloudfront_distribution.public_pages.domain_name
-}
-
-output "cloudfront_public_pages_distribution_id" {
-  description = "ID of the CloudFront distribution for landing pages"
-  value       = aws_cloudfront_distribution.public_pages.id
 }
 
 output "dynamodb_landing_pages_policy_arn" {
@@ -607,12 +303,7 @@ output "s3_public_pages_write_policy_arn" {
   value       = aws_iam_policy.s3_public_pages_write.arn
 }
 
-output "cloudfront_kvs_domain_mapping_arn" {
-  description = "ARN of the CloudFront KeyValueStore for custom domain→slug mapping"
-  value       = aws_cloudfront_key_value_store.domain_mapping.arn
-}
-
 output "custom_domains_management_policy_arn" {
-  description = "ARN of the IAM policy for custom domain management (ACM, CloudFront, KVS)"
+  description = "ARN of the IAM policy that lets the backend assume the nonprofit public-pages role"
   value       = aws_iam_policy.custom_domains_management.arn
 }
