@@ -239,11 +239,23 @@ through Phase 6 (old stack untouched); irreversibility begins at Phase 7.
     bucket policy + new dist ARN. Plan 5 add / 2 change / 0 destroy; `*.jabaki.nl` dist untouched.
     Side effect accepted: provider v6 fixes the live url-rewrite fn `kvsId` (name → KVS id).
     **Every plan on this stack must pass `-var='distribution_aliases=["*.jabaki.nl"]'`.**
-  - [ ] C.3 Personal stack: targeted apply `aws_iam_policy.custom_domains_management`
-    (sts:AssumeRole on the role). Never untargeted — see findings.md 2026-11-08.
-  - [ ] C.4 Railway env `PUBLIC_PAGES_AWS_ROLE_ARN` + `CLOUDFRONT_CUSTOM_DOMAINS_DISTRIBUTION_ID`;
-    deploy backend (test → main).
-  - [ ] C.5 Re-register www.thecategorystudio.nl; tenant adds the one CNAME at theory7.
+    **APPLIED 2026-11-15:** multi-tenant dist `ET9HYEGAY09WF`, role
+    `myadmin-public-pages-backend-production`, default connection group endpoint (the CNAME target)
+    `d3cae492lrd6sc.cloudfront.net`. Follow-up targeted apply added `cloudfront:ListConnectionGroups`.
+  - [x] C.3 Personal `myadmin-custom-domains-production` gets `sts:AssumeRole` on the role.
+    **Applied as IAM policy version v2 (CLI), NOT terraform:** even `-target` pulled in
+    `aws_cloudfront_distribution.public_pages` and would re-add `*.jabaki.nl` to the legacy dist
+    (outage, see findings.md 2026-11-08). v2 content == the `.tf`, so no drift for this policy.
+  - [ ] C.4 Railway env `PUBLIC_PAGES_AWS_ROLE_ARN` + `CLOUDFRONT_CUSTOM_DOMAINS_DISTRIBUTION_ID`
+    **set (no redeploy)**; deploy backend via PR #224 (test) → test→main.
+  - [x] C.5 www.thecategorystudio.nl re-registered (tenant `kimgeers`, slug `thecategorystudio`,
+    `pending_dns`). Finding: CloudFront creates a tenant ONLY once the CNAME points at it, so
+    register shows the CNAME and verify / the job create the tenant later. Old personal ACM cert
+    `22e2fb2c…` (VALIDATION_TIMED_OUT) deleted.
+    **Owner action (theory7):** `www` CNAME `d3cae492lrd6sc.cloudfront.net` (replace the A record).
+  - [x] C.6 vandenheuvelhoveniers 404 = deliberate unpublish by peter@pgeers.nl 2026-11-15 19:55
+    (Railway log) — not data loss, left as is. Same log showed publish invalidations failing
+    (AccessDenied, personal user on nonprofit dist) → fixed in PR #224 (invalidate via the role).
 
 ## Notes
 
