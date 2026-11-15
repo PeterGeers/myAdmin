@@ -29,6 +29,53 @@ DOMAIN_REGEX = re.compile(
 IP_REGEX = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
 
 
+def mark_domain_active(db, record_id, tenant, certificate_arn=None):
+    """
+    Mark a custom domain active once its CloudFront-managed cert is issued.
+
+    Shared by DomainService.verify_custom_domain and the verification job.
+    Nothing to configure in CloudFront: the distribution tenant already serves
+    the domain from the `slug` origin path as soon as the cert is issued.
+    """
+    db.execute_query(
+        """
+        UPDATE tenant_custom_domains
+        SET verification_status = 'issued',
+            is_active = TRUE,
+            activated_at = NOW(),
+            acm_certificate_arn = COALESCE(%s, acm_certificate_arn)
+        WHERE id = %s AND administration = %s
+        """,
+        (certificate_arn, record_id, tenant),
+        fetch=False,
+        commit=True,
+    )
+
+
+def check_custom_domain(cf_service, domain, slug):
+    """
+    Current state of a custom domain, creating its distribution tenant if needed.
+
+    CloudFront only creates a tenant once the domain's CNAME points at the
+    routing endpoint, so until then every check retries the creation.
+
+    Returns {"status": ..., "certificate_arn"?} where status is one of
+    "ISSUED", "PENDING_VALIDATION", "PENDING_DNS", "FAILED", "ERROR".
+    """
+    result = cf_service.get_domain_status(domain)
+    if result.get("success"):
+        return result
+    if not result.get("not_found"):
+        return {"status": "ERROR", "error": result.get("error")}
+
+    created = cf_service.create_domain_tenant(domain, slug)
+    if created.get("success"):
+        return {"status": "PENDING_VALIDATION"}
+    if created.get("dns_not_ready"):
+        return {"status": "PENDING_DNS"}
+    return {"status": "ERROR", "error": created.get("error")}
+
+
 class DomainService:
     """
     Service for managing tenant domain configurations.
@@ -205,63 +252,61 @@ class DomainService:
             }
         slug = slug_results[0]["slug"]
 
-        # Step 4: Request ACM certificate
+        # Step 4: CNAME target + distribution tenant. CloudFront only creates
+        # the tenant once the domain already points at the routing endpoint;
+        # until then ("dns_not_ready") verify / the background job retry it.
+        # CloudFront then requests and HTTP-validates the certificate itself.
         from services.cloudfront_domain_service import CloudFrontDomainService
 
         cf_service = CloudFrontDomainService()
-        cert_result = cf_service.request_certificate(domain)
-
-        if not cert_result.get("success"):
+        routing_endpoint = cf_service.get_routing_endpoint()
+        if not routing_endpoint:
             return {
                 "success": False,
-                "error": cert_result.get("error", "Failed to request SSL certificate."),
+                "error": "Custom domains are temporarily unavailable. Try again later.",
             }
 
-        certificate_arn = cert_result["certificate_arn"]
-        validation_name = cert_result.get("validation_name")
-        validation_value = cert_result.get("validation_value")
+        tenant_result = cf_service.create_domain_tenant(domain, slug)
+        if not tenant_result.get("success") and not tenant_result.get("dns_not_ready"):
+            return {
+                "success": False,
+                "error": tenant_result.get(
+                    "error", "Failed to set up the custom domain."
+                ),
+            }
 
-        # Step 5: Store in tenant_custom_domains
+        # Step 5: Store in tenant_custom_domains. There is no separate
+        # validation record any more: dns_validation_name/value hold the ONE
+        # CNAME the tenant must add (domain -> routing endpoint), so the status
+        # view can repeat the instruction. acm_certificate_arn is filled once
+        # the CloudFront-managed certificate is issued.
         insert_query = """
             INSERT INTO tenant_custom_domains
                 (administration, slug, domain_type, domain,
                  acm_certificate_arn, dns_validation_name,
                  dns_validation_value, verification_status)
-            VALUES (%s, %s, 'custom', %s, %s, %s, %s, 'pending_dns')
+            VALUES (%s, %s, 'custom', %s, NULL, %s, %s, 'pending_dns')
         """
         self.db.execute_query(
             insert_query,
-            (
-                tenant,
-                slug,
-                domain,
-                certificate_arn,
-                validation_name,
-                validation_value,
-            ),
+            (tenant, slug, domain, domain, routing_endpoint),
             fetch=False,
             commit=True,
         )
 
         logger.info(
             f"Custom domain {domain} registered for tenant {tenant} "
-            f"(cert: {certificate_arn})"
+            f"(distribution tenant: {tenant_result.get('tenant_id', 'pending DNS')})"
         )
 
-        # Step 6: Build DNS instructions response
-        cloudfront_domain = cf_service.cloudfront_domain
+        # Step 6: Build DNS instructions response — one CNAME
         dns_instructions = {
             "type": "CNAME",
             "records": [
                 {
-                    "purpose": "domain_verification",
-                    "name": validation_name,
-                    "value": validation_value,
-                },
-                {
                     "purpose": "routing",
                     "name": domain,
-                    "value": cloudfront_domain,
+                    "value": routing_endpoint,
                 },
             ],
         }
@@ -307,8 +352,6 @@ class DomainService:
 
         row = results[0]
         domain = row["domain"]
-        slug = row["slug"]
-        cert_arn = row["acm_certificate_arn"]
         record_id = row["id"]
 
         # If already active, return immediately
@@ -323,48 +366,36 @@ class DomainService:
                 },
             }
 
-        # Check ACM certificate status
+        # Check the CloudFront-managed certificate status of the tenant
         from services.cloudfront_domain_service import CloudFrontDomainService
 
         cf_service = CloudFrontDomainService()
-        cert_result = cf_service.describe_certificate(cert_arn)
-
-        if not cert_result.get("success"):
-            return {
-                "success": False,
-                "error": cert_result.get(
-                    "error", "Failed to check certificate status."
-                ),
-            }
-
+        cert_result = check_custom_domain(cf_service, domain, row["slug"])
         status = cert_result["status"]
 
+        if status == "ERROR":
+            return {
+                "success": False,
+                "error": "Failed to check certificate status.",
+            }
+
+        if status == "PENDING_DNS":
+            # Record stays 'pending_dns'; the CNAME is not visible yet.
+            return {
+                "success": True,
+                "data": {
+                    "domain": domain,
+                    "status": "pending_dns",
+                    "is_active": False,
+                    "message": "Waiting for the DNS record. Add the CNAME shown above; DNS changes can take up to a few hours to become visible.",
+                },
+            }
+
         if status == "ISSUED":
-            # Activate the domain: add to CloudFront + KVS
-            add_success = cf_service.add_domain_to_distribution(domain, cert_arn)
-            if not add_success:
-                return {
-                    "success": False,
-                    "error": "Failed to add domain to CloudFront distribution.",
-                }
-
-            kvs_success = cf_service.put_kvs_mapping(domain, slug)
-            if not kvs_success:
-                return {
-                    "success": False,
-                    "error": "Failed to update domain routing.",
-                }
-
-            # Update database: mark as active
-            update_query = """
-                UPDATE tenant_custom_domains
-                SET verification_status = 'issued',
-                    is_active = TRUE,
-                    activated_at = NOW()
-                WHERE id = %s AND administration = %s
-            """
-            self.db.execute_query(
-                update_query, (record_id, tenant), fetch=False, commit=True
+            # The tenant serves the domain as soon as its certificate is
+            # issued (routing = tenant's `slug` origin-path parameter).
+            mark_domain_active(
+                self.db, record_id, tenant, cert_result.get("certificate_arn")
             )
 
             logger.info(f"Custom domain {domain} activated for tenant {tenant}")
@@ -396,7 +427,7 @@ class DomainService:
                     "domain": domain,
                     "status": "validating",
                     "is_active": False,
-                    "message": "DNS records detected. Certificate validation in progress (may take up to 30 minutes).",
+                    "message": "DNS record found. The certificate is being issued automatically (may take up to 30 minutes).",
                 },
             }
 
@@ -460,13 +491,17 @@ class DomainService:
 
         cf_service = CloudFrontDomainService()
 
-        # Step 1: Remove domain from CloudFront distribution
-        cf_service.remove_domain_from_distribution(domain)
+        # Step 1: Disable + delete the CloudFront distribution tenant.
+        # Best-effort: if the delete is refused the tenant stays disabled
+        # (serves nothing) and is logged for cleanup.
+        if not cf_service.delete_domain_tenant(domain):
+            logger.warning(
+                f"Distribution tenant for {domain} not deleted; left disabled"
+            )
 
-        # Step 2: Delete KVS mapping
-        cf_service.delete_kvs_mapping(domain)
-
-        # Step 3: Delete ACM certificate (if exists)
+        # Step 2: Delete the (now unused) managed ACM certificate, if known.
+        # Best-effort: records from the old ACM flow may reference a cert in
+        # another account, which simply fails and is logged.
         if cert_arn:
             cf_service.delete_certificate(cert_arn)
 
@@ -605,14 +640,15 @@ class DomainService:
         status = row["verification_status"]
         is_active = bool(row.get("is_active", False))
 
-        # Include DNS instructions if domain is still pending verification
+        # Include DNS instructions if domain is still pending verification.
+        # The stored pair is the single routing CNAME (domain -> endpoint).
         dns_instructions = None
         if status in ("pending_dns", "validating") and row.get("dns_validation_name"):
             dns_instructions = {
                 "type": "CNAME",
                 "records": [
                     {
-                        "purpose": "domain_verification",
+                        "purpose": "routing",
                         "name": row["dns_validation_name"],
                         "value": row["dns_validation_value"],
                     },
