@@ -39,69 +39,6 @@ resource "aws_dynamodb_table" "landing_pages" {
 }
 
 # ============================================================================
-# Retired personal hosting — drop from state, do NOT destroy (already deleted)
-# ============================================================================
-# The objects were deleted by hand after a backup. These `removed` blocks make the
-# next plan forget them instead of trying to recreate or destroy them. Delete the
-# blocks once an apply has run with them.
-
-removed {
-  from = aws_s3_bucket.public_pages
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = aws_s3_bucket_server_side_encryption_configuration.public_pages
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = aws_s3_bucket_public_access_block.public_pages
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = aws_s3_bucket_policy.public_pages
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = aws_cloudfront_function.public_pages_url_rewrite
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = aws_cloudfront_origin_access_control.public_pages
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = aws_cloudfront_distribution.public_pages
-  lifecycle {
-    destroy = false
-  }
-}
-
-removed {
-  from = aws_cloudfront_key_value_store.domain_mapping
-  lifecycle {
-    destroy = false
-  }
-}
-
-# ============================================================================
 # IAM Policies — Backend Access (Railway)
 # ============================================================================
 
