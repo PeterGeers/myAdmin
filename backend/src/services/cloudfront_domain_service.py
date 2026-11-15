@@ -18,6 +18,14 @@ from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
 
+# CloudFront-managed certificate status -> the vocabulary DomainService uses.
+# Everything else (validation-timed-out, failed, revoked, expired, inactive)
+# is terminal and maps to "FAILED".
+_CERT_STATUS_MAP = {
+    "issued": "ISSUED",
+    "pending-validation": "PENDING_VALIDATION",
+}
+
 
 class CloudFrontDomainService:
     """
@@ -28,22 +36,57 @@ class CloudFrontDomainService:
     """
 
     def __init__(self):
-        """Initialize AWS clients and load configuration from environment."""
+        """Initialize AWS clients and load configuration from environment.
+
+        The public-pages hosting (distributions, managed certificates, KVS)
+        lives in the nonprofit account, while the Railway backend runs as a
+        personal-account IAM user. When ``PUBLIC_PAGES_AWS_ROLE_ARN`` is set,
+        every client here uses short-lived credentials from assuming that
+        cross-account role (nonprofit-public-pages/hosting.tf).
+        """
         region = os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
-        self._cloudfront = boto3.client("cloudfront", region_name=region)
-        self._acm = boto3.client("acm", region_name="us-east-1")
+        self._client_kwargs = self._assumed_role_credentials()
+        self._cloudfront = boto3.client(
+            "cloudfront", region_name=region, **self._client_kwargs
+        )
+        self._acm = boto3.client("acm", region_name="us-east-1", **self._client_kwargs)
         self._kvs = None  # Lazy init — requires awscrt
         self._kvs_init_attempted = False
-        self.distribution_id = os.environ.get(
-            "CLOUDFRONT_PUBLIC_PAGES_DISTRIBUTION_ID", ""
+        # Multi-tenant distribution whose tenants are the custom domains
+        # (nonprofit-public-pages/custom-domains.tf).
+        self.custom_domains_distribution_id = os.environ.get(
+            "CLOUDFRONT_CUSTOM_DOMAINS_DISTRIBUTION_ID", ""
         )
-        self.kvs_arn = os.environ.get("CLOUDFRONT_KVS_ARN", "")
         # Separate KVS mapping the application-form host -> allowed embed origins
         # (CSP frame-ancestors). See infrastructure/application-form.tf.
         self.embed_origins_kvs_arn = os.environ.get(
             "CLOUDFRONT_EMBED_ORIGINS_KVS_ARN", ""
         )
-        self.cloudfront_domain = os.environ.get("CLOUDFRONT_PUBLIC_PAGES_DOMAIN", "")
+
+    @staticmethod
+    def _assumed_role_credentials() -> dict:
+        """boto3 client kwargs for the cross-account role, or {} if unset."""
+        role_arn = os.environ.get("PUBLIC_PAGES_AWS_ROLE_ARN", "")
+        if not role_arn:
+            return {}
+        creds = boto3.client("sts").assume_role(
+            RoleArn=role_arn, RoleSessionName="myadmin-public-pages"
+        )["Credentials"]
+        return {
+            "aws_access_key_id": creds["AccessKeyId"],
+            "aws_secret_access_key": creds["SecretAccessKey"],
+            "aws_session_token": creds["SessionToken"],
+        }
+
+    def _cli_env(self) -> dict | None:
+        """Environment for AWS CLI subprocesses (carries assumed-role creds)."""
+        if not self._client_kwargs:
+            return None
+        env = dict(os.environ)
+        env["AWS_ACCESS_KEY_ID"] = self._client_kwargs["aws_access_key_id"]
+        env["AWS_SECRET_ACCESS_KEY"] = self._client_kwargs["aws_secret_access_key"]
+        env["AWS_SESSION_TOKEN"] = self._client_kwargs["aws_session_token"]
+        return env
 
     def _get_kvs_client(self):
         """
@@ -61,7 +104,9 @@ class CloudFrontDomainService:
         self._kvs_init_attempted = True
         try:
             region = os.environ.get("AWS_DEFAULT_REGION", "eu-west-1")
-            self._kvs = boto3.client("cloudfront-keyvaluestore", region_name=region)
+            self._kvs = boto3.client(
+                "cloudfront-keyvaluestore", region_name=region, **self._client_kwargs
+            )
             return self._kvs
         except Exception as e:
             logger.warning(
@@ -71,145 +116,190 @@ class CloudFrontDomainService:
             return None
 
     # ========================================================================
-    # CloudFront Distribution CNAME Management (Task 4.4)
+    # Custom domains = CloudFront distribution TENANTS
     # ========================================================================
+    # Custom domains are NOT aliases on the `*.jabaki.nl` distribution. Each one
+    # is a distribution tenant of a separate MULTI-TENANT distribution
+    # (env CLOUDFRONT_CUSTOM_DOMAINS_DISTRIBUTION_ID, Terraform
+    # nonprofit-public-pages/custom-domains.tf). The tenant carries:
+    #   - the domain (e.g. "www.acme.nl");
+    #   - parameter `slug`, used as origin path `/{{slug}}` in the shared bucket;
+    #   - a CloudFront-MANAGED certificate, HTTP-validated by CloudFront itself
+    #     (ValidationTokenHost=cloudfront) — so the tenant only adds ONE record:
+    #     a CNAME from their domain to the connection-group routing endpoint.
+    #
+    # CloudFront only CREATES a tenant once the domain already points at the
+    # routing endpoint ("Could not verify Domain Name ownership" otherwise). So
+    # the CNAME target comes from the (default) connection group up front, and
+    # tenant creation is retried by verify / the background job until DNS is in.
 
-    def add_domain_to_distribution(self, domain: str, certificate_arn: str) -> bool:
+    @staticmethod
+    def _tenant_name(domain: str) -> str:
+        """Tenant names must be unique per account; the domain itself is."""
+        return domain.lower()
+
+    def get_routing_endpoint(self) -> str | None:
+        """CNAME target for custom domains: the default connection group endpoint."""
+        try:
+            groups = self._cloudfront.list_connection_groups().get(
+                "ConnectionGroups", []
+            )
+        except ClientError as e:
+            logger.error(f"Failed to list connection groups: {e}")
+            return None
+        for group in groups:
+            if group.get("IsDefault"):
+                return group.get("RoutingEndpoint")
+        logger.error("No default CloudFront connection group found")
+        return None
+
+    def create_domain_tenant(self, domain: str, slug: str) -> dict:
         """
-        Add a custom domain as an alternate domain name on the CloudFront
-        distribution and associate its ACM certificate.
-
-        Uses ETag-based optimistic locking to safely update the distribution.
-
-        Args:
-            domain: The custom domain to add (e.g., "www.acme-rentals.nl")
-            certificate_arn: ARN of the ACM certificate for this domain
+        Create the distribution tenant for a custom domain.
 
         Returns:
-            True on success, False on failure
+            {"success": True, "tenant_id", "routing_endpoint"};
+            {"success": False, "dns_not_ready": True, "error"} while the domain
+            does not yet point at CloudFront; or {"success": False, "error"}.
+        """
+        if not self.custom_domains_distribution_id:
+            logger.error("CLOUDFRONT_CUSTOM_DOMAINS_DISTRIBUTION_ID not set")
+            return {"success": False, "error": "Custom domains are not configured."}
+        try:
+            tenant = self._cloudfront.create_distribution_tenant(
+                DistributionId=self.custom_domains_distribution_id,
+                Name=self._tenant_name(domain),
+                Domains=[{"Domain": domain}],
+                Parameters=[{"Name": "slug", "Value": slug}],
+                Enabled=True,
+                ManagedCertificateRequest={
+                    "ValidationTokenHost": "cloudfront",
+                    "PrimaryDomainName": domain,
+                    "CertificateTransparencyLoggingPreference": "enabled",
+                },
+                Tags={"Items": [{"Key": "ManagedBy", "Value": "myadmin-backend"}]},
+            )["DistributionTenant"]
+            endpoint = self._routing_endpoint(tenant["ConnectionGroupId"])
+            logger.info(f"Created distribution tenant {tenant['Id']} for {domain}")
+            return {
+                "success": True,
+                "tenant_id": tenant["Id"],
+                "routing_endpoint": endpoint,
+            }
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "")
+            if code == "InvalidArgument" and "ownership" in str(e).lower():
+                logger.info(f"Tenant for {domain} not created yet: DNS not pointing")
+            else:
+                logger.error(f"Failed to create distribution tenant for {domain}: {e}")
+            if code == "CNAMEAlreadyExists":
+                return {
+                    "success": False,
+                    "error": "This domain is already connected to another CloudFront site.",
+                }
+            if code == "InvalidArgument" and "ownership" in str(e).lower():
+                # Expected until the tenant's CNAME points at CloudFront.
+                return {
+                    "success": False,
+                    "dns_not_ready": True,
+                    "error": "The DNS record does not point to CloudFront yet.",
+                }
+            return {"success": False, "error": "Failed to set up the custom domain."}
+
+    def _routing_endpoint(self, connection_group_id: str) -> str:
+        """The CloudFront hostname tenants point their CNAME at."""
+        group = self._cloudfront.get_connection_group(Identifier=connection_group_id)
+        return group["ConnectionGroup"]["RoutingEndpoint"]
+
+    def _get_tenant_by_domain(self, domain: str):
+        """Return (tenant, etag), or (None, None) if no tenant has this domain."""
+        try:
+            response = self._cloudfront.get_distribution_tenant_by_domain(Domain=domain)
+            return response["DistributionTenant"], response.get("ETag")
+        except ClientError as e:
+            if e.response.get("Error", {}).get("Code", "") == "EntityNotFound":
+                return None, None
+            raise
+
+    def get_domain_status(self, domain: str) -> dict:
+        """
+        Certificate status of a custom domain's tenant.
+
+        Returns:
+            {"success": True, "status": "ISSUED"|"PENDING_VALIDATION"|"FAILED",
+             "certificate_arn"}; {"success": False, "not_found": True} when no
+            tenant exists yet; or {"success": False, "error"}.
         """
         try:
-            # Step 1: Get current distribution config with ETag
-            response = self._cloudfront.get_distribution_config(Id=self.distribution_id)
-            config = response["DistributionConfig"]
-            etag = response["ETag"]
-
-            # Step 2: Add domain to aliases if not already present
-            aliases = config.get("Aliases", {"Quantity": 0, "Items": []})
-            items = aliases.get("Items", [])
-
-            if domain in items:
-                logger.info(f"Domain {domain} already in distribution aliases")
-                return True
-
-            items.append(domain)
-            aliases["Items"] = items
-            aliases["Quantity"] = len(items)
-            config["Aliases"] = aliases
-
-            # Step 3: Update the distribution with ETag for optimistic locking
-            self._cloudfront.update_distribution(
-                DistributionConfig=config,
-                Id=self.distribution_id,
-                IfMatch=etag,
-            )
-
-            logger.info(
-                f"Added domain {domain} to CloudFront distribution "
-                f"{self.distribution_id}"
-            )
-            return True
-
+            tenant, _ = self._get_tenant_by_domain(domain)
+            if tenant is None:
+                return {
+                    "success": False,
+                    "not_found": True,
+                    "error": "Custom domain not found.",
+                }
+            details = self._cloudfront.get_managed_certificate_details(
+                Identifier=tenant["Id"]
+            ).get("ManagedCertificateDetails", {})
         except ClientError as e:
-            logger.error(
-                f"Failed to add domain {domain} to CloudFront distribution: {e}"
+            logger.error(f"Failed to read status for {domain}: {e}")
+            return {"success": False, "error": "Failed to check certificate status."}
+
+        raw_status = details.get("CertificateStatus", "")
+        return {
+            "success": True,
+            # validation-timed-out / failed / revoked / expired / inactive
+            "status": _CERT_STATUS_MAP.get(raw_status, "FAILED"),
+            "certificate_arn": details.get("CertificateArn"),
+        }
+
+    def update_domain_tenant_slug(self, domain: str, slug: str) -> bool:
+        """Point an existing tenant at a renamed slug (origin path parameter)."""
+        try:
+            tenant, etag = self._get_tenant_by_domain(domain)
+            if tenant is None:
+                logger.warning(
+                    f"No distribution tenant for {domain}; nothing to update"
+                )
+                return False
+            self._cloudfront.update_distribution_tenant(
+                Id=tenant["Id"],
+                IfMatch=etag,
+                Parameters=[{"Name": "slug", "Value": slug}],
             )
+            logger.info(f"Updated slug of tenant {tenant['Id']} ({domain}) to {slug}")
+            return True
+        except ClientError as e:
+            logger.error(f"Failed to update slug for {domain}: {e}")
             return False
 
-    def remove_domain_from_distribution(self, domain: str) -> bool:
+    def delete_domain_tenant(self, domain: str) -> bool:
         """
-        Remove a custom domain from the CloudFront distribution's
-        alternate domain names.
+        Disable and delete the tenant for a custom domain.
 
-        Uses ETag-based optimistic locking to safely update the distribution.
-
-        Args:
-            domain: The custom domain to remove (e.g., "www.acme-rentals.nl")
-
-        Returns:
-            True on success, False on failure
+        A tenant must be disabled before it can be deleted. If the delete itself
+        is refused (e.g. still propagating), the tenant stays DISABLED — it no
+        longer serves traffic — and False is returned so the caller can log it.
+        Returns True if no tenant exists (idempotent).
         """
         try:
-            # Step 1: Get current distribution config with ETag
-            response = self._cloudfront.get_distribution_config(Id=self.distribution_id)
-            config = response["DistributionConfig"]
-            etag = response["ETag"]
-
-            # Step 2: Remove domain from aliases
-            aliases = config.get("Aliases", {"Quantity": 0, "Items": []})
-            items = aliases.get("Items", [])
-
-            if domain not in items:
-                logger.info(
-                    f"Domain {domain} not in distribution aliases, nothing to remove"
-                )
+            tenant, etag = self._get_tenant_by_domain(domain)
+            if tenant is None:
                 return True
-
-            items.remove(domain)
-            aliases["Items"] = items
-            aliases["Quantity"] = len(items)
-            config["Aliases"] = aliases
-
-            # Step 3: Update the distribution with ETag for optimistic locking
-            self._cloudfront.update_distribution(
-                DistributionConfig=config,
-                Id=self.distribution_id,
-                IfMatch=etag,
-            )
-
-            logger.info(
-                f"Removed domain {domain} from CloudFront distribution "
-                f"{self.distribution_id}"
-            )
+            if tenant.get("Enabled", True):
+                etag = self._cloudfront.update_distribution_tenant(
+                    Id=tenant["Id"], IfMatch=etag, Enabled=False
+                ).get("ETag", etag)
+            self._cloudfront.delete_distribution_tenant(Id=tenant["Id"], IfMatch=etag)
+            logger.info(f"Deleted distribution tenant {tenant['Id']} ({domain})")
             return True
-
         except ClientError as e:
-            logger.error(
-                f"Failed to remove domain {domain} from CloudFront distribution: {e}"
-            )
+            logger.error(f"Failed to delete distribution tenant for {domain}: {e}")
             return False
 
     # ========================================================================
     # KeyValueStore Management (Task 4.5)
     # ========================================================================
-
-    def put_kvs_mapping(self, domain: str, slug: str) -> bool:
-        """
-        Add or update a domain→slug mapping in the CloudFront KeyValueStore.
-
-        This mapping is read by the CloudFront Function at the edge to
-        resolve custom domains to tenant slugs.
-
-        Uses boto3 client if awscrt is available, otherwise falls back
-        to AWS CLI subprocess.
-
-        Args:
-            domain: The custom domain (e.g., "www.acme-rentals.nl")
-            slug: The tenant slug (e.g., "acme-rentals")
-
-        Returns:
-            True on success, False on failure
-        """
-        if not self.kvs_arn:
-            logger.warning("CLOUDFRONT_KVS_ARN not set — skipping KVS put")
-            return True  # Non-fatal: KVS is optional for basic functionality
-
-        kvs_client = self._get_kvs_client()
-
-        if kvs_client:
-            return self._put_kvs_boto3(kvs_client, domain, slug, self.kvs_arn)
-        else:
-            return self._put_kvs_cli(domain, slug, self.kvs_arn)
 
     def _put_kvs_boto3(self, kvs_client, key: str, value: str, kvs_arn: str) -> bool:
         """Put a key→value mapping in the given KVS using the boto3 client."""
@@ -246,7 +336,12 @@ class CloudFrontDomainService:
                 "json",
             ]
             result = subprocess.run(
-                describe_cmd, capture_output=True, text=True, timeout=30, check=False
+                describe_cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+                env=self._cli_env(),
             )
             if result.returncode != 0:
                 logger.error(f"AWS CLI describe KVS failed: {result.stderr}")
@@ -269,7 +364,12 @@ class CloudFrontDomainService:
                 etag,
             ]
             result = subprocess.run(
-                put_cmd, capture_output=True, text=True, timeout=30, check=False
+                put_cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+                env=self._cli_env(),
             )
             if result.returncode != 0:
                 logger.error(f"AWS CLI put KVS key failed: {result.stderr}")
@@ -280,30 +380,6 @@ class CloudFrontDomainService:
         except Exception as e:
             logger.error(f"CLI fallback failed for put KVS {key}: {e}")
             return False
-
-    def delete_kvs_mapping(self, domain: str) -> bool:
-        """
-        Delete a domain→slug mapping from the CloudFront KeyValueStore.
-
-        Uses boto3 client if awscrt is available, otherwise falls back
-        to AWS CLI subprocess.
-
-        Args:
-            domain: The custom domain to remove (e.g., "www.acme-rentals.nl")
-
-        Returns:
-            True on success, False on failure
-        """
-        if not self.kvs_arn:
-            logger.warning("CLOUDFRONT_KVS_ARN not set — skipping KVS delete")
-            return True  # Non-fatal
-
-        kvs_client = self._get_kvs_client()
-
-        if kvs_client:
-            return self._delete_kvs_boto3(kvs_client, domain, self.kvs_arn)
-        else:
-            return self._delete_kvs_cli(domain, self.kvs_arn)
 
     def _delete_kvs_boto3(self, kvs_client, key: str, kvs_arn: str) -> bool:
         """Delete a key from the given KVS using the boto3 client."""
@@ -343,7 +419,12 @@ class CloudFrontDomainService:
                 "json",
             ]
             result = subprocess.run(
-                describe_cmd, capture_output=True, text=True, timeout=30, check=False
+                describe_cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+                env=self._cli_env(),
             )
             if result.returncode != 0:
                 logger.error(f"AWS CLI describe KVS failed: {result.stderr}")
@@ -364,7 +445,12 @@ class CloudFrontDomainService:
                 etag,
             ]
             result = subprocess.run(
-                delete_cmd, capture_output=True, text=True, timeout=30, check=False
+                delete_cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+                env=self._cli_env(),
             )
             if result.returncode != 0:
                 # Key not found is OK
@@ -460,112 +546,6 @@ class CloudFrontDomainService:
     # ========================================================================
     # ACM Certificate Management
     # ========================================================================
-
-    def request_certificate(self, domain: str) -> dict:
-        """
-        Request an ACM certificate for a custom domain using DNS validation.
-
-        The certificate is requested in us-east-1 (required for CloudFront).
-        Retries describe_certificate up to 3 times with 2s delay to allow
-        AWS to populate the validation records.
-
-        Args:
-            domain: The domain to request a certificate for
-
-        Returns:
-            Dict with certificate_arn and validation records on success,
-            or error information on failure.
-        """
-        import time
-
-        try:
-            response = self._acm.request_certificate(
-                DomainName=domain,
-                ValidationMethod="DNS",
-                Tags=[
-                    {"Key": "ManagedBy", "Value": "myadmin-backend"},
-                    {"Key": "Domain", "Value": domain},
-                ],
-            )
-            certificate_arn = response["CertificateArn"]
-
-            # Retry describe_certificate — AWS needs a moment to populate
-            # the DomainValidationOptions with ResourceRecord values
-            validation_name = None
-            validation_value = None
-
-            for attempt in range(4):
-                if attempt > 0:
-                    time.sleep(2)
-
-                cert_details = self._acm.describe_certificate(
-                    CertificateArn=certificate_arn
-                )
-                cert = cert_details["Certificate"]
-
-                validation_options = cert.get("DomainValidationOptions", [])
-                for option in validation_options:
-                    resource_record = option.get("ResourceRecord", {})
-                    if resource_record:
-                        validation_name = resource_record.get("Name")
-                        validation_value = resource_record.get("Value")
-                        break
-
-                if validation_name and validation_value:
-                    break
-
-                logger.info(
-                    f"ACM validation records not yet available for {domain}, "
-                    f"attempt {attempt + 1}/4"
-                )
-
-            logger.info(f"Requested ACM certificate for {domain}: {certificate_arn}")
-
-            return {
-                "success": True,
-                "certificate_arn": certificate_arn,
-                "validation_name": validation_name,
-                "validation_value": validation_value,
-            }
-
-        except ClientError as e:
-            logger.error(f"Failed to request ACM certificate for {domain}: {e}")
-            return {
-                "success": False,
-                "error": f"Failed to request certificate: {e!s}",
-            }
-
-    def describe_certificate(self, certificate_arn: str) -> dict:
-        """
-        Describe an ACM certificate to check its current status.
-
-        Args:
-            certificate_arn: ARN of the certificate to describe
-
-        Returns:
-            Dict with status and validation options:
-            {
-                "success": True,
-                "status": "ISSUED" | "PENDING_VALIDATION" | "FAILED" | ...,
-                "validation_options": [...]
-            }
-        """
-        try:
-            response = self._acm.describe_certificate(CertificateArn=certificate_arn)
-            cert = response["Certificate"]
-
-            return {
-                "success": True,
-                "status": cert.get("Status"),
-                "validation_options": cert.get("DomainValidationOptions", []),
-            }
-
-        except ClientError as e:
-            logger.error(f"Failed to describe certificate {certificate_arn}: {e}")
-            return {
-                "success": False,
-                "error": f"Failed to describe certificate: {e!s}",
-            }
 
     def delete_certificate(self, certificate_arn: str) -> bool:
         """

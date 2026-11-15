@@ -136,9 +136,7 @@ class TestRegisterCustomDomain:
 
     def test_register_domain_jabaki_subdomain(self, service, mock_db):
         """Jabaki.nl subdomains are rejected."""
-        result = service.register_custom_domain(
-            "TestTenant", "my-slug.jabaki.nl"
-        )
+        result = service.register_custom_domain("TestTenant", "my-slug.jabaki.nl")
         assert result["success"] is False
         assert "jabaki" in result["error"].lower()
 
@@ -150,38 +148,26 @@ class TestRegisterCustomDomain:
 
     def test_register_domain_invalid_chars(self, service, mock_db):
         """Domain with invalid characters is rejected."""
-        result = service.register_custom_domain(
-            "TestTenant", "my domain!.nl"
-        )
+        result = service.register_custom_domain("TestTenant", "my domain!.nl")
         assert result["success"] is False
         assert "format" in result["error"].lower()
 
-    def test_register_domain_already_registered_same_tenant(
-        self, service, mock_db
-    ):
+    def test_register_domain_already_registered_same_tenant(self, service, mock_db):
         """Domain already registered by same tenant returns error."""
-        mock_db.execute_query.return_value = [
-            {"id": 1, "administration": "TestTenant"}
-        ]
+        mock_db.execute_query.return_value = [{"id": 1, "administration": "TestTenant"}]
 
-        result = service.register_custom_domain(
-            "TestTenant", "www.acme-rentals.nl"
-        )
+        result = service.register_custom_domain("TestTenant", "www.acme-rentals.nl")
 
         assert result["success"] is False
         assert "already registered" in result["error"]
 
-    def test_register_domain_already_registered_other_tenant(
-        self, service, mock_db
-    ):
+    def test_register_domain_already_registered_other_tenant(self, service, mock_db):
         """Domain already registered by another tenant returns error."""
         mock_db.execute_query.return_value = [
             {"id": 1, "administration": "OtherTenant"}
         ]
 
-        result = service.register_custom_domain(
-            "TestTenant", "www.acme-rentals.nl"
-        )
+        result = service.register_custom_domain("TestTenant", "www.acme-rentals.nl")
 
         assert result["success"] is False
         assert "another tenant" in result["error"]
@@ -195,9 +181,7 @@ class TestRegisterCustomDomain:
             [],
         ]
 
-        result = service.register_custom_domain(
-            "TestTenant", "www.acme-rentals.nl"
-        )
+        result = service.register_custom_domain("TestTenant", "www.acme-rentals.nl")
 
         assert result["success"] is False
         assert "slug" in result["error"].lower()
@@ -207,13 +191,12 @@ class TestRegisterCustomDomain:
         """Create a mocked CloudFrontDomainService."""
         with pytest.MonkeyPatch.context() as m:
             mock_cf = Mock()
-            mock_cf.request_certificate.return_value = {
+            mock_cf.get_routing_endpoint.return_value = "d1234abcd.cloudfront.net"
+            mock_cf.create_domain_tenant.return_value = {
                 "success": True,
-                "certificate_arn": "arn:aws:acm:us-east-1:123:certificate/abc",
-                "validation_name": "_challenge.www.acme-rentals.nl",
-                "validation_value": "_token.acm-validations.aws.",
+                "tenant_id": "dt_123",
+                "routing_endpoint": "d1234abcd.cloudfront.net",
             }
-            mock_cf.cloudfront_domain = "d1234abcd.cloudfront.net"
             yield mock_cf
 
     def test_register_domain_success(self, service, mock_db, mock_cf_service):
@@ -233,32 +216,43 @@ class TestRegisterCustomDomain:
             "services.cloudfront_domain_service.CloudFrontDomainService",
             return_value=mock_cf_service,
         ):
-            result = service.register_custom_domain(
-                "TestTenant", "www.acme-rentals.nl"
-            )
+            result = service.register_custom_domain("TestTenant", "www.acme-rentals.nl")
 
         assert result["success"] is True
         data = result["data"]
         assert data["domain"] == "www.acme-rentals.nl"
         assert data["status"] == "pending_dns"
 
-        # Check DNS instructions
+        # Check DNS instructions: ONE routing CNAME (CloudFront validates the
+        # managed certificate over HTTP itself — no validation record)
         instructions = data["dns_instructions"]
         assert instructions["type"] == "CNAME"
-        assert len(instructions["records"]) == 2
+        assert instructions["records"] == [
+            {
+                "purpose": "routing",
+                "name": "www.acme-rentals.nl",
+                "value": "d1234abcd.cloudfront.net",
+            }
+        ]
 
-        # Verification record
-        assert instructions["records"][0]["purpose"] == "domain_verification"
-        assert instructions["records"][0]["name"] == "_challenge.www.acme-rentals.nl"
-        assert instructions["records"][0]["value"] == "_token.acm-validations.aws."
+        # Tenant created for the tenant's slug
+        mock_cf_service.create_domain_tenant.assert_called_once_with(
+            "www.acme-rentals.nl", "acme-rentals"
+        )
 
-        # Routing record
-        assert instructions["records"][1]["purpose"] == "routing"
-        assert instructions["records"][1]["name"] == "www.acme-rentals.nl"
-        assert instructions["records"][1]["value"] == "d1234abcd.cloudfront.net"
+        # INSERT stores the routing pair, includes the tenant, no cert yet
+        insert_call = mock_db.execute_query.call_args_list[2]
+        assert "INSERT INTO tenant_custom_domains" in insert_call[0][0]
+        assert insert_call[0][1] == (
+            "TestTenant",
+            "acme-rentals",
+            "www.acme-rentals.nl",
+            "www.acme-rentals.nl",
+            "d1234abcd.cloudfront.net",
+        )
 
-    def test_register_domain_acm_failure(self, service, mock_db):
-        """ACM certificate request failure returns error."""
+    def test_register_domain_tenant_creation_failure(self, service, mock_db):
+        """Distribution tenant creation failure returns error, no INSERT."""
         from unittest.mock import patch
 
         mock_db.execute_query.side_effect = [
@@ -269,21 +263,21 @@ class TestRegisterCustomDomain:
         ]
 
         mock_cf = Mock()
-        mock_cf.request_certificate.return_value = {
+        mock_cf.create_domain_tenant.return_value = {
             "success": False,
-            "error": "Failed to request certificate: rate limit exceeded",
+            "error": "Failed to set up the custom domain.",
         }
 
         with patch(
             "services.cloudfront_domain_service.CloudFrontDomainService",
             return_value=mock_cf,
         ):
-            result = service.register_custom_domain(
-                "TestTenant", "www.acme-rentals.nl"
-            )
+            result = service.register_custom_domain("TestTenant", "www.acme-rentals.nl")
 
         assert result["success"] is False
-        assert "certificate" in result["error"].lower()
+        assert "custom domain" in result["error"].lower()
+        # Only uniqueness + slug lookups ran; nothing was stored
+        assert mock_db.execute_query.call_count == 2
 
     def test_register_domain_valid_formats(self, service, mock_db):
         """Valid domain formats pass validation (validation-only check)."""
@@ -313,9 +307,7 @@ class TestRegisterCustomDomain:
         ]
         for domain in invalid_domains:
             error = service._validate_domain_format(domain)
-            assert error is not None, (
-                f"Domain '{domain}' should be invalid but passed"
-            )
+            assert error is not None, f"Domain '{domain}' should be invalid but passed"
 
 
 class TestVerifyCustomDomain:
@@ -361,13 +353,11 @@ class TestVerifyCustomDomain:
         ]
 
         mock_cf = Mock()
-        mock_cf.describe_certificate.return_value = {
+        mock_cf.get_domain_status.return_value = {
             "success": True,
             "status": "ISSUED",
-            "validation_options": [],
+            "certificate_arn": "arn:aws:acm:us-east-1:123:certificate/managed",
         }
-        mock_cf.add_domain_to_distribution.return_value = True
-        mock_cf.put_kvs_mapping.return_value = True
 
         with patch(
             "services.cloudfront_domain_service.CloudFrontDomainService",
@@ -382,20 +372,19 @@ class TestVerifyCustomDomain:
         assert data["is_active"] is True
         assert "active" in data["message"].lower()
 
-        # Verify CloudFront service was called correctly
-        mock_cf.add_domain_to_distribution.assert_called_once_with(
-            "www.acme-rentals.nl",
-            "arn:aws:acm:us-east-1:123:certificate/abc",
-        )
-        mock_cf.put_kvs_mapping.assert_called_once_with(
-            "www.acme-rentals.nl", "acme-rentals"
-        )
+        # Status is read from the domain's distribution tenant
+        mock_cf.get_domain_status.assert_called_once_with("www.acme-rentals.nl")
 
-        # Verify DB update
+        # Verify DB update (stores the managed cert ARN, tenant-scoped)
         update_call = mock_db.execute_query.call_args_list[1]
         assert "is_active = TRUE" in update_call[0][0]
         assert "verification_status = 'issued'" in update_call[0][0]
-        assert update_call[0][1] == (42, "TestTenant")
+        assert "administration = %s" in update_call[0][0]
+        assert update_call[0][1] == (
+            "arn:aws:acm:us-east-1:123:certificate/managed",
+            42,
+            "TestTenant",
+        )
 
     def test_verify_cert_pending_returns_validating(self, service, mock_db):
         """Verify when cert is PENDING_VALIDATION returns validating status."""
@@ -418,10 +407,9 @@ class TestVerifyCustomDomain:
         ]
 
         mock_cf = Mock()
-        mock_cf.describe_certificate.return_value = {
+        mock_cf.get_domain_status.return_value = {
             "success": True,
             "status": "PENDING_VALIDATION",
-            "validation_options": [],
         }
 
         with patch(
@@ -482,10 +470,9 @@ class TestVerifyCustomDomain:
         ]
 
         mock_cf = Mock()
-        mock_cf.describe_certificate.return_value = {
+        mock_cf.get_domain_status.return_value = {
             "success": True,
             "status": "FAILED",
-            "validation_options": [],
         }
 
         with patch(
@@ -541,8 +528,7 @@ class TestRemoveCustomDomain:
         ]
 
         mock_cf = Mock()
-        mock_cf.remove_domain_from_distribution.return_value = True
-        mock_cf.delete_kvs_mapping.return_value = True
+        mock_cf.delete_domain_tenant.return_value = True
         mock_cf.delete_certificate.return_value = True
 
         with patch(
@@ -555,12 +541,7 @@ class TestRemoveCustomDomain:
         assert result["message"] == "Custom domain removed."
 
         # Verify all cleanup steps were called
-        mock_cf.remove_domain_from_distribution.assert_called_once_with(
-            "www.acme-rentals.nl"
-        )
-        mock_cf.delete_kvs_mapping.assert_called_once_with(
-            "www.acme-rentals.nl"
-        )
+        mock_cf.delete_domain_tenant.assert_called_once_with("www.acme-rentals.nl")
         mock_cf.delete_certificate.assert_called_once_with(
             "arn:aws:acm:us-east-1:123:certificate/abc"
         )
@@ -587,8 +568,7 @@ class TestRemoveCustomDomain:
         ]
 
         mock_cf = Mock()
-        mock_cf.remove_domain_from_distribution.return_value = True
-        mock_cf.delete_kvs_mapping.return_value = True
+        mock_cf.delete_domain_tenant.return_value = True
 
         with patch(
             "services.cloudfront_domain_service.CloudFrontDomainService",
@@ -599,3 +579,138 @@ class TestRemoveCustomDomain:
         assert result["success"] is True
         # Should NOT call delete_certificate when cert_arn is None
         mock_cf.delete_certificate.assert_not_called()
+
+
+class TestCustomDomainStatus:
+    """Status view repeats the single routing CNAME while pending."""
+
+    def test_status_pending_shows_routing_record(self):
+        mock_db = Mock()
+        mock_db.execute_query.return_value = [
+            {
+                "domain": "www.acme-rentals.nl",
+                "verification_status": "pending_dns",
+                "is_active": False,
+                "dns_validation_name": "www.acme-rentals.nl",
+                "dns_validation_value": "d1234abcd.cloudfront.net",
+            }
+        ]
+        service = DomainService(db_manager=mock_db)
+
+        status = service._get_custom_domain_status("TestTenant")
+
+        assert status["dns_instructions"]["records"] == [
+            {
+                "purpose": "routing",
+                "name": "www.acme-rentals.nl",
+                "value": "d1234abcd.cloudfront.net",
+            }
+        ]
+        assert mock_db.execute_query.call_args[0][1] == ("TestTenant",)
+
+    def test_remove_tenant_delete_refused_still_removes_record(self):
+        """A refused tenant delete (left disabled) does not block removal."""
+        from unittest.mock import patch
+
+        mock_db = Mock()
+        mock_db.execute_query.side_effect = [
+            [{"id": 7, "domain": "www.acme-rentals.nl", "acm_certificate_arn": None}],
+            None,
+        ]
+        mock_cf = Mock()
+        mock_cf.delete_domain_tenant.return_value = False
+        service = DomainService(db_manager=mock_db)
+
+        with patch(
+            "services.cloudfront_domain_service.CloudFrontDomainService",
+            return_value=mock_cf,
+        ):
+            result = service.remove_custom_domain("TestTenant")
+
+        assert result["success"] is True
+        delete_call = mock_db.execute_query.call_args_list[1]
+        assert "DELETE FROM tenant_custom_domains" in delete_call[0][0]
+        assert delete_call[0][1] == (7, "TestTenant")
+
+
+class TestTenantCreatedOnceDnsPoints:
+    """CloudFront only creates a tenant after the CNAME points at it."""
+
+    def _cf(self, created):
+        mock_cf = Mock()
+        mock_cf.get_routing_endpoint.return_value = "d1234abcd.cloudfront.net"
+        mock_cf.create_domain_tenant.return_value = created
+        return mock_cf
+
+    def test_register_dns_not_ready_still_registers_with_cname(self):
+        from unittest.mock import patch
+
+        mock_db = Mock()
+        mock_db.execute_query.side_effect = [[], [{"slug": "acme-rentals"}], None]
+        mock_cf = self._cf({"success": False, "dns_not_ready": True})
+        service = DomainService(db_manager=mock_db)
+
+        with patch(
+            "services.cloudfront_domain_service.CloudFrontDomainService",
+            return_value=mock_cf,
+        ):
+            result = service.register_custom_domain("TestTenant", "www.acme-rentals.nl")
+
+        assert result["success"] is True
+        assert result["data"]["status"] == "pending_dns"
+        assert result["data"]["dns_instructions"]["records"][0]["value"] == (
+            "d1234abcd.cloudfront.net"
+        )
+        insert_call = mock_db.execute_query.call_args_list[2]
+        assert "INSERT INTO tenant_custom_domains" in insert_call[0][0]
+
+    def test_register_no_routing_endpoint_returns_error(self):
+        from unittest.mock import patch
+
+        mock_db = Mock()
+        mock_db.execute_query.side_effect = [[], [{"slug": "acme-rentals"}]]
+        mock_cf = self._cf({"success": True})
+        mock_cf.get_routing_endpoint.return_value = None
+        service = DomainService(db_manager=mock_db)
+
+        with patch(
+            "services.cloudfront_domain_service.CloudFrontDomainService",
+            return_value=mock_cf,
+        ):
+            result = service.register_custom_domain("TestTenant", "www.acme-rentals.nl")
+
+        assert result["success"] is False
+        mock_cf.create_domain_tenant.assert_not_called()
+        assert mock_db.execute_query.call_count == 2
+
+    def test_verify_no_tenant_dns_not_ready_returns_pending_dns(self):
+        from unittest.mock import patch
+
+        mock_db = Mock()
+        mock_db.execute_query.return_value = [
+            {
+                "id": 42,
+                "domain": "www.acme-rentals.nl",
+                "slug": "acme-rentals",
+                "acm_certificate_arn": None,
+                "verification_status": "pending_dns",
+                "is_active": False,
+            }
+        ]
+        mock_cf = self._cf({"success": False, "dns_not_ready": True})
+        mock_cf.get_domain_status.return_value = {"success": False, "not_found": True}
+        service = DomainService(db_manager=mock_db)
+
+        with patch(
+            "services.cloudfront_domain_service.CloudFrontDomainService",
+            return_value=mock_cf,
+        ):
+            result = service.verify_custom_domain("TestTenant")
+
+        assert result["success"] is True
+        assert result["data"]["status"] == "pending_dns"
+        assert result["data"]["is_active"] is False
+        mock_cf.create_domain_tenant.assert_called_once_with(
+            "www.acme-rentals.nl", "acme-rentals"
+        )
+        assert mock_db.execute_query.call_count == 1  # no status change
