@@ -492,7 +492,7 @@ describe('MembersConfigEditor — scope axis-vs-value gate + resync (spec 03b ta
     expect(save).not.toBeDisabled();
   });
 
-  it('a scope VALUE change auto-applies on both planes (config#fields + SAM scope + Flask mirror)', async () => {
+  it('a scope VALUE change auto-applies to config#fields + SAM config#scope (no Flask mirror)', async () => {
     await renderScopeEditor();
     await openRegionField();
 
@@ -506,19 +506,21 @@ describe('MembersConfigEditor — scope axis-vs-value gate + resync (spec 03b ta
     await waitFor(() => expect(save).not.toBeDisabled());
     fireEvent.click(save);
 
-    // VALUE change auto-applies: config#fields written, THEN SAM config#scope (authoritative),
-    // THEN the Flask mirror — no SysAdmin refusal.
+    // VALUE change auto-applies: config#fields written, THEN SAM config#scope (authoritative).
+    // Option B (Members/02 mirror retirement) retired the Flask mirror leg, so there is no
+    // third write and neither Flask parameter path is touched.
     await waitFor(() => expect(mockApplyChangeOps).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockWriteScopeConfig).toHaveBeenCalledTimes(1));
+    expect(mockCreate).not.toHaveBeenCalled();
     expect(screen.queryByText(/System Administrator/i)).not.toBeInTheDocument();
   });
 
-  it('a mirror-only failure arms the RESYNC affordance; resync re-drives just the mirror', async () => {
+  it('arms NO resync when the save fully succeeded (the Flask mirror leg is retired)', async () => {
     await renderScopeEditor();
-    // SAM config#scope succeeds (version present) but the Flask mirror create/update FAILS — the
-    // two planes diverge, so the editor must surface the error AND offer a resync (Req 4.4).
+    // Option B (Members/02 mirror retirement): `PUT /members/config/scope` is the SINGLE writer,
+    // so there is no Flask mirror write left that can fail. A successful save therefore has
+    // nothing to reconcile and must never arm the resync affordance (Req 4.4).
     mockWriteScopeConfig.mockResolvedValue({ success: true, version: 'v2' });
-    mockCreate.mockRejectedValueOnce(new Error('mirror down'));
 
     await openRegionField();
     fireEvent.click(screen.getByLabelText('Add option'));
@@ -530,16 +532,9 @@ describe('MembersConfigEditor — scope axis-vs-value gate + resync (spec 03b ta
     await waitFor(() => expect(save).not.toBeDisabled());
     fireEvent.click(save);
 
-    // The resync affordance appears (SAM authoritative, mirror stale).
-    await screen.findByTestId('members-scope-resync');
-    expect(screen.getByTestId('members-scope-resync-btn')).toBeInTheDocument();
-
-    // Resync: the mirror write now succeeds → the affordance clears (planes reconciled).
-    mockCreate.mockResolvedValueOnce({ success: true });
-    fireEvent.click(screen.getByTestId('members-scope-resync-btn'));
-    await waitFor(() =>
-      expect(screen.queryByTestId('members-scope-resync')).not.toBeInTheDocument(),
-    );
+    await waitFor(() => expect(mockWriteScopeConfig).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId('members-scope-resync')).not.toBeInTheDocument();
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   it('an AUTHORITATIVE SAM scope-write failure mirrors NOTHING and arms NO resync (Req 4.3)', async () => {

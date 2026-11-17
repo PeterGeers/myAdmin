@@ -269,10 +269,12 @@ class ProjectionSync:
         *,
         table: Any = None,
         parameter_service: Any = None,
+        reader: Any = None,
     ) -> None:
         self._source = source
         self._table = table
         self._parameter_service = parameter_service
+        self._reader = reader
 
     @property
     def table(self) -> Any:
@@ -285,6 +287,22 @@ class ProjectionSync:
         if self._table is None:
             self._table = schema.get_projection_table_resource()
         return self._table
+
+    @property
+    def reader(self) -> Any:
+        """Return the injected ProjectionReader, else one over this sync's table.
+
+        Option B: the ``scopegrant#`` builder resolves the tenant's scope vocabulary
+        from the projected ``config#scope`` row, so the sync needs a read side.
+        Sharing :attr:`table` means an injected table (a test fake, or the real
+        resource) serves both the write path and this read — no second connection,
+        and a fake cannot diverge from what the sync itself writes.
+        """
+        if self._reader is None:
+            from services.projection_reader import ProjectionReader
+
+            self._reader = ProjectionReader(table=self.table)
+        return self._reader
 
     @property
     def parameter_service(self) -> Any:
@@ -388,12 +406,13 @@ class ProjectionSync:
         # I/O (read-only cache maintenance) → the one-directional guarantee holds.
         self._invalidate_members_cache(param_svc, administration)
         # config#scope is NO LONGER emitted by ProjectionSync (spec 02 Task 3.7).
-        # The SAM write path (MembersConfigWriteRepository via PUT /members/config/scope) is now
-        # the AUTHORITATIVE author of the `config#scope` row; the frontend writes it first and
-        # mirrors the dimension set into Flask `members.scope_dimensions` (the frontend-mirror
-        # model, Req 22/26). ProjectionSync must not co-author `config#scope` (split-ownership,
-        # Req 11.1/11.2). `members.scope_dimensions` persists ONLY as the frontend-written mirror
-        # the grant validators read (R22.3/22.4) — it is no longer a ProjectionSync source. The
+        # The SAM write path (MembersConfigWriteRepository via PUT /members/config/scope) is
+        # the AUTHORITATIVE author of the `config#scope` row, and ProjectionSync must not
+        # co-author it (split-ownership, Req 11.1/11.2). Option B (Members/02 mirror
+        # retirement) repointed every Flask-side scope reader at that row, so the frontend
+        # no longer writes a `members.scope_dimensions` mirror, and this sync no longer has
+        # a mirror param to source the vocabulary from -- it is no longer a ProjectionSync
+        # source.
         # `build_config_scope_row` builder itself is KEPT (still imported/exported) because the
         # builder-unit-tests + the round-trip/equivalence tests consume it directly — only the
         # EMISSION from sync_administration is removed here (the builder is deleted by a later
@@ -424,7 +443,7 @@ class ProjectionSync:
         # diff-and-delete reconcile below can compute which STORED ``scopegrant#…``
         # rows are no longer desired and delete them.
         scopegrant_items = build_scopegrant_rows(
-            source.tenant, source.user_tenant_scope, param_svc
+            source.tenant, source.user_tenant_scope, self.reader
         )
         items.extend(scopegrant_items)
 

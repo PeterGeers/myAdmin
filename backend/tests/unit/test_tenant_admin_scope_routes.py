@@ -265,13 +265,11 @@ class TestSetUserScope:
 
 
 class TestScopeDimensions:
-    @patch("routes.tenant_admin_scope.ParameterService")
-    @patch("routes.tenant_admin_scope.DatabaseManager")
+    @patch("routes.tenant_admin_scope.load_scope_dimensions")
     def test_get_dimensions_returns_enabled_with_canonical_values(
-        self, mock_db_cls, mock_param_cls, app, mock_cognito
+        self, mock_load_dims, app, mock_cognito
     ):
-        param_svc = Mock()
-        param_svc.get_param.return_value = [
+        mock_load_dims.return_value = [
             {
                 "key": "region",
                 "label": "Region",
@@ -286,7 +284,6 @@ class TestScopeDimensions:
                 "values": ["U15"],
             },
         ]
-        mock_param_cls.return_value = param_svc
         with _tenant_admin_role_patch():
             with app.test_client() as client:
                 resp = client.get(
@@ -305,10 +302,8 @@ class TestScopeDimensions:
                 "values": ["Oost", "Friesland", "Noord-Holland"],
             }
         ]
-        # Read directly from the MySQL param (namespace = module lower-cased).
-        param_svc.get_param.assert_called_once_with(
-            "members", "scope_dimensions", tenant="TenantA"
-        )
+        # Option B: read the projected config#scope row for the VERIFIED tenant.
+        mock_load_dims.assert_called_once_with("TenantA")
 
 
 class TestTenantIsolationAndModule:

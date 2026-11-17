@@ -333,17 +333,17 @@ export async function getMembersParameters(): Promise<Record<string, Parameter>>
  * so a stray caller cannot resurrect the whole-object write by silently falling through to the Flask
  * parameter path.
  *
- * Scope save (`scope_dimensions`) is the frontend cross-plane MIRROR (Requirement 22.5/26.2):
- * SAM `config#scope` is authoritative and written FIRST (`PUT /members/config/scope`), THEN the
- * same dimension set is mirrored into the Flask `members.scope_dimensions` validator copy
- * (best-effort). A failed SAM write returns `{ success: false, error }` and mirrors NOTHING; a
- * failed MIRROR write returns `{ success: false, version, mirrorError }` — SAM is already
- * authoritative, and the UI surfaces the mirror failure and offers retry (Requirement 22.6/26.5).
+ * Scope save (`scope_dimensions`) is SAM-ONLY (Requirement 22.5, Option B): the module plane's
+ * `PUT /members/config/scope` is the SINGLE authoritative writer of `config#scope`. The frontend
+ * used to then mirror the same dimension set into a Flask `members.scope_dimensions` validator
+ * copy (Requirement 26.2); that mirror is RETIRED — the Flask-side readers (grant validation, the
+ * scope picker) now read the projected `config#scope` row directly, so ONE writer owns the
+ * vocabulary and there is nothing left to keep in step. A failed SAM write returns
+ * `{ success: false, error }`.
  *
  * The public signature and `{ success, error? }` return shape are kept stable so the editor
- * (`MembersParamSubEditor`) consumes the service unchanged (Requirement 13.3) — `scope_dimensions`
- * writes SAM config#scope first, then the Flask mirror. (`field_overlay` is no longer a valid
- * target — see above.)
+ * (`MembersParamSubEditor`) consumes the service unchanged (Requirement 13.3). (`field_overlay`
+ * is no longer a valid target — see above.)
  *
  * Never per-field / per-keystroke; the caller passes the entire object exactly once.
  */
@@ -356,13 +356,7 @@ export async function saveMembersParameter(
   error?: string;
   projected?: boolean | null;
   projection_error?: string;
-  /**
-   * Scope save only (Requirement 22.6 / 26.5): SAM `config#scope` was written authoritatively
-   * but the best-effort Flask `members.scope_dimensions` MIRROR write failed. SAM is already the
-   * source of truth; the UI surfaces this and offers RETRY of just the mirror. `mirrorError`
-   * carries a caller-safe message; `version` is the authoritative SAM write stamp.
-   */
-  mirrorError?: string;
+  /** The authoritative SAM `config#scope` write stamp (returned for scope saves only). */
   version?: string;
 }> {
   // `field_overlay` (config#fields) is NO LONGER written through this whole-object path (spec 03
@@ -384,11 +378,11 @@ export async function saveMembersParameter(
   const normalized: Record<string, unknown> | unknown[] =
     value == null ? [] : (value as Record<string, unknown> | unknown[]);
 
-  // `scope_dimensions` is the frontend cross-plane bridge (Requirement 22.5 / 26.2/26.4): the
-  // two planes never call each other at runtime, so the frontend writes EACH plane separately —
-  // SAM `config#scope` FIRST (authoritative), THEN the Flask `members.scope_dimensions` MIRROR.
+  // `scope_dimensions` is SAM-ONLY (Requirement 22.5, Option B): `PUT /members/config/scope` is
+  // the ONE authoritative writer of the scope vocabulary. The Flask `members.scope_dimensions`
+  // mirror leg is RETIRED, so nothing is written to the Flask parameter path here.
   if (key === 'scope_dimensions') {
-    // `normalized` is the dimension set (a list). Step 1 — write SAM config#scope (authoritative).
+    // `normalized` is the dimension set (a list). Write SAM config#scope (authoritative).
     let version: string;
     try {
       const result = await writeScopeConfig(normalized as unknown[]);
@@ -402,29 +396,9 @@ export async function saveMembersParameter(
       return { success: false, error };
     }
 
-    // Step 2 — mirror the SAME dimension set into Flask members.scope_dimensions (best-effort,
-    // Requirement 22.6 / 26.5). SAM stays authoritative; a failed mirror leaves Flask's copy
-    // stale until a surfaced RETRY succeeds — it does NOT fail the authoritative SAM write.
-    try {
-      const mirror =
-        existing && existing.id != null && existing.scope_origin === 'tenant'
-          ? await updateParameter(existing.id, { value: normalized, value_type: 'json' })
-          : await createParameter({
-            scope: 'tenant',
-            namespace: MEMBERS_NAMESPACE,
-            key,
-            value: normalized,
-            value_type: 'json',
-            is_secret: false,
-          });
-      if (mirror.success === false) {
-        return { success: false, version, mirrorError: mirror.error ?? 'Scope mirror write failed' };
-      }
-      return { success: true, version };
-    } catch (e) {
-      const mirrorError = e instanceof ApiError || e instanceof Error ? e.message : String(e);
-      return { success: false, version, mirrorError };
-    }
+    // Option B: no Flask mirror leg. `config#scope` is the single source, and the
+    // Flask-side readers resolve the vocabulary from the projected row.
+    return { success: true, version };
   }
 
   // Any other key stays on the Flask parameter-admin path.

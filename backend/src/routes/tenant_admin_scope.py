@@ -19,8 +19,8 @@ the verified context — NEVER a body value; Property 1):
   dimension/value → 400; clearing all → row deleted (deny); fires
   ``enqueue_sync(tenant)`` (done inside the service).
 - ``GET  /api/tenant-admin/scope-dimensions/<module>``         — the enabled scope
-  dimensions + canonical values for the current tenant + module, sourced DIRECTLY
-  from the MySQL ``<module>.scope_dimensions`` param (D4/R5.1), for the picker.
+  dimensions + canonical values for the current tenant + module, read from the
+  projected ``config#scope`` vocabulary (Option B; D4/R5.1), for the picker.
 
 **Module token (path vs stored).** The API path segment is lower-case (s5d serves
 ``members``). The projection builder filters on ``_SCOPEGRANT_MODULE = "MEMBERS"``
@@ -45,8 +45,8 @@ from routes.tenant_admin_users import (
     cognito_client,
     get_user_attribute,
 )
-from services.parameter_service import ParameterService
 from services.projection_sync_trigger import get_default_trigger
+from services.scope_vocabulary import load_scope_dimensions
 from services.user_tenant_scope_service import (
     ScopeValidationError,
     UserTenantScopeService,
@@ -57,9 +57,10 @@ tenant_admin_scope_bp = Blueprint(
     "tenant_admin_scope", __name__, url_prefix="/api/tenant-admin"
 )
 
-# The module-namespaced parameter that is the SOURCE OF TRUTH for the enabled
-# scope dimensions + their canonical values (design D4/R5.1).
-_SCOPE_DIMENSIONS_PARAM_KEY = "scope_dimensions"
+# The scope vocabulary is read from the projected ``config#scope`` row through the
+# shared ``services.scope_vocabulary`` resolver (Option B) — the SAME seam the grant
+# validators and the ``scopegrant#`` builder read, so the picker can never disagree
+# with what a grant is then validated against (design D4/R5.1).
 
 # Canonical stored/projected module tokens, keyed by their lower-cased path form.
 # The projection builder filters on "MEMBERS" (projection_sync._SCOPEGRANT_MODULE);
@@ -102,14 +103,14 @@ def _canonical_module(module: str) -> str | None:
 
 
 def _build_scope_service() -> UserTenantScopeService:
-    """Construct the scope service with a DB + ParameterService.
+    """Construct the scope service with a ``DatabaseManager``.
 
-    Mirrors how peer routes build ``DatabaseManager()``; the
-    ParameterService is read-only (used for dimension validation + the picker).
+    Mirrors how peer routes build ``DatabaseManager()``. The scope vocabulary is no
+    longer injected as a ``ParameterService``: the service reads it from the
+    projected ``config#scope`` row through the shared ``services.scope_vocabulary``
+    resolver (Option B), so there is no MySQL mirror left to wire.
     """
-    db = DatabaseManager()
-    parameter_service = ParameterService(db)
-    return UserTenantScopeService(db, parameter_service)
+    return UserTenantScopeService(DatabaseManager())
 
 
 def _resolve_tenant_and_target(username: str, tenant: str):
@@ -260,48 +261,39 @@ def set_user_scope(
 def get_scope_dimensions(module, user_email, user_roles, tenant) -> ResponseReturnValue:
     """Return the enabled scope dimensions + canonical values for the picker.
 
-    Read from the MySQL ``<module>.scope_dimensions`` param, which is the
-    frontend-written DERIVED MIRROR (task 3.1a) of the authoritative scope config —
-    NOT the source of truth. The scope vocabulary is authored as a ``scope``
-    attribute on each ``members.field_overlay`` field, and the module plane owns the
-    resulting ``config#scope`` row (Members/02 split ownership). The mirror exists so
-    this picker and the grant validators can resolve the vocabulary without a
-    projection read. Each returned dimension carries ``key``, ``label``, ``values``
-    (canonical), and ``field`` when present.
+    Read from the projected ``config#scope`` vocabulary (Option B) — the
+    module-plane-owned row whose authoritative author is the SAM write path
+    (``PUT /members/config/scope``). The vocabulary itself is authored as a ``scope``
+    attribute on each ``members.field_overlay`` field; the projection is the one
+    place both planes read it, and this is the SAME resolver the grant validators
+    and the ``scopegrant#`` builder use — so the picker can never offer a value that
+    a grant would then be rejected for. Each returned dimension carries ``key``,
+    ``label``, ``values`` (canonical), and ``field`` when present.
+
+    Empty-is-valid: a tenant with no ``config#scope`` row (or no dimensions) gets an
+    empty list, not an error. A projection read FAILURE surfaces as a 5xx rather than
+    being masked as "no dimensions".
     """
     canonical_module = _canonical_module(module)
     if canonical_module is None:
         return jsonify({"error": f"Unknown module: {module}"}), 404
 
-    # Read the dimensions param directly (namespace = module token lower-cased,
-    # matching the service's _load_dimension_meta / the projection builder).
-    db = DatabaseManager()
-    parameter_service = ParameterService(db)
-    raw_dimensions = parameter_service.get_param(
-        canonical_module.lower(),
-        _SCOPE_DIMENSIONS_PARAM_KEY,
-        tenant=tenant,
-    )
+    raw_dimensions = load_scope_dimensions(tenant)
 
     dimensions = []
-    if isinstance(raw_dimensions, list):
-        for entry in raw_dimensions:
-            if not isinstance(entry, dict):
-                continue
-            key = entry.get("key")
-            if not key:
-                continue
-            if not entry.get("enabled", True):
-                continue
-            values = [v for v in (entry.get("values") or []) if isinstance(v, str)]
-            dimension = {
-                "key": key,
-                "label": entry.get("label", key),
-                "values": values,
-            }
-            if entry.get("field"):
-                dimension["field"] = entry["field"]
-            dimensions.append(dimension)
+    for entry in raw_dimensions:
+        if not entry.get("enabled", True):
+            continue
+        key = entry["key"]
+        values = [v for v in (entry.get("values") or []) if isinstance(v, str)]
+        dimension = {
+            "key": key,
+            "label": entry.get("label", key),
+            "values": values,
+        }
+        if entry.get("field"):
+            dimension["field"] = entry["field"]
+        dimensions.append(dimension)
 
     return jsonify(
         {

@@ -26,7 +26,6 @@ from services.admin_surface_registry import (
     VALID_KINDS,
     VALID_OWNERS,
     derive_admin_surfaces,
-    flask_mirror_keys,
     module_owned_namespaces,
     surfaces_of_kind,
     typed_editors,
@@ -343,7 +342,7 @@ class TestRegistryIntegrityFailsLoud:
                 module_registry=_full_module_registry(module_registry),
             )
 
-    def test_mirror_keys_on_a_flask_owned_namespace_are_rejected(self):
+    def test_a_stray_mirror_declaration_is_inert(self):
         registry = copy.deepcopy(ADMIN_SURFACE_REGISTRY)
         module_registry = {
             "FIN": {
@@ -357,11 +356,12 @@ class TestRegistryIntegrityFailsLoud:
                 }
             }
         }
-        with pytest.raises(ValueError, match=r"ns"):
-            validate_admin_surface_registry(
-                registry=registry,
-                module_registry=_full_module_registry(module_registry),
-            )
+        # Option B: the key is no longer part of the model, so a stray declaration
+        # neither validates nor surfaces (it cannot re-open a second authoring door).
+        validate_admin_surface_registry(
+            registry=registry,
+            module_registry=_full_module_registry(module_registry),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -406,14 +406,13 @@ class TestPlaneFidelity:
             assert editor["surface"] in ADMIN_SURFACE_REGISTRY
             assert editor["owner"] in VALID_OWNERS
 
-    def test_only_module_owned_namespaces_may_declare_a_flask_mirror(self):
+    def test_typed_editors_expose_no_mirror_keys(self):
+        """Option B: the mirror model is gone from the typed-editor shape entirely."""
         for namespace, editor in typed_editors().items():
-            if flask_mirror_keys(namespace):
-                assert editor["owner"] == "module"
+            assert "flask_mirror_keys" not in editor, namespace
 
-    def test_flask_owned_namespaces_have_no_mirror_and_are_not_excluded(self):
+    def test_flask_owned_namespaces_are_not_excluded_from_advanced(self):
         for namespace in ("storage", "str", "fin", "zzp"):
-            assert flask_mirror_keys(namespace) == []
             assert namespace not in module_owned_namespaces()
 
     @settings(max_examples=50, deadline=None)

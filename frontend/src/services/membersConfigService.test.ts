@@ -108,12 +108,11 @@ describe('membersConfigService', () => {
   // mirrors nothing; a failed mirror write surfaces a retry while SAM stays authoritative.
   // Validates: Requirements 22.1, 22.5, 22.6, 26.2, 26.4, 26.5
   // -------------------------------------------------------------------------
-  describe('saveMembersParameter — scope_dimensions SAM-first mirror (R22/R26)', () => {
-    it('writes SAM config#scope FIRST, THEN mirrors to Flask (update when a tenant row exists)', async () => {
+  describe('saveMembersParameter — scope_dimensions SAM-only (Option B)', () => {
+    it('writes SAM config#scope and NOTHING else — the Flask mirror leg is retired (Option B)', async () => {
       vi.mocked(membersApiService.writeScopeConfig).mockResolvedValue({
         success: true, configId: 'scope', version: '2026-10-20T10:00:00+00:00',
       });
-      vi.mocked(parameterService.updateParameter).mockResolvedValue({ success: true });
       const existing = {
         id: 42, namespace: 'members', key: 'scope_dimensions',
         value: [], value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false,
@@ -124,48 +123,25 @@ describe('membersConfigService', () => {
 
       expect(res.success).toBe(true);
       expect(res.version).toBe('2026-10-20T10:00:00+00:00');
-      // SAM config#scope written first with the dimension set.
       expect(membersApiService.writeScopeConfig).toHaveBeenCalledTimes(1);
       expect(membersApiService.writeScopeConfig).toHaveBeenCalledWith(dims);
-      // THEN the Flask mirror (update in place for an existing tenant row).
-      expect(parameterService.updateParameter).toHaveBeenCalledTimes(1);
-      expect(parameterService.updateParameter).toHaveBeenCalledWith(42, {
-        value: dims, value_type: 'json',
-      });
+      // Option B (Members/02 mirror retirement): `PUT /members/config/scope` is the SINGLE
+      // writer, so the Flask parameter path is never touched — not even when a tenant row
+      // already exists (the old UPDATE-in-place branch).
+      expect(parameterService.updateParameter).not.toHaveBeenCalled();
       expect(parameterService.createParameter).not.toHaveBeenCalled();
     });
 
-    it('mirrors via create (POST) when no tenant row exists (new tenant auto-mirror, R22.7)', async () => {
-      vi.mocked(membersApiService.writeScopeConfig).mockResolvedValue({
-        success: true, configId: 'scope', version: '2026-10-20T10:05:00+00:00',
-      });
-      vi.mocked(parameterService.createParameter).mockResolvedValue({ success: true });
-      const dims = [{ key: 'overview' }];
-
-      const res = await saveMembersParameter('scope_dimensions', dims, null);
-
-      expect(res.success).toBe(true);
-      expect(membersApiService.writeScopeConfig).toHaveBeenCalledTimes(1);
-      expect(parameterService.createParameter).toHaveBeenCalledTimes(1);
-      expect(parameterService.createParameter).toHaveBeenCalledWith({
-        scope: 'tenant', namespace: 'members', key: 'scope_dimensions',
-        value: dims, value_type: 'json', is_secret: false,
-      });
-      expect(parameterService.updateParameter).not.toHaveBeenCalled();
-    });
-
-    it('normalizes a nullish scope value to an empty list for BOTH the SAM write and the mirror', async () => {
+    it('normalizes a nullish scope value to an empty list for the SAM write', async () => {
       vi.mocked(membersApiService.writeScopeConfig).mockResolvedValue({
         success: true, configId: 'scope', version: '2026-10-20T10:07:00+00:00',
       });
-      vi.mocked(parameterService.createParameter).mockResolvedValue({ success: true });
 
       await saveMembersParameter('scope_dimensions', null, null);
 
       expect(membersApiService.writeScopeConfig).toHaveBeenCalledWith([]);
-      expect(parameterService.createParameter).toHaveBeenCalledWith(
-        expect.objectContaining({ value: [] }),
-      );
+      expect(parameterService.createParameter).not.toHaveBeenCalled();
+      expect(parameterService.updateParameter).not.toHaveBeenCalled();
     });
 
     it('fails WITHOUT mirroring when the authoritative SAM write rejects (R22.5)', async () => {
@@ -182,37 +158,19 @@ describe('membersConfigService', () => {
       expect(parameterService.updateParameter).not.toHaveBeenCalled();
     });
 
-    it('surfaces a mirror retry (SAM stays authoritative) when the Flask mirror write throws (R22.6/26.5)', async () => {
+    it('writes SAM config#scope ONLY — the Flask mirror leg is retired (Option B)', async () => {
       vi.mocked(membersApiService.writeScopeConfig).mockResolvedValue({
         success: true, configId: 'scope', version: '2026-10-20T10:10:00+00:00',
       });
-      vi.mocked(parameterService.createParameter).mockRejectedValue(
-        new ApiError(500, { error: 'Mirror DB unavailable' }),
-      );
 
       const res = await saveMembersParameter('scope_dimensions', [{ key: 'region' }], null);
 
-      // SAM is authoritative (version present) but the mirror failed → surfaced for retry.
-      expect(res.success).toBe(false);
+      expect(res.success).toBe(true);
       expect(res.version).toBe('2026-10-20T10:10:00+00:00');
-      expect(res.mirrorError).toBe('Mirror DB unavailable');
-    });
-
-    it('surfaces a mirror retry when the Flask mirror returns success:false', async () => {
-      vi.mocked(membersApiService.writeScopeConfig).mockResolvedValue({
-        success: true, configId: 'scope', version: '2026-10-20T10:12:00+00:00',
-      });
-      vi.mocked(parameterService.updateParameter).mockResolvedValue({ success: false, error: 'conflict' });
-      const existing = {
-        id: 7, namespace: 'members', key: 'scope_dimensions',
-        value: [], value_type: 'json' as const, scope_origin: 'tenant' as const, is_secret: false,
-      };
-
-      const res = await saveMembersParameter('scope_dimensions', [{ key: 'region' }], existing);
-
-      expect(res.success).toBe(false);
-      expect(res.version).toBe('2026-10-20T10:12:00+00:00');
-      expect(res.mirrorError).toBe('conflict');
+      // Option B (Members/02 mirror retirement): `PUT /members/config/scope` is the SINGLE
+      // authoritative writer, so NOTHING is written to the Flask parameter path at all.
+      expect(parameterService.createParameter).not.toHaveBeenCalled();
+      expect(parameterService.updateParameter).not.toHaveBeenCalled();
     });
   });
 

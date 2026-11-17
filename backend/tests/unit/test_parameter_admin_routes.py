@@ -14,18 +14,19 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from hypothesis import given, strategies as st, settings as h_settings, HealthCheck
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 
 # ---------------------------------------------------------------------------
 # Helpers: test the masking logic directly (no Flask needed)
 # ---------------------------------------------------------------------------
 
+
 def mask_secrets(params, is_sysadmin):
     """Replicate the masking logic from the GET endpoint."""
     for p in params:
-        if p.get('is_secret') and not is_sysadmin:
-            p['value'] = '********'
+        if p.get("is_secret") and not is_sysadmin:
+            p["value"] = "********"
     return params
 
 
@@ -35,89 +36,107 @@ def mask_secrets(params, is_sysadmin):
 # Validates: Requirements 7.6
 # ---------------------------------------------------------------------------
 
-class TestSecretMaskingByRole:
 
+class TestSecretMaskingByRole:
     @h_settings(max_examples=100)
     @given(
         value=st.text(min_size=1, max_size=100),
         is_sysadmin=st.booleans(),
     )
     def test_secret_masking(self, value, is_sysadmin):
-        params = [{'key': 'api_key', 'value': value, 'is_secret': True, 'namespace': 'ns'}]
+        params = [
+            {"key": "api_key", "value": value, "is_secret": True, "namespace": "ns"}
+        ]
         result = mask_secrets(params, is_sysadmin)
         if is_sysadmin:
-            assert result[0]['value'] == value
+            assert result[0]["value"] == value
         else:
-            assert result[0]['value'] == '********'
+            assert result[0]["value"] == "********"
 
     @h_settings(max_examples=50)
     @given(value=st.text(min_size=1, max_size=100))
     def test_non_secret_never_masked(self, value):
-        params = [{'key': 'name', 'value': value, 'is_secret': False, 'namespace': 'ns'}]
+        params = [
+            {"key": "name", "value": value, "is_secret": False, "namespace": "ns"}
+        ]
         result = mask_secrets(params, False)
-        assert result[0]['value'] == value
+        assert result[0]["value"] == value
 
 
 # ---------------------------------------------------------------------------
 # Unit Tests
 # ---------------------------------------------------------------------------
 
-class TestParameterAdminValidation:
 
+class TestParameterAdminValidation:
     def test_create_requires_namespace(self):
         import flask
+
         app = flask.Flask(__name__)
         with app.test_request_context(
-            '/api/tenant-admin/parameters', method='POST',
-            json={'key': 'k', 'value': 'v'}
+            "/api/tenant-admin/parameters",
+            method="POST",
+            json={"key": "k", "value": "v"},
         ):
             data = flask.request.get_json()
-            assert not data.get('namespace')
+            assert not data.get("namespace")
 
     def test_create_requires_key(self):
         import flask
+
         app = flask.Flask(__name__)
         with app.test_request_context(
-            '/api/tenant-admin/parameters', method='POST',
-            json={'namespace': 'ns', 'value': 'v'}
+            "/api/tenant-admin/parameters",
+            method="POST",
+            json={"namespace": "ns", "value": "v"},
         ):
             data = flask.request.get_json()
-            assert not data.get('key')
+            assert not data.get("key")
 
     def test_system_scope_requires_sysadmin(self):
         from routes.parameter_admin_routes import _is_sysadmin
-        assert _is_sysadmin(['Tenant_Admin']) is False
-        assert _is_sysadmin(['SysAdmin']) is True
-        assert _is_sysadmin(['SysAdmin', 'Tenant_Admin']) is True
+
+        assert _is_sysadmin(["Tenant_Admin"]) is False
+        assert _is_sysadmin(["SysAdmin"]) is True
+        assert _is_sysadmin(["SysAdmin", "Tenant_Admin"]) is True
         assert _is_sysadmin([]) is False
         assert _is_sysadmin(None) is False
 
 
 class TestParameterAdminGrouping:
-
     def test_group_by_namespace(self):
         params = [
-            {'namespace': 'storage', 'key': 'provider', 'value': 'gdrive', 'is_secret': False},
-            {'namespace': 'storage', 'key': 'bucket', 'value': 'b1', 'is_secret': False},
-            {'namespace': 'fin', 'key': 'currency', 'value': 'EUR', 'is_secret': False},
+            {
+                "namespace": "storage",
+                "key": "provider",
+                "value": "gdrive",
+                "is_secret": False,
+            },
+            {
+                "namespace": "storage",
+                "key": "bucket",
+                "value": "b1",
+                "is_secret": False,
+            },
+            {"namespace": "fin", "key": "currency", "value": "EUR", "is_secret": False},
         ]
         grouped = {}
         for p in params:
-            ns = p['namespace']
+            ns = p["namespace"]
             if ns not in grouped:
                 grouped[ns] = []
             grouped[ns].append(p)
 
         assert len(grouped) == 2
-        assert len(grouped['storage']) == 2
-        assert len(grouped['fin']) == 1
+        assert len(grouped["storage"]) == 2
+        assert len(grouped["fin"]) == 1
 
     def test_scope_id_mapping(self):
-        scope = 'system'
-        tenant = 'GoodwinSolutions'
-        assert ('_system_' if scope == 'system' else tenant) == '_system_'
-        scope = 'tenant'
-        assert ('_system_' if scope == 'system' else tenant) == 'GoodwinSolutions'
+        scope = "system"
+        tenant = "GoodwinSolutions"
+        assert ("_system_" if scope == "system" else tenant) == "_system_"
+        scope = "tenant"
+        assert ("_system_" if scope == "system" else tenant) == "GoodwinSolutions"
 
 
 # ---------------------------------------------------------------------------
@@ -131,9 +150,10 @@ from routes.parameter_admin_routes import parameter_admin_bp
 def default_app():
     """Create a minimal Flask app with the parameter_admin blueprint."""
     import flask
+
     app = flask.Flask(__name__)
     app.register_blueprint(parameter_admin_bp)
-    app.config['TESTING'] = True
+    app.config["TESTING"] = True
     return app
 
 
@@ -145,25 +165,31 @@ def default_client(default_app):
 def _admin_auth_mocks():
     """Patch stack for an authenticated Tenant_Admin user."""
     return [
-        patch('auth.cognito_utils.extract_user_credentials',
-              return_value=('admin@test.com', ['Tenant_Admin'], None)),
-        patch('auth.role_cache.get_tenant_roles', return_value=['Tenant_Admin']),
-        patch('auth.tenant_context.get_user_tenants', return_value=['TestTenant']),
-        patch('auth.tenant_context.is_tenant_admin', return_value=True),
-        patch('auth.tenant_context.get_current_tenant', return_value='TestTenant'),
+        patch(
+            "auth.cognito_utils.extract_user_credentials",
+            return_value=("admin@test.com", ["Tenant_Admin"], None),
+        ),
+        patch("auth.role_cache.get_tenant_roles", return_value=["Tenant_Admin"]),
+        patch("auth.tenant_context.get_user_tenants", return_value=["TestTenant"]),
+        patch("auth.tenant_context.is_tenant_admin", return_value=True),
+        patch("auth.tenant_context.get_current_tenant", return_value="TestTenant"),
     ]
 
 
 def _sysadmin_auth_mocks():
     """Patch stack for an authenticated SysAdmin user."""
     return [
-        patch('auth.cognito_utils.extract_user_credentials',
-              return_value=('sysadmin@test.com', ['SysAdmin', 'Tenant_Admin'], None)),
-        patch('auth.role_cache.get_tenant_roles',
-              return_value=['SysAdmin', 'Tenant_Admin']),
-        patch('auth.tenant_context.get_user_tenants', return_value=['TestTenant']),
-        patch('auth.tenant_context.is_tenant_admin', return_value=True),
-        patch('auth.tenant_context.get_current_tenant', return_value='TestTenant'),
+        patch(
+            "auth.cognito_utils.extract_user_credentials",
+            return_value=("sysadmin@test.com", ["SysAdmin", "Tenant_Admin"], None),
+        ),
+        patch(
+            "auth.role_cache.get_tenant_roles",
+            return_value=["SysAdmin", "Tenant_Admin"],
+        ),
+        patch("auth.tenant_context.get_user_tenants", return_value=["TestTenant"]),
+        patch("auth.tenant_context.is_tenant_admin", return_value=True),
+        patch("auth.tenant_context.get_current_tenant", return_value="TestTenant"),
     ]
 
 
@@ -173,6 +199,7 @@ def _sysadmin_auth_mocks():
 # Requirements: 1.1, 1.2, 1.3, 1.5
 # ---------------------------------------------------------------------------
 
+
 class TestGetParameterDefault:
     """Tests for the default value resolution endpoint."""
 
@@ -180,41 +207,43 @@ class TestGetParameterDefault:
         """Helper to call the default endpoint with query params."""
         params = {}
         if namespace is not None:
-            params['namespace'] = namespace
+            params["namespace"] = namespace
         if key is not None:
-            params['key'] = key
+            params["key"] = key
         return client.get(
-            '/api/tenant-admin/parameters/default',
+            "/api/tenant-admin/parameters/default",
             query_string=params,
-            headers={'Authorization': 'Bearer fake-jwt-token',
-                     'X-Tenant': 'TestTenant'},
+            headers={
+                "Authorization": "Bearer fake-jwt-token",
+                "X-Tenant": "TestTenant",
+            },
         )
 
     # -- test_get_default_returns_code_default --
     def test_get_default_returns_code_default(self, default_client):
         """Parameter exists in CODE_DEFAULTS → returns code_default source."""
         fake_code_defaults = {
-            ('ui.tables', 'chart_of_accounts.page_size'): {
-                'value': 1000,
-                'value_type': 'number',
-                'description': 'Page size',
+            ("ui.tables", "chart_of_accounts.page_size"): {
+                "value": 1000,
+                "value_type": "number",
+                "description": "Page size",
             }
         }
         mocks = _admin_auth_mocks() + [
-            patch('routes.parameter_admin_routes.DatabaseManager'),
-            patch('services.parameter_service.CODE_DEFAULTS', fake_code_defaults),
+            patch("routes.parameter_admin_routes.DatabaseManager"),
+            patch("services.parameter_service.CODE_DEFAULTS", fake_code_defaults),
         ]
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
-            resp = self._get_default(default_client,
-                                     namespace='ui.tables',
-                                     key='chart_of_accounts.page_size')
+            resp = self._get_default(
+                default_client, namespace="ui.tables", key="chart_of_accounts.page_size"
+            )
             data = resp.get_json()
             assert resp.status_code == 200
-            assert data['success'] is True
-            assert data['has_default'] is True
-            assert data['value'] == 1000
-            assert data['value_type'] == 'number'
-            assert data['source'] == 'code_default'
+            assert data["success"] is True
+            assert data["has_default"] is True
+            assert data["value"] == 1000
+            assert data["value_type"] == "number"
+            assert data["source"] == "code_default"
 
     # -- test_get_default_returns_system_scope_db --
     def test_get_default_returns_system_scope_db(self, default_client):
@@ -222,25 +251,30 @@ class TestGetParameterDefault:
         fake_code_defaults = {}  # empty — no code default
         mock_db_instance = MagicMock()
         mock_db_instance.execute_query.return_value = [
-            {'value': '{"field":"Account","direction":"asc"}',
-             'value_type': 'json', 'is_secret': False}
+            {
+                "value": '{"field":"Account","direction":"asc"}',
+                "value_type": "json",
+                "is_secret": False,
+            }
         ]
         mocks = _admin_auth_mocks() + [
-            patch('routes.parameter_admin_routes.DatabaseManager',
-                  return_value=mock_db_instance),
-            patch('services.parameter_service.CODE_DEFAULTS', fake_code_defaults),
+            patch(
+                "routes.parameter_admin_routes.DatabaseManager",
+                return_value=mock_db_instance,
+            ),
+            patch("services.parameter_service.CODE_DEFAULTS", fake_code_defaults),
         ]
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
-            resp = self._get_default(default_client,
-                                     namespace='ui.tables',
-                                     key='custom.sort')
+            resp = self._get_default(
+                default_client, namespace="ui.tables", key="custom.sort"
+            )
             data = resp.get_json()
             assert resp.status_code == 200
-            assert data['success'] is True
-            assert data['has_default'] is True
-            assert data['value'] == {'field': 'Account', 'direction': 'asc'}
-            assert data['value_type'] == 'json'
-            assert data['source'] == 'system'
+            assert data["success"] is True
+            assert data["has_default"] is True
+            assert data["value"] == {"field": "Account", "direction": "asc"}
+            assert data["value_type"] == "json"
+            assert data["source"] == "system"
 
     # -- test_get_default_returns_no_default --
     def test_get_default_returns_no_default(self, default_client):
@@ -249,47 +283,51 @@ class TestGetParameterDefault:
         mock_db_instance = MagicMock()
         mock_db_instance.execute_query.return_value = []  # no DB rows
         mocks = _admin_auth_mocks() + [
-            patch('routes.parameter_admin_routes.DatabaseManager',
-                  return_value=mock_db_instance),
-            patch('services.parameter_service.CODE_DEFAULTS', fake_code_defaults),
+            patch(
+                "routes.parameter_admin_routes.DatabaseManager",
+                return_value=mock_db_instance,
+            ),
+            patch("services.parameter_service.CODE_DEFAULTS", fake_code_defaults),
         ]
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
-            resp = self._get_default(default_client,
-                                     namespace='nonexistent',
-                                     key='nothing')
+            resp = self._get_default(
+                default_client, namespace="nonexistent", key="nothing"
+            )
             data = resp.get_json()
             assert resp.status_code == 200
-            assert data['success'] is True
-            assert data['has_default'] is False
-            assert 'value' not in data
-            assert 'source' not in data
+            assert data["success"] is True
+            assert data["has_default"] is False
+            assert "value" not in data
+            assert "source" not in data
 
     # -- test_get_default_code_default_takes_precedence --
     def test_get_default_code_default_takes_precedence(self, default_client):
         """Parameter exists in both CODE_DEFAULTS and system DB; CODE_DEFAULTS wins."""
         fake_code_defaults = {
-            ('ns', 'k'): {
-                'value': 'from_code',
-                'value_type': 'string',
-                'description': 'Code default',
+            ("ns", "k"): {
+                "value": "from_code",
+                "value_type": "string",
+                "description": "Code default",
             }
         }
         mock_db_instance = MagicMock()
         # DB also has a system row — should NOT be reached
         mock_db_instance.execute_query.return_value = [
-            {'value': 'from_db', 'value_type': 'string', 'is_secret': False}
+            {"value": "from_db", "value_type": "string", "is_secret": False}
         ]
         mocks = _admin_auth_mocks() + [
-            patch('routes.parameter_admin_routes.DatabaseManager',
-                  return_value=mock_db_instance),
-            patch('services.parameter_service.CODE_DEFAULTS', fake_code_defaults),
+            patch(
+                "routes.parameter_admin_routes.DatabaseManager",
+                return_value=mock_db_instance,
+            ),
+            patch("services.parameter_service.CODE_DEFAULTS", fake_code_defaults),
         ]
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
-            resp = self._get_default(default_client, namespace='ns', key='k')
+            resp = self._get_default(default_client, namespace="ns", key="k")
             data = resp.get_json()
             assert resp.status_code == 200
-            assert data['source'] == 'code_default'
-            assert data['value'] == 'from_code'
+            assert data["source"] == "code_default"
+            assert data["value"] == "from_code"
             # DB should not have been queried
             mock_db_instance.execute_query.assert_not_called()
 
@@ -297,69 +335,67 @@ class TestGetParameterDefault:
     def test_get_default_masks_secret_for_non_sysadmin(self, default_client):
         """Secret parameter returns '********' for non-SysAdmin user."""
         fake_code_defaults = {
-            ('secrets', 'api_key'): {
-                'value': 'super-secret-value',
-                'value_type': 'string',
-                'description': 'API key',
-                'is_secret': True,
+            ("secrets", "api_key"): {
+                "value": "super-secret-value",
+                "value_type": "string",
+                "description": "API key",
+                "is_secret": True,
             }
         }
         mocks = _admin_auth_mocks() + [
-            patch('routes.parameter_admin_routes.DatabaseManager'),
-            patch('services.parameter_service.CODE_DEFAULTS', fake_code_defaults),
+            patch("routes.parameter_admin_routes.DatabaseManager"),
+            patch("services.parameter_service.CODE_DEFAULTS", fake_code_defaults),
         ]
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
-            resp = self._get_default(default_client,
-                                     namespace='secrets', key='api_key')
+            resp = self._get_default(default_client, namespace="secrets", key="api_key")
             data = resp.get_json()
             assert resp.status_code == 200
-            assert data['has_default'] is True
-            assert data['value'] == '********'
-            assert data['source'] == 'code_default'
+            assert data["has_default"] is True
+            assert data["value"] == "********"
+            assert data["source"] == "code_default"
 
     # -- test_get_default_shows_secret_for_sysadmin --
     def test_get_default_shows_secret_for_sysadmin(self, default_client):
         """Secret parameter returns actual value for SysAdmin user."""
         fake_code_defaults = {
-            ('secrets', 'api_key'): {
-                'value': 'super-secret-value',
-                'value_type': 'string',
-                'description': 'API key',
-                'is_secret': True,
+            ("secrets", "api_key"): {
+                "value": "super-secret-value",
+                "value_type": "string",
+                "description": "API key",
+                "is_secret": True,
             }
         }
         mocks = _sysadmin_auth_mocks() + [
-            patch('routes.parameter_admin_routes.DatabaseManager'),
-            patch('services.parameter_service.CODE_DEFAULTS', fake_code_defaults),
+            patch("routes.parameter_admin_routes.DatabaseManager"),
+            patch("services.parameter_service.CODE_DEFAULTS", fake_code_defaults),
         ]
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
-            resp = self._get_default(default_client,
-                                     namespace='secrets', key='api_key')
+            resp = self._get_default(default_client, namespace="secrets", key="api_key")
             data = resp.get_json()
             assert resp.status_code == 200
-            assert data['has_default'] is True
-            assert data['value'] == 'super-secret-value'
+            assert data["has_default"] is True
+            assert data["value"] == "super-secret-value"
 
     # -- test_get_default_requires_namespace_and_key --
     def test_get_default_requires_namespace_and_key(self, default_client):
         """Returns 400 when namespace or key query params are missing."""
         mocks = _admin_auth_mocks() + [
-            patch('routes.parameter_admin_routes.DatabaseManager'),
+            patch("routes.parameter_admin_routes.DatabaseManager"),
         ]
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5]:
             # Missing both
             resp = self._get_default(default_client)
             assert resp.status_code == 400
             data = resp.get_json()
-            assert data['success'] is False
-            assert 'namespace and key are required' in data['error']
+            assert data["success"] is False
+            assert "namespace and key are required" in data["error"]
 
             # Missing key
-            resp = self._get_default(default_client, namespace='ns')
+            resp = self._get_default(default_client, namespace="ns")
             assert resp.status_code == 400
 
             # Missing namespace
-            resp = self._get_default(default_client, key='k')
+            resp = self._get_default(default_client, key="k")
             assert resp.status_code == 400
 
 
@@ -376,18 +412,22 @@ class TestGetParameterDefault:
 # ---------------------------------------------------------------------------
 
 # Strategy helpers for generating parameter data
-_value_type_strategy = st.sampled_from(['string', 'number', 'boolean', 'json'])
+_value_type_strategy = st.sampled_from(["string", "number", "boolean", "json"])
 
 _value_for_type = {
-    'string': st.text(min_size=0, max_size=50),
-    'number': st.one_of(st.integers(min_value=-10000, max_value=10000),
-                        st.floats(min_value=-1e4, max_value=1e4,
-                                  allow_nan=False, allow_infinity=False)),
-    'boolean': st.booleans(),
-    'json': st.one_of(
-        st.dictionaries(st.text(min_size=1, max_size=10),
-                        st.text(min_size=0, max_size=20),
-                        min_size=0, max_size=5),
+    "string": st.text(min_size=0, max_size=50),
+    "number": st.one_of(
+        st.integers(min_value=-10000, max_value=10000),
+        st.floats(min_value=-1e4, max_value=1e4, allow_nan=False, allow_infinity=False),
+    ),
+    "boolean": st.booleans(),
+    "json": st.one_of(
+        st.dictionaries(
+            st.text(min_size=1, max_size=10),
+            st.text(min_size=0, max_size=20),
+            min_size=0,
+            max_size=5,
+        ),
         st.lists(st.text(min_size=0, max_size=20), min_size=0, max_size=5),
     ),
 }
@@ -399,9 +439,9 @@ def code_default_entry(draw):
     vtype = draw(_value_type_strategy)
     value = draw(_value_for_type[vtype])
     return {
-        'value': value,
-        'value_type': vtype,
-        'description': draw(st.text(min_size=0, max_size=30)),
+        "value": value,
+        "value_type": vtype,
+        "description": draw(st.text(min_size=0, max_size=30)),
     }
 
 
@@ -411,12 +451,12 @@ def system_db_row(draw):
     vtype = draw(_value_type_strategy)
     value = draw(_value_for_type[vtype])
     # DB stores JSON values as strings
-    raw_value = json.dumps(value) if vtype == 'json' else str(value)
+    raw_value = json.dumps(value) if vtype == "json" else str(value)
     return {
-        'value': raw_value,
-        'value_type': vtype,
-        'is_secret': False,
-        '_parsed': value,  # keep for assertion
+        "value": raw_value,
+        "value_type": vtype,
+        "is_secret": False,
+        "_parsed": value,  # keep for assertion
     }
 
 
@@ -431,27 +471,42 @@ class TestDefaultValueResolutionCompleteness:
     def _make_client(self):
         """Create a fresh Flask test client for each Hypothesis example."""
         import flask
+
         app = flask.Flask(__name__)
         app.register_blueprint(parameter_admin_bp)
-        app.config['TESTING'] = True
+        app.config["TESTING"] = True
         return app.test_client()
 
-    @h_settings(max_examples=100, database=None, derandomize=True, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @h_settings(
+        max_examples=100,
+        database=None,
+        derandomize=True,
+        deadline=None,
+        suppress_health_check=[HealthCheck.too_slow],
+    )
     @given(
-        namespace=st.text(min_size=1, max_size=20,
-                          alphabet=st.characters(whitelist_categories=('L', 'N'),
-                                                 whitelist_characters='._')),
-        key=st.text(min_size=1, max_size=20,
-                    alphabet=st.characters(whitelist_categories=('L', 'N'),
-                                           whitelist_characters='._')),
+        namespace=st.text(
+            min_size=1,
+            max_size=20,
+            alphabet=st.characters(
+                whitelist_categories=("L", "N"), whitelist_characters="._"
+            ),
+        ),
+        key=st.text(
+            min_size=1,
+            max_size=20,
+            alphabet=st.characters(
+                whitelist_categories=("L", "N"), whitelist_characters="._"
+            ),
+        ),
         has_code_default=st.booleans(),
         has_system_row=st.booleans(),
         cd_entry=code_default_entry(),
         sys_row=system_db_row(),
     )
-    def test_resolution_completeness(self, namespace, key,
-                                     has_code_default, has_system_row,
-                                     cd_entry, sys_row):
+    def test_resolution_completeness(
+        self, namespace, key, has_code_default, has_system_row, cd_entry, sys_row
+    ):
         """Resolution always returns correct source and value_type."""
         client = self._make_client()
 
@@ -464,46 +519,49 @@ class TestDefaultValueResolutionCompleteness:
         mock_db_instance = MagicMock()
         if has_system_row:
             mock_db_instance.execute_query.return_value = [
-                {'value': sys_row['value'],
-                 'value_type': sys_row['value_type'],
-                 'is_secret': sys_row['is_secret']}
+                {
+                    "value": sys_row["value"],
+                    "value_type": sys_row["value_type"],
+                    "is_secret": sys_row["is_secret"],
+                }
             ]
         else:
             mock_db_instance.execute_query.return_value = []
 
         mocks = _admin_auth_mocks() + [
-            patch('routes.parameter_admin_routes.DatabaseManager',
-                  return_value=mock_db_instance),
-            patch('services.parameter_service.CODE_DEFAULTS', fake_code_defaults),
+            patch(
+                "routes.parameter_admin_routes.DatabaseManager",
+                return_value=mock_db_instance,
+            ),
+            patch("services.parameter_service.CODE_DEFAULTS", fake_code_defaults),
         ]
 
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
             resp = client.get(
-                '/api/tenant-admin/parameters/default',
-                query_string={'namespace': namespace, 'key': key},
-                headers={'Authorization': 'Bearer fake-jwt',
-                         'X-Tenant': 'TestTenant'},
+                "/api/tenant-admin/parameters/default",
+                query_string={"namespace": namespace, "key": key},
+                headers={"Authorization": "Bearer fake-jwt", "X-Tenant": "TestTenant"},
             )
             data = resp.get_json()
             assert resp.status_code == 200
-            assert data['success'] is True
+            assert data["success"] is True
 
             if has_code_default:
                 # CODE_DEFAULTS takes precedence
-                assert data['has_default'] is True
-                assert data['source'] == 'code_default'
-                assert data['value_type'] == cd_entry['value_type']
-                assert data['value'] == cd_entry['value']
+                assert data["has_default"] is True
+                assert data["source"] == "code_default"
+                assert data["value_type"] == cd_entry["value_type"]
+                assert data["value"] == cd_entry["value"]
             elif has_system_row:
                 # Fall through to system DB row
-                assert data['has_default'] is True
-                assert data['source'] == 'system'
-                assert data['value_type'] == sys_row['value_type']
+                assert data["has_default"] is True
+                assert data["source"] == "system"
+                assert data["value_type"] == sys_row["value_type"]
             else:
                 # Neither exists
-                assert data['has_default'] is False
-                assert 'value' not in data
-                assert 'source' not in data
+                assert data["has_default"] is False
+                assert "value" not in data
+                assert "source" not in data
 
 
 # ---------------------------------------------------------------------------
@@ -515,18 +573,20 @@ class TestDefaultValueResolutionCompleteness:
 # permitted for a Members-enabled tenant and excluded otherwise.
 # ---------------------------------------------------------------------------
 
+
 class TestParameterSchemaEndpointMembersGating:
     """The schema endpoint permits the `members` namespace only for MEMBERS tenants."""
 
     def _make_client(self):
         import flask
+
         app = flask.Flask(__name__)
         app.register_blueprint(parameter_admin_bp)
-        app.config['TESTING'] = True
+        app.config["TESTING"] = True
         return app.test_client()
 
     def _module_rows(self, module_names):
-        return [{'module_name': m} for m in module_names]
+        return [{"module_name": m} for m in module_names]
 
     def _call_schema(self, active_modules):
         """Call the schema endpoint with the given tenant active modules."""
@@ -539,16 +599,18 @@ class TestParameterSchemaEndpointMembersGating:
         mock_service.get_param.return_value = None
 
         mocks = _admin_auth_mocks() + [
-            patch('routes.parameter_admin_routes.DatabaseManager',
-                  return_value=mock_db_instance),
-            patch('routes.parameter_admin_routes._get_service',
-                  return_value=mock_service),
+            patch(
+                "routes.parameter_admin_routes.DatabaseManager",
+                return_value=mock_db_instance,
+            ),
+            patch(
+                "routes.parameter_admin_routes._get_service", return_value=mock_service
+            ),
         ]
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
             resp = client.get(
-                '/api/tenant-admin/parameters/schema',
-                headers={'Authorization': 'Bearer fake-jwt',
-                         'X-Tenant': 'TestTenant'},
+                "/api/tenant-admin/parameters/schema",
+                headers={"Authorization": "Bearer fake-jwt", "X-Tenant": "TestTenant"},
             )
         return resp
 
@@ -557,39 +619,43 @@ class TestParameterSchemaEndpointMembersGating:
         params, the mail_enabled boolean gate (pivot-output-actions R0 task 0.4),
         and the Members mail namespace (mail_domain/mail_local_part strings +
         mail_certified boolean)."""
-        resp = self._call_schema(['MEMBERS'])
+        resp = self._call_schema(["MEMBERS"])
         data = resp.get_json()
 
         assert resp.status_code == 200
-        assert data['success'] is True
-        assert 'MEMBERS' in data['active_modules']
-        assert 'members' in data['schema']
+        assert data["success"] is True
+        assert "MEMBERS" in data["active_modules"]
+        assert "members" in data["schema"]
 
-        params = data['schema']['members']['params']
+        params = data["schema"]["members"]["params"]
         # Phase 2 (R5.1) retired the `view_contexts` param; `default_page_size` is the
         # pagination DEFAULT re-home (step a).
         assert set(params.keys()) == {
-            'field_overlay', 'scope_dimensions', 'default_page_size', 'mail_enabled',
-            'mail_domain', 'mail_local_part', 'mail_certified'
+            "field_overlay",
+            "default_page_size",
+            "mail_enabled",
+            "mail_domain",
+            "mail_local_part",
+            "mail_certified",
         }
-        assert 'view_contexts' not in params
+        assert "view_contexts" not in params
         # The config overlays are json; mail_enabled/mail_certified are
         # booleans; mail_domain/mail_local_part are strings.
-        for key in ('field_overlay', 'scope_dimensions'):
-            assert params[key]['type'] == 'json'
-        assert params['mail_enabled']['type'] == 'boolean'
-        assert params['mail_certified']['type'] == 'boolean'
-        assert params['mail_domain']['type'] == 'string'
-        assert params['mail_local_part']['type'] == 'string'
+        for key in ("field_overlay",):
+            assert params[key]["type"] == "json"
+        assert params["mail_enabled"]["type"] == "boolean"
+        assert params["mail_certified"]["type"] == "boolean"
+        assert params["mail_domain"]["type"] == "string"
+        assert params["mail_local_part"]["type"] == "string"
 
     def test_schema_non_members_tenant_excludes_members_namespace(self):
         """Tenant without MEMBERS -> schema omits the members namespace."""
-        resp = self._call_schema(['STR', 'FIN'])
+        resp = self._call_schema(["STR", "FIN"])
         data = resp.get_json()
 
         assert resp.status_code == 200
-        assert data['success'] is True
-        assert 'members' not in data['schema']
+        assert data["success"] is True
+        assert "members" not in data["schema"]
 
 
 class TestProjectTenantChangeReliability:
@@ -620,7 +686,9 @@ class TestProjectTenantChangeReliability:
         assert result == {"projected": True}
         fake_trigger.enqueue.assert_called_once_with("h-dcn")
 
-    def test_tenant_projection_failure_is_reported_not_swallowed_and_does_not_raise(self):
+    def test_tenant_projection_failure_is_reported_not_swallowed_and_does_not_raise(
+        self,
+    ):
         from routes.parameter_admin_routes import _project_tenant_change
 
         fake_trigger = Mock()

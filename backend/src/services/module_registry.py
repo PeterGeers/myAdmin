@@ -246,11 +246,9 @@ MODULE_REGISTRY: dict[str, dict] = {
                 "namespace": "members",
                 "surface": "members",
                 "owner": "module",
-                # Flask keeps a best-effort validator mirror for this key only (the
-                # frontend writes the module plane first, then mirrors it). Every other
-                # members.* key is authored solely on the module plane, so the Flask
-                # parameter route fails closed for them.
-                "flask_mirror_keys": ["scope_dimensions"],
+                # Every members.* key is authored solely on the module plane, so the Flask
+                # parameter route fails closed for all of them. Option B (Members/02 mirror
+                # retirement) removed the old `scope_dimensions` validator-mirror exception.
             },
         },
         "required_params": {},

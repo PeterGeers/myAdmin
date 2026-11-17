@@ -34,13 +34,6 @@ from services.projection_builder import _normalize_version
 #: these — it never writes MySQL (Property 1, one-directional).
 _MEMBERS_PARAM_NAMESPACE = "members"
 
-#: The single tenant-scope parameter key that holds the scope-dimension
-#: definitions as a JSON list, one entry per dimension. Authored by Tenant Admin
-#: (region values Noord/Zuid/Oost/West etc.); read here and mapped 1:1 to the
-#: ``config#scope`` row's ``dimensions`` shape that
-#: ``sam/members/domain/scope_dimensions.py`` ``ScopeDimension`` consumes.
-_SCOPE_DIMENSIONS_PARAM_KEY = "scope_dimensions"
-
 #: The single tenant-scope parameter key that holds the Members field-config
 #: overlay as a JSON object with two members-authored maps — ``fields`` (the
 #: variable overlay: added "club detail" fields) and ``overrides`` (presentation
