@@ -504,10 +504,9 @@ describe('membersApiService — 401 refresh + retry-once (task 16.4)', () => {
 // unwrapped, `columns` is coerced to a clean `string[]` (non-string/empty
 // dropped), an unset list defaults to `[]`, and the PUT sends a `{ columns }`
 // body to the LITERAL `/members/column-preferences` path (matching the
-// server-side routes declared in task 2.5.4). The mapped record also carries
-// the optional per-user `page_size` preference (Phase 2 pagination re-home,
-// R2.3) — `null` when absent/non-numeric — which the Members page feeds as the
-// highest-precedence input to `resolvePageSize`.
+// server-side routes declared in task 2.5.4). The mapped record carries
+// `{ sub, columns, updated_at }` only: the per-user `page_size` preference was
+// retired with the runtime Rows-Per-Page selector (R25.9).
 // ============================================================================
 
 describe('membersApiService — column preferences (task 2.5.5)', () => {
@@ -543,9 +542,6 @@ describe('membersApiService — column preferences (task 2.5.5)', () => {
       await expect(getColumnPreferences()).resolves.toEqual({
         sub: 'user-sub-1',
         columns: ['years_member', 'region', 'status'],
-        // The mapper also surfaces the optional per-user rows-per-page preference
-        // (Phase 2 pagination re-home, R2.3): absent in this body → `null`.
-        page_size: null,
         updated_at: '2026-01-02T03:04:05Z',
       });
     });
@@ -596,7 +592,7 @@ describe('membersApiService — column preferences (task 2.5.5)', () => {
         createMockResponse({ body: { data: {} } }),
       );
       const prefs = await getColumnPreferences();
-      expect(prefs).toEqual({ sub: '', columns: [], page_size: null, updated_at: '' });
+      expect(prefs).toEqual({ sub: '', columns: [], updated_at: '' });
     });
   });
 
@@ -621,12 +617,10 @@ describe('membersApiService — column preferences (task 2.5.5)', () => {
       expect(init.method).toBe('PUT');
       expect(url).toBe(`${BASE}/members/column-preferences`);
       expect(init.body).toBe(JSON.stringify({ columns: ['years_member', 'region'] }));
-      // The reply is unwrapped + mapped the same way as the GET (including the
-      // optional per-user `page_size`, `null` when absent from the body — R2.3).
+      // The reply is unwrapped + mapped the same way as the GET.
       expect(result).toEqual({
         sub: 'user-sub-1',
         columns: ['years_member', 'region'],
-        page_size: null,
         updated_at: '2026-02-02T00:00:00Z',
       });
     });
