@@ -201,3 +201,25 @@ requirements: [`./requirements.md`](./requirements.md).
   ]
 }
 ```
+
+- [x] 8. Option B — retire the Members/02 frontend mirror (approved follow-on)
+  - Repointed all THREE Flask-side scope readers at the projected `config#scope` row through
+    the existing read-only `ProjectionReader`, via a new shared seam
+    (`services/scope_vocabulary.py`: `load_scope_dimensions` + `dimension_index`): grant
+    validation, the picker API, and the `scopegrant#` projection builder now resolve the
+    vocabulary through ONE code path instead of three copies of the same parse.
+  - Deleted the mirror end-to-end: the frontend's second write leg
+    (`membersConfigService.saveMembersParameter` → Flask params) plus its `mirrorError` retry
+    plumbing and the editor's existing-row lookup; `members.scope_dimensions` from
+    `parameter_schema.py` and `members_parameters.json`; `_SCOPE_DIMENSIONS_PARAM_KEY` (its
+    definition and re-export); and `flask_mirror_keys` (accessor, boot validation, the
+    `typed_editors()` exposure, and the `parameter_admin_routes` fail-open allowance). A
+    module-owned namespace now fails closed for EVERY key — one config, one writing door.
+  - Measured: backend 498 pass (scoped set incl. `tests/api` + `tests/architecture`),
+    frontend 38 pass (service + editor), `ruff format --check src/` clean (346 files).
+  - Known trade-off (documented in `scope_vocabulary.py`): the Flask plane now reads the
+    projection at REQUEST time for the picker + grant validation, so it needs
+    `GOVERNANCE_PROJECTION_TABLE`; staleness is bounded by sync delay + read TTL.
+  - Still to update (follow-up): this spec's `design.md` Option B section, the Members/02
+    R22.3/R22.4 retirement wording, ADR 0005, and the myBacklog note.
+  - _Requirements: Members/02 R11.1/R11.2 (split ownership), R22 (mirror retirement)_

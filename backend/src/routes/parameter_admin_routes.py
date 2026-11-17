@@ -116,23 +116,18 @@ def _prepare_members_config(_svc, namespace, key, value, _tenant):
 def _module_owned_write_error(namespace: str, key: str):
     """Fail closed when a module-owned namespace is written through the Flask path.
 
-    A module-plane-owned namespace (e.g. ``members``) is authored on the module plane.
-    Flask may only receive the keys its owner declares as ``flask_mirror_keys`` (the
-    Members/02 validator mirror); any other key through this route would re-open a
-    second authoring door for the same logical config, so it is rejected with a
-    caller-safe 400 and no row is written.
-
+    A module-plane-owned namespace (e.g. ``members``) is authored ENTIRELY on the
+    module plane, so every key belonging to it is rejected here with a caller-safe 400
+    and no row is written. Option B (Members/02 mirror retirement) removed the last
+    exception: the Flask-written ``members.scope_dimensions`` validator mirror is gone,
+    and with it the ``flask_mirror_keys`` allowance that used to wave it through. One
+    logical config therefore has exactly one writing door.
     Returns:
         A ``(response, status)`` tuple when the write must be rejected, else ``None``.
     """
-    from services.admin_surface_registry import (
-        flask_mirror_keys,
-        module_owned_namespaces,
-    )
+    from services.admin_surface_registry import module_owned_namespaces
 
     if not namespace or namespace not in module_owned_namespaces():
-        return None
-    if key in flask_mirror_keys(namespace):
         return None
     return (
         jsonify(

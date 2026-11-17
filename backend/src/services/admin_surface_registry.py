@@ -176,7 +176,6 @@ def typed_editors() -> dict[str, dict]:
         editors[namespace] = {
             "surface": declaration.get("surface"),
             "owner": declaration.get("owner"),
-            "flask_mirror_keys": declaration.get("flask_mirror_keys") or [],
             "module": module_name,
         }
     return editors
@@ -198,20 +197,6 @@ def module_owned_namespaces() -> list[str]:
         for namespace, editor in typed_editors().items()
         if editor.get("owner") == "module"
     )
-
-
-def flask_mirror_keys(namespace: str) -> list[str]:
-    """Keys the Flask plane may still legitimately mirror for a module-owned namespace.
-
-    A module-plane-owned namespace is authored on the module plane. Flask may keep a
-    narrow validator mirror for some keys (Members/02: the `scope_dimensions` mirror),
-    and those keys are declared here so the Flask parameter route can fail closed for
-    every OTHER key instead of silently re-opening a second authoring door.
-    """
-    editor = typed_editors().get(namespace)
-    if not editor:
-        return []
-    return list(editor.get("flask_mirror_keys") or [])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -327,16 +312,6 @@ def validate_admin_surface_registry(
             raise ValueError(
                 f"Module '{module_name}' declares a module-plane typed editor for "
                 f"namespace '{namespace}', but the module is not module-plane backed"
-            )
-        mirror_keys = editor.get("flask_mirror_keys")
-        if mirror_keys is not None and not isinstance(mirror_keys, list):
-            raise ValueError(
-                f"Module '{module_name}': admin.typed_editor.flask_mirror_keys must be a list"
-            )
-        if mirror_keys and owner != "module":
-            raise ValueError(
-                f"Module '{module_name}' declares flask_mirror_keys for namespace "
-                f"'{namespace}', but that namespace is not module-plane owned"
             )
         if namespace in claimed_namespaces:
             raise ValueError(

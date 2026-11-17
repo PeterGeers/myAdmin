@@ -38,11 +38,22 @@ def test_authoring_key_is_rejected_by_the_guard(app_context):
     assert "module plane" in payload.get_json()["error"]
 
 
-def test_declared_mirror_key_passes_the_guard():
-    assert (
-        parameter_admin_routes._module_owned_write_error("members", "scope_dimensions")
-        is None
-    )
+def test_retired_mirror_key_is_now_rejected_too():
+    """Option B (Members/02 mirror retirement) removed the last exception.
+
+    The Flask-written ``members.scope_dimensions`` validator mirror is gone, so that
+    key now fails closed exactly like every other module-owned key: one logical config,
+    exactly one writing door.
+    """
+    # The guard builds a JSON 400 response, so it needs an app context.
+    with Flask(__name__).app_context():
+        rejected = parameter_admin_routes._module_owned_write_error(
+            "members", "scope_dimensions"
+        )
+        assert rejected is not None
+        response, status = rejected
+        assert status == 400
+        assert response.get_json()["success"] is False
 
 
 def test_flask_owned_namespaces_pass_the_guard():

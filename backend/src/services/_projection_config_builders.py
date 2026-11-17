@@ -38,7 +38,6 @@ from __future__ import annotations
 from services._projection_config_common import (
     _FIELD_OVERLAY_PARAM_KEY,
     _MEMBERS_PARAM_NAMESPACE,
-    _SCOPE_DIMENSIONS_PARAM_KEY,
     _SCOPE_VERSION_FIELDS,
     _config_row_version,
     _enum_values_from_field,
@@ -93,7 +92,6 @@ __all__ = [
     "_MAIL_REPLY_TO_DEFAULT_PARAM_KEY",
     "_MEMBERS_PARAM_NAMESPACE",
     "_OVERLAY_FIELD_DEFAULTS",
-    "_SCOPE_DIMENSIONS_PARAM_KEY",
     "_SCOPE_VERSION_FIELDS",
     "_config_row_version",
     "_enum_values_from_field",

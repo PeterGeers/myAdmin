@@ -18,7 +18,6 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 from services.admin_surface_registry import (
     admin_surface_ids,
     derive_admin_surfaces,
-    flask_mirror_keys,
     get_surface,
     module_admin_declaration,
     module_owned_namespaces,
@@ -59,7 +58,6 @@ EXPECTED_TYPED_EDITORS = {
     "members": {
         "surface": "members",
         "owner": "module",
-        "flask_mirror_keys": ["scope_dimensions"],
         "module": "MEMBERS",
     },
 }
@@ -151,11 +149,13 @@ class TestModuleAdminDeclarations:
         assert module_owned_namespaces() == ["members"]
         assert typed_editors()["members"]["owner"] == "module"
 
-    def test_members_declares_only_the_flask_validator_mirror(self):
-        # Members/02: the module plane is authoritative; Flask keeps the
-        # scope_dimensions validator mirror and nothing else.
-        assert flask_mirror_keys("members") == ["scope_dimensions"]
-        assert flask_mirror_keys("storage") == []
+    def test_no_namespace_retains_a_flask_mirror(self):
+        # Option B (Members/02 mirror retirement): the Flask-written
+        # members.scope_dimensions validator mirror is gone, so no typed editor
+        # carries a mirror allowance any more. The key must not even be EXPOSED by
+        # typed_editors() — a reintroduced mirror would be a second authoring door.
+        for namespace, editor in typed_editors().items():
+            assert "flask_mirror_keys" not in editor, namespace
 
     def test_every_tenant_admin_reaches_advanced(self):
         assert "advanced" in ids_for()
