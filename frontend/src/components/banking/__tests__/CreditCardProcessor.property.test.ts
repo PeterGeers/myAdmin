@@ -15,6 +15,30 @@ import type { LookupData, CreditCardAccount } from '../../BankingProcessor';
 // Generators
 // ---------------------------------------------------------------------------
 
+/**
+ * Values the processor must NEVER fall back to (Property 2). The generated lookup values are kept
+ * DISJOINT from this list (see `notHardcoded`) so the "never hardcoded" assertions stay a real
+ * guard AND are always satisfiable: a lookup that legitimately carries e.g. Account '2001' used to
+ * fail the property although the code was correct (fast-check counterexample on CI, seed
+ * 788129973 - the flake this filter removes).
+ */
+const HARDCODED_VALUES: readonly string[] = [
+  '4002',
+  '2001',
+  'PeterPrive',
+  'GoodwinSolutions',
+];
+
+/**
+ * Reject generated values that collide with HARDCODED_VALUES.
+ *
+ * Both generator spaces are large (4-digit codes: 2/10_000 rejected; 3-15 letter words: a handful
+ * rejected), so filtering costs nothing measurable and cannot lag on rejections.
+ */
+function notHardcoded(value: string): boolean {
+  return !HARDCODED_VALUES.includes(value);
+}
+
 /** Generate a NL-format IBAN string (e.g., NL80RABO0107936917). */
 function arbitraryIban(): fc.Arbitrary<string> {
   return fc
@@ -125,8 +149,8 @@ function arbitraryForeignCsvRow(iban: string): fc.Arbitrary<string[]> {
 function arbitraryLookupData(iban: string): fc.Arbitrary<LookupData> {
   return fc
     .tuple(
-      fc.stringMatching(/^[0-9]{4}$/), // Account code
-      fc.stringMatching(/^[A-Za-z]{3,15}$/), // administration name
+      fc.stringMatching(/^[0-9]{4}$/).filter(notHardcoded), // Account code (disjoint from the blacklist)
+      fc.stringMatching(/^[A-Za-z]{3,15}$/).filter(notHardcoded), // administration (disjoint from the blacklist) name
       fc.stringMatching(/^[0-9]{4}$/), // card number
       fc.stringMatching(/^[0-9]{4}$/), // exchange rate account code
     )
@@ -212,8 +236,9 @@ describe('Property 2: Lookup Resolution Determines Account Fields', () => {
    * Debet (credit) equals lookup's Account — never hardcoded values.
    */
   it('account fields come from lookup, never hardcoded', () => {
-    const hardcodedValues = ['4002', '2001', 'PeterPrive', 'GoodwinSolutions'];
-
+    // HARDCODED_VALUES is excluded from the generated lookup data (notHardcoded above), so a lookup
+    // whose Account happens to be '2001' no longer trips the assertions below - the flaky false
+    // positive that reddened the Full Test Suite (fast-check seed 788129973).
     fc.assert(
       fc.property(
         arbitraryIban().chain((iban) =>
@@ -238,7 +263,7 @@ describe('Property 2: Lookup Resolution Determines Account Fields', () => {
           }
 
           // Never hardcoded values
-          for (const hc of hardcodedValues) {
+          for (const hc of HARDCODED_VALUES) {
             expect(main.Credit).not.toBe(hc);
             expect(main.Debet).not.toBe(hc);
             expect(main.Administration).not.toBe(hc);
@@ -248,6 +273,49 @@ describe('Property 2: Lookup Resolution Determines Account Fields', () => {
       { numRuns: 100 },
     );
   }, 30_000);
+
+  /**
+   * Deterministic pin for the case the property above can no longer generate: a lookup whose
+   * Account / administration ARE two of the blacklisted literals must still flow through
+   * unchanged. The defect this guards is a hardcoded fallback - and a value coming FROM the lookup
+   * is indistinguishable from a hardcoded one unless the colliding case is pinned explicitly.
+   *
+   * The shapes mirror the fast-check counterexample that reddened CI (Account '2001',
+   * administration 'PeterPrive', IBAN from the shrunk case).
+   */
+  it('passes lookup values through even when they equal a blacklisted literal', () => {
+    const iban = 'NL53TRIO9379670163';
+    const csvRow = [
+      iban, // 0: Tegenrekening IBAN
+      'EUR', // 1: Munt
+      '0000', // 2: Creditcard Nummer
+      'Product', // 3: Productnaam
+      'Holder', // 4: Naam Regel1
+      'Company', // 5: Creditcard Regel2
+      'REF123', // 6: Transactiereferentie
+      '2020-01-01', // 7: Datum
+      '0,01', // 8: Bedrag (positive - the Debet side)
+      'Desc', // 9: Omschrijving
+      '', // 10: Origineel bedrag
+      '', // 11: Originele munt
+      '', // 12: Wisselkoers
+    ];
+    const lookup: LookupData = {
+      accounts: ['2001'],
+      descriptions: [],
+      bank_accounts: [],
+      credit_card_accounts: [
+        { iban, Account: '2001', card_number: '0000', administration: 'PeterPrive' },
+      ],
+      exchange_rate_account: '0000',
+    };
+
+    const result = processCreditCardTransactions(csvRow, 0, lookup, 'CSV_CC_test.csv');
+    const main = result.transactions[0];
+
+    expect(main.Administration).toBe('PeterPrive'); // from the lookup - not a hardcoded literal
+    expect(main.Debet).toBe('2001'); // positive amount -> the credit side carries the lookup Account
+  });
 });
 
 // ---------------------------------------------------------------------------
