@@ -8,6 +8,7 @@
  */
 
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import * as chakra from '@chakra-ui/react';
 import BudgetTemplatesPage from '../pages/BudgetTemplatesPage';
 import * as budgetService from '../services/budgetService';
 import * as chartOfAccountsService from '../services/chartOfAccountsService';
@@ -15,6 +16,18 @@ import { render, screen, waitFor, fireEvent } from '@/test-utils';
 
 vi.mock('../services/budgetService');
 vi.mock('../services/chartOfAccountsService');
+
+// Stabilize useToast so it returns the same function reference across renders.
+// The Chakra auto-mock's `useToast` returns a bare `vi.fn()` on every call, so an
+// unstable reference lands in `BudgetTemplatesPage`'s `loadTemplates` useCallback
+// dependency array ([toast, t]) and re-runs its mount effect on every render. That
+// spurious second fetch flips `loading` back to true (the page's early-return
+// `<Spinner/>` branch) right as a synchronous assertion can run, which reddened
+// the nightly Full Test Suite on 2026-11-17 ("Unable to find an element with the
+// text: buttons.save" against a spinner-only DOM). Mirrors the fix already applied
+// in BudgetPage.test.tsx and BudgetLinesPage.test.tsx.
+const stableToast = vi.fn() as unknown as ReturnType<typeof chakra.useToast>;
+vi.spyOn(chakra, 'useToast').mockReturnValue(stableToast);
 
 const mockListTemplates = vi.mocked(budgetService.listTemplates);
 const mockListAccounts = vi.mocked(chartOfAccountsService.listAccounts);
