@@ -256,7 +256,8 @@ class UserTenantScopeService:
     ) -> dict[str, list[str]]:
         """Validate a grant against the dimension config and canonicalize its values.
 
-        Reads the tenant's ``<module>.scope_dimensions`` param (read-only). Each
+        Reads the tenant's ``<module>.scope_dimensions`` param (read-only — the
+        derived mirror described in :meth:`_load_dimension_meta`). Each
         dimension key in ``scopes`` must be an ENABLED dimension; each granted value
         must match one of that dimension's declared ``values`` by canonical-equality
         (``scope_canon``). ``["*"]`` is accepted verbatim for any enabled dimension.
@@ -323,8 +324,16 @@ class UserTenantScopeService:
         Returns a map ``dimension_key -> {canon_to_value, declared_order}`` for
         every ENABLED dimension of the tenant (disabled dimensions are omitted, so
         a grant on one is rejected as unknown). The namespace is the module token
-        lower-cased (s5d: ``members``); the value list is the source of truth for
-        canonical values (D4/R5.1).
+        lower-cased (s5d: ``members``).
+
+        The value list read here is the frontend-written DERIVED MIRROR (task 3.1a)
+        of the authoritative scope config, which the module plane owns as
+        ``config#scope``. It is the canonical vocabulary grants are checked against
+        (D4/R5.1) — i.e. the single place the Flask-side validators read — but it is
+        NOT the authoring source: the vocabulary is authored as a ``scope`` attribute
+        on the ``members.field_overlay`` field, and the mirror exists so this
+        validator, the picker API, and the ``scopegrant#`` builder can resolve it
+        without a projection read.
         """
         namespace = module.lower() if module else _MEMBERS_PARAM_NAMESPACE
         raw_dimensions = self.parameter_service.get_param(

@@ -268,3 +268,71 @@ def update_tenant_module(user_email, user_roles):
     except Exception as e:
         logger.error(f"Error updating tenant module: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+
+@tenant_module_bp.route("/api/tenant/admin-surfaces", methods=["GET"])
+@cognito_required(required_permissions=[])
+def get_admin_surfaces(user_email, user_roles):
+    """Derived Tenant-Admin surfaces for the current tenant.
+
+    Registry-driven replacement for the dashboard's hardcoded tab list: the Flask
+    plane derives which surfaces apply and the frontend just renders them.
+
+    The tenant is resolved from the ``X-Tenant`` *selector* and validated against the
+    caller's VERIFIED tenant list (``custom:tenants``, ADR 0004/0005) — never the
+    module edge's capability-scoped ``tenant_keys`` (ADR 0007), and the header never
+    grants a tenant. Entitlement_Truth is ``tenant_modules`` for that tenant (ADR 0005);
+    the caller's roles come from the verified request context.
+
+    Returns:
+        {
+            "tenant": "h-dcn",
+            "admin_surfaces": [{"id", "kind", "order", "label_key"}, ...]
+        }
+    """
+    try:
+        tenant = get_current_tenant(request)
+        if not tenant:
+            return jsonify({"error": "No tenant specified"}), 400
+
+        # X-Tenant selects among the caller's verified tenants; unlisted -> 403.
+        user_tenants = get_user_tenants_from_jwt(request)
+        if tenant not in user_tenants:
+            return jsonify({"error": "Access denied to tenant"}), 403
+
+        # Entitlement_Truth: the tenant's ACTIVE modules (not the caller's module roles).
+        with db_manager.get_cursor() as (cursor, conn):
+            cursor.execute(
+                """
+                SELECT module_name
+                FROM tenant_modules
+                WHERE administration = %s AND is_active = TRUE
+                """,
+                (tenant,),
+            )
+            rows = cursor.fetchall()
+            entitled_modules = [row["module_name"] for row in rows]
+
+        from services.admin_surface_registry import derive_admin_surfaces
+
+        derived = derive_admin_surfaces(entitled_modules, list(user_roles or []))
+        # Public contract only: never leak internal registry descriptor fields
+        # (owning module, role lists) into the response.
+        surfaces = [
+            {
+                "id": surface["id"],
+                "kind": surface["kind"],
+                "order": surface["order"],
+                "label_key": surface["label_key"],
+            }
+            for surface in derived
+        ]
+
+        response = jsonify({"tenant": tenant, "admin_surfaces": surfaces})
+        # A tenant switch must never replay a previous tenant's surface list.
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    except Exception as e:
+        logger.error(f"Error deriving admin surfaces for tenant: {e}")
+        return jsonify({"error": "Internal server error"}), 500

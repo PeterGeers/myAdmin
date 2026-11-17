@@ -260,9 +260,14 @@ def set_user_scope(
 def get_scope_dimensions(module, user_email, user_roles, tenant) -> ResponseReturnValue:
     """Return the enabled scope dimensions + canonical values for the picker.
 
-    Sourced DIRECTLY from the MySQL ``<module>.scope_dimensions`` param for the
-    current tenant (D4/R5.1) — NOT the DynamoDB projection. Each returned dimension
-    carries ``key``, ``label``, ``values`` (canonical), and ``field`` when present.
+    Read from the MySQL ``<module>.scope_dimensions`` param, which is the
+    frontend-written DERIVED MIRROR (task 3.1a) of the authoritative scope config —
+    NOT the source of truth. The scope vocabulary is authored as a ``scope``
+    attribute on each ``members.field_overlay`` field, and the module plane owns the
+    resulting ``config#scope`` row (Members/02 split ownership). The mirror exists so
+    this picker and the grant validators can resolve the vocabulary without a
+    projection read. Each returned dimension carries ``key``, ``label``, ``values``
+    (canonical), and ``field`` when present.
     """
     canonical_module = _canonical_module(module)
     if canonical_module is None:

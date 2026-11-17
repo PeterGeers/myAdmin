@@ -91,6 +91,7 @@ from routes.zzp_trip_import_export_routes import zzp_trip_io_bp
 from routes.zzp_trip_routes import zzp_trip_bp
 from scalability_routes import scalability_bp
 from security_audit import SecurityAudit, register_security_endpoints
+from services.admin_surface_registry import validate_admin_surface_registry
 from services.function_registry import validate_function_registry
 from str_channel_routes import str_channel_bp
 from str_invoice_routes import str_invoice_bp
@@ -230,6 +231,11 @@ app.register_blueprint(static_bp)  # Static file serving (must be registered las
 
 # Validate function registry at startup (fails fast if misconfigured)
 validate_function_registry()
+
+# Validate the admin-surface registry + every module's `admin` declaration at
+# startup (fails fast: a broken surface/panel/capability/typed-editor reference
+# must never reach a Tenant_Admin as a half-configured dashboard).
+validate_admin_surface_registry()
 
 # Serve documentation site (built by MkDocs)
 # Railway/Docker: /app/docs-site (copied into backend/ folder)

@@ -98,6 +98,34 @@ vi.mock('../../../services/apiService', () => ({
 }));
 
 /* ------------------------------------------------------------------ */
+/*  Surface derivation — the dashboard renders whatever the backend-   */
+/*  derived surfaces array contains (registry-driven, no hasFIN/       */
+/*  hasMembers). Derive the mock from mockAvailableModules so the      */
+/*  Members gate is exercised through the derived contract.            */
+/* ------------------------------------------------------------------ */
+vi.mock('../../../hooks/useTenantAdminSurfaces', () => ({
+  useTenantAdminSurfaces: () => ({
+    surfaces: [
+      { id: 'users', kind: 'always', order: 10, label_key: 'tenantAdmin.tabs.users' },
+      { id: 'storage', kind: 'capability', order: 200, label_key: 'tenantAdmin.tabs.storage' },
+      ...(mockAvailableModules.includes('MEMBERS')
+        ? [
+            {
+              id: 'members',
+              kind: 'module',
+              order: 110,
+              label_key: 'tenantAdmin.tabs.membersConfig',
+            },
+          ]
+        : []),
+    ],
+    fallbackSurfaceIds: ['users', 'tenant-info', 'sender', 'landing'],
+    loading: false,
+    error: null,
+  }),
+}));
+
+/* ------------------------------------------------------------------ */
 /*  Child stubs — mark each surface so we can assert which one mounts   */
 /*  without pulling its real tree (and its own network) into scope.     */
 /*  The `./MembersConfig` barrel is stubbed INCLUDING ApplicationFormBuilder*/
