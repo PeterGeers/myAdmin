@@ -203,6 +203,13 @@ them as its own acceptance criteria.
 #### Acceptance Criteria
 
 1. 03b SHALL NOT touch `config#views` (neither the leftover rows nor the cleanup routine). The user-preferred-columns feature it belonged to is a VALID requirement that was removed during an earlier spec over an unresolved error; it is DEFERRED (Out of Scope), not dead-to-delete — removing the residue now could make reviving the feature harder
+
+   > **Closure note (2026-11-17).** The requirement behind this residue is now CLOSED as
+   > satisfied by delivery: the per-user preferred column set is LIVE — *Session Columns*
+   > (`colprefs#<sub>` row + `GET/PUT /members/column-preferences` + the overview
+   > `ColumnChooser`), and the owner decided ONE ordered per-user set is enough (no named /
+   > multiple sets). The "DEFERRED / revivable" rationale above is therefore SUPERSEDED;
+   > the non-touch rule itself still stands. Evidence + follow-ups: `.kiro/specs/myBacklog/members-preferred-overview-columns.md`.
 2. THE separate membership-type management apparatus SHALL be REMOVED once the collapse (Req 3.4) lands — the TenantAdmin → Members → Membership Types screen (`MembershipTypesManager.tsx` / `MembershipTypeModal.tsx`), the `list/create/update/deactivate MembershipType` client wrappers, the `GET/POST/PUT/DELETE /membership-types` routes, the catalog domain/repository CRUD, and their tests — with its capability absorbed by the ordinary field-options editor (Req 3.4); the READ path the member form/validation needs is re-pointed at the field options, not deleted
 3. THE removed-binding plumbing from Requirement 1 (the no-relax / forced-required / forced-visible machinery and its tests) SHALL be deleted, not merely disabled
 4. THE forbidden legacy `choices` key SHALL be removed from config fields (the canonical verb is `options`; `choices` is forbidden) — migrated out of stored data (Req 6.1a) and removed from code paths that still read/write it

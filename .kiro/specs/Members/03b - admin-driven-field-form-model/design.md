@@ -363,3 +363,7 @@ in "Components and Interfaces") and the correctness property that guards it.
 | Req 8.2 — update data-model.md / config-guide.md | BU-10 | — |
 | Req 8.3 — record LOC/file delta in DoD | BU-8, BU-10 | — |
 | Req 8.4 — CI/CD + promotion/migration-parity gate | CI/CD and promotion §; BU-7 | — |
+
+> **Closure note (2026-11-17):** Req 7.1's non-touch rule is unchanged, but its
+> "deferred" rationale is SUPERSEDED — the user-preferred overview columns requirement is
+> delivered (*Session Columns*, `colprefs#<sub>`) and closed. See `.kiro/specs/myBacklog/members-preferred-overview-columns.md`.
