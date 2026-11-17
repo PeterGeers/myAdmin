@@ -403,17 +403,6 @@ export interface MemberColumnPreferences {
   sub: string;
   /** Ordered field-config keys the user chose to show as columns. */
   columns: string[];
-  /**
-   * The user's optional per-user rows-per-page preference (Members config
-   * redesign Phase 2, step (a) — the pagination re-home). The per-user
-   * column/table preference mechanism carries this as the HIGHEST-precedence
-   * input to the Members table page size: `userPreference ?? default_page_size
-   * ?? platformDefault` (R2.3). Absent/`null`/non-positive → the resolver falls
-   * through to the tenant `default_page_size`, then the platform default. The
-   * authoring UI for this preference is a later task; the read path consumes it
-   * defensively here.
-   */
-  page_size?: number | null;
   /** ISO-8601 UTC last-update timestamp (empty string when never saved). */
   updated_at: string;
 }
@@ -604,16 +593,6 @@ export interface FieldConfig {
   functional_groups?: FunctionalGroup[];
   /** Configured scope dimensions (e.g. region with its allowed values). */
   dimensions?: ScopeDimension[];
-  /**
-   * The tenant-level default rows-per-page for the Members table (Members config
-   * redesign Phase 2, step (a) — the `page_size` re-home). A single scalar that
-   * replaced the per-context `view_context.page_size` (view contexts were retired
-   * in Phase 2 step b). It is the MIDDLE tier of the page-size precedence
-   * `userPreference ?? default_page_size ?? platformDefault` (R2.2).
-   * Absent/`null`/non-positive → the resolver falls through to the platform table
-   * default (R2.4).
-   */
-  default_page_size?: number | null;
   /**
    * The tenant's mail-enabled gate flag (pivot-output-actions R0/R1, design §6.3). `true`
    * when the tenant is cleared to send mail (the per-tenant "mail-enabled / SES-certified"
