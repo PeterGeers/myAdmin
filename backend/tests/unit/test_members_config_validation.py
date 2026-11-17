@@ -2,7 +2,7 @@
 Unit tests for s5c Phase-2 tasks 2.2 / 2.3 / 2.4 (Flask/MySQL plane).
 
 - 2.2 / 2.3: the members-parameters definition endpoint serves the config params with the
-  composite types (`map<field_def>` for field_overlay, `list<object>` for scope_dimensions,
+  composite types (`map<field_def>` for field_overlay,
   plus the nested functional_groups `list<object>`). Phase 2 (R5.1) retired the
   `view_contexts` param/definition.
 - 2.4 (Property 7, R4.9): authoritative save-time validation rejects a field_overlay with a
@@ -52,7 +52,6 @@ def config_client():
 
 
 class TestMembersParametersEndpoint:
-
     def test_members_parameters_responds_without_auth(self, config_client):
         resp = config_client.get("/api/config/members-parameters")
         assert resp.status_code == 200
@@ -68,13 +67,14 @@ class TestMembersParametersEndpoint:
         by_key = {d["key"]: d for d in data}
         # The members.* definition params the typed editor renders (Phase 2 R5.1 retired
         # the `view_contexts` definition).
-        assert set(by_key) == {"field_overlay", "scope_dimensions"}
+        # Option B: members.scope_dimensions was retired (the vocabulary now
+        # comes from the projected config#scope row), so field_overlay is the
+        # only remaining composite members param.
+        assert set(by_key) == {"field_overlay"}
         assert "view_contexts" not in by_key
 
         # field_overlay is a map<field_def> composite.
         assert by_key["field_overlay"]["type"] == "map<field_def>"
-        # scope_dimensions is a list<object> composite.
-        assert by_key["scope_dimensions"]["type"] == "list<object>"
 
         # Each carries the ledger-def language fields (labels + module gate).
         for d in data:
@@ -105,7 +105,6 @@ class TestMembersParametersEndpoint:
 
 
 class TestFieldOverlayValidation:
-
     def test_validate_field_overlay_valid_overlay_accepts(self):
         overlay = {
             "functional_groups": [
@@ -143,7 +142,9 @@ class TestFieldOverlayValidation:
 
     def test_validate_field_overlay_override_dangling_group_raises(self):
         overlay = {
-            "functional_groups": [{"key": "address", "label_en": "Address", "order": 1}],
+            "functional_groups": [
+                {"key": "address", "label_en": "Address", "order": 1}
+            ],
             "fixed_overrides": {
                 "personal.street": {"functional_group": "nope"},
             },
@@ -175,7 +176,9 @@ class TestFieldOverlayValidation:
 
     def test_validate_field_overlay_empty_catalog_skips_group_check(self):
         # No functional_groups catalog → group references use base defaults (no check).
-        overlay = {"fields": {"motor_brand": {"type": "string", "functional_group": "x"}}}
+        overlay = {
+            "fields": {"motor_brand": {"type": "string", "functional_group": "x"}}
+        }
         validate_field_overlay(overlay)  # should not raise
 
     # ── Phase 3 step 9 (R2.1): scope-binding authored as a field attribute ─────────────
@@ -237,11 +240,7 @@ class TestFieldOverlayValidation:
     def test_validate_field_overlay_enabled_scope_on_non_enum_field_raises(self):
         # Single-vocabulary (R3.4): an enabled scope axis must sit on an enum field WITH values.
         # A plain string field (no choices/options, no legacy scope.values) is rejected at save.
-        overlay = {
-            "fields": {
-                "region": {"type": "string", "scope": {"enabled": True}}
-            }
-        }
+        overlay = {"fields": {"region": {"type": "string", "scope": {"enabled": True}}}}
         with pytest.raises(MembersConfigError) as exc:
             validate_field_overlay(overlay)
         assert "overlay.region" in exc.value.reasons
@@ -262,7 +261,9 @@ class TestFieldOverlayValidation:
         # is still accepted — pre-single-vocabulary authoring keeps validating.
         overlay = {
             "fixed_overrides": {
-                "personal.city": {"scope": {"enabled": True, "values": ["Noord", "Zuid"]}}
+                "personal.city": {
+                    "scope": {"enabled": True, "values": ["Noord", "Zuid"]}
+                }
             }
         }
         validate_field_overlay(overlay)  # should not raise
@@ -550,7 +551,6 @@ class TestApplicationAttributesValidation:
 
 
 class TestMailDomainValidation:
-
     @pytest.mark.parametrize("value", [None, "", "   "])
     def test_validate_mail_domain_blank_accepts(self, value):
         # Optional param — unset/blank is accepted (From simply can't be composed yet).
@@ -568,14 +568,14 @@ class TestMailDomainValidation:
     @pytest.mark.parametrize(
         "value",
         [
-            "noreply@h-dcn.nl",      # has "@" (an address, not a bare domain)
-            "https://h-dcn.nl",      # has a scheme
-            "h-dcn.nl/path",         # has a path
-            "localhost",             # no TLD label
-            "h dcn.nl",              # whitespace inside
-            "-bad.nl",               # label starts with a hyphen
-            "bad-.nl",               # label ends with a hyphen
-            "example.123",           # non-alphabetic TLD
+            "noreply@h-dcn.nl",  # has "@" (an address, not a bare domain)
+            "https://h-dcn.nl",  # has a scheme
+            "h-dcn.nl/path",  # has a path
+            "localhost",  # no TLD label
+            "h dcn.nl",  # whitespace inside
+            "-bad.nl",  # label starts with a hyphen
+            "bad-.nl",  # label ends with a hyphen
+            "example.123",  # non-alphabetic TLD
         ],
     )
     def test_validate_mail_domain_malformed_raises(self, value):
@@ -590,7 +590,6 @@ class TestMailDomainValidation:
 
 
 class TestMailLocalPartValidation:
-
     @pytest.mark.parametrize("value", [None, "", "   "])
     def test_validate_mail_local_part_blank_accepts(self, value):
         # Optional param — unset/blank defers to the schema default ("noreply").
@@ -605,9 +604,9 @@ class TestMailLocalPartValidation:
     @pytest.mark.parametrize(
         "value",
         [
-            "info@h-dcn.nl",   # has "@"
-            "no reply",         # whitespace inside
-            "bad\tpart",       # whitespace (tab) inside
+            "info@h-dcn.nl",  # has "@"
+            "no reply",  # whitespace inside
+            "bad\tpart",  # whitespace (tab) inside
         ],
     )
     def test_validate_mail_local_part_invalid_raises(self, value):
@@ -622,7 +621,6 @@ class TestMailLocalPartValidation:
 
 
 class TestMailCertifiedValidation:
-
     @pytest.mark.parametrize("value", [True, False, None])
     def test_validate_mail_certified_bool_or_none_accepts(self, value):
         # Real bool (either way) or unset (None → gate fails closed) is accepted.
@@ -684,18 +682,18 @@ class TestApplicationConsentNoticeValidation:
     @pytest.mark.parametrize(
         "value",
         [
-            "just a string",          # not an object
-            42,                        # not an object
-            {},                        # no version, no text
-            {"text": {"nl": "x"}},    # missing version
-            {"version": "v1"},        # missing text
-            {"version": "", "text": {"nl": "x"}},      # blank version
-            {"version": "   ", "text": {"nl": "x"}},   # whitespace version
-            {"version": True, "text": {"nl": "x"}},    # bool is not a stable id
-            {"version": "v1", "text": "nope"},         # text not a map
-            {"version": "v1", "text": {}},             # empty text
+            "just a string",  # not an object
+            42,  # not an object
+            {},  # no version, no text
+            {"text": {"nl": "x"}},  # missing version
+            {"version": "v1"},  # missing text
+            {"version": "", "text": {"nl": "x"}},  # blank version
+            {"version": "   ", "text": {"nl": "x"}},  # whitespace version
+            {"version": True, "text": {"nl": "x"}},  # bool is not a stable id
+            {"version": "v1", "text": "nope"},  # text not a map
+            {"version": "v1", "text": {}},  # empty text
             {"version": "v1", "text": {"nl": "  ", "en": ""}},  # all-blank bodies
-            {"version": "v1", "text": {"nl": 123}},    # non-string body
+            {"version": "v1", "text": {"nl": 123}},  # non-string body
         ],
     )
     def test_validate_application_consent_notice_malformed_raises(self, value):
@@ -746,7 +744,6 @@ class TestDefaultPageSizeValidation:
 
 
 class TestValidateMembersParamDispatch:
-
     def test_validate_members_param_field_overlay_dispatches(self):
         overlay = {
             "functional_groups": [{"key": "g", "label_en": "G"}],
@@ -785,12 +782,14 @@ class TestValidateMembersParamDispatch:
             "application_consent_notice",
             {"version": "v1", "text": {"nl": "Akkoord."}},
         )  # valid → no raise
-        validate_members_param("application_consent_notice", None)  # optional → no raise
+        validate_members_param(
+            "application_consent_notice", None
+        )  # optional → no raise
         with pytest.raises(MembersConfigError):
             validate_members_param("application_consent_notice", {"text": {"nl": "x"}})
 
     def test_validate_members_param_default_page_size_dispatches(self):
-        validate_members_param("default_page_size", 25)   # valid → no raise
+        validate_members_param("default_page_size", 25)  # valid → no raise
         validate_members_param("default_page_size", None)  # optional → no raise
         with pytest.raises(MembersConfigError):
             validate_members_param("default_page_size", 0)

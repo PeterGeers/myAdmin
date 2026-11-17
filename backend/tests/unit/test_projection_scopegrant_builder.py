@@ -18,15 +18,13 @@ from unittest.mock import Mock
 
 import pytest
 
-from services._projection_config_builders import (
-    _SCOPE_DIMENSIONS_PARAM_KEY,
-)
 from services._projection_scopegrant import (
     WILDCARD_VALUE,
     _parse_scopes,
     _scopegrant_version,
     build_scopegrant_rows,
 )
+from services.scope_vocabulary import SCOPE_CONFIG_SORT_KEY
 
 TENANT = "test_admin"
 USER_EMAIL = "user" + "@" + "test.local"
@@ -39,18 +37,23 @@ DIMENSIONS = [
 ]
 
 
-def _param_service(dimensions=None):
-    """ParameterService stub returning the given scope-dimension definitions."""
-    dimensions = DIMENSIONS if dimensions is None else dimensions
-    svc = Mock()
+def _scope_reader(dimensions=None):
+    """Fake ProjectionReader serving the tenant's projected ``config#scope`` row.
 
-    def _get_param(namespace, key, tenant=None):
-        if key == _SCOPE_DIMENSIONS_PARAM_KEY:
-            return dimensions
+    Option B (Members/02 mirror retirement): the builder resolves the scope
+    vocabulary from the projected ``config#scope`` row, not from the retired
+    ``members.scope_dimensions`` param mirror.
+    """
+    dimensions = DIMENSIONS if dimensions is None else dimensions
+    reader = Mock()
+
+    def _get_item(tenant_id, sort_key, refresh=True):
+        if sort_key == SCOPE_CONFIG_SORT_KEY:
+            return {"dimensions": dimensions}
         return None
 
-    svc.get_param.side_effect = _get_param
-    return svc
+    reader.get_item.side_effect = _get_item
+    return reader
 
 
 def _scope_row(email=USER_EMAIL, scopes=None, module="MEMBERS", **extra):
@@ -68,13 +71,13 @@ class TestTenantGuard:
 
     def test_missing_administration_raises(self):
         with pytest.raises(ValueError, match="cross-tenant hazard"):
-            build_scopegrant_rows({}, [], _param_service())
+            build_scopegrant_rows({}, [], _scope_reader())
 
     def test_tenant_id_key_is_accepted_as_partition_key(self):
         items = build_scopegrant_rows(
             {"tenant_id": TENANT},
             [_scope_row(scopes={"region": ["Noord Holland"]})],
-            _param_service(),
+            _scope_reader(),
         )
         assert [item.tenant_id for item in items] == [TENANT]
 
@@ -84,7 +87,7 @@ class TestDenyByDefault:
 
     def test_no_dimensions_configured_returns_empty(self):
         assert (
-            build_scopegrant_rows(TENANT_ROW, [_scope_row()], _param_service([])) == []
+            build_scopegrant_rows(TENANT_ROW, [_scope_row()], _scope_reader([])) == []
         )
 
     def test_disabled_dimension_yields_no_rows(self):
@@ -92,7 +95,7 @@ class TestDenyByDefault:
         items = build_scopegrant_rows(
             TENANT_ROW,
             [_scope_row(scopes={"region": ["Noord Holland"]})],
-            _param_service(dimensions),
+            _scope_reader(dimensions),
         )
         assert items == []
 
@@ -100,7 +103,7 @@ class TestDenyByDefault:
         items = build_scopegrant_rows(
             TENANT_ROW,
             [_scope_row(scopes={"region": ["Atlantis"]})],
-            _param_service(),
+            _scope_reader(),
         )
         assert items == []
 
@@ -108,7 +111,7 @@ class TestDenyByDefault:
         items = build_scopegrant_rows(
             TENANT_ROW,
             [_scope_row(scopes={"region": "Noord Holland"})],
-            _param_service(),
+            _scope_reader(),
         )
         assert items == []
 
@@ -120,7 +123,7 @@ class TestGrantProjection:
         items = build_scopegrant_rows(
             TENANT_ROW,
             [_scope_row(scopes={"region": [WILDCARD_VALUE]})],
-            _param_service(),
+            _scope_reader(),
         )
         assert len(items) == 1
         assert items[0].attributes["dimension"] == "region"
@@ -130,7 +133,7 @@ class TestGrantProjection:
         items = build_scopegrant_rows(
             TENANT_ROW,
             [_scope_row(scopes={"region": ["zuid-holland", "Noord  Holland"]})],
-            _param_service(),
+            _scope_reader(),
         )
         assert len(items) == 1
         assert items[0].attributes["values"] == ["Noord Holland", "Zuid Holland"]
@@ -139,7 +142,7 @@ class TestGrantProjection:
         items = build_scopegrant_rows(
             TENANT_ROW,
             [_scope_row(scopes={"region": ["Noord Holland", "noord holland"]})],
-            _param_service(),
+            _scope_reader(),
         )
         assert items[0].attributes["values"] == ["Noord Holland"]
 
@@ -147,7 +150,7 @@ class TestGrantProjection:
         items = build_scopegrant_rows(
             TENANT_ROW,
             [_scope_row(scopes={"region": ["Noord Holland"]})],
-            _param_service(),
+            _scope_reader(),
         )
         assert items[0].sort_key == "scopegrant#" + USER_EMAIL + "#region"
 
@@ -155,7 +158,7 @@ class TestGrantProjection:
         items = build_scopegrant_rows(
             TENANT_ROW,
             [_scope_row(scopes={"region": ["Noord Holland"], "unknown": ["X"]})],
-            _param_service(),
+            _scope_reader(),
         )
         assert [i.attributes["dimension"] for i in items] == ["region"]
 
@@ -168,7 +171,7 @@ class TestGrantProjection:
                 email="a" + "@" + "test.local", scopes={"region": ["Noord Holland"]}
             ),
         ]
-        items = build_scopegrant_rows(TENANT_ROW, rows, _param_service())
+        items = build_scopegrant_rows(TENANT_ROW, rows, _scope_reader())
         assert [i.sort_key for i in items] == [
             "scopegrant#a" + "@" + "test.local#region",
             "scopegrant#z" + "@" + "test.local#region",
@@ -182,23 +185,23 @@ class TestMalformedRows:
         items = build_scopegrant_rows(
             TENANT_ROW,
             [_scope_row(module="EVENTS", scopes={"region": ["Noord Holland"]})],
-            _param_service(),
+            _scope_reader(),
         )
         assert items == []
 
     def test_malformed_scopes_json_is_skipped(self):
         row = {"email": USER_EMAIL, "module": "MEMBERS", "scopes": "{not json"}
-        assert build_scopegrant_rows(TENANT_ROW, [row], _param_service()) == []
+        assert build_scopegrant_rows(TENANT_ROW, [row], _scope_reader()) == []
 
     def test_row_without_email_is_skipped(self):
         row = {"module": "MEMBERS", "scopes": json.dumps({"region": ["Noord Holland"]})}
-        assert build_scopegrant_rows(TENANT_ROW, [row], _param_service()) == []
+        assert build_scopegrant_rows(TENANT_ROW, [row], _scope_reader()) == []
 
     def test_non_mapping_row_is_skipped(self):
-        assert build_scopegrant_rows(TENANT_ROW, ["oops"], _param_service()) == []
+        assert build_scopegrant_rows(TENANT_ROW, ["oops"], _scope_reader()) == []
 
     def test_empty_source_sequence_returns_empty(self):
-        assert build_scopegrant_rows(TENANT_ROW, None, _param_service()) == []
+        assert build_scopegrant_rows(TENANT_ROW, None, _scope_reader()) == []
 
 
 class TestFreshnessVersion:
@@ -207,7 +210,7 @@ class TestFreshnessVersion:
     def test_row_updated_at_supersedes_tenant_version(self):
         newer = datetime(2026, 3, 4, 5, 6, 7)
         row = _scope_row(scopes={"region": ["Noord Holland"]}, updated_at=newer)
-        items = build_scopegrant_rows(TENANT_ROW, [row], _param_service())
+        items = build_scopegrant_rows(TENANT_ROW, [row], _scope_reader())
         assert items[0].version == newer.isoformat()
         assert items[0].version != TENANT_UPDATED_AT.isoformat()
 
@@ -215,7 +218,7 @@ class TestFreshnessVersion:
         items = build_scopegrant_rows(
             TENANT_ROW,
             [_scope_row(scopes={"region": ["Noord Holland"]})],
-            _param_service(),
+            _scope_reader(),
         )
         assert items[0].version == TENANT_UPDATED_AT.isoformat()
 
@@ -224,7 +227,7 @@ class TestFreshnessVersion:
             scopes={"region": ["Noord Holland"], "team": ["Team A"]},
             version=9,
         )
-        items = build_scopegrant_rows(TENANT_ROW, [row], _param_service())
+        items = build_scopegrant_rows(TENANT_ROW, [row], _scope_reader())
         assert len(items) == 2
         assert {i.version for i in items} == {9}
 

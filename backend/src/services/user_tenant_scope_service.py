@@ -52,15 +52,18 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from services.scope_canon import scope_canon
+from services.scope_vocabulary import dimension_index, load_scope_dimensions
 
 logger = logging.getLogger(__name__)
 
-# The MODULE-namespaced parameter that is the SOURCE OF TRUTH for which member
-# field each scope dimension binds to and its canonical ``values`` (design D4/R5.1).
-# These mirror the constants ``projection_sync.build_scopegrant_rows`` reads, so
-# authoring validation and the projection builder agree byte-for-byte.
-_MEMBERS_PARAM_NAMESPACE = "members"
-_SCOPE_DIMENSIONS_PARAM_KEY = "scope_dimensions"
+# The scope vocabulary (which member field each dimension binds to, plus its
+# canonical ``values`` — design D4/R5.1) is read from the module-plane-owned
+# ``config#scope`` projection row through the shared ``services.scope_vocabulary``
+# resolver: the ONE seam the picker API and the ``scopegrant#`` builder also read,
+# so authoring validation and the projection builder agree byte-for-byte. Option B
+# (Members/02 mirror retirement) deleted the frontend-written
+# ``members.scope_dimensions`` mirror this service used to read, and with it the
+# ``flask_mirror_keys`` write allowance that kept the mirror writable.
 
 #: The all-access sentinel grant for a dimension (design → ``scopes`` JSON shape).
 WILDCARD_VALUE = "*"
@@ -78,16 +81,18 @@ class ScopeValidationError(ValueError):
 class UserTenantScopeService:
     """Read/write a member-user's scope grant in ``user_tenant_scope`` (R1.1).
 
-    Depends only on a ``DatabaseManager`` (parameterized MySQL access) and a
-    ``ParameterService`` (read-only, for the ``members.scope_dimensions`` value
-    list used at validation). The projection trigger is injected as a callable so
-    tests can assert it fired without touching AWS/MySQL; it defaults to the
-    process-wide ``projection_sync_trigger.enqueue_sync``.
+    Depends on a ``DatabaseManager`` (parameterized MySQL access) and — only for the
+    scope vocabulary — the shared ``services.scope_vocabulary`` resolver, which reads
+    the module-plane-owned ``config#scope`` projection row. The projection trigger is
+    injected as a callable so tests can assert it fired without touching AWS/MySQL; it
+    defaults to the process-wide ``projection_sync_trigger.enqueue_sync``.
 
     Args:
         db: A ``DatabaseManager`` (or anything exposing ``execute_query``).
-        parameter_service: A ``ParameterService`` (or anything exposing
-            ``get_param(namespace, key, tenant=...)``). Read-only.
+        reader: An optional ``ProjectionReader`` used for the ``config#scope``
+            vocabulary read (injectable in tests). Omitted → a default reader is
+            built lazily on the first read, so constructing this service touches
+            no AWS.
         enqueue_sync: The best-effort projection-sync trigger, called with the
             affected ``administration`` AFTER a committed write/delete. Defaults to
             ``services.projection_sync_trigger.enqueue_sync``; injectable for tests.
@@ -105,11 +110,11 @@ class UserTenantScopeService:
     def __init__(
         self,
         db: Any,
-        parameter_service: Any,
+        reader: Any = None,
         enqueue_sync: Any = None,
     ) -> None:
         self.db = db
-        self.parameter_service = parameter_service
+        self.reader = reader
         if enqueue_sync is None:
             from services.projection_sync_trigger import enqueue_sync as _default
 
@@ -162,8 +167,8 @@ class UserTenantScopeService:
     ) -> dict[str, Any]:
         """Atomically overwrite (or clear) a user's scope grant (R4.5/R4.2/R2.4).
 
-        Validates every dimension key + value against the tenant's
-        ``<module>.scope_dimensions`` param (canonical-equality via ``scope_canon``)
+        Validates every dimension key + value against the tenant's ``config#scope``
+        vocabulary (canonical-equality via ``scope_canon``)
         BEFORE writing — an unknown dimension/value raises
         :class:`ScopeValidationError` and NOTHING is written (atomic). A validated
         value is normalized to its canonical declared spelling.
@@ -256,7 +261,8 @@ class UserTenantScopeService:
     ) -> dict[str, list[str]]:
         """Validate a grant against the dimension config and canonicalize its values.
 
-        Reads the tenant's ``<module>.scope_dimensions`` param (read-only). Each
+        Reads the tenant's ``config#scope`` vocabulary (read-only — see
+        :meth:`_load_dimension_meta`). Each
         dimension key in ``scopes`` must be an ENABLED dimension; each granted value
         must match one of that dimension's declared ``values`` by canonical-equality
         (``scope_canon``). ``["*"]`` is accepted verbatim for any enabled dimension.
@@ -318,50 +324,31 @@ class UserTenantScopeService:
     def _load_dimension_meta(
         self, administration: str, module: str
     ) -> dict[str, dict[str, Any]]:
-        """Load enabled ``<module>.scope_dimensions`` as a validation index.
+        """Load the tenant's ``config#scope`` vocabulary as a validation index.
 
-        Returns a map ``dimension_key -> {canon_to_value, declared_order}`` for
-        every ENABLED dimension of the tenant (disabled dimensions are omitted, so
-        a grant on one is rejected as unknown). The namespace is the module token
-        lower-cased (s5d: ``members``); the value list is the source of truth for
-        canonical values (D4/R5.1).
+        Returns ``dimension_key -> {canon_to_value, declared_order, values, field}``
+        for every ENABLED dimension of the tenant (disabled dimensions are omitted,
+        so a grant naming one is rejected as unknown).
+
+        The vocabulary is read through the shared
+        :mod:`services.scope_vocabulary` resolver — the SAME seam the picker API and
+        the ``scopegrant#`` builder read, so all three agree on one vocabulary. The
+        authoring source is a ``scope`` attribute on the ``members.field_overlay``
+        field; the SAM write path owns the resulting ``config#scope`` row
+        (Members/02 split ownership, R11.1/R11.2).
+
+        Option B: this used to read the frontend-written DERIVED MIRROR
+        ``members.scope_dimensions`` (task 3.1a). That param — and the second
+        authoring door it implied — is gone; one writer, one vocabulary.
+
+        ``module`` no longer selects the vocabulary (``config#scope`` is a
+        tenant-level row, not a ``<module>.*`` param), but the parameter is kept so
+        the call sites read uniformly and a future per-module vocabulary has an
+        obvious branch point.
         """
-        namespace = module.lower() if module else _MEMBERS_PARAM_NAMESPACE
-        raw_dimensions = self.parameter_service.get_param(
-            namespace,
-            _SCOPE_DIMENSIONS_PARAM_KEY,
-            tenant=administration,
+        return dimension_index(
+            load_scope_dimensions(administration, reader=self.reader)
         )
-
-        meta: dict[str, dict[str, Any]] = {}
-        if not (
-            isinstance(raw_dimensions, Sequence) and not isinstance(raw_dimensions, str)
-        ):
-            return meta
-
-        for entry in raw_dimensions:
-            if not isinstance(entry, Mapping):
-                continue
-            key = entry.get("key")
-            if not key:
-                continue
-            if not entry.get("enabled", True):
-                continue
-            raw_values = entry.get("values") or ()
-            if isinstance(raw_values, str) or not isinstance(raw_values, Sequence):
-                raw_values = ()
-            canon_to_value: dict[str, str] = {}
-            declared_order: list[str] = []
-            for value in raw_values:
-                if not isinstance(value, str):
-                    continue
-                declared_order.append(value)
-                canon_to_value.setdefault(scope_canon(value), value)
-            meta[key] = {
-                "canon_to_value": canon_to_value,
-                "declared_order": declared_order,
-            }
-        return meta
 
     def _fire_enqueue_sync(self, administration: str) -> None:
         """Fire the on-change projection drain — observable + bounded-retry (R2.2/R2.4).

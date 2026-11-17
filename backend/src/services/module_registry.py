@@ -71,6 +71,14 @@ logger = logging.getLogger(__name__)
 MODULE_REGISTRY: dict[str, dict] = {
     "FIN": {
         "description": "Financial Administration",
+        # Admin-surface declaration — see services/admin_surface_registry.py.
+        # Names the panel this module owns and the cross-cutting capabilities it
+        # consumes. `consumes` is capability honesty: a module that stores no
+        # objects must not declare `storage`.
+        "admin": {
+            "panel": "financial",
+            "consumes": ["storage", "templates", "pivot"],
+        },
         "required_params": {
             "fin.default_currency": {"type": "string", "default": "EUR"},
             "fin.fiscal_year_start_month": {"type": "number", "default": 1},
@@ -81,6 +89,9 @@ MODULE_REGISTRY: dict[str, dict] = {
     },
     "STR": {
         "description": "Short-Term Rental Management",
+        "admin": {
+            "consumes": ["storage", "pivot"],
+        },
         "required_params": {
             "str.aantal_kamers": {"type": "number", "default": None},
             "str.aantal_slaapplaatsen": {"type": "number", "default": None},
@@ -91,12 +102,20 @@ MODULE_REGISTRY: dict[str, dict] = {
     },
     "TENADMIN": {
         "description": "Tenant Administration",
+        "admin": {
+            # TENADMIN ships the optional-function layer, so it is the module that
+            # makes the Functions surface meaningful for a tenant.
+            "consumes": ["functions"],
+        },
         "required_params": {},
         "required_tax_rates": [],
         "required_roles": ["Tenant_Admin"],
     },
     "ZZP": {
         "description": "ZZP Freelancer Administration",
+        "admin": {
+            "consumes": ["storage", "templates", "pivot"],
+        },
         "depends_on": ["FIN"],
         "required_params": {
             "zzp.invoice_prefix": {"type": "string", "default": "INV"},
@@ -216,6 +235,22 @@ MODULE_REGISTRY: dict[str, dict] = {
     },
     "MEMBERS": {
         "description": "Members / Membership Administration",
+        "admin": {
+            "panel": "members",
+            "consumes": ["storage", "media"],
+            # The members namespace is MODULE-plane owned (config#fields /
+            # config#scope / config#mail are authored by this module's Change-Op
+            # write path). The typed editor is its single authoring door, so the
+            # generic Advanced (MySQL parameters) table must not offer it.
+            "typed_editor": {
+                "namespace": "members",
+                "surface": "members",
+                "owner": "module",
+                # Every members.* key is authored solely on the module plane, so the Flask
+                # parameter route fails closed for all of them. Option B (Members/02 mirror
+                # retirement) removed the old `scope_dimensions` validator-mirror exception.
+            },
+        },
         "required_params": {},
         "required_tax_rates": [],
         # Generic, tenant-agnostic role set following the <Module>_<Action>

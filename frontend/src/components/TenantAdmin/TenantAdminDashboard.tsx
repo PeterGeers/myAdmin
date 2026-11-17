@@ -1,31 +1,26 @@
+/**
+ * Tenant-Admin Dashboard — registry-driven renderer.
+ *
+ * Replaces the flat, hardcoded tab list with per-module conditionals (hasFIN,
+ * hasMembers). The applicable surfaces are derived by the backend from tenant
+ * entitlements + module admin declarations and exposed via
+ * GET /api/tenant/admin-surfaces. This component maps one ordered surface array
+ * into both tabs and panels — tab order and panel order cannot drift apart.
+ *
+ * See .kiro/specs/Common/Tenant/admin-surface-registry/ for the spec.
+ */
+
 import React, { useState, useEffect } from 'react';
 import {
   Box, VStack, Tabs, TabList, TabPanels, Tab, TabPanel,
-  useToast, Spinner, Text, Alert, AlertIcon
+  useToast, Spinner, Text, Alert, AlertIcon,
 } from '@chakra-ui/react';
 import { fetchAuthSession } from 'aws-amplify/auth';
 import { useTypedTranslation } from '../../hooks/useTypedTranslation';
 import { useTenant } from '../../context/TenantContext';
 import { authenticatedGet, buildEndpoint } from '../../services/apiService';
-import { PivotBuilderWithPreview } from '../pivot/PivotBuilderWithPreview';
-import MediaAssetAdminPage from '../../pages/MediaAssetAdminPage';
-import UserManagement from './UserManagement';
-import TemplateManagement from './TemplateManagement/TemplateManagement';
-import StorageTab from './StorageTab';
-import FinancialTab from './FinancialTab';
-import TenantInfoTab from './TenantInfoTab';
-import SenderSettingsTab from './SenderSettingsTab';
-import MemberSenderIdentitiesTab from './MemberSenderIdentitiesTab';
-import AdvancedTab from './AdvancedTab';
-import FunctionsTab from './FunctionsTab';
-import { LandingPageEditor } from './LandingPage';
-// application-form-builder task 2.1 adds the ApplicationFormBuilder authoring view + its
-// barrel export; this sub-tab (task 2.2) wires it in referencing that expected export name.
-import {
-  MembersConfigEditor,
-  MembersMailConfigEditor,
-  ApplicationFormBuilder,
-} from './MembersConfig';
+import { useTenantAdminSurfaces } from '../../hooks/useTenantAdminSurfaces';
+import { SurfaceComponent } from './adminSurfaceComponents';
 
 interface TenantInfo {
   name: string;
@@ -45,15 +40,28 @@ export function TenantAdminDashboard() {
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const [tenantModules, setTenantModules] = useState<string[]>([]);
   const toast = useToast();
-  const { t, i18n } = useTypedTranslation('admin');
-  // Nederlands-default language for the Members admin sub-tab labels (house `t(nl,en)` style).
-  const membersLang: 'nl' | 'en' = i18n.language?.startsWith('nl') ? 'nl' : 'en';
+  const { t } = useTypedTranslation('admin');
   const { currentTenant } = useTenant(); // Just read from context, don't manage it here
+  const { surfaces: derivedSurfaces, fallbackSurfaceIds, loading: surfacesLoading, error: surfacesError } = useTenantAdminSurfaces();
 
   useEffect(() => {
     loadUserInfo();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Requirement 8.2 — a failed surface fetch degrades to the baseline surfaces
+  // AND is surfaced to the operator rather than failing silently.
+  useEffect(() => {
+    if (surfacesError) {
+      toast({
+        title: t('tenantAdmin.surfaceErrorTitle', 'Error loading tenant administration'),
+        description: surfacesError,
+        status: 'error',
+        duration: 5000,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [surfacesError]);
 
   useEffect(() => {
     if (currentTenant) {
@@ -192,151 +200,33 @@ export function TenantAdminDashboard() {
     );
   }
 
-  const hasFIN = tenantModules.includes('FIN');
-  const hasMembers = tenantModules.includes('MEMBERS');
+  const surfaces = surfacesLoading || surfacesError
+    ? fallbackSurfaceIds.map((id) => ({ id, kind: 'always' as const, order: 0, label_key: `tenantAdmin.tabs.${id}` }))
+    : derivedSurfaces;
 
   return (
     <Box minH="100vh" bg="gray.900" p={6}>
       <VStack spacing={6} align="stretch">
         {/* Tabs - key forces re-render when tenant changes */}
-        <Tabs key={currentTenant} colorScheme="orange" variant="enclosed" isLazy>
+        <Tabs key={currentTenant} colorScheme="orange" variant="soft-rounded" size="sm" isLazy>
           <TabList>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              {t('tenantAdmin.tabs.users')}
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              ⚡ {t('tenantAdmin.tabs.functions')}
-            </Tab>
-            {hasFIN && (
-              <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-                💰 {t('tenantAdmin.tabs.financial')}
+            {surfaces.map((s) => (
+              <Tab
+                key={s.id}
+                color="gray.300"
+                _selected={{ color: 'orange.400', bg: 'gray.800' }}
+              >
+                {t(s.label_key)}
               </Tab>
-            )}
-            {hasMembers && (
-              <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-                👥 {t('tenantAdmin.tabs.membersConfig', 'Members')}
-              </Tab>
-            )}
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              📁 {t('tenantAdmin.tabs.storage')}
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              🗄️ {t('tenantAdmin.tabs.mediaAssets', 'Media Assets')}
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              {t('tenantAdmin.tabs.templates')}
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              🏢 {t('tenantAdmin.tabs.tenantInfo')}
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              ✉️ {t('tenantAdmin.tabs.senderSettings')}
-            </Tab>
-            {/* The Members sender-identities surface now lives inside the Members → Mail
-                sub-tab (task 7.1 single home), so there is NO standalone top-level tab for it. */}
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              📊 {t('tenantAdmin.tabs.pivotViews')}
-            </Tab>
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              🌐 {t('tenantAdmin.tabs.landingPage')}
-            </Tab>
-            {/* Advanced (raw parameters) — any Tenant_Admin of the current tenant.
-                Reaching this dashboard already requires Tenant_Admin (loadUserInfo +
-                the render guards), and the backend scopes/filters by tenant + active
-                modules and masks secrets, so no extra SysAdmin gate belongs here. */}
-            <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-              🔧 {t('tenantAdmin.tabs.advanced')}
-            </Tab>
+            ))}
           </TabList>
 
           <TabPanels>
-            <TabPanel>
-              <UserManagement tenant={currentTenant} />
-            </TabPanel>
-            <TabPanel>
-              <FunctionsTab tenant={currentTenant} />
-            </TabPanel>
-            {hasFIN && (
-              <TabPanel>
-                <FinancialTab tenant={currentTenant} />
+            {surfaces.map((s) => (
+              <TabPanel key={s.id} px={0}>
+                <SurfaceComponent surface={s} tenant={currentTenant} tenantModules={tenantModules} />
               </TabPanel>
-            )}
-            {hasMembers && (
-              <TabPanel>
-                {/* Members admin area: the field-config editor + Mail + Application-form
-                    authoring surfaces as sibling sections under the same hasMembers gate.
-                    (The standalone membership-type catalog tab was retired in spec 03b —
-                    membership_type is now a normal enum field authored inline.) */}
-                <Tabs colorScheme="orange" variant="soft-rounded" size="sm" isLazy>
-                  <TabList>
-                    <Tab color="gray.300" _selected={{ color: 'orange.400', bg: 'gray.800' }}>
-                      {membersLang === 'nl' ? 'Veldconfiguratie' : 'Field configuration'}
-                    </Tab>
-                    <Tab
-                      color="gray.300"
-                      _selected={{ color: 'orange.400', bg: 'gray.800' }}
-                      data-testid="members-admin-mail-tab"
-                    >
-                      {membersLang === 'nl' ? 'Mail' : 'Mail'}
-                    </Tab>
-                    <Tab
-                      color="gray.300"
-                      _selected={{ color: 'orange.400', bg: 'gray.800' }}
-                      data-testid="members-admin-application-form-tab"
-                    >
-                      {membersLang === 'nl' ? 'Aanmeldformulier' : 'Application form'}
-                    </Tab>
-                  </TabList>
-                  <TabPanels>
-                    <TabPanel px={0}>
-                      <MembersConfigEditor tenant={currentTenant} />
-                    </TabPanel>
-                    <TabPanel px={0}>
-                      {/* The typed Mail function authors the SAM-owned config#mail scalars
-                          (single door, task 7.1) with the sender-identities surface co-located
-                          below — the latter KEEPS its own Flask sender-identities route and is
-                          NOT folded into the config#mail put (three-surface model). */}
-                      <VStack align="stretch" spacing={8}>
-                        <MembersMailConfigEditor tenant={currentTenant} />
-                        <MemberSenderIdentitiesTab tenant={currentTenant} />
-                      </VStack>
-                    </TabPanel>
-                    <TabPanel px={0}>
-                      {/* Application-form authoring view (spec 11): a focused surface over the
-                          same config#fields / config#mail rows the Field-config + Mail sub-tabs
-                          own. Component authored by task 2.1. */}
-                      <ApplicationFormBuilder tenant={currentTenant} />
-                    </TabPanel>
-                  </TabPanels>
-                </Tabs>
-              </TabPanel>
-            )}
-            <TabPanel>
-              <StorageTab tenant={currentTenant} />
-            </TabPanel>
-            <TabPanel>
-              <MediaAssetAdminPage />
-            </TabPanel>
-            <TabPanel>
-              <TemplateManagement />
-            </TabPanel>
-            <TabPanel>
-              <TenantInfoTab tenant={currentTenant} />
-            </TabPanel>
-            <TabPanel>
-              <SenderSettingsTab tenant={currentTenant} />
-            </TabPanel>
-            {/* The standalone MemberSenderIdentitiesTab panel was removed — it is co-located in
-                the Members → Mail sub-tab below so the mail concern has one home (task 7.1). */}
-            <TabPanel>
-              <PivotBuilderWithPreview />
-            </TabPanel>
-            <TabPanel>
-              <LandingPageEditor tenant={currentTenant} tenantModules={tenantModules} />
-            </TabPanel>
-            <TabPanel>
-              <AdvancedTab tenant={currentTenant} />
-            </TabPanel>
+            ))}
           </TabPanels>
         </Tabs>
       </VStack>

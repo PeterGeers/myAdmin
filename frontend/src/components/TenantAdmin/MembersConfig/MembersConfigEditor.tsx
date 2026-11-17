@@ -44,7 +44,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import {
   getMembersFieldConfig,
-  getMembersParameters,
   resolveFieldConfigLabel,
   saveFieldConfigChangeOps,
   saveMembersParameter,
@@ -168,26 +167,16 @@ export const MembersConfigEditor: React.FC<Props> = ({ tenant, availableRoles = 
   const persistScopeDimensions = async (
     dimensions: unknown,
   ): Promise<{ plane: 'ok' | 'sam' | 'mirror'; message?: string }> => {
-    // Look up the existing tenant `members.scope_dimensions` param row so the mirror UPDATEs in
-    // place (vs. creating a duplicate). Best-effort: a lookup glitch degrades to a create.
-    let existing: Parameter | null = null;
-    try {
-      const params = await getMembersParameters();
-      existing = params.scope_dimensions ?? null;
-    } catch {
-      existing = null;
-    }
+    // Option B: SAM `PUT /members/config/scope` is the ONLY writer of the scope vocabulary,
+    // so there is no Flask `members.scope_dimensions` mirror row to look up or UPDATE.
     const scopeRes = await saveMembersParameter(
       'scope_dimensions',
       dimensions as MembersConfigValue,
-      existing,
     );
     if (scopeRes.success) return { plane: 'ok' };
-    // A `version` present means the authoritative SAM write LANDED and only the Flask mirror failed
-    // (planes diverged → resync offered); absent means SAM itself failed (nothing mirrored).
-    const plane: 'sam' | 'mirror' = scopeRes.version ? 'mirror' : 'sam';
+    // Option B: the mirror leg is gone, so the only failure mode left is a failed SAM write.
+    const plane: 'sam' | 'mirror' = 'sam';
     const message =
-      scopeRes.mirrorError ??
       scopeRes.error ??
       t('Scope-dimensie bijwerken mislukt', 'Updating the scope dimension failed');
     return { plane, message };

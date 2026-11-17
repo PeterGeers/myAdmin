@@ -77,11 +77,24 @@ class FakeDB:
 
 
 class FakeParameterService:
-    """Read-only ``members.scope_dimensions`` provider for validation."""
+    """Scope-source fake for validation (Option B).
+
+    The service no longer reads the ``members.scope_dimensions`` MySQL mirror; it
+    resolves the vocabulary from the projected ``config#scope`` row. This fake still
+    holds the same tenant -> dimensions mapping, but serves it through
+    ``get_item`` — so a test cannot accidentally prove the retired mirror path.
+    """
 
     def __init__(self, dimensions_by_tenant):
         # tenant -> list[dimension dicts]
         self._dims = dimensions_by_tenant
+
+    def get_item(self, tenant_id, sort_key, *, refresh=True):
+        """Serve the projected ``config#scope`` row for ``tenant_id``."""
+        if sort_key != "config#scope":
+            return None
+        dims = self._dims.get(tenant_id)
+        return {"dimensions": dims} if dims is not None else None
 
     def get_param(self, namespace, key, tenant=None, role=None, user=None):
         assert namespace == "members"

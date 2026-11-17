@@ -20,6 +20,7 @@
     "noPermissions": "You do not have Tenant Admin permissions",
     "noTenants": "No tenants assigned to your account",
     "selectTenant": "Please select a tenant from the header to continue",
+    "surfaceErrorTitle": "Error loading tenant administration",
     "tabs": {
       "userManagement": "User Management",
       "chartOfAccounts": "Chart of Accounts",
@@ -33,6 +34,7 @@
       "tenantDetails": "Tenant Details",
       "users": "Users",
       "financial": "Financial",
+    "membersConfig": "Members",
       "storage": "Storage",
       "templates": "Templates",
       "tenantInfo": "Tenant Info",
