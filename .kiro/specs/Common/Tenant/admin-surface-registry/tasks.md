@@ -220,6 +220,12 @@ requirements: [`./requirements.md`](./requirements.md).
   - Known trade-off (documented in `scope_vocabulary.py`): the Flask plane now reads the
     projection at REQUEST time for the picker + grant validation, so it needs
     `GOVERNANCE_PROJECTION_TABLE`; staleness is bounded by sync delay + read TTL.
-  - Still to update (follow-up): this spec's `design.md` Option B section, the Members/02
-    R22.3/R22.4 retirement wording, ADR 0005, and the myBacklog note.
+  - Docs updated (this was the §8 follow-up): this spec's `design.md` gains a dedicated
+    "Option B — the Members/02 validator mirror is retired" section, plus corrections to the
+    `members.*` ownership bullet, the "frontend is the only bridge" principle, decision D9, and
+    the error table (the old `mirrorError` row replaced by a `config#scope` read-failure row).
+    `Members/02 …/design.md` carries an amendment banner (its surviving mirror / KEPT /
+    auto-mirror wording is historical) and its `tasks.md` 3.1a is marked RETIRED; the myBacklog
+    `scope-dimension-authoring-trigger.md` is marked partly superseded. **ADR 0005 needed no
+    change — verified: it never described the mirror.**
   - _Requirements: Members/02 R11.1/R11.2 (split ownership), R22 (mirror retirement)_
