@@ -284,6 +284,9 @@ cd /home/peter/projects/myAdmin && mkdir -p .agent-output && cd backend && sourc
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 22.1_
 
   - [x] 3.1a Implement the frontend scope-save MIRROR (SAM `config#scope` authoritative → Flask `members.scope_dimensions` derived mirror)
+    - **RETIRED by Option B** (admin-surface-registry `tasks.md` §8): the mirror leg and
+      `members.scope_dimensions` are deleted; the Flask readers now read the projected
+      `config#scope` row.
     - FRONTEND-MIRROR model (supersedes redirect/verify-before-retire): SAM `config#scope` (derived from
       the per-field `scope` attribute) is authoritative; Flask `members.scope_dimensions` is KEPT as a
       frontend-written DERIVED MIRROR — NOT deleted, NOT redirected
