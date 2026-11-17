@@ -1,0 +1,345 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "0.2 Add bilingual (`nl`/`en`) i18n keys to the `members` namespace for the": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359346759
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359358365
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359866999
+      }
+    ],
+    "1.1 Extract the checklist core from `MemberFieldPicker.tsx` into": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359346855
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359365304
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359868295
+      }
+    ],
+    "1.2 Refactor `MemberFieldPicker` to render its group/list checklists THROUGH": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359346930
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791360031529
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791360383865
+      }
+    ],
+    "1.3 Unit-test `FieldChecklist`: functional-group sections in catalog order,": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347038
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791360391316
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791361546259
+      }
+    ],
+    "2.1 Add `coerceByType(field, value)` (co-located with `fieldValue.ts` or a": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347108
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359378467
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359869732
+      }
+    ],
+    "2.2 Add a `FLAT_ALIASES` constant (the keys `flattenMember` already promotes:": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347180
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359379910
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359871222
+      }
+    ],
+    "2.5.1 Add `sam/members/domain/column_preferences.py` — a `ColumnPreferences`": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347249
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359381119
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359872507
+      }
+    ],
+    "2.5.2 Add to `table_design.py`: `RECORD_TYPE_COLUMN_PREFS = \"colprefs\"`,": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347323
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791360032843
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791360385060
+      }
+    ],
+    "2.5.3 Add `get_column_preferences` / `save_column_preferences` to": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347400
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791360394010
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791361548689
+      }
+    ],
+    "2.5.4 Add the domain CRUD + `GET /members/column-preferences` (members:read)": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347470
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791361555235
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791371005281
+      }
+    ],
+    "2.5.5 Add `getColumnPreferences()` / `saveColumnPreferences(columns)` +": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347541
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791371009525
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791371258400
+      }
+    ],
+    "3.1 Build `frontend/src/components/members/ColumnChooser.tsx`: a Chakra modal": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347673
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791360393075
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791361547461
+      }
+    ],
+    "3.2 Component-test `ColumnChooser`: lists candidates, excludes/locks": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347765
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791361554308
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791371004369
+      }
+    ],
+    "4.1 Add chosen-column state (`string[]`) + a toolbar button opening": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347839
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791371264138
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791372132788
+      }
+    ],
+    "4.2 Build the unified column model (C3 — full unification, OQ-2 resolved):": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347909
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791372139699
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791372615403
+      }
+    ],
+    "4.3 Add the on-the-fly flatten memo (C4): promote chosen non-alias keys to": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359347988
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791372620387
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791372891316
+      }
+    ],
+    "4.4 Extend the filter key set handed to `useFilterableTable` with the chosen": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359348059
+      },
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791372895495
+      },
+      {
+        "executionId": "f4669976-f9db-4ad8-8f52-cea3be7f8e68",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791374305537
+      }
+    ],
+    "5.1 Extend `MembersPage.test.tsx`: surface a NESTED field → its filter": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359348136
+      },
+      {
+        "executionId": "f4669976-f9db-4ad8-8f52-cea3be7f8e68",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791374309760
+      },
+      {
+        "executionId": "f4669976-f9db-4ad8-8f52-cea3be7f8e68",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791376046424
+      }
+    ],
+    "5.2 Run the full affected suites green: MembersPage, useFilterableTable,": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359348208
+      },
+      {
+        "executionId": "f4669976-f9db-4ad8-8f52-cea3be7f8e68",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791376051302
+      },
+      {
+        "executionId": "f4669976-f9db-4ad8-8f52-cea3be7f8e68",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791376456015
+      }
+    ],
+    "5.3 `tsc --noEmit` clean + SAM test suite green; grep for hardcoded English": [
+      {
+        "executionId": "7df1cdf4-fbe4-42a9-a3fe-68da46792406",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791359348282
+      },
+      {
+        "executionId": "f4669976-f9db-4ad8-8f52-cea3be7f8e68",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791376457146
+      },
+      {
+        "executionId": "f4669976-f9db-4ad8-8f52-cea3be7f8e68",
+        "chatSessionId": "sess_288fa1b9-5d9b-4e29-b8bb-6e41f910f865",
+        "timestamp": 1791376555705
+      }
+    ]
+  }
+}
