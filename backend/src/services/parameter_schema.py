@@ -300,16 +300,6 @@ PARAMETER_SCHEMA = {
                     "(single object)"
                 ),
             },
-            "scope_dimensions": {
-                "label": "Scope Dimensions",
-                "label_nl": "Scope-dimensies",
-                "type": "json",
-                "default": [],
-                "description": (
-                    "Ordered list of scope-dimension definitions that determine how "
-                    "member rows are scoped (single list value)"
-                ),
-            },
             "default_page_size": {
                 "label": "Default Page Size",
                 "label_nl": "Standaard Paginagrootte",

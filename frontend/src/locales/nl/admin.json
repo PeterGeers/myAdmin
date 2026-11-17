@@ -20,6 +20,7 @@
     "noPermissions": "U heeft geen tenantbeheerder rechten",
     "noTenants": "Geen tenants toegewezen aan uw account",
     "selectTenant": "Selecteer een tenant in de header om door te gaan",
+    "surfaceErrorTitle": "Fout bij laden tenantbeheer",
     "tabs": {
       "userManagement": "Gebruikersbeheer",
       "chartOfAccounts": "Rekeningschema",
@@ -33,6 +34,7 @@
       "tenantDetails": "Tenantgegevens",
       "users": "Gebruikers",
       "financial": "Financieel",
+    "membersConfig": "Leden",
       "storage": "Opslag",
       "templates": "Sjablonen",
       "tenantInfo": "Tenantinfo",

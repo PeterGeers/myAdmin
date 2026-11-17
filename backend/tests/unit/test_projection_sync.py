@@ -530,6 +530,22 @@ class FakeParameterService:
         self._revisions = revisions or {}
         self.calls: list[dict] = []
         self.revision_calls: list[dict] = []
+        # Option B: tenant-scoped reads of the projected ``config#scope`` row.
+        self.projection_reads: list[tuple] = []
+
+    def get_item(self, tenant_id, sort_key, *, refresh=True):
+        """Serve the projected ``config#scope`` row (Option B) the builder reads.
+
+        The scopegrant# builder no longer reads the ``members.scope_dimensions``
+        param mirror; it resolves the scope vocabulary from the projected row. This
+        fake answers ``get_item`` from the same dimension definitions it holds, and
+        records each read so a test can assert there is NO MySQL param read.
+        """
+        self.projection_reads.append((tenant_id, sort_key))
+        if sort_key != "config#scope":
+            return None
+        dims = self._params.get(("members", "scope_dimensions", tenant_id))
+        return {"dimensions": dims} if dims is not None else None
 
     def get_param(self, namespace, key, tenant=None, role=None, user=None):
         self.calls.append({"namespace": namespace, "key": key, "tenant": tenant})
@@ -1730,7 +1746,7 @@ def test_sync_param_edit_alone_projects_the_change(sam_module):
             )
         }
     )
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     sync.sync_administration("TenantA")
     grant_sk = schema.build_sort_key(
@@ -1792,6 +1808,18 @@ class CachingFakeParameterService:
         self.calls: list[dict] = []
         self.invalidations: list[dict] = []
 
+    def get_item(self, tenant_id, sort_key, *, refresh=True):
+        """Serve the projected ``config#scope`` row (Option B) the builder reads.
+
+        Deliberately UNCACHED and source-reading (never cache-reading): the vocabulary
+        now comes from the projection, not from the ``members.scope_dimensions`` param
+        whose staleness this fake exists to model.
+        """
+        if sort_key != "config#scope":
+            return None
+        dims = self._params.get(("members", "scope_dimensions", tenant_id))
+        return {"dimensions": dims} if dims is not None else None
+
     def set_source(self, namespace, key, tenant, value):
         """Edit the UNDERLYING source (does NOT touch the cache — models an edit via
         a different service instance, exactly like the save route)."""
@@ -1839,7 +1867,7 @@ def test_sync_administration_invalidates_members_cache_before_building(sam_modul
         revisions={("members", "field_overlay", "TenantA"): "2026-01-01T00:00:00"},
     )
     source = FakeSource({"TenantA": _tenant_source("TenantA", sam_module)})
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     sync.sync_administration("TenantA")
 
@@ -1898,7 +1926,7 @@ def test_sync_administration_builds_from_fresh_source_not_stale_cache(sam_module
             )
         }
     )
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     # First sync: caches + projects the V1 dimension (only "Noord" declared, so the grant
     # projects values ["Noord"]) at V1 (the grant's updated_at).
@@ -2165,9 +2193,10 @@ def test_build_scopegrant_rows_issues_zero_writes_and_reads_tenant_scope():
 
     build_scopegrant_rows({"administration": "h-dcn"}, scope, params)
 
-    assert params.calls == [
-        {"namespace": "members", "key": "scope_dimensions", "tenant": "h-dcn"}
-    ]
+    # Option B: the vocabulary comes from the projected config#scope row, so there is
+    # NO MySQL param read at all, and the one read is tenant-scoped.
+    assert params.calls == []
+    assert params.projection_reads == [("h-dcn", "config#scope")]
 
 
 def test_build_scopegrant_rows_missing_tenant_key_raises():
@@ -2278,7 +2307,7 @@ def test_sync_administration_sam_tenant_emits_config_and_scopegrant_rows(sam_mod
             },
         }
     )
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     result = sync.sync_administration("h-dcn")
 
@@ -2331,7 +2360,7 @@ def test_sync_administration_non_sam_tenant_emits_no_c2_rows(sam_module):
     params = FakeParameterService(
         {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
     )
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     result = sync.sync_administration("h-dcn")
 
@@ -2362,7 +2391,7 @@ def test_sync_administration_malformed_c2_item_aborts_before_any_write(
     params = FakeParameterService(
         {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
     )
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     # Force a STILL-EMITTED C2 builder to yield a malformed item (version=None, which the
     # validator rejects) so the combined batch fails validation. (Task 5.8 END STATE: ProjectionSync
@@ -2900,7 +2929,7 @@ def test_sync_updated_grant_supersedes_stored_scopegrant_row(sam_module):
         )
     }
     source = FakeSource(sources)
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     sync.sync_administration("h-dcn")
     assert _items_in(table, "h-dcn")[scope_sk]["values"] == ["Oost"]
@@ -2939,7 +2968,7 @@ def test_sync_unchanged_grant_resync_is_noop(sam_module):
     source = FakeSource(
         {"h-dcn": _sam_source_with_scope_rows("h-dcn", sam_module, scope_rows)}
     )
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     first = sync.sync_administration("h-dcn")
     assert first.written > 0
@@ -2962,7 +2991,7 @@ def test_sync_new_grant_writes(sam_module):
     # Start with no scope rows.
     sources = {"h-dcn": _sam_source_with_scope_rows("h-dcn", sam_module, [])}
     source = FakeSource(sources)
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     sync.sync_administration("h-dcn")
     scope_sk = schema.build_sort_key(
@@ -3053,7 +3082,7 @@ def test_sync_cleared_grant_deletes_stale_scopegrant_row(sam_module):
         )
     }
     source = FakeSource(sources)
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
     sync.sync_administration("h-dcn")
     assert sk in _items_in(table, "h-dcn")
 
@@ -3100,7 +3129,7 @@ def test_sync_dropped_dimension_deletes_only_that_rows(sam_module):
         )
     }
     source = FakeSource(sources)
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
     sync.sync_administration("h-dcn")
     stored = _items_in(table, "h-dcn")
     assert region_sk in stored and season_sk in stored
@@ -3150,7 +3179,7 @@ def test_sync_downgraded_grant_supersedes_and_does_not_delete_desired_row(sam_mo
         )
     }
     source = FakeSource(sources)
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
     sync.sync_administration("h-dcn")
     assert _items_in(table, "h-dcn")[sk]["values"] == ["Oost", "Friesland"]
 
@@ -3211,7 +3240,7 @@ def test_sync_reconcile_is_tenant_scoped_never_touches_other_tenant(sam_module):
         ),
     }
     source = FakeSource(sources)
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
     sync.sync_administration("TenantA")
     sync.sync_administration("TenantB")
     assert a_sk in _items_in(table, "TenantA")
@@ -3248,7 +3277,7 @@ def test_sync_unchanged_resync_deletes_nothing_and_writes_nothing(sam_module):
     ]
     sources = {"h-dcn": _sam_source_multi_dim_scope("h-dcn", sam_module, scope_rows)}
     source = FakeSource(sources)
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     first = sync.sync_administration("h-dcn")
     assert first.written > 0
@@ -3289,7 +3318,7 @@ def test_sync_reconcile_never_deletes_non_scopegrant_rows(sam_module):
         )
     }
     source = FakeSource(sources)
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     # Split-ownership survival (spec 02 Task 3.8, R12.6): a SAM-authored `config#scope` row —
     # written by the SAM write path, NOT emitted by ProjectionSync (Task 3.7) — is pre-seeded
@@ -3406,7 +3435,7 @@ def test_build_scopegrant_rows_signature_sources_user_tenant_scope_not_roles():
     import inspect
 
     params = list(inspect.signature(build_scopegrant_rows).parameters)
-    assert params == ["tenant", "user_tenant_scope", "parameter_service"]
+    assert params == ["tenant", "user_tenant_scope", "reader"]
 
 
 def test_build_scopegrant_rows_ignores_user_tenant_roles_regio_role():
@@ -3463,7 +3492,7 @@ def test_build_scopegrant_rows_grant_comes_from_scope_not_role_for_same_user(
             )
         }
     )
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     sync.sync_administration("h-dcn")
 
@@ -3535,7 +3564,7 @@ def test_sync_does_not_recreate_config_views_once_builder_removed(sam_module):
             )
         }
     )
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     sync.sync_administration("h-dcn")
     written = _items_in(table, "h-dcn")
@@ -3758,7 +3787,7 @@ def test_bug1_stale_scope_projection_not_propagated_when_on_change_drain_fails(
             )
         }
     )
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
     # The periodic reconcile backstop (`sync_all`) — the fix guarantees it runs, closing the
     # gap a failed on-change drain would otherwise leave open indefinitely.
     sync.sync_all()
@@ -3852,7 +3881,7 @@ def test_property_reconcile_is_noop_for_already_in_sync_peer(
         }
     )
     table = FakeTable()
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     first = sync.sync_administration(_BUG1_TENANT)
     assert first.written >= 1  # the in-sync grant was projected
@@ -3919,7 +3948,7 @@ def test_property_staler_source_never_clobbers_a_newer_projection(sam_module, gr
             )
         }
     )
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
     sync.sync_administration(_BUG1_TENANT)
 
     # The newer stored row is NOT clobbered by the staler source: version + values survive.
@@ -3954,7 +3983,7 @@ def test_property_non_scopegrant_rows_unaffected_by_scopegrant_sync(sam_module, 
         }
     )
     table = FakeTable()
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
     sync.sync_administration(_BUG1_TENANT)
 
     scopegrant_prefix = schema.RECORD_TYPE_SCOPEGRANT + schema.SORT_KEY_SEPARATOR
