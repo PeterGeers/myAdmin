@@ -20,6 +20,30 @@ You became Tenant Admin because the SysAdmin invited you as the first administra
 | [Audit logging](audit-logging.md)             | Track activities and compliance reports                |
 | [Landing Page](../landing-page/index.md)      | Create, edit, and publish your public landing page     |
 
+
+## Which tabs you see
+
+The Tenant Administration tabs follow the **modules** enabled for your organisation.
+You always get the baseline tabs (Users, Tenant Info, Sender, Landing Page) plus the
+areas that belong to your modules:
+
+| Enabled module  | Extra tabs                                                   |
+| --------------- | ------------------------------------------------------------ |
+| FIN             | Financial, Storage, Templates, Pivot models                  |
+| MEMBERS         | Members (Field configuration / Mail / Application form), Storage, Media |
+| STR             | Storage, Pivot models                                        |
+| ZZP             | Storage, Templates, Pivot models                             |
+| — (no module)   | only the baseline tabs                                       |
+
+!!! info
+A shared tab such as **Storage** appears only when at least one of your modules
+actually stores files. You never see settings that do nothing for your organisation.
+
+The **Parameters** (advanced) tab is available to `Tenant_Admin`. It shows only your
+own organisation's configuration and its active modules, and secrets are masked.
+Member configuration (`members.*`) is deliberately **not** shown here: it is managed
+on the **Members** tab.
+
 ## Your role vs SysAdmin
 
 |              | Tenant Admin                    | SysAdmin                       |

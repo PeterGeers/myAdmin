@@ -134,3 +134,33 @@ through a one-directional MySQL→DynamoDB projection.**
   - `system-of-record-ratification.md` (D2 — MySQL system-of-record, `tenant_role_allocation` retirement),
   - `production-promotion.md` (D3 — production `governance_projection` promotion, empty until S5),
   - `requirements.md` + `design.md` (D1–D3).
+
+## Amendment (2026-11-17) — split ownership of the `config#*` rows
+
+Recorded per the steering 40 governance definition-of-done, prompted by
+`.kiro/specs/Common/Tenant/admin-surface-registry/` together with the Members config-plane work
+(`.kiro/specs/Members/02 - members-config-sam-owned-write-path/`).
+
+The Decision above states that the sync is the sole writer of the projection table and that the
+module plane *"never writes the projection or MySQL"*. **The first half is superseded**: three
+tenant-level `config#*` rows are now authored **on the module plane** — `config#fields`,
+`config#scope`, `config#mail` — through the Change-Op write path (ADR 0009), and `ProjectionSync`
+now emits **zero** `config#*` rows. `governance_projection` is therefore a **split-ownership**
+table:
+
+| Sort-key prefix | Writer |
+| --- | --- |
+| `config#fields` / `config#scope` / `config#mail` | the module plane (Change-Op write path; ADR 0009) |
+| `tenant` / `module#` / `role#` / `scopegrant#` | `ProjectionSync` (Flask) |
+
+**What still holds** — the invariants this ADR exists to protect:
+
+- the module plane still has **no MySQL client at all**, so MySQL remains the system of record for
+  `tenants` / `tenant_modules` / `user_tenant_roles`;
+- there is still **no two-way write and no split brain to MySQL**;
+- a module Lambda still never makes a request-time MySQL query.
+
+What changed is narrower than the Decision's wording implies: the projection table's single-writer
+rule, plus module-authored `config#*` rows. Steering 36 had already recorded this as the carve-out
+that *qualifies* its rule 3; this note records it against the ADR text itself, so the next reader
+does not have to rediscover the mismatch.

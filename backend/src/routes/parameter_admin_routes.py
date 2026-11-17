@@ -113,6 +113,41 @@ def _prepare_members_config(_svc, namespace, key, value, _tenant):
     return value
 
 
+def _module_owned_write_error(namespace: str, key: str):
+    """Fail closed when a module-owned namespace is written through the Flask path.
+
+    A module-plane-owned namespace (e.g. ``members``) is authored on the module plane.
+    Flask may only receive the keys its owner declares as ``flask_mirror_keys`` (the
+    Members/02 validator mirror); any other key through this route would re-open a
+    second authoring door for the same logical config, so it is rejected with a
+    caller-safe 400 and no row is written.
+
+    Returns:
+        A ``(response, status)`` tuple when the write must be rejected, else ``None``.
+    """
+    from services.admin_surface_registry import (
+        flask_mirror_keys,
+        module_owned_namespaces,
+    )
+
+    if not namespace or namespace not in module_owned_namespaces():
+        return None
+    if key in flask_mirror_keys(namespace):
+        return None
+    return (
+        jsonify(
+            {
+                "success": False,
+                "error": (
+                    f"{namespace}.{key} is authored on the module plane; "
+                    "use the module's own editor"
+                ),
+            }
+        ),
+        400,
+    )
+
+
 @parameter_admin_bp.route("/api/tenant-admin/parameters", methods=["GET"])
 @cognito_required(required_permissions=[])
 @tenant_required()
@@ -138,14 +173,30 @@ def list_parameters(
         # Build set of allowed namespaces based on active modules
         from services.parameter_schema import PARAMETER_SCHEMA
 
-        excluded_namespaces = set()
+        # Namespaces hidden from the RAW Advanced listing because their module is inactive.
+        module_excluded = set()
         for ns, section in PARAMETER_SCHEMA.items():
             module = section.get("module")
             if module and module not in active_modules:
-                excluded_namespaces.add(ns)
+                module_excluded.add(ns)
+
+        # Namespaces a module authors through its own TYPED editor (owner == "module", e.g.
+        # `members`). These are hidden from the raw Advanced LISTING so each namespace has one
+        # editing door — but an explicit `?namespace=<ns>` read is still served, because the
+        # module's own typed editor looks up its existing row through this endpoint (e.g. to
+        # UPDATE the Flask mirror in place rather than create a duplicate). Excluding the
+        # explicit read would silently defeat that lookup. The exclusion is derived from
+        # MODULE_REGISTRY, so adding a typed editor is a registry change, not a change here.
+        from services.admin_surface_registry import typed_editors
+
+        typed_editor_excluded = {
+            ns
+            for ns, editor in typed_editors().items()
+            if editor.get("owner") == "module"
+        }
 
         if ns_filter:
-            if ns_filter in excluded_namespaces:
+            if ns_filter in module_excluded:
                 params = []
             else:
                 params = svc.get_params_by_namespace(ns_filter, tenant)
@@ -168,8 +219,9 @@ def list_parameters(
             for ns, _key in CODE_DEFAULTS:
                 db_namespaces.add(ns)
 
-            # Filter out namespaces belonging to inactive modules
-            db_namespaces -= excluded_namespaces
+            # Hide inactive-module namespaces and module-owned (typed-editor) namespaces
+            # from the raw table: neither belongs to the generic Advanced surface.
+            db_namespaces -= module_excluded | typed_editor_excluded
 
             for ns in sorted(db_namespaces):
                 ns_params = svc.get_params_by_namespace(ns, tenant)
@@ -215,6 +267,11 @@ def create_parameter(
             return jsonify(
                 {"success": False, "error": "namespace and key are required"}
             ), 400
+
+        # Fail closed for a module-owned namespace (see _module_owned_write_error).
+        rejected = _module_owned_write_error(namespace, key)
+        if rejected is not None:
+            return rejected
 
         if scope == "system" and not _is_sysadmin(user_roles):
             return jsonify(
@@ -296,6 +353,10 @@ def update_parameter(
             return jsonify(
                 {"success": False, "error": "Parameter not owned by this tenant"}
             ), 404
+        # Fail closed for a module-owned namespace (see _module_owned_write_error).
+        rejected = _module_owned_write_error(row["namespace"], row["key"])
+        if rejected is not None:
+            return rejected
 
         svc = _get_service()
 
@@ -358,6 +419,10 @@ def delete_parameter(
             return jsonify(
                 {"success": False, "error": "Parameter not owned by this tenant"}
             ), 404
+        # Fail closed for a module-owned namespace (see _module_owned_write_error).
+        rejected = _module_owned_write_error(row["namespace"], row["key"])
+        if rejected is not None:
+            return rejected
 
         svc = _get_service()
         deleted = svc.delete_param(
