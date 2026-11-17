@@ -453,3 +453,6 @@ Tasks 3, 4, 5 are parallelizable after 1. Task 6 is parallelizable after 1. The 
 - **Scope coordination is frontend-only (Req 4).** No runtime SAM↔Flask call; the frontend makes the
   two calls, and the reconciliation code is DELETED (10.3), not wired in.
 - **Do NOT touch `config#views`** (deferred feature; backlog `members-preferred-overview-columns.md`).
+  > **Closure note (2026-11-17):** the "deferred" rationale here is SUPERSEDED — the
+  > user-preferred overview columns requirement is DELIVERED (*Session Columns*) and closed;
+  > the non-touch rule stands. See `.kiro/specs/myBacklog/members-preferred-overview-columns.md`.
