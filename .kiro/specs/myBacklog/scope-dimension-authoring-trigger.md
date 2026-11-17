@@ -1,3 +1,15 @@
+> **STATUS: PARTLY SUPERSEDED by Option B (admin-surface-registry, 2026-11-18).**
+>
+> This item was raised because an authored field-save left the scope dimension stale on BOTH
+> planes. Option B removed one of those planes: the Flask `members.scope_dimensions` mirror is
+> DELETED, and the Flask readers now resolve the vocabulary from the projected `config#scope`
+> row (`services/scope_vocabulary.py`). The "mirror scope to BOTH planes" requirement therefore
+> collapses to a SINGLE plane, and the "frontend-mirror model" described below is retired.
+>
+> What remains valid: `config#scope` still has to stay in step with the authored field enum — it
+> is now the ONLY reader-facing copy, so the stale-trigger gap is, if anything, more consequential
+> than when this was raised. Re-scope this item against the post-Option-B model before acting.
+
 # SPEC: Scope-dimension authoring trigger — field-save must mirror scope to BOTH planes
 
 **Raised 2026-10-29** while debugging the TEST Members config editor (spec 03a). A tenant edits

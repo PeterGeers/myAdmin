@@ -337,7 +337,9 @@ Consequences, which the registry must encode:
   `config#mail` are now authored by the module plane; `ProjectionSync` emits **zero** `config#*`
   rows (split ownership: the module plane owns every `config#*` row, `ProjectionSync` owns
   `tenant` / `module#` / `role#` / `scopegrant#`). The remaining MySQL `members.*` rows are the
-  retired authoring path / validator mirror and are **not** an editing surface.
+  retired authoring path and are **not** an editing surface. Since Option B (see the section below)
+  there is no Flask `members.*` config row left at all: the `scope_dimensions` validator mirror is
+  retired.
 - The exclusion set is derived from the registry —
   `{m["admin"]["typed_editor"]["namespace"] for m in MODULE_REGISTRY.values() if "typed_editor" in m.get("admin", {})}`
   — and handed to `ParameterManagement` (the backend route that feeds it filters rows by
@@ -372,11 +374,12 @@ query MySQL). This spec adds no cross-plane coupling; it only *respects* the bou
    pre-token-generation Lambda does `from services.module_registry import MODULE_REGISTRY`), so the
    added block must be JSON-serializable primitives only — no URLs, no callables, no store handles.
    Agreement of this shared vocabulary across planes is guarded by a test.
-3. **The frontend is the only bridge.** Where one logical edit spans both planes, the React app
-   performs each plane's write separately — module-plane first (authoritative), then the Flask leg
-   as a best-effort mirror — and surfaces a mirror failure instead of hiding it. Today's example is
-   `scope_dimensions`: the module-plane scope write runs first, then the `members.scope_dimensions`
-   mirror.
+3. **The frontend is the only bridge — and since Option B it has no mirror leg left.** Where one
+   logical edit spans both planes, the React app performs each plane's write separately,
+   module-plane first (authoritative). That used to include a best-effort Flask *mirror* with
+   surfaced retry; `scope_dimensions` was the last remaining instance and that mirror is **retired**
+   (Members/02 R22.3/R22.4, Option B below). There is now no cross-plane mirror at all: one logical
+   config, one writer. The Flask side READS the authoritative projected row instead.
 4. **Wrong store = wrong door.** Advanced is a `parameters` editor and therefore never lists a
    `module`-owned namespace; a `module`-owned namespace's typed editor calls the module API base
    (env var name only — `MEMBERS_MODULE_API_BASE`, resolved by `resolve_module_api_base`) and never
@@ -448,7 +451,7 @@ flags the ADR text so nobody has to rediscover the mismatch.
 | D6 | What about a module with no admin UI (e.g. a future integration module)? | It declares no `admin` block; it contributes no panel and consumes nothing. | Optional by construction keeps the model honest. |
 | D7 | Does "Advanced is the generic namespace editor" mean it covers **every** namespace? | **No.** Advanced covers `flask`-owned namespaces only, and its exclusion set includes every namespace claimed by a `typed_editor` on either plane. | The `parameters` table is a Flask store; offering it for a `module`-owned namespace would re-create the two-writers-one-config hazard the module-plane cutover removed (`Members/02`). |
 | D8 | How is plane ownership recorded so it cannot drift? | `admin.typed_editor.owner` ∈ {`flask`, `module`}, validated at startup (`design.md` §8.5). | Makes the boundary machine-checkable instead of a convention in prose. |
-| D9 | Who writes a namespace that spans both planes? | Exactly one plane is authoritative (`module` for `members.*`); the frontend performs both writes explicitly, module-plane first, and surfaces a mirror failure. | The planes never call each other at runtime (ADR 0005/0006); a silent best-effort mirror must not look like success. |
+| D9 | Who writes a namespace that spans both planes? | Exactly one plane is authoritative (`module` for `members.*`) and, since Option B, exactly one write happens: the cross-plane mirror is retired and the Flask side READS the projected row. | The planes never call each other at runtime (ADR 0005/0006); a best-effort mirror quietly made a second writer that the frontend had to keep in step by hand. |
 
 ## Correctness Properties
 
@@ -577,8 +580,37 @@ intended, and the equivalence property (Property 10) pins everything else.
 | Save targets a `module`-owned namespace through the Flask parameter path | `membersConfigService` / parameter service | Fail closed: caller-safe error, and no Flask row is created or updated |
 | `typed_editor.owner` disagrees with the namespace's real store | Startup validation | `ValueError` naming the namespace and module — fail to start |
 | Two modules claim the same typed namespace | Startup validation | `ValueError` naming the namespace |
-| Module-plane write succeeds, Flask mirror leg fails | Frontend bridge path | `{ success: true, version, mirrorError }`; UI surfaces the mirror failure and offers retry |
-| Module plane unreachable during a typed-editor save | Typed editor | `{ success: false, error }`; nothing is mirrored to the other plane; UI shows the error |
+| Module plane unreachable during a typed-editor save | Typed editor | `{ success: false, error }`; nothing is written elsewhere — there is no second plane to write |
+| Flask side cannot read the authoritative `config#scope` row | `scope_vocabulary` resolver | The read FAILS LOUDLY (surfaced to the caller: picker 5xx, sync error); never a placeholder scope model |
+
+## Option B — the Members/02 validator mirror is retired
+
+_Status: implemented (see `tasks.md` §8)._ This is the follow-on the registry work made possible.
+
+`Members/02` split config ownership so the module plane owns `config#scope`, but kept a
+frontend-written copy in MySQL (`members.scope_dimensions`) for three Flask-side readers. The
+registry made that copy structurally unnecessary: ownership is a property of the NAMESPACE, and
+`members` is a `module`-owned namespace, so the Flask plane was reading a mirror of config it did
+not own — through a second authoring door.
+
+Option B deletes it:
+
+- **One read seam.** `services/scope_vocabulary.py` resolves the vocabulary from the projected
+  `config#scope` row through the existing read-only `ProjectionReader` (`load_scope_dimensions`
+  plus a shared `dimension_index`).
+- **Three readers repointed.** Grant validation (`user_tenant_scope_service`), the picker API
+  (`tenant_admin_scope`), and the `scopegrant#` builder (`_projection_scopegrant`) all read that
+  one seam.
+- **The mirror and its allowances are gone.** `flask_mirror_keys` (accessor, boot validation, the
+  `typed_editors()` exposure), the `module_registry` declaration, the `parameter_admin_routes`
+  fail-open allowance, `_SCOPE_DIMENSIONS_PARAM_KEY`, the `members.scope_dimensions` schema entry,
+  and the frontend's second write leg (`membersConfigService`, `MembersConfigEditor`). A
+  `module`-owned namespace now fails closed for **every** key.
+
+**Trade-off (accepted).** The projection is one-directional and eventually consistent, so the Flask
+plane needs `GOVERNANCE_PROJECTION_TABLE` and sees a just-authored change after
+`sync delay + read TTL`, not synchronously. That is the deliberate exchange: ONE writer with bounded,
+documented staleness rather than two writers the frontend had to keep in step.
 
 ## Testing Strategy
 
