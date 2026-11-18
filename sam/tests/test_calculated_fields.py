@@ -280,10 +280,10 @@ def test_birth_fields_missing_group_return_none():
 # ── years_member ──────────────────────────────────────────────────────────────────────
 
 
-def test_years_member_before_anniversary_this_year():
-    # Joined 2020-12-01; anniversary not reached on 2025-06-15 → 4.
+def test_years_member_is_current_year_minus_joined_year():
+    # Joined 2020-12-01; on 2025-06-15 the tenure is the raw year difference 2025-2020 = 5.
     rec = _record(membership={"joined_date": "2020-12-01"})
-    assert _derive_years_member(rec, today=_TODAY) == 4
+    assert _derive_years_member(rec, today=_TODAY) == 5
 
 
 def test_years_member_after_anniversary_this_year():

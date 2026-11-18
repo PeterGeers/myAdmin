@@ -134,12 +134,12 @@ def _derive_birth_quarter(record: Mapping[str, Any]) -> str | None:
 def _derive_years_member(
     record: Mapping[str, Any], *, today: _dt.date | None = None
 ) -> int | None:
-    """Whole years since ``joined_date`` (membership tenure), else None."""
+    """Years since ``joined_date`` (membership tenure) = current year - joined year."""
     joined = _parse_iso_date(_membership(record).get("joined_date"))
     if joined is None:
         return None
     ref = today or _dt.date.today()
-    years = ref.year - joined.year - ((ref.month, ref.day) < (joined.month, joined.day))
+    years = ref.year - joined.year
     return years if years >= 0 else None
 
 
