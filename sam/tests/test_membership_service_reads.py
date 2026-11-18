@@ -30,7 +30,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -78,9 +80,7 @@ class FakeMembersRepository:
         return self.members.get((tenant_id, member_id))
 
     def list_members(self, tenant_id, *, filters=None):
-        return [
-            dict(m) for (t, _mid), m in self.members.items() if t == tenant_id
-        ]
+        return [dict(m) for (t, _mid), m in self.members.items() if t == tenant_id]
 
     def list_members_page(self, tenant_id, *, limit=None, start_key=None, filters=None):
         # One in-memory page mirroring list_members; honours `limit`, returns
@@ -227,8 +227,15 @@ def _member(
 ) -> dict:
     rec = {
         "member_id": member_id,
-        "personal": {"first_name": name, "last_name": name, "email": contact or f"{member_id}@example.com"},
-        "membership": {"member_number": member_id.replace("M-", ""), "status": "active"},
+        "personal": {
+            "first_name": name,
+            "last_name": name,
+            "email": contact or f"{member_id}@example.com",
+        },
+        "membership": {
+            "member_number": member_id.replace("M-", ""),
+            "status": "active",
+        },
     }
     overlay: dict = {}
     if region is not None:
@@ -331,14 +338,15 @@ class TestExportMembers:
 
 class TestGetMember:
     def test_wildcard_reads_any_member(self, service):
-        assert service.get_member("h-dcn", "M-2", {"region": ["*"]})[
-            "member_id"
-        ] == "M-2"
+        assert (
+            service.get_member("h-dcn", "M-2", {"region": ["*"]})["member_id"] == "M-2"
+        )
 
     def test_in_scope_member_is_returned(self, service):
-        assert service.get_member("h-dcn", "M-1", {"region": ["Noord"]})[
-            "member_id"
-        ] == "M-1"
+        assert (
+            service.get_member("h-dcn", "M-1", {"region": ["Noord"]})["member_id"]
+            == "M-1"
+        )
 
     def test_out_of_scope_member_is_not_found(self, service):
         # Scoped to Noord, asking for a Zuid member → indistinguishable not-found.
@@ -373,7 +381,9 @@ class TestGetMember:
         assert got["member_id"] == "M-5"
 
     def test_self_service_matches_on_contact_email(self, service, repo):
-        repo.add_member("h-dcn", _member("M-6", region="West", contact="me@example.com"))
+        repo.add_member(
+            "h-dcn", _member("M-6", region="West", contact="me@example.com")
+        )
         got = service.get_member(
             "h-dcn",
             "M-6",
@@ -431,7 +441,9 @@ class TestGetSelf:
 
 class TestMembershipReads:
     def test_list_memberships_for_visible_member(self, service, repo):
-        repo.add_membership("h-dcn", "M-1", {"membership_id": "MS-1", "status": "active"})
+        repo.add_membership(
+            "h-dcn", "M-1", {"membership_id": "MS-1", "status": "active"}
+        )
         got = service.list_memberships("h-dcn", "M-1", {"region": ["Noord"]})
         assert [m["membership_id"] for m in got] == ["MS-1"]
 
@@ -441,10 +453,10 @@ class TestMembershipReads:
             service.list_memberships("h-dcn", "M-2", {"region": ["Noord"]})
 
     def test_get_membership_for_visible_member(self, service, repo):
-        repo.add_membership("h-dcn", "M-1", {"membership_id": "MS-1", "status": "active"})
-        got = service.get_membership(
-            "h-dcn", "M-1", "MS-1", {"region": ["Noord"]}
+        repo.add_membership(
+            "h-dcn", "M-1", {"membership_id": "MS-1", "status": "active"}
         )
+        got = service.get_membership("h-dcn", "M-1", "MS-1", {"region": ["Noord"]})
         assert got["status"] == "active"
 
     def test_get_membership_missing_is_not_found(self, service):
@@ -519,7 +531,9 @@ class TestMultiDimensionAnd:
         )
         assert [m["member_id"] for m in listed] == ["A"]
 
-    def test_passes_one_dimension_but_not_the_other_is_not_visible(self, multidim_service):
+    def test_passes_one_dimension_but_not_the_other_is_not_visible(
+        self, multidim_service
+    ):
         # B is Noord (passes region) but senior (fails age_group=youth) → NOT visible.
         listed = multidim_service.list_members(
             "club", {"region": ["Noord"], "age_group": ["youth"]}
@@ -621,16 +635,18 @@ class TestCanonicalizedEqualityInScope:
     @pytest.mark.parametrize(
         "grant",
         [
-            "Noord-Holland",   # identical
-            "noord-holland",   # case variant
-            "NOORD-HOLLAND",   # case variant (upper)
-            "noord holland",   # separator variant (space instead of hyphen)
-            "Noord Holland",   # case + separator variant
-            "Noord / Holland", # separator variant (slash, spaced)
-            "  Noord-Holland ",# surrounding whitespace
+            "Noord-Holland",  # identical
+            "noord-holland",  # case variant
+            "NOORD-HOLLAND",  # case variant (upper)
+            "noord holland",  # separator variant (space instead of hyphen)
+            "Noord Holland",  # case + separator variant
+            "Noord / Holland",  # separator variant (slash, spaced)
+            "  Noord-Holland ",  # surrounding whitespace
         ],
     )
-    def test_case_and_separator_variants_of_grant_match(self, canon_service, canon_repo, grant):
+    def test_case_and_separator_variants_of_grant_match(
+        self, canon_service, canon_repo, grant
+    ):
         """A grant that is a case/diacritic/separator VARIANT of the member's stored value
         matches (both fold to the same canonical form)."""
         member = canon_repo.get_member("h-dcn", "NH")
@@ -650,16 +666,18 @@ class TestCanonicalizedEqualityInScope:
     @pytest.mark.parametrize(
         "grant",
         [
-            "Noord",           # prefix of "Noord-Holland" — must NOT partial-match
-            "noord",           # prefix (canonical) — must NOT partial-match
-            "Holland",         # suffix substring — must NOT partial-match
-            "Noord-Hol",       # prefix substring
-            "oord-Holland",    # suffix substring
+            "Noord",  # prefix of "Noord-Holland" — must NOT partial-match
+            "noord",  # prefix (canonical) — must NOT partial-match
+            "Holland",  # suffix substring — must NOT partial-match
+            "Noord-Hol",  # prefix substring
+            "oord-Holland",  # suffix substring
             "Noord-Hollands",  # the member value is a PREFIX of the grant — no reverse partial
-            "Zuid-Holland",    # a different sibling value — must not match
+            "Zuid-Holland",  # a different sibling value — must not match
         ],
     )
-    def test_partial_and_prefix_substrings_never_match(self, canon_service, canon_repo, grant):
+    def test_partial_and_prefix_substrings_never_match(
+        self, canon_service, canon_repo, grant
+    ):
         """A PARTIAL/PREFIX substring (in either direction) or a sibling value NEVER matches —
         enforcement is exact canonical equality, not `startswith`/`contains`/fuzzy."""
         member = canon_repo.get_member("h-dcn", "NH")
@@ -677,11 +695,15 @@ class TestCanonicalizedEqualityInScope:
         with pytest.raises(MemberNotFound):
             canon_service.get_member("h-dcn", "NH", {"region": ["Noord"]})
 
-    def test_passes_dimension_is_exact_canonical_equality(self, canon_service, canon_repo):
+    def test_passes_dimension_is_exact_canonical_equality(
+        self, canon_service, canon_repo
+    ):
         # _passes_dimension (the per-dimension primitive) matches a canonical variant but not
         # a prefix — proving the exactness lives in the dimension check itself.
         member = canon_repo.get_member("h-dcn", "NH")
-        assert canon_service._passes_dimension(member, "region", ["NOORD-HOLLAND"]) is True
+        assert (
+            canon_service._passes_dimension(member, "region", ["NOORD-HOLLAND"]) is True
+        )
         assert canon_service._passes_dimension(member, "region", ["Noord"]) is False
 
     def test_variant_grant_within_a_multi_value_subset_matches(self, canon_service):

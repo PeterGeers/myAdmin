@@ -53,7 +53,9 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.*` imports resolve.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -133,7 +135,9 @@ def _publish_with_resolved_values(values):
         artifact_writer=writer,
     )
     result = svc.publish(_TENANT)
-    assert result["success"] is True  # a successful publish (the property's precondition)
+    assert (
+        result["success"] is True
+    )  # a successful publish (the property's precondition)
     return writer
 
 

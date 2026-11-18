@@ -41,15 +41,15 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
-from sam.members.domain.config_fields_crud_service import (  # noqa: E402
+from sam.members.domain.config_fields_crud_service import (
     ConfigFieldsCrudService,
 )
-from sam.members.repository.projection_config_reader import (  # noqa: E402
+from sam.members.repository.projection_config_reader import (
     MembersProjectionReader,
 )
-from sam.members.repository.projection_config_write_repository import (  # noqa: E402
+from sam.members.repository.projection_config_write_repository import (
     LEGACY_NO_VERSION,
     SET,
     MembersConfigWriteRepository,
@@ -83,7 +83,9 @@ def _fields_key(tenant_id: str) -> dict:
 def _service(table) -> ConfigFieldsCrudService:
     """Wire the REAL service → repository → reader over the live table (fresh reader per op)."""
     reader = MembersProjectionReader(table=table)
-    repository = MembersConfigWriteRepository(table=table, version_fn=_monotonic_version)
+    repository = MembersConfigWriteRepository(
+        table=table, version_fn=_monotonic_version
+    )
     return ConfigFieldsCrudService(repository, reader=reader)
 
 
@@ -116,7 +118,9 @@ def test_first_write_onto_skeleton_creates_entry(mech_table):
     table = mech_table
 
     result = _repo(table).ensure_skeleton(_MECH_TENANT)
-    assert result["created"] is True, "the skeleton must be created for a brand-new tenant"
+    assert result["created"] is True, (
+        "the skeleton must be created for a brand-new tenant"
+    )
 
     row = _raw_row(table, _MECH_TENANT)
     assert row is not None
@@ -134,7 +138,9 @@ def test_first_write_onto_skeleton_creates_entry(mech_table):
     )
 
     row = _raw_row(table, _MECH_TENANT)
-    assert "shirt_size" in row["fields"], "the first write must CREATE the entry onto the skeleton"
+    assert "shirt_size" in row["fields"], (
+        "the first write must CREATE the entry onto the skeleton"
+    )
     assert row["fields"]["shirt_size"]["order"] == 10
     # The parent maps are intact; nothing truncated.
     assert row["overrides"] == {} and row["functional_groups"] == {}
@@ -151,7 +157,9 @@ def test_ensure_skeleton_is_idempotent_and_never_overwrites(mech_table):
     after = _raw_row(table, _MECH_TENANT)
 
     assert second["created"] is False, "a second ensure_skeleton must be a no-op"
-    assert after["fields"] == before["fields"], "ensure_skeleton must NOT overwrite a populated row"
+    assert after["fields"] == before["fields"], (
+        "ensure_skeleton must NOT overwrite a populated row"
+    )
     assert after[schema.VERSION_ATTR] == before[schema.VERSION_ATTR]
 
 
@@ -167,7 +175,9 @@ def test_create_then_update_verb_each_isolated(mech_table):
 
     # CREATE
     svc.set_field(
-        _MECH_TENANT, "shirt_size", {"type": "string", "label": {"en": "Shirt"}, "order": 10}
+        _MECH_TENANT,
+        "shirt_size",
+        {"type": "string", "label": {"en": "Shirt"}, "order": 10},
     )
     created = _raw_row(table, _MECH_TENANT)["fields"]["shirt_size"]
     assert created["order"] == 10 and created["label"] == {"en": "Shirt"}
@@ -176,7 +186,9 @@ def test_create_then_update_verb_each_isolated(mech_table):
     svc.set_field(_MECH_TENANT, "shirt_size", {"order": 20})
     updated = _raw_row(table, _MECH_TENANT)["fields"]["shirt_size"]
     assert updated["order"] == 20, "the UPDATE must change the named aspect"
-    assert updated["label"] == {"en": "Shirt"}, "an untouched aspect must survive the UPDATE"
+    assert updated["label"] == {"en": "Shirt"}, (
+        "an untouched aspect must survive the UPDATE"
+    )
     assert updated["type"] == "string"
 
 
@@ -238,7 +250,12 @@ def test_legacy_branch_via_repository_directly(mech_table):
     row succeeds; against an ALREADY-versioned row it is rejected (the branch really guards)."""
     table = mech_table
     table.put_item(
-        Item={**_fields_key(_MECH_TENANT), "fields": {}, "overrides": {}, "functional_groups": {}}
+        Item={
+            **_fields_key(_MECH_TENANT),
+            "fields": {},
+            "overrides": {},
+            "functional_groups": {},
+        }
     )
     out = _repo(table).apply_ops(
         _MECH_TENANT,
@@ -292,8 +309,12 @@ def test_stale_version_write_is_rejected_atomically(mech_table):
 
     row = _raw_row(table, _MECH_TENANT)
     assert "a" in row["fields"], "writer A's change must stand"
-    assert "b" not in row["fields"], "the stale writer B must have made NO partial change"
-    assert row[schema.VERSION_ATTR] == current, "a rejected write must not bump the version"
+    assert "b" not in row["fields"], (
+        "the stale writer B must have made NO partial change"
+    )
+    assert row[schema.VERSION_ATTR] == current, (
+        "a rejected write must not bump the version"
+    )
 
 
 def test_service_level_concurrent_edit_is_rejected(mech_table):

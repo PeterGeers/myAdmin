@@ -158,7 +158,9 @@ def test_closed_enum_value_carries_must_be_one_of_code_with_allowed_params():
     assert "must be one of" in fe.detail
 
 
-@pytest.mark.parametrize("bad_date", ["2020-13-01", "01-01-2020", "2020/01/01", "not-a-date"])
+@pytest.mark.parametrize(
+    "bad_date", ["2020-13-01", "01-01-2020", "2020/01/01", "not-a-date"]
+)
 def test_invalid_date_carries_invalid_date_code(bad_date):
     m = _valid_member()
     m["membership"]["joined_date"] = bad_date

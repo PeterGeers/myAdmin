@@ -40,7 +40,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -101,8 +103,9 @@ class TestIsSendReadyPredicate:
         assert is_send_ready(StaticMailReadinessProvider(_READY), TENANT) is True
 
     @pytest.mark.parametrize(
-        "cfg", [_UNCERTIFIED, _NO_DOMAIN, _NO_DOMAIN_BLANK, {}], ids=
-        ["uncertified", "no-domain", "blank-domain", "absent-row"],
+        "cfg",
+        [_UNCERTIFIED, _NO_DOMAIN, _NO_DOMAIN_BLANK, {}],
+        ids=["uncertified", "no-domain", "blank-domain", "absent-row"],
     )
     def test_not_ready_when_a_fact_is_missing(self, cfg):
         # Fail-closed: any missing fact (uncertified / no-domain / blank-domain / absent) → False.
@@ -147,7 +150,10 @@ class TestSubmitReChecks:
         )
         with pytest.raises(ApplicationNotAvailable):
             facade.create_application(
-                TENANT, _flat_submission(), session_key="s1", consent=_AFFIRMATIVE_CONSENT
+                TENANT,
+                _flat_submission(),
+                session_key="s1",
+                consent=_AFFIRMATIVE_CONSENT,
             )
         # NO record written and NO session claimed — the write path was never reached (R9.4).
         assert engine._repo.members == {}
@@ -160,7 +166,10 @@ class TestSubmitReChecks:
         )
         with pytest.raises(ApplicationNotAvailable):
             facade.create_application(
-                TENANT, _flat_submission(), session_key="s1", consent=_AFFIRMATIVE_CONSENT
+                TENANT,
+                _flat_submission(),
+                session_key="s1",
+                consent=_AFFIRMATIVE_CONSENT,
             )
         assert engine._repo.members == {}
 
@@ -186,9 +195,15 @@ class TestNeutralNoLeak:
         with pytest.raises(ApplicationNotAvailable) as exc:
             facade.get_public_field_config(TENANT)
         # A stable request-level code (distinct from 404 unknown-slug / 422 validation).
-        assert exc.value.code == APPLICATION_NOT_AVAILABLE == "errors.application.notAvailable"
+        assert (
+            exc.value.code
+            == APPLICATION_NOT_AVAILABLE
+            == "errors.application.notAvailable"
+        )
 
-    @pytest.mark.parametrize("cfg", [_UNCERTIFIED, _NO_DOMAIN], ids=["uncertified", "no-domain"])
+    @pytest.mark.parametrize(
+        "cfg", [_UNCERTIFIED, _NO_DOMAIN], ids=["uncertified", "no-domain"]
+    )
     def test_message_and_code_leak_no_mail_config(self, cfg):
         # The neutral error never names the mail config nor WHICH fact is missing — a tenant's
         # mail posture must not be probeable from the public surface (D15).
@@ -196,7 +211,14 @@ class TestNeutralNoLeak:
         with pytest.raises(ApplicationNotAvailable) as exc:
             facade.get_public_field_config(TENANT)
         blob = f"{exc.value.code} {exc.value}".lower()
-        for leaked in ("mail_domain", "mail_certified", "domain", "certif", "ses", "sender"):
+        for leaked in (
+            "mail_domain",
+            "mail_certified",
+            "domain",
+            "certif",
+            "ses",
+            "sender",
+        ):
             assert leaked not in blob
 
     def test_uncertified_and_no_domain_are_indistinguishable(self):
@@ -230,7 +252,9 @@ class TestSendReadySchemaCarriesContract:
         # The task-4.1 overlay carries application_required + application_choices + format; the
         # task-2.2 _overlay_public_form (imported above for the submit tests) does NOT, so build a
         # dedicated engine here with the field-config contract overlay.
-        from sam.tests.test_public_field_config import _overlay_public_form as _contract_overlay
+        from sam.tests.test_public_field_config import (
+            _overlay_public_form as _contract_overlay,
+        )
 
         repo = _ApplicationRepo()
         repo.add_type(TENANT, _entry(TENANT, "gewoon", order=10))
@@ -243,13 +267,19 @@ class TestSendReadySchemaCarriesContract:
         )
 
     def test_gated_schema_carries_application_required_flag(self):
-        fields = {f["key"]: f for f in self._ready_facade().get_public_field_config(TENANT)["fields"]}
+        fields = {
+            f["key"]: f
+            for f in self._ready_facade().get_public_field_config(TENANT)["fields"]
+        }
         # application-required survives the gate as `required` (R4b.6), NOT the staff flag.
         assert fields["first_name"]["required"] is True
         assert fields["nickname"]["required"] is False
 
     def test_gated_schema_carries_the_enum_subset(self):
-        fields = {f["key"]: f for f in self._ready_facade().get_public_field_config(TENANT)["fields"]}
+        fields = {
+            f["key"]: f
+            for f in self._ready_facade().get_public_field_config(TENANT)["fields"]
+        }
         # the application SUBSET survives the gate (R4a.2): shirt_size exposes only m/l, now in
         # the ONE canonical rich `{value, label}` shape the read-assembly seam emits (C4/C5).
         # 03b (BU-1, Req 3.1): an inline enum option now carries the `allowed` retired/grandfather
@@ -262,7 +292,10 @@ class TestSendReadySchemaCarriesContract:
         assert membership_values == ["gewoon"]
 
     def test_gated_schema_carries_the_format_token(self):
-        fields = {f["key"]: f for f in self._ready_facade().get_public_field_config(TENANT)["fields"]}
+        fields = {
+            f["key"]: f
+            for f in self._ready_facade().get_public_field_config(TENANT)["fields"]
+        }
         # the FieldFormat token survives the gate (R7.1) so the Yup generator can bind it.
         assert fields["email"]["format"] == {"checker": "EMAIL", "params": {}}
         assert "format" not in fields["nickname"]

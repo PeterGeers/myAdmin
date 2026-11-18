@@ -263,7 +263,9 @@ class MailFeedbackService:
         SES event-publishing uses ``eventType``; legacy identity feedback uses
         ``notificationType`` — accept either so the handler is robust to both wirings.
         """
-        raw = notification.get("eventType") or notification.get("notificationType") or ""
+        raw = (
+            notification.get("eventType") or notification.get("notificationType") or ""
+        )
         return str(raw).strip().lower()
 
     @staticmethod
@@ -319,9 +321,7 @@ class MailFeedbackService:
         return []
 
     @staticmethod
-    def _recipients(
-        raw: Any, reason_of: Any
-    ) -> list[tuple[str, str | None]]:
+    def _recipients(raw: Any, reason_of: Any) -> list[tuple[str, str | None]]:
         """Map a list of SES recipient entries to ``(address, reason)`` pairs (skip address-less)."""
         out: list[tuple[str, str | None]] = []
         if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
@@ -346,5 +346,7 @@ class MailFeedbackService:
     @staticmethod
     def _join_reason(*parts: Any) -> str | None:
         """Join non-blank parts with ``/`` (e.g. ``Permanent/General``), or ``None`` when all blank."""
-        joined = "/".join(str(p).strip() for p in parts if p is not None and str(p).strip())
+        joined = "/".join(
+            str(p).strip() for p in parts if p is not None and str(p).strip()
+        )
         return joined or None

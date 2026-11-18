@@ -63,9 +63,7 @@ def test_layer_build_does_not_vendor_the_flask_landing_page_styles_module():
     recipe line MUST be gone (a mention in an explanatory comment is fine — it documents
     the removal — so we scan only executed recipe lines, not comments).
     """
-    offending = [
-        line for line in _recipe_lines() if "landing_page_styles" in line
-    ]
+    offending = [line for line in _recipe_lines() if "landing_page_styles" in line]
     assert offending == [], (
         "The Members layer build must not vendor the Flask-plane "
         "landing_page_styles.py (Req 3.1); found executed recipe line(s): "
@@ -80,9 +78,7 @@ def test_services_shim_docstring_no_longer_lists_landing_page_styles():
     After task 2 it lists only ``dynamodb_client`` / ``projection_schema`` — not the
     removed ``landing_page_styles``.
     """
-    printf_lines = [
-        line for line in _recipe_lines() if "services/__init__.py" in line
-    ]
+    printf_lines = [line for line in _recipe_lines() if "services/__init__.py" in line]
     assert printf_lines, "expected a recipe line generating services/__init__.py"
     assert not any("landing_page_styles" in line for line in printf_lines), (
         "the services shim docstring must not list the removed landing_page_styles module"

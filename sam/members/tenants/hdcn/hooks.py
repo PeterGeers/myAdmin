@@ -76,9 +76,7 @@ def _current_status(record: Mapping[str, Any]) -> str | None:
     return str(status) if status is not None else None
 
 
-def hdcn_validate_member(
-    tenant_id: str, record: Mapping[str, Any]
-) -> dict[str, str]:
+def hdcn_validate_member(tenant_id: str, record: Mapping[str, Any]) -> dict[str, str]:
     """Validate h-dcn's club-specific member rules (Rung-3 ``validate_member``).
 
     Layered ON TOP of the generic fixed-field validation (the core still runs

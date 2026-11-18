@@ -67,13 +67,13 @@ from typing import Any, Protocol, runtime_checkable
 from sam.shared.page_styles import SUPPORTED_ATTRIBUTES
 
 __all__ = [
-    "LookAndFeelSettingsService",
-    "LookAndFeelSettingsReader",
-    "LookAndFeelSettingsWriter",
-    "LookAndFeelValidationError",
-    "CrossTenantCopyError",
     "APPLICATION_FORM_PAGE_ID",
     "DEFAULT_PAGE_ID",
+    "CrossTenantCopyError",
+    "LookAndFeelSettingsReader",
+    "LookAndFeelSettingsService",
+    "LookAndFeelSettingsWriter",
+    "LookAndFeelValidationError",
 ]
 
 #: The forward-looking ``page_id`` that resolves to the application form's ``look_and_feel`` slice
@@ -197,7 +197,12 @@ class LookAndFeelSettingsWriter(Protocol):
     """
 
     def set_look_and_feel(
-        self, tenant_id: str, attribute: str, value: Any, *, client_op_id: str | None = ...
+        self,
+        tenant_id: str,
+        attribute: str,
+        value: Any,
+        *,
+        client_op_id: str | None = ...,
     ) -> dict: ...
 
     def remove_look_and_feel(
@@ -205,7 +210,11 @@ class LookAndFeelSettingsWriter(Protocol):
     ) -> dict: ...
 
     def copy_look_and_feel(
-        self, tenant_id: str, snapshot_values: Mapping[str, Any], *, client_op_id: str | None = ...
+        self,
+        tenant_id: str,
+        snapshot_values: Mapping[str, Any],
+        *,
+        client_op_id: str | None = ...,
     ) -> dict: ...
 
 
@@ -341,9 +350,7 @@ class LookAndFeelSettingsService:
             tenant_id if source_tenant_id is None else source_tenant_id
         )
         if effective_source_tenant != tenant_id:
-            raise CrossTenantCopyError(
-                "copy is permitted only within a single tenant"
-            )
+            raise CrossTenantCopyError("copy is permitted only within a single tenant")
 
         # Both page ids must be addressable today (never silently routed to the application form).
         self._require_known_page(source_page_id)
@@ -432,7 +439,6 @@ class LookAndFeelSettingsService:
             return
 
         # ── The three NEW values-only attributes (bugfix bugfix-published-form-styling, Task 10) ──
-
 
         if attribute == _LOGO_ATTRIBUTE:
             # A well-formed, bounded URL/asset reference — never a CSS/binary upload (values-only,

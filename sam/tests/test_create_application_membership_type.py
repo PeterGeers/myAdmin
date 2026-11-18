@@ -29,9 +29,13 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
+
+from dataclasses import replace
 
 from sam.members.domain._membership_errors import (
     MEMBERSHIP_TYPE_FIELD_KEY,
@@ -42,8 +46,6 @@ from sam.members.domain.error_codes import (
     MEMBERSHIP_TYPE_UNKNOWN_REFERENCE,
     VALIDATION_MUST_BE_ONE_OF,
 )
-from dataclasses import replace
-
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     StaticOverlayProvider,

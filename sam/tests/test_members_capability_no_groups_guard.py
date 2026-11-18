@@ -190,7 +190,9 @@ def test_capability_source_is_the_verified_entitlement_only():
     documenting *where* capability comes from so a future refactor can't quietly swap in a
     groups-based answer without this test noticing.
     """
-    assert hasattr(app, "has_capability"), "the edge must resolve capability via has_capability"
+    assert hasattr(app, "has_capability"), (
+        "the edge must resolve capability via has_capability"
+    )
     assert app.has_capability.__module__ == "sam.shared.auth_utils", (
         "capability must come from the shared verified-entitlement reader, "
         f"not {app.has_capability.__module__}"

@@ -176,21 +176,26 @@ def test_improve_prompt_carries_no_member_pii():
     Validates: Requirements R2 (no member PII in the AI prompt).
     """
     pii_values = [
-        "Jan de Vries",          # a real member name
+        "Jan de Vries",  # a real member name
         "jan.devries@example.nl",  # a real email
-        "+31 6 12345678",        # a real phone
+        "+31 6 12345678",  # a real phone
         "Dorpsstraat 12, Utrecht",  # a real address
     ]
     adapter = OpenRouterAdapter(
         (transport := FakeTransport()),
-        environ={"OPENROUTER_API_KEY": "sk-or-v1-testkey", "MEMBERS_AI_MODEL": _FREE_MODEL},
+        environ={
+            "OPENROUTER_API_KEY": "sk-or-v1-testkey",
+            "MEMBERS_AI_MODEL": _FREE_MODEL,
+        },
     )
     adapter.improve(_request())
 
     assert transport.called
     payload_text = str(transport.captured_payload)
     for value in pii_values:
-        assert value not in payload_text, f"member PII leaked into the AI prompt: {value!r}"
+        assert value not in payload_text, (
+            f"member PII leaked into the AI prompt: {value!r}"
+        )
 
 
 @given(
@@ -198,7 +203,9 @@ def test_improve_prompt_carries_no_member_pii():
     # unique prefix guarantees any appearance in the prompt is a genuine leak, not an
     # incidental substring collision with the template's own words.
     first_name=st.text(
-        alphabet=st.characters(whitelist_categories=("Lu", "Ll")), min_size=1, max_size=20
+        alphabet=st.characters(whitelist_categories=("Lu", "Ll")),
+        min_size=1,
+        max_size=20,
     ).map(lambda s: f"PIINAME{s}"),
     email=st.emails(),
 )
@@ -246,7 +253,10 @@ def test_improve_returns_improved_body_and_records_model():
     """A valid config + key yields the improved body and the model used."""
     adapter = OpenRouterAdapter(
         FakeTransport(content="<p>Een warmere versie met {{first_name}}.</p>"),
-        environ={"OPENROUTER_API_KEY": "sk-or-v1-testkey", "MEMBERS_AI_MODEL": _FREE_MODEL},
+        environ={
+            "OPENROUTER_API_KEY": "sk-or-v1-testkey",
+            "MEMBERS_AI_MODEL": _FREE_MODEL,
+        },
     )
     result = adapter.improve(_request())
     assert result.model_used == _FREE_MODEL
@@ -263,7 +273,10 @@ def test_improve_raises_service_error_on_unusable_response():
 
     adapter = OpenRouterAdapter(
         EmptyTransport(),
-        environ={"OPENROUTER_API_KEY": "sk-or-v1-testkey", "MEMBERS_AI_MODEL": _FREE_MODEL},
+        environ={
+            "OPENROUTER_API_KEY": "sk-or-v1-testkey",
+            "MEMBERS_AI_MODEL": _FREE_MODEL,
+        },
     )
     with pytest.raises(AIServiceError):
         adapter.improve(_request())

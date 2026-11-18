@@ -1,0 +1,140 @@
+{
+  "specId": "6f1d0c2a-9b47-4e51-8a3d-2c7b5e91d4af",
+  "spec": "full-test-suite-fixes-2026-11-18",
+  "ciRun": 44199159239,
+  "ciHeadSha": "a26e3561a",
+  "ciBranch": "spec/admin-surface-registry-fts",
+  "ciEvent": "workflow_dispatch",
+  "ciConclusion": "failure",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (run 44199159239, 2026-11-17 23:24 UTC, workflow_dispatch on spec/admin-surface-registry-fts @ a26e3561a)",
+  "priorities": {
+    "critical": [],
+    "high": [
+      "H1",
+      "H2",
+      "H3"
+    ],
+    "medium": [],
+    "low": [
+      "L1",
+      "L2"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "H1",
+      "title": "Implement get_item on FakeParameterService so the four SAM test_scope_e2e.py failures pass",
+      "priority": "high",
+      "effort": "M",
+      "plane": "sam/tests",
+      "type": "fix",
+      "rootCause": "AttributeError: 'FakeParameterService' object has no attribute 'get_item' raised from backend/src/services/scope_vocabulary.py:105 (load_scope_dimensions -> reader.get_item(tenant_id, SCOPE_CONFIG_SORT_KEY)). Option B injected the real reader contract into the SAM plane; the e2e test double was not extended. Change-with-tests miss on a collaborator contract.",
+      "requirements": [
+        "1.2",
+        "2.1",
+        "2.2",
+        "3.1"
+      ]
+    },
+    {
+      "id": "H2",
+      "title": "Triage then fix the 9 backend assert 400 == 200 failures",
+      "priority": "high",
+      "effort": "M",
+      "plane": "backend/tests",
+      "type": "fix",
+      "rootCause": "Stale expectation (not a product regression): under Option B members.* is module-plane-owned and the Flask parameters path deliberately returns 400 for it. Tests re-pointed to a Flask-owned namespace (s5b) or re-aligned to the 400 rejection (save-once).",
+      "requirements": [
+        "1.1",
+        "1.5",
+        "3.2"
+      ]
+    },
+    {
+      "id": "H3",
+      "title": "Remove unused conn unpack in tenant_module_routes.py:304",
+      "priority": "high",
+      "effort": "S",
+      "plane": "backend/lint",
+      "type": "fix",
+      "rootCause": "RUF059 Unpacked variable 'conn' is never used at src/tenant_module_routes.py:304:50 \u2014 the sole Backend Lint & Static Analysis failure (ruff format and vulture are green).",
+      "requirements": [
+        "1.3",
+        "3.3"
+      ]
+    },
+    {
+      "id": "L1",
+      "title": "Clear the SAM Module-Plane lint findings (336 ruff findings; 184 files need formatting)",
+      "priority": "low",
+      "effort": "M",
+      "plane": "sam/lint",
+      "type": "hygiene",
+      "rootCause": "Pre-existing lint debt in the SAM module plane: 336 ruff findings (286 auto-fixable) and 184 files that ruff format would reformat. Not an Option B regression, but in the same job area as H1.",
+      "requirements": [
+        "1.2",
+        "1.3"
+      ]
+    },
+    {
+      "id": "L2",
+      "title": "Re-dispatch the Full Test Suite on the branch tip and confirm green",
+      "priority": "low",
+      "effort": "S",
+      "plane": "process",
+      "type": "verify",
+      "rootCause": "Run 44199159239 is FAILURE; the suite must be re-run after H1-H3. Analysed head a26e3561a; branch tip b99d94e44 is docs-only (5 files under .kiro/), so the code delta is zero.",
+      "requirements": [
+        "1.1",
+        "1.2",
+        "1.3",
+        "1.4",
+        "1.5"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "from": "H1",
+      "to": "L1",
+      "type": "blocks"
+    },
+    {
+      "from": "H1",
+      "to": "L2",
+      "type": "blocks"
+    },
+    {
+      "from": "H2",
+      "to": "L2",
+      "type": "blocks"
+    },
+    {
+      "from": "H3",
+      "to": "L2",
+      "type": "blocks"
+    },
+    {
+      "from": "L1",
+      "to": "L2",
+      "type": "blocks"
+    }
+  ],
+  "waves": [
+    {
+      "id": 0,
+      "tasks": [
+        "H1",
+        "H2",
+        "H3"
+      ]
+    },
+    {
+      "id": 1,
+      "tasks": [
+        "L1",
+        "L2"
+      ]
+    }
+  ]
+}

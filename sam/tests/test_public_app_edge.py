@@ -34,7 +34,6 @@ import pytest
 
 from sam.members.handler import public_app, public_guards
 
-
 # ── Fake slug reader (task 1.4 — the `_slugs/{slug}` marker store behind the Protocol) ──
 #
 # Task 1.4 swapped the public edge's reverse-lookup reader from the `PUBLIC_TENANT_SLUG_MAP`
@@ -46,8 +45,6 @@ from sam.members.handler import public_app, public_guards
 # by monkeypatching the name `public_app.S3SlugMarkerStore` to a factory returning this fake.
 # No real AWS / S3 is touched; the marker store's own S3 mechanics are covered by
 # `test_slug_marker_store.py`.
-
-
 from sam.members.repository.slug_marker_store import SlugMarker
 
 
@@ -771,7 +768,7 @@ def test_published_get_slug_resolves_via_marker_body_and_returns_schema():
     assert raw_shape_keys.isdisjoint(data.keys())
     for field in data["fields"]:
         assert raw_shape_keys.isdisjoint(field.keys())
-        assert not any("." in k for k in field.keys())
+        assert not any("." in k for k in field)
 
 
 # ── Task 3.1 — public GET {slug} read: marker-body resolve + publication gate (R5, R10) ──

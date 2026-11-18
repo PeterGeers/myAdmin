@@ -124,9 +124,7 @@ _DUP_KEYWORD = "DUP"
 NO_NOTIFY_KEYWORD = "NO_NOTIFY"
 
 
-def append_additional_info_keyword(
-    record: dict[str, Any], keyword: str
-) -> bool:
+def append_additional_info_keyword(record: dict[str, Any], keyword: str) -> bool:
     """Append ``keyword`` to ``overlay.additional_info`` (space-separated), idempotently.
 
     The pure, storage-agnostic mechanism BOTH the create-path duplicate flag (task 2.5's
@@ -148,7 +146,9 @@ def append_additional_info_keyword(
     existing = overlay.get(_ADDITIONAL_INFO_KEY)
     existing_text = str(existing).strip() if existing not in (None, "") else ""
     if keyword in existing_text.split():
-        return False  # already flagged — idempotent (a redelivery must not double-append)
+        return (
+            False  # already flagged — idempotent (a redelivery must not double-append)
+        )
     overlay[_ADDITIONAL_INFO_KEY] = (
         f"{existing_text} {keyword}".strip() if existing_text else keyword
     )
@@ -246,7 +246,9 @@ def build_application_notification_jobs(
         "run_id": run_id,
         "member_id": member_id,  # the deep-link target /members/{member_id} (R8.6/R8b.1)
         "applicant_display_name": _applicant_display_name(record),
-        "duplicate_suspected": _duplicate_suspected(record),  # neutral triage hint (R8.6a)
+        "duplicate_suspected": _duplicate_suspected(
+            record
+        ),  # neutral triage hint (R8.6a)
     }
 
     # APPLICANT confirmation job (D10) — the applicant's OWN email + locale + a copy of their OWN
@@ -256,7 +258,9 @@ def build_application_notification_jobs(
         "tenant_id": tenant_id,  # AUTHORITATIVE — same resolved tenant as the staff job (D5/D10)
         "run_id": run_id,
         "member_id": member_id,
-        "recipient": _record_str(record, "personal", "email"),  # server-validated address (R8a.4)
+        "recipient": _record_str(
+            record, "personal", "email"
+        ),  # server-validated address (R8a.4)
         "locale": locale,  # the applicant's chosen locale (R6b/R8a.2)
         "submitted": _submitted_copy(record),  # the applicant's OWN data (R8a.4)
     }

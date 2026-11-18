@@ -48,7 +48,9 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -79,8 +81,12 @@ _PUBLIC_API_BASE = "https://api.jabaki.nl"
 
 # The exact prior-published bytes we pre-seed and then assert survive byte-for-byte. Distinct,
 # recognizable content so a partial/overwritten publish would be obvious.
-_PRIOR_INDEX_HTML = b"<!DOCTYPE html><html><head></head><body>PRIOR PUBLISHED FORM v7</body></html>"
-_PRIOR_FORM_JSON = b'{"tenant_id":"h-dcn","fields":[{"key":"prior_field"}],"published_version":7}'
+_PRIOR_INDEX_HTML = (
+    b"<!DOCTYPE html><html><head></head><body>PRIOR PUBLISHED FORM v7</body></html>"
+)
+_PRIOR_FORM_JSON = (
+    b'{"tenant_id":"h-dcn","fields":[{"key":"prior_field"}],"published_version":7}'
+)
 
 
 @pytest.fixture(autouse=True)
@@ -284,7 +290,9 @@ _failing_values = st.builds(
 
 @settings(max_examples=150)
 @given(values=_failing_values)
-def test_property_10_publish_failure_preserves_the_previously_published_artifact(values):
+def test_property_10_publish_failure_preserves_the_previously_published_artifact(
+    values,
+):
     """Feature: sam-page-look-and-feel, Property 10: For any publish in which Layer 2 fails to produce styling, the Publish_Step SHALL NOT replace the previously published Application_Form and SHALL return a failure indication.
 
     Validates: Requirements 5.5
@@ -296,22 +304,18 @@ def test_property_10_publish_failure_preserves_the_previously_published_artifact
       2. the previously published served artifacts are BYTE-IDENTICAL to their prior content,
          with NO new / partial served key written.
     """
-    marker_store = S3SlugMarkerStore(
-        client=_ConditionalFakeS3(), bucket=_CLAIM_BUCKET
-    )
+    marker_store = S3SlugMarkerStore(client=_ConditionalFakeS3(), bucket=_CLAIM_BUCKET)
     writer, served_s3 = _seeded_artifact_store()
 
     # Snapshot the prior-published served objects BEFORE the failed publish (deep copy of bytes).
-    before = {
-        key: bytes(obj["body"]) for key, obj in served_s3.objects.items()
-    }
+    before = {key: bytes(obj["body"]) for key, obj in served_s3.objects.items()}
 
     svc = _service(values, marker_store=marker_store, artifact_writer=writer)
 
     # 1. Failure indication: publish must RAISE (never return a success dict). Layer 2's
     #    UnsupportedAttributeError is a ValueError subclass; the publish surfaces no {'success': ...}.
     result = None
-    with pytest.raises(Exception) as excinfo:  # noqa: PT011 - broad: any raise is a failure indication
+    with pytest.raises(Exception) as excinfo:
         result = svc.publish(_TENANT)
     assert result is None  # nothing returned — no success dict escaped
     # The failure is the Layer-2 rejection, NOT the dormant-seam marker (writer IS injected, so a
@@ -321,7 +325,7 @@ def test_property_10_publish_failure_preserves_the_previously_published_artifact
     # 2. The previously published artifact is preserved — byte-identical, no new/partial key.
     after = {key: bytes(obj["body"]) for key, obj in served_s3.objects.items()}
     assert after.keys() == before.keys()  # no new served key written, none removed
-    for key in before:
+    for key in before:  # noqa: PLC0206
         assert after[key] == before[key]  # byte-for-byte unchanged
     # Concretely: the seeded prior bytes are exactly what remains under the served prefix.
     assert (
@@ -329,6 +333,8 @@ def test_property_10_publish_failure_preserves_the_previously_published_artifact
         == _PRIOR_INDEX_HTML
     )
     assert (
-        served_s3.objects[(_ARTIFACT_BUCKET, f"{_SLUG}/{FORM_JSON_ARTIFACT_NAME}")]["body"]
+        served_s3.objects[(_ARTIFACT_BUCKET, f"{_SLUG}/{FORM_JSON_ARTIFACT_NAME}")][
+            "body"
+        ]
         == _PRIOR_FORM_JSON
     )

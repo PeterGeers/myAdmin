@@ -48,9 +48,13 @@ __all__ = [
 #: tenant; design §4 merge rule). Pure and import-time safe — a frozen tuple of frozen
 #: :class:`FunctionalGroup` dataclasses, so it carries no mutable module-level state.
 BASE_FUNCTIONAL_GROUPS: tuple[FunctionalGroup, ...] = (
-    FunctionalGroup(key="personal", label={"nl": "Persoonlijk", "en": "Personal"}, order=1),
+    FunctionalGroup(
+        key="personal", label={"nl": "Persoonlijk", "en": "Personal"}, order=1
+    ),
     FunctionalGroup(key="address", label={"nl": "Adres", "en": "Address"}, order=2),
-    FunctionalGroup(key="membership", label={"nl": "Lidmaatschap", "en": "Membership"}, order=3),
+    FunctionalGroup(
+        key="membership", label={"nl": "Lidmaatschap", "en": "Membership"}, order=3
+    ),
     FunctionalGroup(
         key="administrative",
         label={"nl": "Administratie", "en": "Administrative"},
@@ -742,7 +746,9 @@ def validate_catalog_consistency(
     seen: set[str] = set()
     for spec in attributes:
         if spec.key in seen:
-            raise ValueError(f"duplicate attribute key in the catalog vocabulary: {spec.key}")
+            raise ValueError(
+                f"duplicate attribute key in the catalog vocabulary: {spec.key}"
+            )
         seen.add(spec.key)
 
     # 2. A CatalogField functional_group not present in the base functional-group keys.

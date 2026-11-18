@@ -47,11 +47,15 @@ def _parse_request(event: Mapping[str, Any]) -> ParsedRequest:
     method = event.get("httpMethod")
     path = event.get("path")
     request_context = event.get("requestContext") or {}
-    http_ctx = request_context.get("http") if isinstance(request_context, Mapping) else None
+    http_ctx = (
+        request_context.get("http") if isinstance(request_context, Mapping) else None
+    )
     if not method and isinstance(http_ctx, Mapping):
         method = http_ctx.get("method")
     if not path:
-        path = event.get("rawPath") or (http_ctx.get("path") if isinstance(http_ctx, Mapping) else None)
+        path = event.get("rawPath") or (
+            http_ctx.get("path") if isinstance(http_ctx, Mapping) else None
+        )
 
     headers = event.get("headers") or {}
     query = event.get("queryStringParameters") or {}
@@ -182,7 +186,11 @@ def _field_errors_array(errors: Mapping[str, Any]) -> list[dict[str, Any]]:
             array.append(value.as_entry(field_key=str(field_key)))
         else:  # defensive: a not-yet-migrated string reason
             array.append(
-                {"field": str(field_key), "code": "errors.api.badRequest", "detail": str(value)}
+                {
+                    "field": str(field_key),
+                    "code": "errors.api.badRequest",
+                    "detail": str(value),
+                }
             )
     return array
 

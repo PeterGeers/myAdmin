@@ -20,8 +20,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from sam.members.handler._dispatch_services import (
-    MailRunNotFound,
     UNHANDLED,
+    MailRunNotFound,
     _caller_is_tenant_admin,
     _delivery_outcome_to_dict,
     _mail_failure_to_dict,
@@ -41,10 +41,10 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 
 def dispatch_analytics(
-    service: "MembershipService",
+    service: MembershipService,
     spec: RouteSpec,
     request: ParsedRequest,
-    ctx: "RequestContext",
+    ctx: RequestContext,
 ) -> Any:
     """Delegate an ANALYTICS / SCHEDULE / MAIL / PREFERENCE / TEMPLATE route, or :data:`UNHANDLED`.
 

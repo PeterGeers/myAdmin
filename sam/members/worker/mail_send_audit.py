@@ -28,7 +28,7 @@ class MailAuditMixin:
                 self._run_store.increment_mail_run_counts(
                     tenant_id, run_id, sent=sent, failed=failed
                 )
-        except Exception:  # noqa: BLE001 — status tracking must never break the send path
+        except Exception:
             logger.warning(
                 "mail-send worker: run-status update failed for run %s (non-fatal)",
                 run_id,
@@ -48,7 +48,7 @@ class MailAuditMixin:
             self._run_store.increment_mail_run_counts(
                 tenant_id, run_id, failed=len(recipients)
             )
-        except Exception:  # noqa: BLE001 — status tracking must never mask the send failure
+        except Exception:
             logger.warning(
                 "mail-send worker: run-failure recording failed for run %s (non-fatal)",
                 run_id,
@@ -75,7 +75,7 @@ class MailAuditMixin:
                 set_key=envelope.get("set_id"),
                 record_count=recipient_count,
             )
-        except Exception as exc:  # noqa: BLE001 — audit must never fail an already-sent mail
+        except Exception as exc:
             logger.warning(
                 "mail-send worker: audit emit failed for job %s: %s",
                 envelope.get("job_id"),

@@ -38,41 +38,47 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain._membership_errors import MemberValidationError  # noqa: E402
-from sam.members.domain.application_form_render import (  # noqa: E402
+from sam.members.domain._membership_errors import MemberValidationError
+from sam.members.domain.application_form_render import (
     render_application_form_page,
 )
-from sam.members.domain.application_publish import (  # noqa: E402
+from sam.members.domain.application_publish import (
     PUBLIC_API_BASE_ENV_VAR,
     ApplicationPublishService,
 )
-from sam.members.domain.application_readiness import (  # noqa: E402
+from sam.members.domain.application_readiness import (
     StaticMailReadinessProvider,
 )
-from sam.members.domain.membership_service import MembershipService  # noqa: E402
-from sam.members.handler import public_app  # noqa: E402
-from sam.members.repository.slug_marker_store import SlugMarker  # noqa: E402
+from sam.members.domain.membership_service import MembershipService
+from sam.members.handler import public_app
+from sam.members.repository.slug_marker_store import SlugMarker
 
 # Reuse sibling fakes/helpers (no duplication of the Round-2 assertions).
-from sam.tests.test_application_publish_dispatch import (  # noqa: E402
+from sam.tests.test_application_publish_dispatch import (
     FakeFieldConfigReader,
+)
+from sam.tests.test_application_publish_dispatch import (
     FakeSlugReader as _PublishSlugReader,
 )
-from sam.tests.test_page_shell_parity import (  # noqa: E402
+from sam.tests.test_page_shell_parity import (
     _read_fixture,
     _render_canonical_page,
 )
-from sam.tests.test_public_app_edge import (  # noqa: E402
+from sam.tests.test_public_app_edge import (
     _FakeApplicationService,
     _proxy_event,
 )
-from sam.tests.test_published_form_submit_round2_bug_condition import (  # noqa: E402
+from sam.tests.test_published_form_submit_round2_bug_condition import (
     _FakeEmbedOriginReader,
     _FakeSlugReader,
 )
-from sam.tests.test_published_form_submit_round2_preservation import (  # noqa: E402
+from sam.tests.test_published_form_submit_round2_preservation import (
     _TENANT as _R2_TENANT,
+)
+from sam.tests.test_published_form_submit_round2_preservation import (
     _service as _consent_service,
+)
+from sam.tests.test_published_form_submit_round2_preservation import (
     _submission,
 )
 
@@ -150,7 +156,9 @@ def _edge(service):
             ),
         )
         mp.setattr(
-            public_app, "MembersProjectionReader", lambda *a, **k: _FakeEmbedOriginReader({})
+            public_app,
+            "MembersProjectionReader",
+            lambda *a, **k: _FakeEmbedOriginReader({}),
         )
         mp.setattr(public_app, "_application_service", lambda: service)
         yield
@@ -199,9 +207,9 @@ def test_preserve_foreign_jabaki_origin_not_echoed_on_422_and_500(
 
 @settings(max_examples=40, deadline=None)
 @given(
-    sub=st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789-", min_size=1, max_size=12).filter(
-        lambda s: s != _SLUG and s != "aanmelden-test"
-    ),
+    sub=st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyz0123456789-", min_size=1, max_size=12
+    ).filter(lambda s: s != _SLUG and s != "aanmelden-test"),
     apex=st.sampled_from(["jabaki.nl", "example.com", "evil.net"]),
     failing=st.booleans(),
 )
@@ -211,7 +219,9 @@ def test_preserve_random_foreign_origin_never_echoed_nor_wildcard_on_errors(
     """R9.2: any foreign origin is never echoed / never `*` on the 422 and 500 branches."""
     origin = f"https://{sub}.{apex}"
     cls, body = (
-        (_GenericFailureService, _VALID_BODY) if failing else (_FakeApplicationService, _INVALID_BODY)
+        (_GenericFailureService, _VALID_BODY)
+        if failing
+        else (_FakeApplicationService, _INVALID_BODY)
     )
     with _edge(_ready_service(cls)):
         resp = _post(origin, body)
@@ -241,7 +251,9 @@ def test_preserve_abuse_guard_400_keeps_current_cors_behaviour():
 def test_preserve_unknown_route_404_keeps_current_cors_behaviour():
     def get(origin):
         return public_app.handler(
-            _proxy_event("GET", "/public/members/nope/unknown", headers={"Origin": origin})
+            _proxy_event(
+                "GET", "/public/members/nope/unknown", headers={"Origin": origin}
+            )
         )
 
     with _edge(_ready_service()):
@@ -277,7 +289,12 @@ def test_preserve_notice_less_config_renders_no_consent_control(notice, locales)
     config = {
         "tenant_id": "h-dcn",
         "fields": [
-            {"key": "email", "type": "email", "label": {"nl": "E-mail"}, "required": True}
+            {
+                "key": "email",
+                "type": "email",
+                "label": {"nl": "E-mail"},
+                "required": True,
+            }
         ],
         "functional_groups": [],
         "locales": locales,
@@ -320,7 +337,12 @@ def test_preserve_publish_result_shape_and_artifact_writes(monkeypatch):
     )
     result = svc.publish("h-dcn")
 
-    assert set(result.keys()) == {"success", "slug", "published_version", "published_at"}
+    assert set(result.keys()) == {
+        "success",
+        "slug",
+        "published_version",
+        "published_at",
+    }
     assert result["success"] is True
     assert result["slug"] == "hdcn-application-form"
     assert isinstance(result["published_version"], int)

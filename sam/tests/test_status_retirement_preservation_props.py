@@ -58,7 +58,9 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -73,12 +75,10 @@ from sam.members.domain.field_resolver import (
 from sam.members.domain.fixed_fields import (
     EnumOption,
     FieldType,
-    FieldValidationError,
     field_by_key,
     validate_fixed_fields,
 )
 from sam.members.domain.membership_service import (
-    MemberNotFound,
     MembershipService,
 )
 
@@ -104,18 +104,20 @@ TENANT = "h-dcn"
 # Simple non-blank enum-value tokens (the point is round-trip identity across the input space,
 # not fuzzing the unicode codec — the real tenant values are short ASCII codes like M/V/X/N).
 _enum_values = st.lists(
-    st.text(alphabet="abcdefghijklmnopqrstuvwxyz0123456789_-", min_size=1, max_size=10).filter(
-        lambda s: s.strip() != ""
-    ),
+    st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyz0123456789_-", min_size=1, max_size=10
+    ).filter(lambda s: s.strip() != ""),
     min_size=1,
     max_size=6,
     unique=True,
 )
 
 # A person's name part (never blank — last_name is the platform-required identity anchor).
-_name = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyz ", min_size=1, max_size=20
-).map(str.strip).filter(lambda s: s != "")
+_name = (
+    st.text(alphabet="abcdefghijklmnopqrstuvwxyz ", min_size=1, max_size=20)
+    .map(str.strip)
+    .filter(lambda s: s != "")
+)
 
 
 def _valid_member(**over) -> dict:
@@ -167,14 +169,18 @@ def _applicant_submission(draw):
         "membership.membership_type": "gewoon",
     }
     # Half the time the client tries to self-assign a status it must never get to keep.
-    hostile = draw(st.sampled_from([None, "active", "pending", "left", "died", "anything"]))
+    hostile = draw(
+        st.sampled_from([None, "active", "pending", "left", "died", "anything"])
+    )
     if hostile is not None:
         body["membership.status"] = hostile
     return body
 
 
 @settings(max_examples=40, suppress_health_check=[HealthCheck.function_scoped_fixture])
-@given(body=_applicant_submission(), session_n=st.integers(min_value=0, max_value=10_000))
+@given(
+    body=_applicant_submission(), session_n=st.integers(min_value=0, max_value=10_000)
+)
 def test_public_form_create_defaults_status_application(body, session_n):
     """3.1: every public-form applicant lands as ``status=application``, client value ignored.
 
@@ -273,7 +279,12 @@ class _CrudRepo(FakeMembersRepository):
 _non_status_edits = st.fixed_dictionaries(
     {
         "field": st.sampled_from(
-            ["personal.first_name", "personal.city", "personal.phone", "personal.street"]
+            [
+                "personal.first_name",
+                "personal.city",
+                "personal.phone",
+                "personal.street",
+            ]
         ),
         "value": _name,
     }
@@ -298,7 +309,9 @@ def test_member_crud_and_tenant_isolation_unchanged(member_id, edit, other_id):
     # create (a valid, active, non-status record)
     record = _valid_member(**{edit["field"]: edit["value"]})
     record["member_id"] = member_id
-    service._validate_member_record(TENANT, record, partial=False)  # authoritative validation
+    service._validate_member_record(
+        TENANT, record, partial=False
+    )  # authoritative validation
     repo.save_member(TENANT, record)
 
     # get + list are tenant-scoped
@@ -352,7 +365,9 @@ def test_field_config_surface_unaffected(codes):
     # `membership.membership_type` field for the tenant under test only — a different tenant
     # authors none, so the surface stays tenant-scoped.
     mt_options = tuple(
-        EnumOption(value=code, label={"nl": code, "en": code}, allowed=True, order=(i + 1) * 10)
+        EnumOption(
+            value=code, label={"nl": code, "en": code}, allowed=True, order=(i + 1) * 10
+        )
         for i, code in enumerate(codes)
     )
     overlay = TenantOverlay(
@@ -438,7 +453,9 @@ def test_invariant_required_fixed_field_stays_required_across_overrides(key):
     fixed): PASS.
     """
     overlay = TenantOverlay(
-        overrides={key: FixedFieldOverride(label={"en": "Relabelled", "nl": "Herbenoemd"})}
+        overrides={
+            key: FixedFieldOverride(label={"en": "Relabelled", "nl": "Herbenoemd"})
+        }
     )
     resolved = _resolve(overlay).field(key)
     assert resolved is not None

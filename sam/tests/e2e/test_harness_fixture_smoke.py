@@ -26,7 +26,9 @@ def test_real_fixture_loads_with_expected_shape(real_hdcn_overlay):
     assert real_hdcn_overlay["tenant_id"] == "h-dcn"
     for key in ("fields", "overrides", "functional_groups"):
         assert key in real_hdcn_overlay, f"real overlay must carry '{key}'"
-    assert real_hdcn_overlay["functional_groups"], "catalog must be non-empty (truncation guard)"
+    assert real_hdcn_overlay["functional_groups"], (
+        "catalog must be non-empty (truncation guard)"
+    )
 
 
 @pytest.mark.e2e
@@ -39,9 +41,14 @@ def test_seeded_table_available_or_skips(seeded_config_fields_table):
 
     resp = table.get_item(
         Key=schema.build_key(
-            tenant_id, schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS)
+            tenant_id,
+            schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS),
         )
     )
     item = resp.get("Item")
-    assert item is not None, "seeded h-dcn config#fields row must be readable from local DynamoDB"
-    assert item["functional_groups"], "seeded catalog must survive the round-trip (non-empty)"
+    assert item is not None, (
+        "seeded h-dcn config#fields row must be readable from local DynamoDB"
+    )
+    assert item["functional_groups"], (
+        "seeded catalog must survive the round-trip (non-empty)"
+    )

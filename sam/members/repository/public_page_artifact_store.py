@@ -65,8 +65,8 @@ logger = logging.getLogger(__name__)
 
 __all__ = [
     "CLOUDFRONT_DISTRIBUTION_ENV_VAR",
-    "INDEX_ARTIFACT_NAME",
     "FORM_JSON_ARTIFACT_NAME",
+    "INDEX_ARTIFACT_NAME",
     "S3PublicPageArtifactStore",
 ]
 
@@ -243,7 +243,7 @@ class S3PublicPageArtifactStore:
                 },
             )
             logger.info("CloudFront invalidation created for slug=%s", slug)
-        except Exception as exc:  # noqa: BLE001 - best-effort: a denied/failed invalidation
+        except Exception as exc:
             # is NON-FATAL (known-deferred to Task 9.2). The artifact is already written, so the
             # publish still succeeds; we only lose immediate cache-freshness on an UPDATE.
             logger.warning(

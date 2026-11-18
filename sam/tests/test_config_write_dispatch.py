@@ -245,7 +245,9 @@ def test_write_config_accepts_the_generic_sam_owned_ids(repo, config_id):
     assert resp["statusCode"] != 400
 
 
-def test_write_config_fields_id_is_handled_by_the_change_op_route_not_the_generic_service(repo):
+def test_write_config_fields_id_is_handled_by_the_change_op_route_not_the_generic_service(
+    repo,
+):
     # spec 03 Task 2.7 / design-review Q7a: PUT /members/config/fields resolves to the dedicated
     # Change-Op route, NOT this generic write_config door. The OLD whole-overlay body is no longer
     # accepted there and the generic config-write service (this fixture's repo) is NEVER reached
@@ -290,8 +292,8 @@ def test_generic_write_config_branch_rejects_fields_and_never_reaches_put_config
     # dispatch branch directly (bypassing the literal-route-wins ordering), it is rejected with a
     # caller-safe ConfigWriteValidationError (→ 400) BEFORE any `put_config`. The whole-row replace
     # is structurally unreachable for `config#fields` from a request (Task 7.1 / R1.5 / R11.1).
-    from sam.members.handler.app import RequestContext
     from sam.members.handler._http import ParsedRequest
+    from sam.members.handler.app import RequestContext
     from sam.members.handler.routes import ROUTES
 
     write_config_spec = next(r for r in ROUTES if r.name == "write_config")

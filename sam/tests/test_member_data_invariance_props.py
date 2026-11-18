@@ -50,7 +50,9 @@ from hypothesis import strategies as st
 # repo root (so `sam.members` resolves) + backend/src/migrations (so the pure migration
 # transform resolves) on sys.path — mirrors the sibling SAM property tests
 # (test_pagination_precedence_props.py adds backend/src the same way).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 # backend/src/migrations on sys.path so the PURE, DB-free transform module resolves. We import
@@ -60,27 +62,26 @@ _MIGRATIONS = os.path.join(_REPO_ROOT, "backend", "src", "migrations")
 if _MIGRATIONS not in sys.path:
     sys.path.insert(0, _MIGRATIONS)
 
+# The PURE, DB-free config-row key migration transform (the ONLY Phase 2 data migration, R8.2).
+# Imported from the DB-free `overrides_key_transform` module — NOT the migration driver — so this
+# SAM-plane test never transitively imports `database`/`mysql.connector`.
+from overrides_key_transform import rename_overrides_key
+
 from sam.members.domain.default_page_size import StaticDefaultPageSizeProvider
 from sam.members.domain.field_resolver import (
+    _RESERVED_KEYS,
     FieldResolver,
     OverlayField,
     StaticOverlayProvider,
     TenantOverlay,
     evaluate_show_when,
 )
-from sam.members.domain.field_resolver import _RESERVED_KEYS
 from sam.members.domain.fixed_fields import FieldType
 from sam.members.domain.membership_service import MembershipService
 
 # Reuse the field-config test's in-memory fake catalog repo (read-only catalog surface) — the
 # same seam the resolved-field-surface + field-config tests use, so no AWS/boto3.
 from sam.tests.test_field_config_endpoint import FakeCatalogRepository
-
-# The PURE, DB-free config-row key migration transform (the ONLY Phase 2 data migration, R8.2).
-# Imported from the DB-free `overrides_key_transform` module — NOT the migration driver — so this
-# SAM-plane test never transitively imports `database`/`mysql.connector`.
-from overrides_key_transform import rename_overrides_key
-
 
 # ── Generators ──────────────────────────────────────────────────────────────────────────
 
@@ -217,7 +218,11 @@ def test_property_member_data_invariant_across_phase2_steps(
     resolved = FieldResolver(overlay_provider).resolve(tenant_id)
     for field in resolved.fields:
         evaluate_show_when(field.show_when, record)
-    for controlling in ("membership_type", "membership.membership_type", "personal.gender"):
+    for controlling in (
+        "membership_type",
+        "membership.membership_type",
+        "personal.gender",
+    ):
         evaluate_show_when({controlling: ["motor"]}, record)
     assert _snapshot(record) == before  # the record is untouched by the surfacing reads
 
@@ -227,7 +232,9 @@ def test_property_member_data_invariant_across_phase2_steps(
     # unchanged — proving the migration never touches member bytes even if mis-fed one.
     migrated = rename_overrides_key(record)
     assert _snapshot(migrated) == before
-    assert _snapshot(record) == before  # the input record itself is never mutated in place
+    assert (
+        _snapshot(record) == before
+    )  # the input record itself is never mutated in place
 
     # ── Final: byte-for-byte invariance across the whole Phase 2 sequence ─────────────────
     assert _snapshot(record) == before

@@ -164,5 +164,7 @@ class ApplicationNotAvailable(Exception):
     #: The stable machine/i18n code the edge renders — the single neutral readiness signal.
     code: str = APPLICATION_NOT_AVAILABLE
 
-    def __init__(self, message: str = "applications are not available for this tenant yet"):
+    def __init__(
+        self, message: str = "applications are not available for this tenant yet"
+    ):
         super().__init__(message)

@@ -66,13 +66,13 @@ from typing import Any
 from services import projection_schema as schema
 
 __all__ = [
-    "MembersConfigWriteRepository",
+    "FIELDS_SKELETON_PARENTS",
+    "REMOVE",
+    "SET",
     "ChangeOpError",
+    "MembersConfigWriteRepository",
     "StaleVersionError",
     "TruncationTripwireError",
-    "SET",
-    "REMOVE",
-    "FIELDS_SKELETON_PARENTS",
 ]
 
 #: The ``config#fields`` parent-map skeleton the Phase-2 path ``update_item`` REQUIRES to exist
@@ -146,6 +146,7 @@ class TruncationTripwireError(RuntimeError):
     This does NOT fire on GROWTH: the C6 ``ensure_skeleton`` create and the first write onto an
     empty skeleton go empty→populated (an increase), and the migration whole-row write never goes
     through ``apply_ops``. Only a net REDUCTION not covered by explicit deletes trips it."""
+
 
 #: The CLOSED set of ``config#<id>`` ids this repository may write (R2.1). The tokens come from
 #: the shared projection schema so the writer, reader, and Flask builder cannot drift. Any id
@@ -489,9 +490,7 @@ class MembersConfigWriteRepository:
             # The version condition failed. If this is a lost-response retry of the SAME
             # client_op_id that already produced the current row, treat it as an idempotent
             # success rather than a spurious self-409 (review Should-fix; task 4.2).
-            if client_op_id and self._is_idempotent_replay(
-                key, client_op_id
-            ):
+            if client_op_id and self._is_idempotent_replay(key, client_op_id):
                 return {"version": self._read_version(key), "idempotent_replay": True}
             raise StaleVersionError(
                 "config write rejected: the row changed since it was read — reload and retry"
@@ -540,9 +539,7 @@ class MembersConfigWriteRepository:
             entry: dict = {"action": action, "path": tuple(segments)}
             if action == SET:
                 if "value" not in op:
-                    raise ChangeOpError(
-                        f"op #{index} is a SET but carries no 'value'"
-                    )
+                    raise ChangeOpError(f"op #{index} is a SET but carries no 'value'")
                 entry["value"] = op["value"]
             normalized.append(entry)
 
@@ -654,9 +651,7 @@ class MembersConfigWriteRepository:
     # Runtime truncation tripwire (spec 03, task 8.4 / R11.5) — last-line defense
     # ──────────────────────────────────────────────────────────────────────────────────
 
-    def _assert_no_silent_truncation(
-        self, key: dict, normalized: list[dict]
-    ) -> None:
+    def _assert_no_silent_truncation(self, key: dict, normalized: list[dict]) -> None:
         """Refuse a ``config#fields`` op set that would SILENTLY shrink the catalog (R11.5).
 
         The RULE (per bucket — the group catalog and the field set independently):

@@ -256,8 +256,7 @@ class ScopeConfigProvider(Protocol):
     an **empty** dimension list (→ tenant-wide), never an error.
     """
 
-    def get_scope_config(self, tenant_id: str) -> ScopeConfig:
-        ...
+    def get_scope_config(self, tenant_id: str) -> ScopeConfig: ...
 
 
 class StaticScopeConfigProvider:

@@ -17,11 +17,11 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sam.members.domain import field_formats
-from sam.members.domain._membership_writes_validation import (
-    effective_application_required,
-)
 from sam.members.domain._membership_errors import (
     MEMBERSHIP_TYPE_FIELD_KEY,
+)
+from sam.members.domain._membership_writes_validation import (
+    effective_application_required,
 )
 from sam.members.domain.applicant_locale import (
     SUPPORTED_LOCALES,
@@ -286,7 +286,7 @@ class FieldConfigSurfaceMixin:
             return None
         try:
             value = provider.get_form_slug(tenant_id)
-        except Exception:  # noqa: BLE001 - a read fault must not black out the whole config read
+        except Exception:
             return None
         return value if isinstance(value, str) and value.strip() else None
 
@@ -301,7 +301,7 @@ class FieldConfigSurfaceMixin:
         if provider is not None and hasattr(provider, "get_published_state"):
             try:
                 state = provider.get_published_state(tenant_id) or {}
-            except Exception:  # noqa: BLE001 - a read fault must not black out the config read
+            except Exception:
                 state = {}
         return {
             "published_version": state.get("published_version"),
@@ -321,7 +321,7 @@ class FieldConfigSurfaceMixin:
             return None
         try:
             value = provider.get_public_prefix(tenant_id)
-        except Exception:  # noqa: BLE001 - a read fault must not black out the whole config read
+        except Exception:
             return None
         return value if isinstance(value, str) and value.strip() else None
 

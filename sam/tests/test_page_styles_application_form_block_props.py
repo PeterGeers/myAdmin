@@ -48,11 +48,13 @@ import sys
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from sam.shared.page_styles import (  # noqa: E402
+from sam.shared.page_styles import (
     _build_application_form_css,
     _build_page_css,
     render_page_styles,
@@ -113,9 +115,11 @@ def _form_group_is_width_driven_auto_fit(css: str) -> bool:
     with no authored track count. Returns False if no such grid rule is found."""
     norm = _normalize(css)
     for selector, body in _iter_rule_blocks(norm):
-        if ".application-form .form-group" in selector and "grid-template-columns" in body:
-            if re.search(r"auto-fit,\s*minmax\(", body):
-                return True
+        if (
+            ".application-form .form-group" in selector
+            and "grid-template-columns" in body
+        ) and re.search(r"auto-fit,\s*minmax\(", body):
+            return True
     return False
 
 
@@ -130,14 +134,19 @@ def _grid_collapses_to_single_column(css: str) -> bool:
     """
     norm = _normalize(css)
     for selector, body in _iter_rule_blocks(norm):
-        if ".application-form .form-group" not in selector or "grid-template-columns" not in body:
+        if (
+            ".application-form .form-group" not in selector
+            or "grid-template-columns" not in body
+        ):
             continue
         if "auto-fit" in body and "minmax(" in body:
             return True
     # Legacy media-query collapse (back-compat).
     for media in re.finditer(r"@media[^{]*max-width[^{]*\{(.*?)\}\s*\}", norm):
         block = media.group(1)
-        if ".form-group" in block and re.search(r"grid-template-columns:\s*(1fr|none)\b", block):
+        if ".form-group" in block and re.search(
+            r"grid-template-columns:\s*(1fr|none)\b", block
+        ):
             return True
     return False
 
@@ -195,7 +204,9 @@ def test_brand_colour_applied_to_form_own_elements(primary, accent):
 
 @settings(max_examples=150)
 @given(primary=_COLOURS, accent=_COLOURS)
-def test_full_generator_applies_brand_colour_to_form_via_render_page_styles(primary, accent):
+def test_full_generator_applies_brand_colour_to_form_via_render_page_styles(
+    primary, accent
+):
     """End-to-end through ``render_page_styles``: the produced ``page_css`` themes the form.
 
     Exercises the real public entry (not just the private block builder) so the thread-through
@@ -237,7 +248,9 @@ def test_form_group_grid_is_width_driven_auto_fit(primary, accent):
 
 @settings(max_examples=100)
 @given(primary=_COLOURS, accent=_COLOURS)
-def test_width_driven_grid_collapses_to_single_column_on_narrow_containers(primary, accent):
+def test_width_driven_grid_collapses_to_single_column_on_narrow_containers(
+    primary, accent
+):
     """The width-driven ``auto-fit`` grid reflows to a single column on a narrow container.
 
     ``auto-fit`` with a per-track floor inherently collapses to one column once the container is
@@ -319,7 +332,9 @@ def test_application_form_block_is_appended_after_landing_rules():
     last_landing = norm.rfind("footer a {")
     first_form_own = norm.find('.application-form button[type="submit"]')
     assert last_landing != -1, "expected the footer landing rule to be present"
-    assert first_form_own != -1, "expected the application-form submit rule to be present"
+    assert first_form_own != -1, (
+        "expected the application-form submit rule to be present"
+    )
     assert first_form_own > last_landing, (
         "LANDING_CSS_BYTE_IDENTICAL (3.7): the application-form own-element rules must be appended "
         "AFTER the landing-class block, not interleaved with it."

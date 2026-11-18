@@ -66,7 +66,6 @@ from sam.members.domain.application_publish import (
     FORM_RESOURCE_REF,
     PUBLIC_API_BASE_ENV_VAR,
     ApplicationPublishService,
-    PublishNotReady,
     PublishPipelineNotWired,
 )
 from sam.members.domain.application_readiness import StaticMailReadinessProvider
@@ -74,7 +73,6 @@ from sam.members.domain.config_fields_crud_service import ConfigFieldsCrudServic
 from sam.members.domain.config_write_service import ConfigWriteService
 from sam.members.repository.projection_config_reader import MembersProjectionReader
 from sam.members.repository.projection_config_write_repository import (
-    REMOVE,
     SET,
     MembersConfigWriteRepository,
 )

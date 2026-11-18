@@ -27,7 +27,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -36,7 +38,6 @@ if _BACKEND_SRC not in sys.path:
 
 from sam.members.repository import table_design as td
 from sam.members.repository.members_repository import DynamoDbMembersRepository
-
 
 # ---------------------------------------------------------------------------
 # 1. normalize_name_dob_key — the exact normalization (design §12, pinned here)
@@ -55,14 +56,21 @@ class TestNormalizeNameDobKey:
 
     def test_trims_and_collapses_internal_whitespace(self):
         # Leading/trailing trimmed; a double-space infix collapses to one.
-        assert td.normalize_name_dob_key(
-            "  Sam ", "van  der", " Berg ", " 1990-05-01 "
-        ) == "sam van der berg|1990-05-01"
+        assert (
+            td.normalize_name_dob_key("  Sam ", "van  der", " Berg ", " 1990-05-01 ")
+            == "sam van der berg|1990-05-01"
+        )
 
     def test_optional_name_infix_absent_is_skipped(self):
         # tussenvoegsel is optional — an absent infix simply drops out of the join.
-        assert td.normalize_name_dob_key("Sam", "", "Berg", "1990-05-01") == "sam berg|1990-05-01"
-        assert td.normalize_name_dob_key("Sam", None, "Berg", "1990-05-01") == "sam berg|1990-05-01"
+        assert (
+            td.normalize_name_dob_key("Sam", "", "Berg", "1990-05-01")
+            == "sam berg|1990-05-01"
+        )
+        assert (
+            td.normalize_name_dob_key("Sam", None, "Berg", "1990-05-01")
+            == "sam berg|1990-05-01"
+        )
 
     def test_none_when_name_missing(self):
         # No usable name → un-indexable → None (name is half the match signal, R6.1a).
@@ -76,12 +84,19 @@ class TestNormalizeNameDobKey:
 
     def test_first_name_only_is_enough_name(self):
         # last_name is the usual anchor but any single present part yields a usable name.
-        assert td.normalize_name_dob_key("Sam", None, None, "1990-05-01") == "sam|1990-05-01"
+        assert (
+            td.normalize_name_dob_key("Sam", None, None, "1990-05-01")
+            == "sam|1990-05-01"
+        )
 
     def test_distinct_people_produce_distinct_keys(self):
         a = td.normalize_name_dob_key("Sam", None, "Berg", "1990-05-01")
-        b = td.normalize_name_dob_key("Sam", None, "Berg", "1991-05-01")  # different DOB
-        c = td.normalize_name_dob_key("Sem", None, "Berg", "1990-05-01")  # different name
+        b = td.normalize_name_dob_key(
+            "Sam", None, "Berg", "1991-05-01"
+        )  # different DOB
+        c = td.normalize_name_dob_key(
+            "Sem", None, "Berg", "1990-05-01"
+        )  # different name
         assert a != b
         assert a != c
 
@@ -94,7 +109,11 @@ class TestNormalizeNameDobKey:
 class TestBuildMemberItemWritesKey:
     def test_key_attr_is_written_when_name_and_dob_present(self):
         member = {
-            "personal": {"first_name": "Sam", "last_name": "Berg", "birth_date": "1990-05-01"},
+            "personal": {
+                "first_name": "Sam",
+                "last_name": "Berg",
+                "birth_date": "1990-05-01",
+            },
         }
         item = td.build_member_item("t1", "m1", member)
         assert item[td.NAME_DOB_KEY_ATTR] == "sam berg|1990-05-01"
@@ -114,7 +133,11 @@ class TestBuildMemberItemWritesKey:
         # A hand-crafted payload carrying a bogus name_dob_key is OVERWRITTEN with the value
         # derived from the record's own fields (verify-before-trust).
         member = {
-            "personal": {"first_name": "Sam", "last_name": "Berg", "birth_date": "1990-05-01"},
+            "personal": {
+                "first_name": "Sam",
+                "last_name": "Berg",
+                "birth_date": "1990-05-01",
+            },
             td.NAME_DOB_KEY_ATTR: "attacker|supplied",
         }
         item = td.build_member_item("t1", "m1", member)
@@ -130,7 +153,9 @@ class TestBuildMemberItemWritesKey:
         assert td.NAME_DOB_KEY_ATTR not in item
 
     def test_missing_personal_bucket_is_tolerated(self):
-        item = td.build_member_item("t1", "m1", {"membership": {"status": "application"}})
+        item = td.build_member_item(
+            "t1", "m1", {"membership": {"status": "application"}}
+        )
         assert td.NAME_DOB_KEY_ATTR not in item
 
 
@@ -144,8 +169,14 @@ class TestGsiDefinition:
         gsi = td.name_dob_gsi_definition()
         assert gsi["IndexName"] == td.NAME_DOB_GSI_INDEX_NAME == "name_dob_index"
         # HASH is tenant_id so the index can NEVER address more than one tenant (Property 1).
-        assert gsi["KeySchema"][0] == {"AttributeName": td.PARTITION_KEY_ATTR, "KeyType": "HASH"}
-        assert gsi["KeySchema"][1] == {"AttributeName": td.NAME_DOB_KEY_ATTR, "KeyType": "RANGE"}
+        assert gsi["KeySchema"][0] == {
+            "AttributeName": td.PARTITION_KEY_ATTR,
+            "KeyType": "HASH",
+        }
+        assert gsi["KeySchema"][1] == {
+            "AttributeName": td.NAME_DOB_KEY_ATTR,
+            "KeyType": "RANGE",
+        }
         assert gsi["Projection"] == {"ProjectionType": "ALL"}
 
     def test_attribute_definition_declares_only_the_new_range_key(self):

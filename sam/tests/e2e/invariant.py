@@ -119,7 +119,9 @@ class ChangeOp:
         return cls(
             kind="set_group",
             target=group_key,
-            allowed_paths=frozenset(f"functional_groups.{group_key}.{a}" for a in attrs),
+            allowed_paths=frozenset(
+                f"functional_groups.{group_key}.{a}" for a in attrs
+            ),
         )
 
     @classmethod
@@ -307,11 +309,15 @@ class _Reader(Protocol):
 class _Writer(Protocol):
     """Applies a :class:`ChangeOp` to a record (the Change-Op write path)."""
 
-    def apply(self, record_id: str, op: ChangeOp) -> None:  # pragma: no cover - protocol
+    def apply(
+        self, record_id: str, op: ChangeOp
+    ) -> None:  # pragma: no cover - protocol
         ...
 
 
-def run_change_op_isolation(reader: _Reader, writer: _Writer, record_id: str, op: ChangeOp) -> None:
+def run_change_op_isolation(
+    reader: _Reader, writer: _Writer, record_id: str, op: ChangeOp
+) -> None:
     """Drive a real read → apply(op) → read round-trip and assert isolation (design C5, R9.4).
 
     This is the GENERIC harness entry point: hand it any reader/writer pair for any SAM-plane

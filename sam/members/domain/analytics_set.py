@@ -269,7 +269,9 @@ class AnalyticsSetEntry:
                 code=ANALYTICS_SET_DELIVERY,
                 detail="recipients must be a list of address strings",
             )
-        recipient_list = list(recipients) if isinstance(recipients, (list, tuple)) else []
+        recipient_list = (
+            list(recipients) if isinstance(recipients, (list, tuple)) else []
+        )
 
         if mode == DELIVERY_MODE_TO_FIXED:
             if not recipient_list:

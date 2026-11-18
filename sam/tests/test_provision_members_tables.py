@@ -30,7 +30,9 @@ import pytest
 
 # repo root + backend/src on sys.path (mirrors sam/conftest.py + the other sam tests) so the
 # script's `sam.members...` + `services.dynamodb_client` imports resolve.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -45,7 +47,12 @@ from sam.members.repository import table_design as td
 def _load_script_module():
     """Import the hyphen-named provisioning script by path (not a valid module name)."""
     path = os.path.join(
-        _REPO_ROOT, "scripts", "onboarding", "members", "_generic", "provision-members-tables.py"
+        _REPO_ROOT,
+        "scripts",
+        "onboarding",
+        "members",
+        "_generic",
+        "provision-members-tables.py",
     )
     spec = importlib.util.spec_from_file_location("provision_members_tables", path)
     module = importlib.util.module_from_spec(spec)
@@ -154,7 +161,9 @@ def fake_resource(env, monkeypatch):
 
 
 class TestKeySchema:
-    def test_apply_creates_one_table_with_the_table_design_key_shape(self, fake_resource):
+    def test_apply_creates_one_table_with_the_table_design_key_shape(
+        self, fake_resource
+    ):
         rc = provision_mod.provision("eu-west-1", apply=True, reset=False)
         assert rc == 0
         assert len(fake_resource.created) == 1  # ONE table, single-table design
@@ -259,7 +268,9 @@ class TestResetGuard:
     def test_reset_allowed_against_local_endpoint(self, env, monkeypatch):
         # Endpoint set → local emulator → reset permitted: delete existing then recreate.
         monkeypatch.setenv("AWS_ENDPOINT_URL_DYNAMODB", "http://localhost:8000")
-        resource = FakeDynamoResource(existing={"sam-members-test": {"TableName": "sam-members-test"}})
+        resource = FakeDynamoResource(
+            existing={"sam-members-test": {"TableName": "sam-members-test"}}
+        )
         monkeypatch.setattr(
             provision_mod, "get_dynamodb_resource", lambda *, region=None: resource
         )

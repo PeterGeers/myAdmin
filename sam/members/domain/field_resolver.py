@@ -190,7 +190,9 @@ class FieldResolver:
         """
         override = overlay.overrides.get(fixed.dotted_key())
         provenance = (
-            FieldProvenance.BASE_OVERRIDDEN if override is not None else FieldProvenance.BASE
+            FieldProvenance.BASE_OVERRIDDEN
+            if override is not None
+            else FieldProvenance.BASE
         )
         label: Mapping[str, str] = fixed.label
         required = fixed.required
@@ -200,7 +202,9 @@ class FieldResolver:
         options = fixed.options
         show_when = fixed.show_when
         member_number_format = fixed.member_number_format
-        scope: FieldScope | None = None  # a fixed field carries no base scope; only an override can
+        scope: FieldScope | None = (
+            None  # a fixed field carries no base scope; only an override can
+        )
         # Public member-application attributes (D20; R4.2/R4a/R4b/R7.1): start from the fixed
         # field's base values (defaults keep a field OFF the public form, full choices, optional,
         # no validator) and let a fixed-field override set them. The override values are
@@ -268,7 +272,9 @@ class FieldResolver:
         )
 
     @staticmethod
-    def _as_calculated_field(calc: CalculatedField, overlay: TenantOverlay) -> ResolvedField:
+    def _as_calculated_field(
+        calc: CalculatedField, overlay: TenantOverlay
+    ) -> ResolvedField:
         """Project a derived (calculated) field into a read-only resolved field (R4.4).
 
         Calculated fields are NEVER stored. Like fixed fields they may be re-presented by a
@@ -280,7 +286,9 @@ class FieldResolver:
         """
         override = overlay.overrides.get(calc.dotted_key())
         provenance = (
-            FieldProvenance.BASE_OVERRIDDEN if override is not None else FieldProvenance.BASE
+            FieldProvenance.BASE_OVERRIDDEN
+            if override is not None
+            else FieldProvenance.BASE
         )
         label: Mapping[str, str] = calc.label
         visible = True
@@ -302,7 +310,7 @@ class FieldResolver:
             key=calc.key,
             group=calc.group.value,
             type=calc.type,
-            required=False,            # a derived field is never required input
+            required=False,  # a derived field is never required input
             origin=FieldOrigin.CALCULATED,
             provenance=provenance,
             label=label,
@@ -410,7 +418,9 @@ class FieldResolver:
         # base keys are always present, tenant keys extend/override them. Unlike before, this set
         # is never empty, so a dangling non-base reference is caught even with no authored catalog
         # (R5.4) while every base-key reference stays valid (preservation-safe).
-        catalog = {g.key for g in BASE_FUNCTIONAL_GROUPS} | set(overlay.functional_groups.keys())
+        catalog = {g.key for g in BASE_FUNCTIONAL_GROUPS} | set(
+            overlay.functional_groups.keys()
+        )
         vocab_keys = set((scope_vocab or {}).keys())
 
         def _check_group(dotted: str, group: str | None) -> None:
@@ -439,12 +449,15 @@ class FieldResolver:
             dotted = f"{OVERLAY_GROUP}.{key}"
             # A variable field may not collide with the canonical key of a fixed/calculated field.
             if key in _RESERVED_KEYS:
-                reasons[dotted] = "variable field key collides with a fixed/calculated field key"
+                reasons[dotted] = (
+                    "variable field key collides with a fixed/calculated field key"
+                )
             elif (
                 of.type is FieldType.ENUM
                 and not of.choices
                 and not of.options
-                and key not in vocab_keys  # S5j: a scope-dimension-backed enum sources its
+                and key
+                not in vocab_keys  # S5j: a scope-dimension-backed enum sources its
                 # choices from scope_dimensions.values — not a config bug (design D1a).
             ):
                 reasons[dotted] = "an enum variable field must declare choices/options"

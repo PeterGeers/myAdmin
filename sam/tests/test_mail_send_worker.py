@@ -100,7 +100,9 @@ class FakeMarkerStore:
         if key in self._seen:
             return False
         self._seen.add(key)
-        self.metadata.append({"tenant_id": tenant_id, "job_id": job_id, **dict(metadata)})
+        self.metadata.append(
+            {"tenant_id": tenant_id, "job_id": job_id, **dict(metadata)}
+        )
         return True
 
 
@@ -204,13 +206,25 @@ class FakeRunStore:
         return {"status": status}
 
     def increment_mail_run_counts(self, tenant_id, run_id, *, sent=0, failed=0):
-        self.counts.append({"tenant": tenant_id, "run": run_id, "sent": sent, "failed": failed})
+        self.counts.append(
+            {"tenant": tenant_id, "run": run_id, "sent": sent, "failed": failed}
+        )
         return {"sent": sent, "failed": failed}
 
-    def record_mail_failure(self, tenant_id, run_id, *, address, status="failed", reason=None,
-                            message_id=None, adjust_run_tally=False):
-        self.failures.append({"tenant": tenant_id, "run": run_id, "address": address,
-                              "reason": reason})
+    def record_mail_failure(
+        self,
+        tenant_id,
+        run_id,
+        *,
+        address,
+        status="failed",
+        reason=None,
+        message_id=None,
+        adjust_run_tally=False,
+    ):
+        self.failures.append(
+            {"tenant": tenant_id, "run": run_id, "address": address, "reason": reason}
+        )
         return {"address": address}
 
     @property
@@ -389,7 +403,9 @@ class TestSesLimitHandling:
 
     def test_quota_exhaustion_is_retryable(self):
         ses = FakeSes(
-            outcome=SesSendOutcome(ok=False, error="LimitExceeded: Daily message quota exceeded")
+            outcome=SesSendOutcome(
+                ok=False, error="LimitExceeded: Daily message quota exceeded"
+            )
         )
         with pytest.raises(MailSendRetryable):
             _worker(ses=ses).process(_per_recipient_envelope())
@@ -405,7 +421,9 @@ class TestSesLimitHandling:
 
     def test_too_many_recipients_is_permanent(self):
         env = _to_fixed_envelope()
-        env["recipients"] = [f"r{i}@example.com" for i in range(MAX_RECIPIENTS_PER_MESSAGE + 1)]
+        env["recipients"] = [
+            f"r{i}@example.com" for i in range(MAX_RECIPIENTS_PER_MESSAGE + 1)
+        ]
         with pytest.raises(MailSendPermanent):
             _worker().process(env)
 
@@ -508,7 +526,9 @@ class TestWorkerHandler:
     def test_handler_reports_failed_record_for_retry(self):
         ses = FakeSes(outcome=SesSendOutcome(ok=False, error="Throttling: slow down"))
         worker_app._WORKER = _worker(ses=ses)
-        resp = worker_app.handler(self._event(_per_recipient_envelope(), message_id="m-x"))
+        resp = worker_app.handler(
+            self._event(_per_recipient_envelope(), message_id="m-x")
+        )
         assert resp == {"batchItemFailures": [{"itemIdentifier": "m-x"}]}
 
     def test_handler_reports_malformed_body_as_failure(self):
@@ -527,7 +547,9 @@ class TestRunStatusTracking:
 
     def test_successful_send_marks_sending_and_increments_sent(self):
         runs = FakeRunStore()
-        _worker(run_store=runs).process(_per_recipient_envelope(address="ava@example.com"))
+        _worker(run_store=runs).process(
+            _per_recipient_envelope(address="ava@example.com")
+        )
         # status moved to `sending` for this run, and 1 recipient counted sent.
         assert (TENANT, RUN_ID, "sending") in runs.statuses
         assert runs.sent_total == 1

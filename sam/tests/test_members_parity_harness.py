@@ -23,7 +23,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -58,7 +60,9 @@ def test_parity_walkthrough_all_asserted_checks_pass(report):
 
 def test_report_covers_all_four_dimensions(report):
     for dimension in Dimension:
-        assert report.by_dimension(dimension), f"no checks recorded for {dimension.value}"
+        assert report.by_dimension(dimension), (
+            f"no checks recorded for {dimension.value}"
+        )
 
 
 def test_report_has_manual_walkthrough_items_for_ux(report):
@@ -84,12 +88,23 @@ def test_api_contract_covers_the_hdcn_behaviour_groups(report):
     # Spot-check that each h-dcn behaviour group is represented among the exercised routes.
     covered = report.routes_covered()
     # Member CRUD
-    assert {"create_member", "list_members", "get_member", "update_member",
-            "delete_member", "export_members"} <= covered
+    assert {
+        "create_member",
+        "list_members",
+        "get_member",
+        "update_member",
+        "delete_member",
+        "export_members",
+    } <= covered
     # Membership lifecycle (transition_membership + bulk_transition_memberships retired —
     # retire-members-status-lifecycle-engine; status is a plain field edit via update_membership)
-    assert {"create_membership", "list_memberships", "get_membership",
-            "update_membership", "delete_membership"} <= covered
+    assert {
+        "create_membership",
+        "list_memberships",
+        "get_membership",
+        "update_membership",
+        "delete_membership",
+    } <= covered
     # Delegates
     assert {"manage_delegates", "send_delegate_invitation"} <= covered
     # Payments
@@ -98,8 +113,14 @@ def test_api_contract_covers_the_hdcn_behaviour_groups(report):
     # /membership-types routes are gone (membership_type owns its vocabulary as inline field
     # options), so they are neither declared nor covered.
     assert not (
-        {"list_membership_types", "get_membership_type", "create_membership_type",
-         "update_membership_type", "deactivate_membership_type"} & covered
+        {
+            "list_membership_types",
+            "get_membership_type",
+            "create_membership_type",
+            "update_membership_type",
+            "deactivate_membership_type",
+        }
+        & covered
     )
 
 
@@ -123,7 +144,10 @@ def test_data_dimension_covers_config_dropdown_and_backfill(report):
     assert any("field config" in b for b in behaviours)
     # 03b CONTRACT (Task 10.5): the membership_type dropdown is served from the field's OWN inline
     # options (the catalog is retired), not an active-catalog list.
-    assert any("membership_type dropdown lists the field's own inline options" in b for b in behaviours)
+    assert any(
+        "membership_type dropdown lists the field's own inline options" in b
+        for b in behaviours
+    )
     assert any("backfilled member" in b for b in behaviours)
     # S5d D1: scope is a plain `overlay.region` field now (no `scope_values` bucket).
     assert any("overlay.region" in b for b in behaviours)

@@ -301,7 +301,7 @@ def get_admin_surfaces(user_email, user_roles):
             return jsonify({"error": "Access denied to tenant"}), 403
 
         # Entitlement_Truth: the tenant's ACTIVE modules (not the caller's module roles).
-        with db_manager.get_cursor() as (cursor, conn):
+        with db_manager.get_cursor_only() as cursor:
             cursor.execute(
                 """
                 SELECT module_name

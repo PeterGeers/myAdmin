@@ -49,19 +49,25 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
-from sam.members.domain.config_fields_crud_service import ConfigFieldsCrudService  # noqa: E402
-from sam.members.domain.field_resolver import FieldResolver  # noqa: E402
-from sam.members.domain.membership_service import MembershipService  # noqa: E402
-from sam.members.repository.members_repository import DynamoDbMembersRepository  # noqa: E402
-from sam.members.repository.projection_config_reader import MembersProjectionReader  # noqa: E402
-from sam.members.repository.projection_config_write_repository import (  # noqa: E402
-    MembersConfigWriteRepository,
+from sam.members.domain.config_fields_crud_service import (
+    ConfigFieldsCrudService,
 )
-from sam.members.domain.scope_dimensions import (  # noqa: E402
+from sam.members.domain.field_resolver import FieldResolver
+from sam.members.domain.membership_service import MembershipService
+from sam.members.domain.scope_dimensions import (
     ScopeDimension,
     StaticScopeConfigProvider,
+)
+from sam.members.repository.members_repository import (
+    DynamoDbMembersRepository,
+)
+from sam.members.repository.projection_config_reader import (
+    MembersProjectionReader,
+)
+from sam.members.repository.projection_config_write_repository import (
+    MembersConfigWriteRepository,
 )
 
 pytestmark = pytest.mark.e2e
@@ -71,7 +77,9 @@ pytestmark = pytest.mark.e2e
 # Reused VERBATIM here (not hand-rolled) so the legacy-row cases migrate exactly the way the
 # committed migration does — see `sam/tests/test_migrate_config_fields_choices_to_options.py`.
 def _load_migration_module():
-    path = os.path.join(_REPO_ROOT, "scripts", "migrate_config_fields_choices_to_options.py")
+    path = os.path.join(
+        _REPO_ROOT, "scripts", "migrate_config_fields_choices_to_options.py"
+    )
     spec = importlib.util.spec_from_file_location(
         "migrate_config_fields_choices_to_options", path
     )
@@ -97,7 +105,8 @@ def _version():
 
 def _key():
     return schema.build_key(
-        _TENANT, schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS)
+        _TENANT,
+        schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS),
     )
 
 
@@ -116,7 +125,9 @@ def _field_config_service(table):
     unifies all three kinds on."""
     reader = MembersProjectionReader(table=table)
     repo = DynamoDbMembersRepository(table=table)
-    return MembershipService(repo, overlay_provider=reader, scope_config_provider=reader)
+    return MembershipService(
+        repo, overlay_provider=reader, scope_config_provider=reader
+    )
 
 
 @pytest.fixture
@@ -166,7 +177,9 @@ def _seed_bare_choices_variable_field(table, field_key: str, vocab):
         "label": {"en": "Ref", "nl": "Bron"},
         "functional_group": "membership",
         "order": 50,
-        "choices": list(vocab),  # bare `choices`, no `options` — the un-migrated legacy shape
+        "choices": list(
+            vocab
+        ),  # bare `choices`, no `options` — the un-migrated legacy shape
     }
     item["fields"] = fields
     table.put_item(Item=item)
@@ -189,14 +202,25 @@ def _run_c7_backfill(table):
 # ─────────────────────────────────────────────────────────────────────────────────────
 def test_roundtrip_symmetry_options_authored(table):
     """PUT a field authored under `options` -> GET via the editor read path -> input == output."""
-    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(_TENANT)
+    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(
+        _TENANT
+    )
     svc = _service(table)
     svc.set_group(_TENANT, "membership", {"label": {"en": "Membership"}, "order": 30})
-    svc.set_field(_TENANT, "referral_source", {
-        "type": "enum", "label": {"en": "Ref"}, "order": 50, "functional_group": "membership",
-        "options": [{"value": v, "label": {"en": v, "nl": v}} for v in _VOCAB],
-    })
-    assert _resolved_vocab(table) == _VOCAB, "options-authored vocabulary must round-trip identically"
+    svc.set_field(
+        _TENANT,
+        "referral_source",
+        {
+            "type": "enum",
+            "label": {"en": "Ref"},
+            "order": 50,
+            "functional_group": "membership",
+            "options": [{"value": v, "label": {"en": v, "nl": v}} for v in _VOCAB],
+        },
+    )
+    assert _resolved_vocab(table) == _VOCAB, (
+        "options-authored vocabulary must round-trip identically"
+    )
 
 
 def test_roundtrip_symmetry_choices_only_legacy_row(table):
@@ -214,7 +238,9 @@ def test_roundtrip_symmetry_choices_only_legacy_row(table):
     `options`. So: seed the legacy bare-`choices` row DIRECTLY, run the C7 backfill, then the
     editor read path resolves the SAME six values as `options` (input == output).
     """
-    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(_TENANT)
+    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(
+        _TENANT
+    )
     # A legacy bare-`choices` row (the real h-dcn shape), seeded directly — NOT via set_field,
     # which (post-C2) rejects `choices`. This is the un-migrated shape the C7 backfill targets.
     _seed_bare_choices_variable_field(table, "referral_source", _VOCAB)
@@ -276,21 +302,32 @@ def test_roundtrip_symmetry_scope_backed_field(table):
     field's options (one vocabulary, one derivation point) — the staff serializer therefore emits
     NO independent `values` sub-key.
     """
-    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(_TENANT)
+    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(
+        _TENANT
+    )
     svc = _service(table)
     svc.set_group(_TENANT, "membership", {"label": {"en": "Membership"}, "order": 30})
     # A CHOICELESS scope-backed enum: an enabled `scope` sub-object marks it a scope axis, and it
     # carries NO inline `options` (W2 rejects inline vocabulary on a scope-backed field). Its
     # dropdown vocabulary is sourced from the scope dimension at the read seam.
-    svc.set_field(_TENANT, "region", {
-        "type": "enum", "label": {"en": "Region"}, "order": 55, "functional_group": "membership",
-        "scope": {"enabled": True, "required_for": ["Members_CRUD"]},
-    })
+    svc.set_field(
+        _TENANT,
+        "region",
+        {
+            "type": "enum",
+            "label": {"en": "Region"},
+            "order": 55,
+            "functional_group": "membership",
+            "scope": {"enabled": True, "required_for": ["Members_CRUD"]},
+        },
+    )
 
     seam = _scope_seam(table)
     config = seam.get_field_config(_TENANT)
     region = next((f for f in config["fields"] if f["key"] == "region"), None)
-    assert region is not None, "scope-backed field `region` must resolve through the seam"
+    assert region is not None, (
+        "scope-backed field `region` must resolve through the seam"
+    )
 
     # `options` is populated from the scope dimension at the ONE read-assembly seam, in the rich
     # `{value, label}` shape (a bare scope value carries an empty i18n label, design G4).
@@ -298,9 +335,9 @@ def test_roundtrip_symmetry_scope_backed_field(table):
     assert option_values == _SCOPE_VOCAB, (
         f"scope field `options` must be populated from the scope dimension; got {option_values}"
     )
-    assert region.get("options") == [
-        {"value": v, "label": {}} for v in _SCOPE_VOCAB
-    ], "scope options must be the dimension values projected to the canonical rich shape (G4)"
+    assert region.get("options") == [{"value": v, "label": {}} for v in _SCOPE_VOCAB], (
+        "scope options must be the dimension values projected to the canonical rich shape (G4)"
+    )
 
     # The field resolves as an enabled scope axis, and the serialized scope carries NO independent
     # `values` copy — scope values ARE the field's options (single vocabulary, G2/F7), so the
@@ -347,7 +384,12 @@ def _seed_membership_type_options(table):
     overrides = dict(item.get("overrides") or {})
     overrides["membership.membership_type"] = {
         "options": [
-            {"value": code, "label": {"nl": code, "en": code}, "allowed": True, "order": order}
+            {
+                "value": code,
+                "label": {"nl": code, "en": code},
+                "allowed": True,
+                "order": order,
+            }
             for code, order in _CATALOG
         ],
     }
@@ -370,7 +412,9 @@ def test_roundtrip_symmetry_reference_membership_type(table):
     read and the member-form read never disagree and both equal the field's authored options
     (NOT a separately-stored catalog, which no longer exists).
     """
-    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(_TENANT)
+    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(
+        _TENANT
+    )
     svc = _service(table)
     option_codes = _seed_membership_type_options(table)
     # Put membership_type ON the public form so the member-form read includes it (that read
@@ -384,7 +428,9 @@ def test_roundtrip_symmetry_reference_membership_type(table):
     assert staff_mt is not None, "membership_type must be present in the staff config"
 
     public = seam.get_public_field_config(_TENANT)
-    public_mt = next((f for f in public["fields"] if f["key"] == "membership_type"), None)
+    public_mt = next(
+        (f for f in public["fields"] if f["key"] == "membership_type"), None
+    )
     assert public_mt is not None, (
         "membership_type must be present in the member-form config (it was made application_visible)"
     )
@@ -434,18 +480,29 @@ def test_preservation_options_authored_roundtrips_and_is_stable(table):
     path the fix must leave untouched. Also exercises the spec-03 Change-Op path (a scoped
     `set_field`, no whole-row replace); re-reading proves nothing else drifted (R3.3).
     """
-    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(_TENANT)
+    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(
+        _TENANT
+    )
     svc = _service(table)
     svc.set_group(_TENANT, "membership", {"label": {"en": "Membership"}, "order": 30})
     authored = [{"value": v, "label": {"en": v, "nl": v}} for v in _VOCAB]
-    svc.set_field(_TENANT, "referral_source", {
-        "type": "enum", "label": {"en": "Ref"}, "order": 50, "functional_group": "membership",
-        "options": authored,
-    })
+    svc.set_field(
+        _TENANT,
+        "referral_source",
+        {
+            "type": "enum",
+            "label": {"en": "Ref"},
+            "order": 50,
+            "functional_group": "membership",
+            "options": authored,
+        },
+    )
 
     expected = [(v, {"en": v, "nl": v}) for v in _VOCAB]
     first = _resolved_options(table, "referral_source")
-    assert first == expected, "options-authored field must resolve to the full authored vocabulary"
+    assert first == expected, (
+        "options-authored field must resolve to the full authored vocabulary"
+    )
     # A second read of the same (unchanged) row returns the SAME resolved options — stable,
     # no drift (the already-resolving read path is deterministic; Change-Op left it intact).
     assert _resolved_options(table, "referral_source") == first
@@ -456,21 +513,41 @@ def test_preservation_options_authored_write_is_isolated(table):
     NOT disturb the first field's already-resolving vocabulary (no whole-row replace; a sibling
     field survives by construction). Observed on UNFIXED code; must stay true after the fix.
     """
-    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(_TENANT)
+    MembersConfigWriteRepository(table=table, version_fn=_version).ensure_skeleton(
+        _TENANT
+    )
     svc = _service(table)
     svc.set_group(_TENANT, "membership", {"label": {"en": "Membership"}, "order": 30})
-    svc.set_field(_TENANT, "referral_source", {
-        "type": "enum", "label": {"en": "Ref"}, "order": 50, "functional_group": "membership",
-        "options": [{"value": v, "label": {"en": v, "nl": v}} for v in _VOCAB],
-    })
+    svc.set_field(
+        _TENANT,
+        "referral_source",
+        {
+            "type": "enum",
+            "label": {"en": "Ref"},
+            "order": 50,
+            "functional_group": "membership",
+            "options": [{"value": v, "label": {"en": v, "nl": v}} for v in _VOCAB],
+        },
+    )
     # A SECOND, unrelated options-authored field authored through the Change-Op path.
-    svc.set_field(_TENANT, "preferred_contact", {
-        "type": "enum", "label": {"en": "Contact"}, "order": 60, "functional_group": "membership",
-        "options": [{"value": c, "label": {"en": c, "nl": c}} for c in ("email", "phone")],
-    })
+    svc.set_field(
+        _TENANT,
+        "preferred_contact",
+        {
+            "type": "enum",
+            "label": {"en": "Contact"},
+            "order": 60,
+            "functional_group": "membership",
+            "options": [
+                {"value": c, "label": {"en": c, "nl": c}} for c in ("email", "phone")
+            ],
+        },
+    )
 
     # The FIRST field's vocabulary is untouched by the second write (isolation preserved).
     assert _resolved_vocab(table) == _VOCAB
     # … and the second field resolved its own authored vocabulary.
-    assert [v for v, _ in (_resolved_options(table, "preferred_contact") or [])] == ["email", "phone"]
-
+    assert [v for v, _ in (_resolved_options(table, "preferred_contact") or [])] == [
+        "email",
+        "phone",
+    ]

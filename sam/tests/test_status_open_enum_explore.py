@@ -57,7 +57,9 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -167,7 +169,9 @@ def test_tenant_authored_status_value_survives_projection_and_validates(extra_va
             "The tenant value survived projection but can never be set on a member — the bug."
         )
 
-    validate_fixed_fields(_member_with_status(extra_value))  # the arbitrary extra value too
+    validate_fixed_fields(
+        _member_with_status(extra_value)
+    )  # the arbitrary extra value too
 
 
 def test_create_member_with_died_status_is_accepted():
@@ -214,13 +218,11 @@ def test_status_change_active_to_application_is_a_plain_edit():
     # signal that status change is no longer engine-gated. We encode the bug by asserting the
     # engine does NOT block `active -> application`.
     try:
-        from sam.members.domain.lifecycle_config import HDCN_LIFECYCLE_CONFIG
         from sam.members.domain.fixed_fields import MembershipStatus
+        from sam.members.domain.lifecycle_config import HDCN_LIFECYCLE_CONFIG
     except ImportError:
         # Post-fix: the engine + closed enum are gone. A status change is a plain field edit.
-        validate_fixed_fields(
-            {"membership": {"status": "application"}}, partial=True
-        )
+        validate_fixed_fields({"membership": {"status": "application"}}, partial=True)
         return
 
     # Unfixed: the engine gatekeeps. `active -> application` is NOT a declared edge, so the

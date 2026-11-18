@@ -153,6 +153,7 @@ def test_publish_still_succeeds_and_warns_when_state_persistence_fails(
 
 def test_reader_surfaces_published_state_from_the_stored_row_and_empty_when_absent():
     from services import projection_schema as schema
+
     from sam.members.repository.projection_config_reader import MembersProjectionReader
     from sam.tests import test_published_form_submit_round3_bug_condition as r3
 
@@ -163,7 +164,9 @@ def test_reader_surfaces_published_state_from_the_stored_row_and_empty_when_abse
     table.put(
         {
             schema.PARTITION_KEY_ATTR: _TENANT,
-            schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
             "slug": "h-dcn-aanmelden",
             "published_version": 3,
             "published_at": "2026-01-01T00:00:00+00:00",
@@ -180,15 +183,16 @@ def test_reader_surfaces_published_state_from_the_stored_row_and_empty_when_abse
 
 def test_field_config_reads_carry_published_state_but_public_omits_published_at():
     from services import projection_schema as schema
-    from sam.members.handler import app
-    from sam.members.repository.projection_config_reader import MembersProjectionReader
+
     from sam.tests import test_published_form_submit_round3_bug_condition as r3
 
     table = r3._FakeTable()
     table.put(
         {
             schema.PARTITION_KEY_ATTR: _TENANT,
-            schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
             "published_version": 2,
             "published_at": "2026-01-02T00:00:00+00:00",
             schema.VERSION_ATTR: 1,

@@ -29,12 +29,17 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from sam.members.domain.field_resolver import StaticOverlayProvider
-from sam.members.domain.mail_config import StaticMailConfigProvider, fail_closed_mail_config
+from sam.members.domain.mail_config import (
+    StaticMailConfigProvider,
+    fail_closed_mail_config,
+)
 from sam.members.domain.membership_service import MembershipService
 from sam.members.handler import app
 
@@ -98,7 +103,10 @@ class TestGetFieldConfigSurfacesMailConfig:
 
         assert service.get_field_config("h-dcn")["mail_config"] == _FULL_BODY
         # 'other' has no entry → fail-closed minimal body.
-        assert service.get_field_config("other")["mail_config"] == fail_closed_mail_config()
+        assert (
+            service.get_field_config("other")["mail_config"]
+            == fail_closed_mail_config()
+        )
 
     def test_field_config_with_mail_config_is_json_serializable(self, repo):
         """The surfaced body keeps the payload pure-JSON (the edge json.dumps it)."""

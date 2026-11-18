@@ -32,34 +32,34 @@ for _p in (_REPO_ROOT, os.path.join(_REPO_ROOT, "backend", "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from sam.members.domain.membership_service import MembershipService  # noqa: E402
-from sam.members.domain.application_form_render import (  # noqa: E402
+from sam.members.domain.application_form_render import (
     render_application_form_page,
 )
-
-# Reuse sibling helpers/fixtures by import (no duplication).
-from sam.tests.test_published_form_submit_round2_preservation import (  # noqa: E402
-    _TENANT,
-    _service,
-    _submission,
+from sam.members.domain.membership_service import MembershipService
+from sam.members.handler import app
+from sam.tests.test_members_write_dispatch import (  # noqa: F401
+    _envelope,
+    _error_fields,
+    _event,
+    hooks,  # fixtures consumed by the autouse `inject_service`
+    inject_service,
+    repo,
+    table,
 )
-from sam.tests.test_public_app_preflight import (  # noqa: E402,F401
+from sam.tests.test_public_app_preflight import (  # noqa: F401
     _SLUG,
     _SLUG_HOST,
     _edge,  # autouse fixture (slug-marker + embed-origin fakes)
     _h,
     _options,
 )
-from sam.tests.test_members_write_dispatch import (  # noqa: E402,F401
-    _envelope,
-    _event,
-    _error_fields,
-    hooks,  # fixtures consumed by the autouse `inject_service`
-    inject_service,
-    repo,
-    table,
+
+# Reuse sibling helpers/fixtures by import (no duplication).
+from sam.tests.test_published_form_submit_round2_preservation import (
+    _TENANT,
+    _service,
+    _submission,
 )
-from sam.members.handler import app  # noqa: E402
 
 _FIXTURE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),

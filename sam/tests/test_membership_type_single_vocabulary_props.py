@@ -38,7 +38,9 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -113,9 +115,13 @@ class TestAssemblyServesFieldOptionsNotCatalog:
     # below so a catalog injection would be unmistakable in the served values.
     def _inline_options(self):
         return [
-            EnumOption(value="gewoon_lid", label={"nl": "Gewoon lid"}, allowed=True, order=10),
+            EnumOption(
+                value="gewoon_lid", label={"nl": "Gewoon lid"}, allowed=True, order=10
+            ),
             EnumOption(value="erelid", label={"nl": "Erelid"}, allowed=False, order=20),
-            EnumOption(value="donateur", label={"nl": "Donateur"}, allowed=True, order=30),
+            EnumOption(
+                value="donateur", label={"nl": "Donateur"}, allowed=True, order=30
+            ),
         ]
 
     # A catalog whose codes do NOT overlap the field options — if the seam injected the catalog,
@@ -159,7 +165,9 @@ class TestAssemblyServesFieldOptionsNotCatalog:
         service._validate_membership_type_reference(TENANT, _record("gewoon_lid"))
         # … a catalog-only value is NOT a valid reference (the catalog is not consulted).
         with pytest.raises(MemberValidationError) as exc:
-            service._validate_membership_type_reference(TENANT, _record("catalog_only_a"))
+            service._validate_membership_type_reference(
+                TENANT, _record("catalog_only_a")
+            )
         assert (
             exc.value.errors[MEMBERSHIP_TYPE_FIELD_KEY].code
             == MEMBERSHIP_TYPE_UNKNOWN_REFERENCE
@@ -186,9 +194,9 @@ class TestAssemblyServesFieldOptionsNotCatalog:
 #
 # Validates: Requirements 3.1, 3.2, 3.2a, 3.4a · Property 1, 2
 
-_CODE = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=10
-).filter(lambda s: s.strip() != "")
+_CODE = st.text(alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=10).filter(
+    lambda s: s.strip() != ""
+)
 
 
 @st.composite
@@ -200,13 +208,15 @@ def _option_set(draw):
     write-seam reject (that is BU-1's write-seam test).
     """
     values = draw(st.lists(_CODE, min_size=1, max_size=6, unique=True))
-    alloweds = draw(
-        st.lists(st.booleans(), min_size=len(values), max_size=len(values))
-    )
+    alloweds = draw(st.lists(st.booleans(), min_size=len(values), max_size=len(values)))
     if not any(alloweds):  # force ≥1 allowed:true so the field is well-formed
         alloweds[0] = True
     orders = draw(
-        st.lists(st.integers(min_value=0, max_value=99), min_size=len(values), max_size=len(values))
+        st.lists(
+            st.integers(min_value=0, max_value=99),
+            min_size=len(values),
+            max_size=len(values),
+        )
     )
     options = [
         EnumOption(value=v, label={"nl": v}, allowed=a, order=o)
@@ -237,7 +247,9 @@ def test_property_every_reference_resolves_to_one_outcome(options):
     for value in retired_values:
         with pytest.raises(MemberValidationError) as exc:
             service._validate_membership_type_reference(TENANT, _record(value))
-        assert exc.value.errors[MEMBERSHIP_TYPE_FIELD_KEY].code == MEMBERSHIP_TYPE_RETIRED
+        assert (
+            exc.value.errors[MEMBERSHIP_TYPE_FIELD_KEY].code == MEMBERSHIP_TYPE_RETIRED
+        )
 
     # (c) a value NOT in the options is a save-blocking UNKNOWN_REFERENCE (Req 3.2a). "zzz_absent"
     # is excluded from the generated alphabet-only space by its digit, so it is always absent.
@@ -269,7 +281,10 @@ def test_property_default_is_first_allowed_by_order_and_is_assignable(options):
     allowed = [(i, o) for i, o in enumerate(options) if o.allowed]
     expected = min(
         allowed,
-        key=lambda io: (io[1].order if io[1].order is not None else float("inf"), io[0]),
+        key=lambda io: (
+            io[1].order if io[1].order is not None else float("inf"),
+            io[0],
+        ),
     )[1].value
     assert default == expected
 
@@ -290,7 +305,9 @@ def test_property_grandfather_unchanged_value_is_never_revalidated(options):
     service = _service(_overlay_inline(options))
 
     retired = [o.value for o in options if not o.allowed]
-    sample = retired[0] if retired else "zzz_removed_9"  # retired OR a since-removed value
+    sample = (
+        retired[0] if retired else "zzz_removed_9"
+    )  # retired OR a since-removed value
 
     # The value-changed-only guard: `_membership_type_of` of the same stored record is stable, so
     # the caller's "only re-validate on a CHANGE" rule skips the check for an unchanged value.
@@ -310,7 +327,9 @@ class TestStaffReadAndReferenceCheckShareOneVocabulary:
 
     def _options(self):
         return [
-            EnumOption(value="gewoon_lid", label={"nl": "Gewoon lid"}, allowed=True, order=10),
+            EnumOption(
+                value="gewoon_lid", label={"nl": "Gewoon lid"}, allowed=True, order=10
+            ),
             EnumOption(value="erelid", label={"nl": "Erelid"}, allowed=False, order=20),
         ]
 
@@ -318,7 +337,9 @@ class TestStaffReadAndReferenceCheckShareOneVocabulary:
         service = _service(_overlay_inline(self._options()))
         for opt in _mt_field_options(service):
             if opt["allowed"]:
-                service._validate_membership_type_reference(TENANT, _record(opt["value"]))
+                service._validate_membership_type_reference(
+                    TENANT, _record(opt["value"])
+                )
             else:
                 with pytest.raises(MemberValidationError) as exc:
                     service._validate_membership_type_reference(

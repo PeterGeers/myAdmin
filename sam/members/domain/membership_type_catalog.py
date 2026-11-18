@@ -138,7 +138,8 @@ class MembershipTypeEntry:
 
         if not isinstance(self.label, Mapping):
             errors["label"] = FieldError(
-                code=MEMBERSHIP_TYPE_LABEL, detail="must be a mapping of locale -> label"
+                code=MEMBERSHIP_TYPE_LABEL,
+                detail="must be a mapping of locale -> label",
             )
         else:
             nl = self.label.get(_REQUIRED_LOCALE)
@@ -191,7 +192,11 @@ class MembershipTypeEntry:
         """
         if not isinstance(item, Mapping):
             raise MembershipTypeValidationError(
-                {"item": FieldError(code=MEMBERSHIP_TYPE_TYPE_CODE, detail="must be a mapping")}
+                {
+                    "item": FieldError(
+                        code=MEMBERSHIP_TYPE_TYPE_CODE, detail="must be a mapping"
+                    )
+                }
             )
         raw_order = item.get("order", 0)
         try:

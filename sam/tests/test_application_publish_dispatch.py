@@ -549,7 +549,6 @@ import io as _io
 
 from sam.members.repository.slug_marker_store import (
     S3SlugMarkerStore,
-    SlugTaken,
 )
 
 _CLAIM_BUCKET = "myadmin-public-pages-test"
@@ -1262,7 +1261,9 @@ def test_publish_reads_the_injected_look_and_feel_reader_scoped_to_the_verified_
     )
     with pytest.raises(PublishPipelineNotWired):
         svc.publish(_TENANT)
-    assert reader.calls == [_TENANT]  # 7.2 wires the resolve, scoped to the verified tenant
+    assert reader.calls == [
+        _TENANT
+    ]  # 7.2 wires the resolve, scoped to the verified tenant
 
 
 # ════════════════════════════════════════════════════════════════════════════════════

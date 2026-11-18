@@ -38,10 +38,12 @@ from typing import TYPE_CHECKING, Any
 
 # The exception the config-write dispatch raises (re-exported for the handler's error mapping
 # and for ``app.ConfigWriteValidationError`` surface compat).
-from sam.members.domain.config_fields_crud_service import ConfigFieldsCrudError  # noqa: F401
-from sam.members.domain.config_write_service import ConfigWriteValidationError  # noqa: F401
-from sam.members.repository.members_cursor import CursorError  # noqa: F401
-
+from sam.members.domain.config_fields_crud_service import (
+    ConfigFieldsCrudError,  # noqa: F401
+)
+from sam.members.domain.config_write_service import (
+    ConfigWriteValidationError,
+)
 from sam.members.handler._dispatch_analytics import dispatch_analytics
 from sam.members.handler._dispatch_config import dispatch_config
 from sam.members.handler._dispatch_members import dispatch_members
@@ -49,11 +51,11 @@ from sam.members.handler._dispatch_members import dispatch_members
 # The shared seams / helpers / exceptions — re-exported here so ``app`` (and the tests that
 # reach ``app.*``) keep their unchanged public import surface after the by-resource split.
 from sam.members.handler._dispatch_services import (  # noqa: F401
+    _WRITABLE_CONFIG_IDS,
     UNHANDLED,
     MailRunNotFound,
     RouteNotImplemented,
     StaleClientBundleError,
-    _WRITABLE_CONFIG_IDS,
     _apply_one_config_fields_op,
     _caller_is_tenant_admin,
     _delivery_outcome_to_dict,
@@ -80,6 +82,7 @@ from sam.members.handler._dispatch_services import (  # noqa: F401
 )
 from sam.members.handler._http import ParsedRequest
 from sam.members.handler.routes import RouteSpec
+from sam.members.repository.members_cursor import CursorError
 
 if (
     TYPE_CHECKING
@@ -99,10 +102,10 @@ _DISPATCH_GROUPS = (dispatch_members, dispatch_analytics, dispatch_config)
 # routes (create/update/delete/delegates) are wired by task 5.2/5.3. Anything not
 # wired falls through to :class:`RouteNotImplemented`.
 def dispatch_route(
-    service: "MembershipService",
+    service: MembershipService,
     spec: RouteSpec,
     request: ParsedRequest,
-    ctx: "RequestContext",
+    ctx: RequestContext,
 ) -> Any:
     """Delegate a resolved route to the generic membership engine (design C2).
 

@@ -32,7 +32,9 @@ import sys
 import pytest
 
 # repo root + backend/src on sys.path (mirrors sam/conftest.py + the other sam tests).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -42,7 +44,9 @@ if _BACKEND_SRC not in sys.path:
 # The h-dcn onboarding scripts dir carries the CSV + its two loaders (config + mapping). Put it
 # on sys.path so `members_mapping_loader` / `members_config_loader` import as top-level modules
 # (mirrors how test_hdcn_backfill.py loads them).
-_HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "onboarding", "members", "h-dcn")
+_HDCN_SCRIPTS_DIR = os.path.join(
+    _REPO_ROOT, "scripts", "onboarding", "members", "h-dcn"
+)
 if _HDCN_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _HDCN_SCRIPTS_DIR)
 
@@ -183,7 +187,9 @@ class TestLoaderOrphanGuardGap:
         p.write_text(header + body, encoding="utf-8")
         return str(p)
 
-    def test_loader_flags_a_config_overlay_field_with_no_mapping_backing(self, tmp_path):
+    def test_loader_flags_a_config_overlay_field_with_no_mapping_backing(
+        self, tmp_path
+    ):
         # A minimal config declaring ONE overlay field ("orphan_field") that the mapping below
         # does NOT target. The mapping only maps a fixed field, so the orphan has no backing.
         orphan_config = {

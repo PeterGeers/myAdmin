@@ -21,7 +21,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -196,12 +198,14 @@ def test_render_page_styles_is_dependency_free_stdlib_only():
         if isinstance(node, ast.Import):
             for alias in node.names:
                 imported_roots.add(alias.name.split(".")[0])
-        elif isinstance(node, ast.ImportFrom):
+        elif isinstance(node, ast.ImportFrom):  # noqa: SIM102
             if node.level == 0 and node.module:
                 imported_roots.add(node.module.split(".")[0])
 
     disallowed = imported_roots - allowed
-    assert not disallowed, f"page_styles must be stdlib-only; found: {sorted(disallowed)}"
+    assert not disallowed, (
+        f"page_styles must be stdlib-only; found: {sorted(disallowed)}"
+    )
 
 
 # ─── Property 5 (task 1.6) — unsupported attribute is rejected, no styling ──────────────
@@ -209,8 +213,8 @@ def test_render_page_styles_is_dependency_free_stdlib_only():
 # This is the separate property task that complements the example-based
 # `test_unsupported_attribute_*` unit tests above.
 
-from hypothesis import given, settings  # noqa: E402
-from hypothesis import strategies as st  # noqa: E402
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 # A value that is never one of the seven supported attribute NAMES. We draw unsupported
 # keys from arbitrary text, then exclude the supported set so every generated mapping is
@@ -247,7 +251,9 @@ _supported_subset = st.dictionaries(
         max_size=4,
     ),
 )
-def test_property_5_unsupported_attribute_rejected_and_no_styling(supported, unsupported):
+def test_property_5_unsupported_attribute_rejected_and_no_styling(
+    supported, unsupported
+):
     """Feature: sam-page-look-and-feel, Property 5: For any values mapping containing a key that is not one of the seven supported attributes, render_page_styles SHALL reject the request, signal the unsupported attribute, and produce no Page styling.
 
     Validates: Requirements 3.4

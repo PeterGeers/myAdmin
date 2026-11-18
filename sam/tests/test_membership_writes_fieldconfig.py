@@ -224,7 +224,7 @@ class TestOptionsAuthoredRendersIdenticallyInBothReads:
         public_by_val = {
             o["value"]: o["label"] for o in _field(public, "referral_source")["options"]
         }
-        for val in public_by_val:
+        for val in public_by_val:  # noqa: PLC0206
             assert public_by_val[val] == editor_by_val[val]
 
 
@@ -1089,8 +1089,7 @@ class TestG5LegitimatelyEmptyDoesNotRaiseOnPublicPathEither:
 # Validates: Requirements 2.6, 2.7 · Components: C4 (F9/F10 collapse), test-based replacement for
 # the DROPPED C8 blocking rule (c).
 
-from sam.members.domain.field_resolver import FixedFieldOverride  # noqa: E402
-from sam.members.domain.scope_dimensions import (  # noqa: E402
+from sam.members.domain.scope_dimensions import (
     ScopeDimension,
     StaticScopeConfigProvider,
 )

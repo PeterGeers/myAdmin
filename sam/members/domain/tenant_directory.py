@@ -61,10 +61,10 @@ from typing import Protocol, runtime_checkable
 
 __all__ = [
     "MAX_SLUG_LENGTH",
-    "TenantSlugReader",
     "ResolveFailure",
-    "TenantResolution",
     "TenantDirectory",
+    "TenantResolution",
+    "TenantSlugReader",
 ]
 
 #: Upper bound on an acceptable slug length. A DNS label is <= 63 chars (the slug rides as a
@@ -152,12 +152,12 @@ class TenantResolution:
         return self.tenant_id is not None
 
     @classmethod
-    def resolved(cls, tenant_id: str) -> "TenantResolution":
+    def resolved(cls, tenant_id: str) -> TenantResolution:
         """Build a resolved outcome carrying the canonical ``tenant_id``."""
         return cls(tenant_id=tenant_id, failure=None)
 
     @classmethod
-    def not_found(cls) -> "TenantResolution":
+    def not_found(cls) -> TenantResolution:
         """Build the uniform not-found outcome (the ONLY failure state — non-probeable)."""
         return cls(tenant_id=None, failure=ResolveFailure.NOT_FOUND)
 

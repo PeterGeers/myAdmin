@@ -172,7 +172,9 @@ def test_for_config_absent_dimension_key_is_tenant_wide():
 
 # ── Property-based tests ──────────────────────────────────────────────────────────────
 
-_VALUES = tuple(REGION.values)  # the live h-dcn region vocabulary (derived, not hardcoded)
+_VALUES = tuple(
+    REGION.values
+)  # the live h-dcn region vocabulary (derived, not hardcoded)
 
 
 @given(st.lists(st.sampled_from(_VALUES), min_size=1, max_size=4, unique=True))
