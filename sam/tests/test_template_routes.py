@@ -48,8 +48,8 @@ from sam.members.domain.template_service import (
     InMemoryTemplateBodyStore,
     TemplateService,
 )
-from sam.members.handler import app
 from sam.members.handler import _dispatch as dispatch_mod
+from sam.members.handler import app
 from sam.members.repository.members_repository import DynamoDbMembersRepository
 
 # The faithful in-memory DynamoDB fake (shared with the sibling route suites).
@@ -365,10 +365,9 @@ class TestTemplateRoutesTenancy:
         template_id = created["template_id"]
         # A caller in a DIFFERENT tenant (its own entitlement) cannot see it → 404.
         other_grants_email = "all@other.test"
-        from sam.tests.conftest import FakeScopeGrantsReader
-
         # The other tenant needs its own all-access grant for the capability to resolve.
         import sam.members.handler.app as members_app
+        from sam.tests.conftest import FakeScopeGrantsReader
 
         members_app._SCOPE_GRANTS_READER_OVERRIDE = FakeScopeGrantsReader(
             {

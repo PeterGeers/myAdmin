@@ -36,24 +36,23 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 
-import pytest  # noqa: E402
-
-from check_sam_config_crud import (  # noqa: E402
-    RAW_WRITE_METHODS,
+import pytest
+from check_sam_config_crud import (
+    EXCLUDED_DIRS,
     RAW_SHAPE_KEYS,
     RAW_WRITE_ALLOWED_FILES,
+    RAW_WRITE_METHODS,
     RESPONSE_SHAPE_ALLOWED_FILES,
     SCAN_DIRS,
-    EXCLUDED_DIRS,
+    VOCAB_CONSUMER_DIRS,
     VOCAB_KEY,
     WRITE_PATH_FILES,
-    VOCAB_CONSUMER_DIRS,
+    _is_dotted_group_key,
     check_file,
     check_file_report_only,
+    main,
     scan_directory,
     scan_directory_report_only,
-    main,
-    _is_dotted_group_key,
 )
 
 
@@ -422,12 +421,13 @@ class TestScanDirectory:
         sam_root = _REPO_ROOT / "sam"
         assert sam_root.is_dir(), f"expected SAM tree at {sam_root}"
         violations = scan_directory(sam_root)
-        assert violations == [], "guard found violations in the live sam/ tree:\n" + "\n".join(
-            violations
+        assert violations == [], (
+            "guard found violations in the live sam/ tree:\n" + "\n".join(violations)
         )
         report_only = scan_directory_report_only(sam_root)
-        assert report_only == [], "03a rules found violations in the live sam/ tree:\n" + "\n".join(
-            report_only
+        assert report_only == [], (
+            "03a rules found violations in the live sam/ tree:\n"
+            + "\n".join(report_only)
         )
 
 
@@ -454,10 +454,14 @@ class TestGuardConfig:
     """Module-level configuration sanity checks."""
 
     def test_raw_write_methods(self):
-        assert RAW_WRITE_METHODS == frozenset({"put_item", "update_item", "delete_item"})
+        assert RAW_WRITE_METHODS == frozenset(
+            {"put_item", "update_item", "delete_item"}
+        )
 
     def test_raw_shape_keys(self):
-        assert RAW_SHAPE_KEYS == frozenset({"field_overlay", "overrides", "fixed_overrides"})
+        assert RAW_SHAPE_KEYS == frozenset(
+            {"field_overlay", "overrides", "fixed_overrides"}
+        )
 
     def test_sanctioned_writers_are_allow_listed(self):
         assert (
@@ -807,9 +811,11 @@ class TestBlockingSemantics:
             FIELD_DEFINITION_ATTRS = frozenset({"options", "choices"})
             """,
         )
-        assert check_file_report_only(f)      # detected by the 03a family
-        assert check_file(f) == []            # not a spec-03-family finding (separate entry point)
-        assert run_main([f]) == 1             # BLOCKING: the guard fails the build
+        assert check_file_report_only(f)  # detected by the 03a family
+        assert (
+            check_file(f) == []
+        )  # not a spec-03-family finding (separate entry point)
+        assert run_main([f]) == 1  # BLOCKING: the guard fails the build
 
     def test_scan_directory_report_only_aggregates_findings(self, tmp_path):
         """``scan_directory_report_only`` aggregates rule findings across the tree."""
@@ -843,8 +849,8 @@ class TestBlockingSemantics:
             "sam/members/repository/rogue_config_writer.py",
             _gov("def w(table, i):\n    table.put_item(Item=i)\n"),
         )
-        assert check_file(f)                  # spec-03 blocking finding present
-        assert run_main([f]) == 1             # still BLOCKING
+        assert check_file(f)  # spec-03 blocking finding present
+        assert run_main([f]) == 1  # still BLOCKING
 
     def test_clean_file_passes_the_build(self, tmp_path):
         """A clean options-only file makes the guard EXIT ZERO (no finding in either family)."""
@@ -855,7 +861,7 @@ class TestBlockingSemantics:
         )
         assert check_file(f) == []
         assert check_file_report_only(f) == []
-        assert run_main([f]) == 0             # BLOCKING contract: clean tree passes
+        assert run_main([f]) == 0  # BLOCKING contract: clean tree passes
 
 
 class TestRule03aConfig:

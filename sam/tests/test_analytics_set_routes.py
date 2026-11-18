@@ -1003,9 +1003,7 @@ class TestColumnPreferencesEdge:
             )
         )
         # A DIFFERENT user's GET must not see sub-a's list (keyed by the verified sub).
-        other = app.handler(
-            _event("GET", "/members/column-preferences", sub="sub-b")
-        )
+        other = app.handler(_event("GET", "/members/column-preferences", sub="sub-b"))
         assert _data(other)["columns"] == []
 
     def test_column_preferences_are_isolated_per_tenant(self, monkeypatch):
@@ -1027,7 +1025,9 @@ class TestColumnPreferencesEdge:
             FakeScopeGrantsReader({("other-tenant", _EMAIL_ALL): {"region": ["*"]}}),
         )
         other = app.handler(
-            _event("GET", "/members/column-preferences", tenant="other-tenant", sub="sub-t")
+            _event(
+                "GET", "/members/column-preferences", tenant="other-tenant", sub="sub-t"
+            )
         )
         assert _data(other)["columns"] == []
 
@@ -1035,9 +1035,7 @@ class TestColumnPreferencesEdge:
         # GET /members/column-preferences must resolve to the column-preferences route, NOT be
         # swallowed by GET /members/{member_id} (declaration order). A 200 with a `columns` key
         # (not a member shape / 404) proves the literal won.
-        resp = app.handler(
-            _event("GET", "/members/column-preferences", sub="sub-q")
-        )
+        resp = app.handler(_event("GET", "/members/column-preferences", sub="sub-q"))
         assert resp["statusCode"] == 200
         assert "columns" in _data(resp)
 
@@ -1140,9 +1138,7 @@ class TestAnalyticsSetDeliveryDomain:
 
     def test_set_to_fixed_stores_the_block_and_round_trips(self, service, repo):
         set_id = self._seed(service)
-        out = service.set_analytics_set_delivery(
-            "h-dcn", set_id, _delivery_to_fixed()
-        )
+        out = service.set_analytics_set_delivery("h-dcn", set_id, _delivery_to_fixed())
         assert out["delivery"]["mode"] == "to_fixed"
         assert out["delivery"]["recipients"] == [
             "agent@example.com",
@@ -1174,9 +1170,7 @@ class TestAnalyticsSetDeliveryDomain:
             created_by="author-sub",
         )
         set_id = created["set_id"]
-        out = service.set_analytics_set_delivery(
-            "h-dcn", set_id, _delivery_to_fixed()
-        )
+        out = service.set_analytics_set_delivery("h-dcn", set_id, _delivery_to_fixed())
         # The pivot config + attribution + origin survive a delivery set; updated_at bumps.
         assert out["definition"]["data_source"] == "members"
         assert out["created_by"] == "author-sub"
@@ -1309,9 +1303,7 @@ class TestAnalyticsSetDeliveryEdge:
         assert repo.get_analytics_set("h-dcn", set_id).delivery is None
 
     def test_delete_absent_set_returns_404(self):
-        resp = app.handler(
-            _event("DELETE", "/members/analytics-sets/ghost/delivery")
-        )
+        resp = app.handler(_event("DELETE", "/members/analytics-sets/ghost/delivery"))
         assert resp["statusCode"] == 404
 
     def test_delivery_route_not_shadowed_by_set_id_route(self):
@@ -1731,7 +1723,10 @@ class TestDeliverRouteEdge:
         )["set_id"]
         resp = app.handler(_event("POST", f"/members/analytics-sets/{set_id}/deliver"))
         assert resp["statusCode"] == 422
-        assert json.loads(resp["body"])["code"] == "errors.analyticsset.delivery.notConfigured"
+        assert (
+            json.loads(resp["body"])["code"]
+            == "errors.analyticsset.delivery.notConfigured"
+        )
         assert mail_queue.jobs == []  # nothing enqueued when there is nothing to send
 
     # ── cross-tenant isolation (Property 1) ──────────────────────────────────────────────

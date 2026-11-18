@@ -22,6 +22,7 @@
 				"password": "REDACTED"
 			}
 		],
-		"typescript.autoClosingTags": false
+		"typescript.autoClosingTags": false,
+		"python.analysis.excludeLibraryDiagnostics": true
 	}
 }

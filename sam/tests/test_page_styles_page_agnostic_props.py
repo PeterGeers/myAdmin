@@ -28,11 +28,13 @@ import sys
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from sam.shared.page_styles import render_page_styles  # noqa: E402
+from sam.shared.page_styles import render_page_styles
 
 # ─── Generators for valid Look_And_Feel_Settings values ────────────────────────────────
 # Each attribute draws from its permitted/valid value space; every attribute is optional so
@@ -63,9 +65,7 @@ def _settings_values(draw):
     }
     # Each attribute is independently present/absent so any subset is exercised: an absent
     # attribute falls back to the SAM-owned default, which is still page-agnostic.
-    include = {
-        key: draw(st.booleans()) for key in candidate
-    }
+    include = {key: draw(st.booleans()) for key in candidate}
     return {key: value for key, value in candidate.items() if include[key]}
 
 

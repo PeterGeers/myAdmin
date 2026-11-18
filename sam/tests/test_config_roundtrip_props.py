@@ -323,7 +323,9 @@ def _actual_overlay_field(f) -> dict:
         "required": f.required,
         "label": dict(f.label),
         # Single-vocabulary (C5/F2): one `options`; the reader no longer carries `choices`.
-        "option_values": tuple(o.value for o in f.options) if f.options is not None else None,
+        "option_values": tuple(o.value for o in f.options)
+        if f.options is not None
+        else None,
         "visible": f.visible,
         "order": f.order,
     }

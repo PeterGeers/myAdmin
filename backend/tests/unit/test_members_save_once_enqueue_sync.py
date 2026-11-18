@@ -142,7 +142,9 @@ class TestMembersCompositeSaveOnceEnqueuesSyncOnce:
         """POST the whole members.field_overlay map object → one enqueue_sync for own tenant."""
         mocks = _admin_auth_mocks() + [
             patch("routes.parameter_admin_routes.DatabaseManager"),
-            patch("routes.parameter_admin_routes._get_service", return_value=MagicMock()),
+            patch(
+                "routes.parameter_admin_routes._get_service", return_value=MagicMock()
+            ),
         ]
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
             resp = param_client.post(
@@ -157,10 +159,11 @@ class TestMembersCompositeSaveOnceEnqueuesSyncOnce:
                 headers=_AUTH_HEADERS,
             )
 
-        assert resp.status_code == 200
-        assert resp.get_json()["success"] is True
-        # Property 8: the whole-object save fired EXACTLY ONE re-projection, for own tenant.
-        assert injected_trigger.admin_calls == ["TestTenant"]
+        assert resp.status_code == 400
+        assert resp.get_json()["success"] is False
+        # Option B: members.* is module-plane-owned, so the Flask path rejects the
+        # composite object BEFORE any set_param and before any enqueue_sync.
+        assert injected_trigger.admin_calls == []
 
     def test_update_field_overlay_composite_enqueues_sync_exactly_once(
         self, param_client, injected_trigger
@@ -197,9 +200,9 @@ class TestMembersCompositeSaveOnceEnqueuesSyncOnce:
                 headers=_AUTH_HEADERS,
             )
 
-        assert resp.status_code == 200
+        assert resp.status_code == 400
         # Property 8: exactly one re-projection for the row's own tenant, once.
-        assert injected_trigger.admin_calls == ["TestTenant"]
+        assert injected_trigger.admin_calls == []
 
     def test_create_field_overlay_saves_whole_object_in_one_set_param(
         self, param_client, injected_trigger
@@ -223,32 +226,12 @@ class TestMembersCompositeSaveOnceEnqueuesSyncOnce:
                 headers=_AUTH_HEADERS,
             )
 
-        assert resp.status_code == 200
+        assert resp.status_code == 400
         # Exactly one write of the WHOLE object (not one write per field/group).
-        assert mock_svc.set_param.call_count == 1
-        saved_value = mock_svc.set_param.call_args.args[4]
-        # Phase-1 R3.2: the save FOLDS the editor's per-locale ``label_<locale>`` inputs into
-        # the stored inline ``{nl,en,…}`` label dict — so the persisted value is the WHOLE
-        # object with labels folded (not the raw per-locale editor inputs). Every other key is
-        # carried through unchanged (one write, whole composite).
-        assert saved_value["functional_groups"] == [
-            {"key": "personal", "order": 1, "label": {"en": "Personal"}},
-            {"key": "motor", "order": 2, "label": {"en": "Motorcycle"}},
-        ]
-        assert saved_value["fields"]["motor_brand"] == {
-            "type": "string",
-            "functional_group": "motor",
-            "visible": True,
-            "label": {"en": "Motor brand"},
-        }
-        # A fixed override with no label input is carried through untouched (no empty label).
-        assert saved_value["fixed_overrides"] == {
-            "personal.street": {"functional_group": "personal"},
-        }
-        # No raw per-locale editor input survives the fold.
-        assert "label_en" not in saved_value["functional_groups"][0]
-        assert "label_en" not in saved_value["fields"]["motor_brand"]
-        assert injected_trigger.admin_calls == ["TestTenant"]
+        assert mock_svc.set_param.call_count == 0
+        # Option B: members.* is module-plane-owned, so the Flask path rejects the
+        # composite object BEFORE any set_param and before any enqueue_sync.
+        assert injected_trigger.admin_calls == []
 
 
 # ===========================================================================
@@ -271,7 +254,9 @@ class TestInvalidCompositeSaveRejectedBeforeSync:
         }
         mocks = _admin_auth_mocks() + [
             patch("routes.parameter_admin_routes.DatabaseManager"),
-            patch("routes.parameter_admin_routes._get_service", return_value=MagicMock()),
+            patch(
+                "routes.parameter_admin_routes._get_service", return_value=MagicMock()
+            ),
         ]
         with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6]:
             resp = param_client.post(

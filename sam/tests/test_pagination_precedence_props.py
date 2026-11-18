@@ -31,7 +31,9 @@ from hypothesis import strategies as st
 
 # repo root + backend/src on sys.path (mirrors sam/conftest.py + the sibling reader test, so
 # `sam.members` and `services.projection_schema` resolve).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -41,7 +43,6 @@ if _BACKEND_SRC not in sys.path:
 from services import projection_schema as schema
 
 from sam.members.repository.projection_config_reader import MembersProjectionReader
-
 
 # ---------------------------------------------------------------------------
 # In-memory fake DynamoDB table (query side only) — mirrors test_members_projection_reader.py
@@ -71,7 +72,9 @@ def _config_fields_item(tenant_id, *, default_page_size=..., version=1):
     """A ``config#fields`` row; set ``default_page_size`` only when a value is supplied."""
     item = {
         schema.PARTITION_KEY_ATTR: tenant_id,
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, "fields"
+        ),
         "fields": {},
         "overrides": {},
         schema.VERSION_ATTR: version,
@@ -114,7 +117,9 @@ _unusable = st.one_of(_non_positive_int, _bool, _non_int)
 
 @settings(max_examples=200)
 @given(tenant_id=_TENANT_ID, page_size=_positive_int)
-def test_property_authored_positive_page_size_is_returned_verbatim(tenant_id, page_size):
+def test_property_authored_positive_page_size_is_returned_verbatim(
+    tenant_id, page_size
+):
     """A projected POSITIVE ``default_page_size`` is returned as that exact positive int (R2.2)."""
     table = FakeTable()
     table.put(_config_fields_item(tenant_id, default_page_size=page_size))
@@ -148,7 +153,10 @@ def test_property_absent_attribute_or_row_is_none(tenant_id):
     assert MembersProjectionReader(table=table).get_default_page_size(tenant_id) is None
 
     # No row at all (unconfigured tenant).
-    assert MembersProjectionReader(table=FakeTable()).get_default_page_size(tenant_id) is None
+    assert (
+        MembersProjectionReader(table=FakeTable()).get_default_page_size(tenant_id)
+        is None
+    )
 
 
 @settings(max_examples=200)
@@ -177,4 +185,6 @@ def test_property_reader_is_deterministic(tenant_id, stored):
     table.put(_config_fields_item(tenant_id, default_page_size=stored))
     reader = MembersProjectionReader(table=table)
 
-    assert reader.get_default_page_size(tenant_id) == reader.get_default_page_size(tenant_id)
+    assert reader.get_default_page_size(tenant_id) == reader.get_default_page_size(
+        tenant_id
+    )

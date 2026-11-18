@@ -31,7 +31,9 @@ import sys
 import pytest
 
 # repo root + backend/src on sys.path (mirrors sam/conftest.py + the other sam tests).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -69,7 +71,9 @@ if _TESTS_DIR not in sys.path:
 
 from test_members_repository import FakeDynamoTable
 
-FIXTURE = os.path.join(_REPO_ROOT, "sam", "tests", "fixtures", "hdcn_ledenbestand_sample.csv")
+FIXTURE = os.path.join(
+    _REPO_ROOT, "sam", "tests", "fixtures", "hdcn_ledenbestand_sample.csv"
+)
 
 
 #: A synthetic region canonicalizer for the transform tests (D17 — tenant vocabulary is
@@ -133,7 +137,9 @@ class TestMapHdcnRow:
         }
         assert rec["membership"]["member_number"] == "M01001"
         assert rec["membership"]["joined_date"] == "2010-01-01"
-        assert rec["membership"]["status"] == "active"  # no status column → default active
+        assert (
+            rec["membership"]["status"] == "active"
+        )  # no status column → default active
         # member_id is a minted uuid4 (36 chars, 4 dashes), NOT the source Lidnummer.
         assert isinstance(rec["member_id"], str) and rec["member_id"].count("-") == 4
         assert rec["member_id"] != "1001"
@@ -199,9 +205,20 @@ class TestMapHdcnRow:
             assert "" not in rec[group]
 
     def test_membership_type_is_mapped_to_a_catalog_code(self):
-        assert _map(**{"Soort lidmaatschap": "Erelid"})["membership"]["membership_type"] == "erelid"
-        assert _map(**{"Soort lidmaatschap": "Donateur"})["membership"]["membership_type"] == "donateur"
-        assert _map(**{"Soort lidmaatschap": "Gewoon lid"})["membership"]["membership_type"] == "gewoon_lid"
+        assert (
+            _map(**{"Soort lidmaatschap": "Erelid"})["membership"]["membership_type"]
+            == "erelid"
+        )
+        assert (
+            _map(**{"Soort lidmaatschap": "Donateur"})["membership"]["membership_type"]
+            == "donateur"
+        )
+        assert (
+            _map(**{"Soort lidmaatschap": "Gewoon lid"})["membership"][
+                "membership_type"
+            ]
+            == "gewoon_lid"
+        )
 
     def test_bad_row_fails_loudly_missing_required_field(self):
         # No last name → validate_fixed_fields fails → RowTransformError.
@@ -225,9 +242,13 @@ class TestMapHdcnRow:
     def test_contact_sam_code_imports_verbatim(self):
         # A contact/organisation row is keyed by its SAM Code 'C#####' (read verbatim), NOT by a
         # derived `C_<Achternaam>`. Lidnummer/Achternaam no longer drive the number.
-        rec = _map(**{"SAM Code": "C00001", "Lidnummer": "", "Achternaam": "Sponsor BV"})
+        rec = _map(
+            **{"SAM Code": "C00001", "Lidnummer": "", "Achternaam": "Sponsor BV"}
+        )
         assert rec["membership"]["member_number"] == "C00001"
-        assert rec["member_id"]  # a stable uuid is still minted as the internal identity
+        assert rec[
+            "member_id"
+        ]  # a stable uuid is still minted as the internal identity
 
     def test_meaningful_row_with_blank_sam_code_is_a_transform_error(self):
         # Transition rule (user-approved): a MEANINGFUL data row with a BLANK SAM Code is a
@@ -339,7 +360,9 @@ class TestDuplicateHeaderCoalesce:
             region_canonicalizer=_TEST_REGION_CANON,
         )
         assert rec["overlay"]["motor_type"] == "Honda CB500"
-        assert "Type motor" not in rec["overlay"] and "Type motor#40" not in rec["overlay"]
+        assert (
+            "Type motor" not in rec["overlay"] and "Type motor#40" not in rec["overlay"]
+        )
 
     def test_conflict_keeps_first_and_reports_losing_indexed_column(self):
         # Two DIFFERENT non-empty emails share a base → first-in-order kept, loser reported by
@@ -457,9 +480,9 @@ class TestContractDrivenTransform:
         # `Geboortejaar` is a (calculated) disposition → NOT stored anywhere (R2.2/R2.6).
         rec = _map(Geboortejaar="1975")
         assert "Geboortejaar" not in rec["overlay"]
-        assert "additional_info" not in rec["overlay"] or "Geboortejaar" not in rec["overlay"].get(
-            "additional_info", ""
-        )
+        assert "additional_info" not in rec["overlay"] or "Geboortejaar" not in rec[
+            "overlay"
+        ].get("additional_info", "")
 
     def test_excluded_column_is_dropped(self):
         # `Bestuursfunctie` is an (excluded) disposition → dropped, not in overlay/additional_info.
@@ -484,7 +507,10 @@ class TestContractDrivenTransform:
             _raw(**{"Ondertekening": "sig", "Naam voor akkoord": "Alex"}),
             region_canonicalizer=_TEST_REGION_CANON,
         )
-        assert rec["overlay"]["additional_info"] == "Ondertekening: sig | Naam voor akkoord: Alex"
+        assert (
+            rec["overlay"]["additional_info"]
+            == "Ondertekening: sig | Naam voor akkoord: Alex"
+        )
 
     def test_additional_info_unset_when_nothing_contributes(self):
         # No leftover columns → the field is left unset (not an empty string, R2.7).
@@ -493,7 +519,9 @@ class TestContractDrivenTransform:
 
     def test_no_raw_dutch_header_key_appears_in_overlay(self):
         # The whole point of R2: overlay carries canonical keys only, never raw Dutch headers.
-        rec = _map(**{"Type motor": "Honda", "Kenteken": "AB-12-CD", "Clubblad": "Papier"})
+        rec = _map(
+            **{"Type motor": "Honda", "Kenteken": "AB-12-CD", "Clubblad": "Papier"}
+        )
         for raw_key in ("Type motor", "Kenteken", "Clubblad", "Regio", "Motormerk"):
             assert raw_key not in rec["overlay"]
 
@@ -509,8 +537,8 @@ class TestContractDrivenTransform:
         rec = map_hdcn_row(
             _raw(
                 **{
-                    "Clubblad": "Papier",          # col 21 → overlay.magazine_pref (MAPPED)
-                    "H-DCN Clubblad": "junk-29",    # base `h-dcn clubblad` → (excluded)
+                    "Clubblad": "Papier",  # col 21 → overlay.magazine_pref (MAPPED)
+                    "H-DCN Clubblad": "junk-29",  # base `h-dcn clubblad` → (excluded)
                     "H-DCN Clubblad#35": "junk-35",  # indexed duplicate → (excluded), same base
                 }
             ),
@@ -523,9 +551,9 @@ class TestContractDrivenTransform:
         assert "junk-29" not in rec["overlay"].get("additional_info", "")
         assert "junk-35" not in rec["overlay"].get("additional_info", "")
         for group in ("personal", "membership", "overlay"):
-            assert not any(
-                "junk-" in str(v) for v in rec[group].values()
-            ), f"excluded H-DCN Clubblad value leaked into {group}"
+            assert not any("junk-" in str(v) for v in rec[group].values()), (
+                f"excluded H-DCN Clubblad value leaked into {group}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -565,9 +593,9 @@ class TestParseSourceDate:
             "",
             "   ",
             "garbage",
-            "32-1-2020",   # bad day (>31 / impossible)
-            "4-13-2020",   # bad month (>12)
-            "0-5-2026",    # day 0 is not a valid calendar day
+            "32-1-2020",  # bad day (>31 / impossible)
+            "4-13-2020",  # bad month (>12)
+            "0-5-2026",  # day 0 is not a valid calendar day
             None,
         ],
     )
@@ -757,7 +785,15 @@ class TestGoogleSheetsSourceAdapter:
         # The adapter's row shape is what map_hdcn_row consumes — a duplicate email column
         # coalesces first-non-empty exactly like the file source (source-agnostic transform).
         matrix = [
-            ["SAM Code", "Lidnummer", "Voornaam", "Achternaam", "Soort lidmaatschap", "E-mailadres", "E-mailadres"],
+            [
+                "SAM Code",
+                "Lidnummer",
+                "Voornaam",
+                "Achternaam",
+                "Soort lidmaatschap",
+                "E-mailadres",
+                "E-mailadres",
+            ],
             ["M01001", "1001", "Alex", "de Vries", "Erelid", "peter@pgeer.nl", ""],
         ]
         rows = GoogleSheetsSourceAdapter._rows_from_matrix(matrix)
@@ -770,7 +806,9 @@ class TestGoogleSheetsSourceAdapter:
             GoogleSheetsSourceAdapter()
 
     def test_describe_names_the_sheet_and_marks_readonly(self):
-        by_id = GoogleSheetsSourceAdapter(spreadsheet_id="abc123", worksheet="Ledenbestand")
+        by_id = GoogleSheetsSourceAdapter(
+            spreadsheet_id="abc123", worksheet="Ledenbestand"
+        )
         assert "abc123" in by_id.describe()
         assert "Ledenbestand" in by_id.describe()
         assert "READ-ONLY" in by_id.describe()
@@ -792,7 +830,9 @@ class TestGoogleSheetsSourceAdapter:
         # R4.3: a file that is not valid JSON (or not a service-account key) fails fast.
         bad = tmp_path / "bad.json"
         bad.write_text("not json {", encoding="utf-8")
-        adapter = GoogleSheetsSourceAdapter(spreadsheet_id="abc123", credentials_file=str(bad))
+        adapter = GoogleSheetsSourceAdapter(
+            spreadsheet_id="abc123", credentials_file=str(bad)
+        )
         with pytest.raises(FileNotFoundError):
             adapter._load_credentials()
 
@@ -800,18 +840,24 @@ class TestGoogleSheetsSourceAdapter:
         # A valid JSON that is an OAuth client secret / template (not a service account) is rejected.
         tmpl = tmp_path / "client.json"
         tmpl.write_text(json.dumps({"installed": {"client_id": "x"}}), encoding="utf-8")
-        adapter = GoogleSheetsSourceAdapter(spreadsheet_id="abc123", credentials_file=str(tmpl))
+        adapter = GoogleSheetsSourceAdapter(
+            spreadsheet_id="abc123", credentials_file=str(tmpl)
+        )
         with pytest.raises(FileNotFoundError):
             adapter._load_credentials()
 
     def test_a1_range_quotes_worksheet_and_defaults(self):
         assert GoogleSheetsSourceAdapter(spreadsheet_id="x")._a1_range() == "A1:ZZ"
         assert (
-            GoogleSheetsSourceAdapter(spreadsheet_id="x", worksheet="Ledenbestand")._a1_range()
+            GoogleSheetsSourceAdapter(
+                spreadsheet_id="x", worksheet="Ledenbestand"
+            )._a1_range()
             == "'Ledenbestand'!A1:ZZ"
         )
         assert (
-            GoogleSheetsSourceAdapter(spreadsheet_id="x", cell_range="Sheet1!A1:C9")._a1_range()
+            GoogleSheetsSourceAdapter(
+                spreadsheet_id="x", cell_range="Sheet1!A1:C9"
+            )._a1_range()
             == "Sheet1!A1:C9"
         )
 
@@ -835,7 +881,7 @@ class TestLazyGoogleImports:
             "assert not leaked, f'Google libs imported at module load: {leaked}'\n"
             "print('OK')\n"
         )
-        result = subprocess.run(
+        result = subprocess.run(  # noqa: PLW1510
             [sys.executable, "-c", code], capture_output=True, text=True
         )
         assert result.returncode == 0, result.stderr
@@ -858,7 +904,10 @@ class TestBackfillPlan:
 
     def test_plan_collects_errors_without_aborting(self):
         adapter = IterableSourceAdapter(
-            [_raw(), _raw(**{"SAM Code": "M01002", "Achternaam": ""})]  # 2nd is bad (no last name)
+            [
+                _raw(),
+                _raw(**{"SAM Code": "M01002", "Achternaam": ""}),
+            ]  # 2nd is bad (no last name)
         )
         plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
         assert plan.ok_count == 1
@@ -868,7 +917,9 @@ class TestBackfillPlan:
         # s5k: a reused member number (a repeated SAM Code) is a DATA-QUALITY warning, not a
         # reason to drop members. The uniqueness guard is gone, so BOTH occurrences are imported
         # AND the duplicate is reported.
-        adapter = IterableSourceAdapter([_raw(**{"SAM Code": "M01001"}), _raw(**{"SAM Code": "M01001"})])
+        adapter = IterableSourceAdapter(
+            [_raw(**{"SAM Code": "M01001"}), _raw(**{"SAM Code": "M01001"})]
+        )
         plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
         # "M01001" is the duplicate key; BOTH minted uuids are recorded (reported).
         assert "M01001" in plan.duplicate_member_numbers
@@ -890,13 +941,24 @@ class TestBackfillPlan:
         # verbatim), NOT skipped and NOT derived from the name. The member and the contact carry
         # distinct SAM Codes → no duplicate bucket.
         adapter = IterableSourceAdapter(
-            [_raw(), _raw(**{"SAM Code": "C00001", "Lidnummer": "", "Achternaam": "Sponsor BV"})]
+            [
+                _raw(),
+                _raw(
+                    **{
+                        "SAM Code": "C00001",
+                        "Lidnummer": "",
+                        "Achternaam": "Sponsor BV",
+                    }
+                ),
+            ]
         )
         plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
         assert plan.ok_count == 2
         assert plan.error_count == 0
         assert plan.skipped_count == 0
-        assert plan.duplicate_member_numbers == {}  # distinct numbers never bucket as duplicates
+        assert (
+            plan.duplicate_member_numbers == {}
+        )  # distinct numbers never bucket as duplicates
         numbers = sorted(t.member_number for t in plan.transformed)
         assert numbers == ["C00001", "M01001"]
 
@@ -921,7 +983,12 @@ class TestBackfillPlan:
 def _load_runner_module():
     """Import the hyphen-named runner script by path (not a valid module name)."""
     path = os.path.join(
-        _REPO_ROOT, "scripts", "onboarding", "members", "h-dcn", "backfill-hdcn-members.py"
+        _REPO_ROOT,
+        "scripts",
+        "onboarding",
+        "members",
+        "h-dcn",
+        "backfill-hdcn-members.py",
     )
     spec = importlib.util.spec_from_file_location("backfill_hdcn_members", path)
     module = importlib.util.module_from_spec(spec)
@@ -964,7 +1031,7 @@ class TestRunnerDryRun:
         out = capsys.readouterr().out
         assert "fidelity report" in out
         assert "DRY-RUN" in out
-        assert "sam-members-test" in out          # resolved target table
+        assert "sam-members-test" in out  # resolved target table
         assert "per-field mapping summary" in out
         assert "source rows   : 4" in out
 
@@ -982,7 +1049,9 @@ class TestRunnerDryRun:
 
 
 class TestRunnerApply:
-    def test_apply_saves_each_record_via_the_repository(self, members_env, fake_repo, capsys):
+    def test_apply_saves_each_record_via_the_repository(
+        self, members_env, fake_repo, capsys
+    ):
         rc = runner.backfill(FIXTURE, region="eu-west-1", apply=True, repo=fake_repo)
         assert rc == 0
         listed = fake_repo.list_members("h-dcn")
@@ -1003,7 +1072,9 @@ class TestRunnerApply:
         assert "motor" not in m1["overlay"]
         assert m1["membership"]["membership_type"] == "erelid"
 
-    def test_apply_imports_duplicate_numbers_both_written(self, members_env, fake_repo, capsys, tmp_path):
+    def test_apply_imports_duplicate_numbers_both_written(
+        self, members_env, fake_repo, capsys, tmp_path
+    ):
         # s5k: two rows share Lidnummer 1001 (different people). The uniqueness guard is gone, so
         # BOTH are written (distinct minted member_ids); the duplicate is a reported data-quality
         # warning, not a block. The data owner reconciles the recycled number afterwards.
@@ -1017,7 +1088,9 @@ class TestRunnerApply:
             ),
             encoding="utf-8",
         )
-        rc = runner.backfill(str(export), region="eu-west-1", apply=True, repo=fake_repo)
+        rc = runner.backfill(
+            str(export), region="eu-west-1", apply=True, repo=fake_repo
+        )
         assert rc == 0
         listed = fake_repo.list_members("h-dcn")
         assert len(listed) == 2  # both written under distinct member_ids
@@ -1026,13 +1099,17 @@ class TestRunnerApply:
         # The duplicate is surfaced in the fidelity report (a warning, not a skip).
         assert "DUPLICATE member numbers" in capsys.readouterr().out
 
-    def test_apply_refuses_a_batch_with_mapping_errors(self, members_env, fake_repo, capsys, tmp_path):
+    def test_apply_refuses_a_batch_with_mapping_errors(
+        self, members_env, fake_repo, capsys, tmp_path
+    ):
         export = tmp_path / "bad.json"
         export.write_text(
             json.dumps([_raw(), _raw(Lidnummer="1002", Achternaam="", Voornaam="")]),
             encoding="utf-8",
         )
-        rc = runner.backfill(str(export), region="eu-west-1", apply=True, repo=fake_repo)
+        rc = runner.backfill(
+            str(export), region="eu-west-1", apply=True, repo=fake_repo
+        )
         assert rc == 2  # refused
         # Nothing written because the batch had an unmappable row.
         assert fake_repo.list_members("h-dcn") == []
@@ -1040,7 +1117,10 @@ class TestRunnerApply:
     def test_apply_writes_one_member_per_row(self, members_env, fake_repo, tmp_path):
         export = tmp_path / "one.json"
         export.write_text(json.dumps([_raw(Lidnummer="1001")]), encoding="utf-8")
-        assert runner.backfill(str(export), region="eu-west-1", apply=True, repo=fake_repo) == 0
+        assert (
+            runner.backfill(str(export), region="eu-west-1", apply=True, repo=fake_repo)
+            == 0
+        )
         listed = fake_repo.list_members("h-dcn")
         assert len(listed) == 1
         assert listed[0]["membership"]["member_number"] == "M01001"
@@ -1069,11 +1149,21 @@ class TestRunnerCliTenant:
         out = capsys.readouterr().out
         assert "tenant        : h-dcn" in out
 
-    def test_apply_stamps_the_supplied_tenant_not_a_default(self, members_env, fake_repo, tmp_path):
+    def test_apply_stamps_the_supplied_tenant_not_a_default(
+        self, members_env, fake_repo, tmp_path
+    ):
         # A non-pilot tenant proves the stamp comes from --tenant, never a hardcoded literal.
         export = tmp_path / "one.json"
-        export.write_text(json.dumps([_raw(**{"SAM Code": "M09001"})]), encoding="utf-8")
-        rc = runner.backfill(str(export), region="eu-west-1", apply=True, tenant_id="other-org", repo=fake_repo)
+        export.write_text(
+            json.dumps([_raw(**{"SAM Code": "M09001"})]), encoding="utf-8"
+        )
+        rc = runner.backfill(
+            str(export),
+            region="eu-west-1",
+            apply=True,
+            tenant_id="other-org",
+            repo=fake_repo,
+        )
         assert rc == 0
         # The record landed in the "other-org" partition, stamped with that tenant.
         assert fake_repo.list_members("h-dcn") == []
@@ -1098,7 +1188,9 @@ class TestRunnerCliTenant:
         assert "SAM Code" not in section
         assert "Kenteken" not in section
 
-    def test_empty_named_column_is_tolerated_and_listed_as_dropped(self, members_env, capsys, tmp_path):
+    def test_empty_named_column_is_tolerated_and_listed_as_dropped(
+        self, members_env, capsys, tmp_path
+    ):
         # A trailing empty-named column (a common Google-Sheet export artifact) is dropped, not
         # a crash, and is surfaced in the report.
         export = tmp_path / "with_empty_col.csv"
@@ -1126,7 +1218,9 @@ class TestRunnerCliTenant:
 # The h-dcn onboarding scripts dir carries the CSV + its two loaders (config + mapping). Put it
 # on sys.path so `members_mapping_loader` / `members_config_loader` import as top-level modules
 # (mirrors how the runner is loaded by path above).
-_HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "onboarding", "members", "h-dcn")
+_HDCN_SCRIPTS_DIR = os.path.join(
+    _REPO_ROOT, "scripts", "onboarding", "members", "h-dcn"
+)
 if _HDCN_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _HDCN_SCRIPTS_DIR)
 
@@ -1175,7 +1269,12 @@ class TestMappingContractLoader:
         c = load_mapping_contract()
         assert {"geboortedag", "geboortemaand", "geboortejaar"} <= c.calculated
         # Lidnummer is now EXCLUDED (retired as the member_number source; SAM Code supplies it).
-        assert {"bestuursfunctie", "lidmaatschapsnummer", "h-dcn clubblad", "lidnummer"} <= c.excluded
+        assert {
+            "bestuursfunctie",
+            "lidmaatschapsnummer",
+            "h-dcn clubblad",
+            "lidnummer",
+        } <= c.excluded
         assert {"ondertekening", "naam voor akkoord"} <= c.additional_info
 
     def test_comment_lines_are_skipped(self, tmp_path):
@@ -1266,7 +1365,13 @@ class TestMappingContractTargetPopulation:
         assert "personal.email" in fixed_targets
         assert "personal.birth_date" in fixed_targets
         assert "membership.member_number" in fixed_targets
-        assert {"motor_brand", "motor_type", "iban", "payment_method", "magazine_pref"} <= overlay_targets
+        assert {
+            "motor_brand",
+            "motor_type",
+            "iban",
+            "payment_method",
+            "magazine_pref",
+        } <= overlay_targets
 
 
 # ---------------------------------------------------------------------------
@@ -1313,7 +1418,10 @@ class TestPortedRegionVariants:
 
     def test_misspelling_drente_maps_to_groningen_drenthe(self):
         # A real letter difference scope_canon cannot fold → the ported alias handles it.
-        assert _map_real_region("Groningen/Drente")["overlay"]["region"] == "Groningen/Drenthe"
+        assert (
+            _map_real_region("Groningen/Drente")["overlay"]["region"]
+            == "Groningen/Drenthe"
+        )
         assert _map_real_region("Drenthe")["overlay"]["region"] == "Groningen/Drenthe"
 
     def test_overig_is_retargeted_to_geen_not_the_hdcn_dutch_value(self):
@@ -1388,7 +1496,11 @@ class TestPortedMagazineVariants:
     def test_magazine_pref_is_never_an_hdcn_status_string(self):
         # R8.1/D8: the OLD Clubblad→status (Papier→Sponsor / Digitaal→Club) is NOT copied — the
         # rule only yields the tenant magazine_pref enum, never a Dutch status/type string.
-        assert _map(Clubblad="Papier")["overlay"]["magazine_pref"] in {"Geen", "Papier", "Digitaal"}
+        assert _map(Clubblad="Papier")["overlay"]["magazine_pref"] in {
+            "Geen",
+            "Papier",
+            "Digitaal",
+        }
         # membership_type/status come from their own columns, NOT from Clubblad.
         assert _map(Clubblad="Papier")["membership"]["status"] == "active"
 
@@ -1429,7 +1541,9 @@ class TestColumnShiftDetection:
 
     def test_gender_in_regio_is_flagged(self):
         warnings = detect_column_shift(_raw(Regio="Man"))
-        assert any(w.column == "Regio" and "gender" in w.reason.lower() for w in warnings)
+        assert any(
+            w.column == "Regio" and "gender" in w.reason.lower() for w in warnings
+        )
 
     def test_well_aligned_row_has_no_warnings(self):
         assert detect_column_shift(_raw(Geslacht="Man", Regio="North")) == []
@@ -1446,7 +1560,9 @@ class TestColumnShiftDetection:
         assert len(warnings) == 1
         assert warnings[0].column == "Geslacht"
 
-    def test_shift_detection_matches_on_base_header_of_a_position_tracked_duplicate(self):
+    def test_shift_detection_matches_on_base_header_of_a_position_tracked_duplicate(
+        self,
+    ):
         # A position-tracked duplicate (Regio#20) is still checked on its base header.
         warnings = detect_column_shift({"Regio#20": "V"})
         assert any(w.value == "V" for w in warnings)
@@ -1466,19 +1582,21 @@ class TestContractSourceColumns:
         cols = contract_source_columns(c)
         # Fixed + overlay source headers are present (base, lower-cased) …
         assert "e-mailadres" in cols
-        assert "sam code" in cols       # the authoritative member_number column
-        assert "lidnummer" not in cols  # legacy number is now excluded (not a mapped target)
-        assert "regio" in cols          # the region overlay column
-        assert "clubblad" in cols       # a magazine overlay column
+        assert "sam code" in cols  # the authoritative member_number column
+        assert (
+            "lidnummer" not in cols
+        )  # legacy number is now excluded (not a mapped target)
+        assert "regio" in cols  # the region overlay column
+        assert "clubblad" in cols  # a magazine overlay column
         assert "bankrekeningnummer" in cols
 
     def test_disposition_columns_are_not_counted_as_mapped(self):
         c = load_mapping_contract()
         cols = contract_source_columns(c)
         # (calculated)/(excluded)/(additional_info) columns are NOT "mapped" targets.
-        assert "geboortejaar" not in cols       # (calculated)
-        assert "bestuursfunctie" not in cols    # (excluded)
-        assert "ondertekening" not in cols      # (additional_info)
+        assert "geboortejaar" not in cols  # (calculated)
+        assert "bestuursfunctie" not in cols  # (excluded)
+        assert "ondertekening" not in cols  # (additional_info)
 
     def test_classifier_known_set_tracks_the_csv_not_a_stale_dict(self):
         # The runner's classifier builds its "known" set from THIS function; renaming/moving a
@@ -1515,7 +1633,9 @@ class TestRunnerClassifierUsesTheContract:
 
     def test_classifier_matches_a_position_tracked_duplicate_on_base_header(self):
         # A duplicate email column (E-mailadres#34) is classified mapped via its base header.
-        adapter = IterableSourceAdapter([{"E-mailadres": "a@x.com", "E-mailadres#34": ""}])
+        adapter = IterableSourceAdapter(
+            [{"E-mailadres": "a@x.com", "E-mailadres#34": ""}]
+        )
         known = contract_source_columns(load_mapping_contract())
         mapped, _unmapped = runner._classify_source_columns(adapter, known)
         assert "E-mailadres" in mapped and "E-mailadres#34" in mapped
@@ -1551,7 +1671,9 @@ class TestRunnerAdapterSelection:
         assert "READ-ONLY" in adapter.describe()
 
     def test_sheet_name_builds_a_google_sheets_adapter_no_network(self):
-        adapter = runner._build_source_adapter(None, sheet_name="HDCN Ledenbestand 2026")
+        adapter = runner._build_source_adapter(
+            None, sheet_name="HDCN Ledenbestand 2026"
+        )
         assert isinstance(adapter, GoogleSheetsSourceAdapter)
         assert "HDCN Ledenbestand 2026" in adapter.describe()
 
@@ -1559,7 +1681,9 @@ class TestRunnerAdapterSelection:
         # --credentials PATH reaches the adapter (used for from_service_account_file). We assert
         # the stored path without loading it — no key file needed, no network.
         key = str(tmp_path / "sa.json")
-        adapter = runner._build_source_adapter(None, sheet_id="abc123", credentials_file=key)
+        adapter = runner._build_source_adapter(
+            None, sheet_id="abc123", credentials_file=key
+        )
         assert adapter._credentials_file == key
 
     def test_no_credentials_default_leaves_resolution_to_the_caller(self):
@@ -1583,7 +1707,9 @@ class TestRunnerAdapterSelection:
 
         def _fake_build(source_path, **kwargs):
             assert kwargs["sheet_id"] == "abc123"
-            adapter = IterableSourceAdapter([_raw(Lidnummer="7001")], description="fake sheet")
+            adapter = IterableSourceAdapter(
+                [_raw(Lidnummer="7001")], description="fake sheet"
+            )
             built.append(adapter)
             return adapter
 
@@ -1602,21 +1728,29 @@ class TestRunnerSourceSelectionCli:
 
     def test_source_and_sheet_id_are_mutually_exclusive(self, members_env, capsys):
         with pytest.raises(SystemExit) as exc:
-            runner.main(["--source", FIXTURE, "--sheet-id", "abc123", "--tenant", "h-dcn"])
+            runner.main(
+                ["--source", FIXTURE, "--sheet-id", "abc123", "--tenant", "h-dcn"]
+            )
         assert exc.value.code == 2
         assert "not allowed with" in capsys.readouterr().err
 
     def test_source_and_sheet_name_are_mutually_exclusive(self, members_env, capsys):
         with pytest.raises(SystemExit) as exc:
-            runner.main(["--source", FIXTURE, "--sheet-name", "HDCN", "--tenant", "h-dcn"])
+            runner.main(
+                ["--source", FIXTURE, "--sheet-name", "HDCN", "--tenant", "h-dcn"]
+            )
         assert exc.value.code == 2
 
     def test_sheet_id_and_sheet_name_are_mutually_exclusive(self, members_env, capsys):
         with pytest.raises(SystemExit) as exc:
-            runner.main(["--sheet-id", "abc123", "--sheet-name", "HDCN", "--tenant", "h-dcn"])
+            runner.main(
+                ["--sheet-id", "abc123", "--sheet-name", "HDCN", "--tenant", "h-dcn"]
+            )
         assert exc.value.code == 2
 
-    def test_no_cli_source_falls_through_to_secrets_then_fails_loudly(self, members_env, capsys):
+    def test_no_cli_source_falls_through_to_secrets_then_fails_loudly(
+        self, members_env, capsys
+    ):
         # Tenant-Onboarding Tooling: the source group is NO LONGER argparse-required — when no
         # --source/--sheet-id/--sheet-name is given, sheet_id is resolved from the tenant's
         # secrets.local.json. With no secrets file present, main() must fail LOUDLY (rc=1,
@@ -1647,10 +1781,14 @@ class TestRunnerSourceSelectionCli:
         monkeypatch.setattr(runner, "backfill", _fake_backfill)
         rc = runner.main(
             [
-                "--sheet-id", "abc123",
-                "--worksheet", "Ledenbestand",
-                "--credentials", "/tmp/key.json",
-                "--tenant", "h-dcn",
+                "--sheet-id",
+                "abc123",
+                "--worksheet",
+                "Ledenbestand",
+                "--credentials",
+                "/tmp/key.json",
+                "--tenant",
+                "h-dcn",
             ]
         )
         assert rc == 0
@@ -1661,15 +1799,21 @@ class TestRunnerSourceSelectionCli:
         assert captured["credentials_file"] == "/tmp/key.json"
         assert captured["tenant_id"] == "h-dcn"
 
-    def test_fully_specified_cli_run_needs_no_secrets_file(self, members_env, monkeypatch):
+    def test_fully_specified_cli_run_needs_no_secrets_file(
+        self, members_env, monkeypatch
+    ):
         # Every gsheet key on the CLI → main() must NOT require a secrets file at all (lazy load).
         monkeypatch.setattr(runner, "backfill", lambda source_path, **kw: 0)
         rc = runner.main(
             [
-                "--sheet-id", "abc123",
-                "--worksheet", "Ledenbestand",
-                "--credentials", "/tmp/key.json",
-                "--tenant", "tenant-with-no-secrets-file",
+                "--sheet-id",
+                "abc123",
+                "--worksheet",
+                "Ledenbestand",
+                "--credentials",
+                "/tmp/key.json",
+                "--tenant",
+                "tenant-with-no-secrets-file",
             ]
         )
         assert rc == 0
@@ -1699,7 +1843,12 @@ class TestRunnerSecretsResolution:
             {
                 "sheet_id": "SHEET_FROM_SECRETS",
                 "worksheet": "Ledenbestand",
-                "credentials": {"google_sheets": {"type": "google_service_account", "file": str(key)}},
+                "credentials": {
+                    "google_sheets": {
+                        "type": "google_service_account",
+                        "file": str(key),
+                    }
+                },
             },
         )
         captured = {}
@@ -1716,14 +1865,20 @@ class TestRunnerSecretsResolution:
         # absolute file in the secrets map is honored as-is by credential_file()
         assert captured["credentials_file"] == str(key)
 
-    def test_cli_sheet_id_overrides_the_secrets_value(self, members_env, tmp_path, monkeypatch):
+    def test_cli_sheet_id_overrides_the_secrets_value(
+        self, members_env, tmp_path, monkeypatch
+    ):
         secrets_path = self._write_secrets(
             tmp_path,
-            {"sheet_id": "SHEET_FROM_SECRETS",
-             "credentials": {"google_sheets": {"file": str(tmp_path / "sa.json")}}},
+            {
+                "sheet_id": "SHEET_FROM_SECRETS",
+                "credentials": {"google_sheets": {"file": str(tmp_path / "sa.json")}},
+            },
         )
         captured = {}
-        monkeypatch.setattr(runner, "backfill", lambda source_path, **kw: captured.update(kw) or 0)
+        monkeypatch.setattr(
+            runner, "backfill", lambda source_path, **kw: captured.update(kw) or 0
+        )
         rc = runner.main(
             ["--sheet-id", "CLI_WINS", "--tenant", "h-dcn", "--secrets", secrets_path]
         )
@@ -1735,7 +1890,9 @@ class TestRunnerSecretsResolution:
     ):
         secrets_path = self._write_secrets(
             tmp_path,
-            {"credentials": {"google_sheets": {"file": str(tmp_path / "sa.json")}}},  # no sheet_id
+            {
+                "credentials": {"google_sheets": {"file": str(tmp_path / "sa.json")}}
+            },  # no sheet_id
         )
         rc = runner.main(["--tenant", "h-dcn", "--secrets", secrets_path])
         assert rc == 1
@@ -1745,7 +1902,11 @@ class TestRunnerSecretsResolution:
         # The file-export path (--source) needs no gsheet keys → secrets must NOT be loaded even
         # if absent. We assert load_tenant_secrets is never called.
         called = {"n": 0}
-        monkeypatch.setattr(runner, "load_tenant_secrets", lambda *a, **k: called.__setitem__("n", called["n"] + 1) or {})
+        monkeypatch.setattr(
+            runner,
+            "load_tenant_secrets",
+            lambda *a, **k: called.__setitem__("n", called["n"] + 1) or {},
+        )
         monkeypatch.setattr(runner, "backfill", lambda source_path, **kw: 0)
         rc = runner.main(["--source", FIXTURE, "--tenant", "h-dcn"])
         assert rc == 0
@@ -1772,37 +1933,60 @@ def _export(tmp_path, rows, name="sheet.json"):
 
 
 class TestReconcileSync:
-    def test_matched_number_updates_the_same_member_id(self, members_env, fake_repo, tmp_path):
+    def test_matched_number_updates_the_same_member_id(
+        self, members_env, fake_repo, tmp_path
+    ):
         # Seed SAM by an initial insert-only backfill of SAM Code M01001.
-        first = _export(tmp_path, [_raw(**{"SAM Code": "M01001", "Voornaam": "Alex"})], "first.json")
-        assert runner.backfill(first, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        first = _export(
+            tmp_path, [_raw(**{"SAM Code": "M01001", "Voornaam": "Alex"})], "first.json"
+        )
+        assert (
+            runner.backfill(first, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        )
         seeded = fake_repo.list_members("h-dcn")
         assert len(seeded) == 1
         original_id = seeded[0]["member_id"]
 
         # A reconcile run of the SAME SAM Code (edited first name) must UPDATE — not mint a new
         # record — reusing the existing member_id (R7.3), and SHEET-WINS on the mapped field.
-        again = _export(tmp_path, [_raw(**{"SAM Code": "M01001", "Voornaam": "Alexander"})], "again.json")
-        rc = runner.backfill(again, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo)
+        again = _export(
+            tmp_path,
+            [_raw(**{"SAM Code": "M01001", "Voornaam": "Alexander"})],
+            "again.json",
+        )
+        rc = runner.backfill(
+            again, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo
+        )
         assert rc == 0
         after = fake_repo.list_members("h-dcn")
         assert len(after) == 1  # no duplicate minted
         assert after[0]["member_id"] == original_id  # same internal id reused
-        assert after[0]["personal"]["first_name"] == "Alexander"  # sheet-wins on the mapped field
+        assert (
+            after[0]["personal"]["first_name"] == "Alexander"
+        )  # sheet-wins on the mapped field
 
     def test_unseen_number_inserts_a_new_record(self, members_env, fake_repo, tmp_path):
         seed = _export(tmp_path, [_raw(**{"SAM Code": "M01001"})], "seed.json")
-        assert runner.backfill(seed, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        assert (
+            runner.backfill(seed, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        )
 
         # A reconcile with a NEW number (and the old one still present) inserts the new member.
         both = _export(
             tmp_path,
-            [_raw(**{"SAM Code": "M01001"}), _raw(**{"SAM Code": "M01002", "Voornaam": "Bram"})],
+            [
+                _raw(**{"SAM Code": "M01001"}),
+                _raw(**{"SAM Code": "M01002", "Voornaam": "Bram"}),
+            ],
             "both.json",
         )
-        rc = runner.backfill(both, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo)
+        rc = runner.backfill(
+            both, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo
+        )
         assert rc == 0
-        numbers = sorted(m["membership"]["member_number"] for m in fake_repo.list_members("h-dcn"))
+        numbers = sorted(
+            m["membership"]["member_number"] for m in fake_repo.list_members("h-dcn")
+        )
         assert numbers == ["M01001", "M01002"]
 
     def test_member_absent_from_sheet_is_soft_flagged_left_not_deleted(
@@ -1811,95 +1995,175 @@ class TestReconcileSync:
         # Seed two members.
         seed = _export(
             tmp_path,
-            [_raw(**{"SAM Code": "M01001"}), _raw(**{"SAM Code": "M01002", "Voornaam": "Bram"})],
+            [
+                _raw(**{"SAM Code": "M01001"}),
+                _raw(**{"SAM Code": "M01002", "Voornaam": "Bram"}),
+            ],
             "seed.json",
         )
-        assert runner.backfill(seed, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        assert (
+            runner.backfill(seed, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        )
 
         # Reconcile a sheet that only carries M01001 → M01002 must be SOFT-flagged 'left', not deleted.
         only1 = _export(tmp_path, [_raw(**{"SAM Code": "M01001"})], "only1.json")
-        rc = runner.backfill(only1, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo)
+        rc = runner.backfill(
+            only1, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo
+        )
         assert rc == 0
         listed = fake_repo.list_members("h-dcn")
         assert len(listed) == 2  # NOT deleted — still present (R5.2)
         by_number = {m["membership"]["member_number"]: m for m in listed}
-        assert by_number["M01002"]["membership"]["status"] == "left"  # soft-flagged (R7.4)
-        assert by_number["M01001"]["membership"]["status"] == "active"  # present → untouched
+        assert (
+            by_number["M01002"]["membership"]["status"] == "left"
+        )  # soft-flagged (R7.4)
+        assert (
+            by_number["M01001"]["membership"]["status"] == "active"
+        )  # present → untouched
 
-    def test_left_member_back_in_sheet_is_reactivated(self, members_env, fake_repo, tmp_path):
+    def test_left_member_back_in_sheet_is_reactivated(
+        self, members_env, fake_repo, tmp_path
+    ):
         # Seed M01001, then sweep it 'left' by reconciling an empty-of-M01001 sheet.
-        seed = _export(tmp_path, [_raw(**{"SAM Code": "M01001"}), _raw(**{"SAM Code": "M01002"})], "seed.json")
-        assert runner.backfill(seed, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        seed = _export(
+            tmp_path,
+            [_raw(**{"SAM Code": "M01001"}), _raw(**{"SAM Code": "M01002"})],
+            "seed.json",
+        )
+        assert (
+            runner.backfill(seed, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        )
         only2 = _export(tmp_path, [_raw(**{"SAM Code": "M01002"})], "only2.json")
-        assert runner.backfill(only2, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo) == 0
-        left = {m["membership"]["member_number"]: m for m in fake_repo.list_members("h-dcn")}
+        assert (
+            runner.backfill(
+                only2, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo
+            )
+            == 0
+        )
+        left = {
+            m["membership"]["member_number"]: m for m in fake_repo.list_members("h-dcn")
+        }
         assert left["M01001"]["membership"]["status"] == "left"
 
         # M01001 reappears in the sheet → reactivated (its status comes from the transform: active).
-        back = _export(tmp_path, [_raw(**{"SAM Code": "M01001"}), _raw(**{"SAM Code": "M01002"})], "back.json")
-        rc = runner.backfill(back, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo)
+        back = _export(
+            tmp_path,
+            [_raw(**{"SAM Code": "M01001"}), _raw(**{"SAM Code": "M01002"})],
+            "back.json",
+        )
+        rc = runner.backfill(
+            back, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo
+        )
         assert rc == 0
-        after = {m["membership"]["member_number"]: m for m in fake_repo.list_members("h-dcn")}
+        after = {
+            m["membership"]["member_number"]: m for m in fake_repo.list_members("h-dcn")
+        }
         assert after["M01001"]["membership"]["status"] == "active"
 
-    def test_contact_is_reconciled_and_swept_like_a_member(self, members_env, fake_repo, tmp_path):
+    def test_contact_is_reconciled_and_swept_like_a_member(
+        self, members_env, fake_repo, tmp_path
+    ):
         # A CONTACT (an organisation row) is keyed by its C##### SAM Code and reconciled/swept
         # exactly like a member (R7.4 — contacts included in the sweep).
         seed = _export(
             tmp_path,
-            [_raw(**{"SAM Code": "C00001", "Lidnummer": "", "Achternaam": "Acme Sponsors", "Voornaam": "Acme"})],
+            [
+                _raw(
+                    **{
+                        "SAM Code": "C00001",
+                        "Lidnummer": "",
+                        "Achternaam": "Acme Sponsors",
+                        "Voornaam": "Acme",
+                    }
+                )
+            ],
             "seed.json",
         )
-        assert runner.backfill(seed, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        assert (
+            runner.backfill(seed, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        )
         seeded = fake_repo.list_members("h-dcn")
         assert seeded[0]["membership"]["member_number"] == "C00001"
 
         # Reconcile a sheet WITHOUT the contact → it is soft-flagged 'left' (not deleted).
         empty = _export(tmp_path, [_raw(**{"SAM Code": "M01001"})], "with_member.json")
-        rc = runner.backfill(empty, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo)
+        rc = runner.backfill(
+            empty, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo
+        )
         assert rc == 0
-        by_number = {m["membership"]["member_number"]: m for m in fake_repo.list_members("h-dcn")}
+        by_number = {
+            m["membership"]["member_number"]: m for m in fake_repo.list_members("h-dcn")
+        }
         assert by_number["C00001"]["membership"]["status"] == "left"
 
-    def test_duplicate_sheet_number_blocks_apply_reconcile(self, members_env, fake_repo, tmp_path):
+    def test_duplicate_sheet_number_blocks_apply_reconcile(
+        self, members_env, fake_repo, tmp_path
+    ):
         # Two rows share SAM Code M01001 → a matching hazard. --apply --reconcile refuses
         # (writes nothing) and reports the duplicate (R7.7).
         dupes = _export(
             tmp_path,
-            [_raw(**{"SAM Code": "M01001", "Achternaam": "Alex"}), _raw(**{"SAM Code": "M01001", "Achternaam": "Bram"})],
+            [
+                _raw(**{"SAM Code": "M01001", "Achternaam": "Alex"}),
+                _raw(**{"SAM Code": "M01001", "Achternaam": "Bram"}),
+            ],
             "dupes.json",
         )
-        rc = runner.backfill(dupes, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo)
+        rc = runner.backfill(
+            dupes, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo
+        )
         assert rc == 2  # refused
         assert fake_repo.list_members("h-dcn") == []  # nothing written
 
-    def test_reconcile_dry_run_writes_nothing(self, members_env, fake_repo, tmp_path, capsys):
+    def test_reconcile_dry_run_writes_nothing(
+        self, members_env, fake_repo, tmp_path, capsys
+    ):
         seed = _export(tmp_path, [_raw(**{"SAM Code": "M01001"})], "seed.json")
-        assert runner.backfill(seed, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        assert (
+            runner.backfill(seed, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        )
         # Dry-run reconcile: report the sync plan, write nothing.
         report = _export(tmp_path, [_raw(**{"SAM Code": "M01002"})], "report.json")
-        rc = runner.backfill(report, region="eu-west-1", apply=False, reconcile=True, repo=fake_repo)
+        rc = runner.backfill(
+            report, region="eu-west-1", apply=False, reconcile=True, repo=fake_repo
+        )
         assert rc == 0
         out = capsys.readouterr().out
         assert "RECONCILE (sync) plan" in out
         assert "to-INSERT" in out and "to-LEAVE" in out
         # Still exactly the one seeded member — the dry-run reconcile persisted nothing.
         assert len(fake_repo.list_members("h-dcn")) == 1
-        assert fake_repo.list_members("h-dcn")[0]["membership"]["member_number"] == "M01001"
+        assert (
+            fake_repo.list_members("h-dcn")[0]["membership"]["member_number"]
+            == "M01001"
+        )
 
     def test_second_reconcile_run_is_idempotent(self, members_env, fake_repo, tmp_path):
         # R5.3: because the match key is the stable member_number and UPDATE reuses member_id, a
         # second identical reconcile run produces NO duplicates and no status churn.
         sheet = _export(
             tmp_path,
-            [_raw(**{"SAM Code": "M01001"}), _raw(**{"SAM Code": "M01002", "Voornaam": "Bram"})],
+            [
+                _raw(**{"SAM Code": "M01001"}),
+                _raw(**{"SAM Code": "M01002", "Voornaam": "Bram"}),
+            ],
             "sheet.json",
         )
-        assert runner.backfill(sheet, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo) == 0
+        assert (
+            runner.backfill(
+                sheet, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo
+            )
+            == 0
+        )
         first = fake_repo.list_members("h-dcn")
         first_ids = {m["membership"]["member_number"]: m["member_id"] for m in first}
 
-        assert runner.backfill(sheet, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo) == 0
+        assert (
+            runner.backfill(
+                sheet, region="eu-west-1", apply=True, reconcile=True, repo=fake_repo
+            )
+            == 0
+        )
         second = fake_repo.list_members("h-dcn")
         assert len(second) == len(first) == 2  # no duplicates minted on the re-run
         second_ids = {m["membership"]["member_number"]: m["member_id"] for m in second}
@@ -1912,14 +2176,20 @@ class TestReconcileSync:
         # Backward compatibility (R7.1): without --reconcile the runner is insert-only. A second
         # apply of the same source mints NEW records (the s5k mint-a-uuid behaviour), NOT an upsert.
         sheet = _export(tmp_path, [_raw(**{"SAM Code": "M01001"})], "sheet.json")
-        assert runner.backfill(sheet, region="eu-west-1", apply=True, repo=fake_repo) == 0
-        assert runner.backfill(sheet, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        assert (
+            runner.backfill(sheet, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        )
+        assert (
+            runner.backfill(sheet, region="eu-west-1", apply=True, repo=fake_repo) == 0
+        )
         # Insert-only: the second run added a second record under a new minted member_id.
         assert len(fake_repo.list_members("h-dcn")) == 2
 
 
 class TestReconcileCli:
-    def test_reconcile_flag_parses_and_threads_into_backfill(self, members_env, monkeypatch):
+    def test_reconcile_flag_parses_and_threads_into_backfill(
+        self, members_env, monkeypatch
+    ):
         captured = {}
 
         def _fake_backfill(source_path, **kwargs):
@@ -1933,13 +2203,17 @@ class TestReconcileCli:
 
     def test_sync_alias_parses_as_reconcile(self, members_env, monkeypatch):
         captured = {}
-        monkeypatch.setattr(runner, "backfill", lambda source_path, **kw: captured.update(kw) or 0)
+        monkeypatch.setattr(
+            runner, "backfill", lambda source_path, **kw: captured.update(kw) or 0
+        )
         assert runner.main(["--source", FIXTURE, "--tenant", "h-dcn", "--sync"]) == 0
         assert captured["reconcile"] is True
 
     def test_reconcile_is_off_by_default(self, members_env, monkeypatch):
         captured = {}
-        monkeypatch.setattr(runner, "backfill", lambda source_path, **kw: captured.update(kw) or 0)
+        monkeypatch.setattr(
+            runner, "backfill", lambda source_path, **kw: captured.update(kw) or 0
+        )
         assert runner.main(["--source", FIXTURE, "--tenant", "h-dcn"]) == 0
         assert captured["reconcile"] is False
 
@@ -1962,7 +2236,13 @@ class TestEmptyRowAndBlankSamCode:
     def test_empty_row_is_skipped_not_an_error(self):
         # A row with no populated cell (incl. a blank SAM Code) is EMPTY and SKIPPED via
         # RowSkipped — never written, never an error.
-        empty_row = {"SAM Code": "", "Voornaam": "", "Achternaam": "", "E-mailadres": "", "Regio": ""}
+        empty_row = {
+            "SAM Code": "",
+            "Voornaam": "",
+            "Achternaam": "",
+            "E-mailadres": "",
+            "Regio": "",
+        }
         with pytest.raises(RowSkipped):
             map_hdcn_row(empty_row, region_canonicalizer=_TEST_REGION_CANON)
 
@@ -2002,7 +2282,14 @@ class TestEmptyRowAndBlankSamCode:
     def test_contact_without_first_name_transforms_ok(self):
         # Change A: first_name (Voornaam) is OPTIONAL. A contact/org row with an Achternaam (org
         # name) + no Voornaam maps fine and is keyed by its SAM Code (C#####), not a derived name.
-        rec = _map(**{"SAM Code": "C00007", "Lidnummer": "", "Voornaam": "", "Achternaam": "KNMV"})
+        rec = _map(
+            **{
+                "SAM Code": "C00007",
+                "Lidnummer": "",
+                "Voornaam": "",
+                "Achternaam": "KNMV",
+            }
+        )
         assert "first_name" not in rec["personal"]
         assert rec["personal"]["last_name"] == "KNMV"
         assert rec["membership"]["member_number"] == "C00007"
@@ -2013,7 +2300,10 @@ class TestBackfillPlanSkipBucket:
 
     def test_empty_row_lands_in_skipped_not_errors_or_transformed(self):
         adapter = IterableSourceAdapter(
-            [_raw(), {"SAM Code": "", "Voornaam": "", "Achternaam": "", "E-mailadres": ""}]
+            [
+                _raw(),
+                {"SAM Code": "", "Voornaam": "", "Achternaam": "", "E-mailadres": ""},
+            ]
         )
         plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
         assert plan.ok_count == 1
@@ -2022,7 +2312,14 @@ class TestBackfillPlanSkipBucket:
 
     def test_placeholder_only_row_lands_in_skipped(self):
         adapter = IterableSourceAdapter(
-            [{"SAM Code": "", "Lidnummer": "", "Achternaam": "", "E-mailadres": "GEEN GELDIG EMAILADRES"}]
+            [
+                {
+                    "SAM Code": "",
+                    "Lidnummer": "",
+                    "Achternaam": "",
+                    "E-mailadres": "GEEN GELDIG EMAILADRES",
+                }
+            ]
         )
         plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
         assert plan.skipped_count == 1
@@ -2033,7 +2330,10 @@ class TestBackfillPlanSkipBucket:
         # A meaningful data row missing its authoritative SAM Code is a data-gap ERROR — it lands
         # in the errors bucket, NOT skipped, NOT transformed (never silently derived around).
         adapter = IterableSourceAdapter(
-            [_raw(), _raw(**{"SAM Code": "", "Lidnummer": "6564", "Achternaam": "Zuidmeer"})]
+            [
+                _raw(),
+                _raw(**{"SAM Code": "", "Lidnummer": "6564", "Achternaam": "Zuidmeer"}),
+            ]
         )
         plan = build_backfill_plan(adapter, region_canonicalizer=_TEST_REGION_CANON)
         assert plan.ok_count == 1

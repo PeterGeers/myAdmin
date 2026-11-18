@@ -34,7 +34,9 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # repo root + backend/src on sys.path (mirrors sam/conftest.py + the other sam tests).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -49,7 +51,9 @@ from sam.members.migration.hdcn_backfill import (
 
 # A synthetic region canonicalizer — tenant vocabulary is INJECTED, never a core constant
 # (matches the convention in test_hdcn_backfill.py).
-_REGION = RegionCanonicalizer(("North", "South", "East", "West"), aliases={"Noorden": "North"})
+_REGION = RegionCanonicalizer(
+    ("North", "South", "East", "West"), aliases={"Noorden": "North"}
+)
 
 
 def _raw(**overrides):
@@ -82,9 +86,9 @@ class TestMappedOverlayPreservationBaseline:
 
     def test_mapped_overlay_fields_render_their_stored_values(self):
         rec = _map(
-            Clubblad="Papier",          # → overlay.magazine_pref (magazine rule)
+            Clubblad="Papier",  # → overlay.magazine_pref (magazine rule)
             Motormerk="harley_davidson",  # → overlay.motor_brand (single)
-            Afmelding="2020-06-15",      # → overlay.deregistration_date (date)
+            Afmelding="2020-06-15",  # → overlay.deregistration_date (date)
             Beeindiging="2021-07-20T00:00:00.000Z",  # → overlay.termination_date (date)
             Opmerkingen="some notes here",  # → overlay.notes (single)
             WieWatWaar="via een vriend",  # → overlay.referral_source (single)
@@ -94,7 +98,9 @@ class TestMappedOverlayPreservationBaseline:
         assert overlay["magazine_pref"] == "Papier"
         assert overlay["motor_brand"] == "harley_davidson"
         assert overlay["deregistration_date"] == "2020-06-15"
-        assert overlay["termination_date"] == "2021-07-20"  # date-normalized to bare YYYY-MM-DD
+        assert (
+            overlay["termination_date"] == "2021-07-20"
+        )  # date-normalized to bare YYYY-MM-DD
         assert overlay["notes"] == "some notes here"
         assert overlay["referral_source"] == "via een vriend"
 
@@ -104,7 +110,9 @@ class TestAdditionalInfoConcatBaseline:
 
     def test_ondertekening_and_naam_voor_akkoord_concatenate_in_order(self):
         rec = map_hdcn_row(
-            _raw(**{"Ondertekening": "13-4-2023", "Naam voor akkoord": "Alex de Vries"}),
+            _raw(
+                **{"Ondertekening": "13-4-2023", "Naam voor akkoord": "Alex de Vries"}
+            ),
             region_canonicalizer=_REGION,
         )
         # Observed output: `Label: value` pairs, stable source-column order, ` | ` delimiter.
@@ -120,11 +128,17 @@ class TestAdditionalInfoConcatBaseline:
 
 # Non-empty, non-whitespace free-text values (single-line, no leading/trailing space so the
 # transform's strip does not change the stored value — we assert the value is preserved verbatim).
-_free_text = st.text(
-    alphabet=st.characters(blacklist_categories=("Cc", "Cs", "Zl", "Zp"), blacklist_characters="|"),
-    min_size=1,
-    max_size=40,
-).map(lambda s: s.strip()).filter(lambda s: len(s) >= 1)
+_free_text = (
+    st.text(
+        alphabet=st.characters(
+            blacklist_categories=("Cc", "Cs", "Zl", "Zp"), blacklist_characters="|"
+        ),
+        min_size=1,
+        max_size=40,
+    )
+    .map(lambda s: s.strip())
+    .filter(lambda s: len(s) >= 1)
+)
 
 _motor_brand = st.sampled_from(["harley_davidson", "indian", "buell", "eigenbouw"])
 _magazine = st.sampled_from(["Geen", "Papier", "Digitaal"])
@@ -149,7 +163,12 @@ def test_property_mapped_overlay_fields_render_their_stored_value(
     Validates: Requirements 3.1, 3.5
     """
     rec = _map(
-        Clubblad=magazine, Motormerk=motor_brand, Afmelding=dereg, Beeindiging=term, Opmerkingen=notes, WieWatWaar=referral
+        Clubblad=magazine,
+        Motormerk=motor_brand,
+        Afmelding=dereg,
+        Beeindiging=term,
+        Opmerkingen=notes,
+        WieWatWaar=referral,
     )
     overlay = rec["overlay"]
     # single-rule string fields are stored verbatim (trimmed); magazine maps as-is for the enum

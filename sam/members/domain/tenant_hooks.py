@@ -46,10 +46,10 @@ from typing import (
 __all__ = [
     "HookName",
     "TenantHookRegistry",
+    "default_calculate_fee",
+    "default_resolve_visible_regions",
     # safe generic defaults (exported so tests / callers can assert identity)
     "default_validate_member",
-    "default_resolve_visible_regions",
-    "default_calculate_fee",
 ]
 
 # s5k: the ``derive_member_number`` extension point was RETIRED — member numbering is no longer
@@ -203,9 +203,7 @@ class TenantHookRegistry:
 
     # ── resolution / dispatch ──────────────────────────────────────────────────────────
 
-    def resolve(
-        self, hook_name: HookName | str, tenant_id: str
-    ) -> Callable[..., Any]:
+    def resolve(self, hook_name: HookName | str, tenant_id: str) -> Callable[..., Any]:
         """Return ``tenant_id``'s ``hook_name`` implementation, or its safe generic default.
 
         The core always gets a callable back — an unregistered ``(name, tenant)`` resolves to
@@ -226,5 +224,3 @@ class TenantHookRegistry:
         """
         hook = self.resolve(hook_name, tenant_id)
         return hook(tenant_id, *args, **kwargs)
-
-

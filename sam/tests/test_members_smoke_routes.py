@@ -43,7 +43,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -145,8 +147,8 @@ def _type(code, *, label, active=True, order=0):
 
 
 # The three projected-grant intents (keyed by the caller's verified email), design C5.
-_EMAIL_ALL = "all@h-dcn.test"        # all-access → region ["*"]
-_EMAIL_NOORD = "noord@h-dcn.test"    # scoped to Noord
+_EMAIL_ALL = "all@h-dcn.test"  # all-access → region ["*"]
+_EMAIL_NOORD = "noord@h-dcn.test"  # scoped to Noord
 _EMAIL_NOGRANT = "nogrant@h-dcn.test"  # holds the capability but NO region grant → deny
 
 _HDCN_GRANTS = {
@@ -164,9 +166,15 @@ def repo():
     r.add_member("h-dcn", _member("M-2", region="South"))
     r.add_member("h-dcn", _member("M-3", region="North"))
     # Membership-type catalog (a couple of active types + one retired).
-    r.add_type("h-dcn", _type("regulier", label={"nl": "Regulier", "en": "Regular"}, order=10))
-    r.add_type("h-dcn", _type("erelid", label={"nl": "Erelid", "en": "Honorary"}, order=20))
-    r.add_type("h-dcn", _type("oud", label={"nl": "Oud", "en": "Old"}, active=False, order=30))
+    r.add_type(
+        "h-dcn", _type("regulier", label={"nl": "Regulier", "en": "Regular"}, order=10)
+    )
+    r.add_type(
+        "h-dcn", _type("erelid", label={"nl": "Erelid", "en": "Honorary"}, order=20)
+    )
+    r.add_type(
+        "h-dcn", _type("oud", label={"nl": "Oud", "en": "Old"}, active=False, order=30)
+    )
     return r
 
 
@@ -293,7 +301,9 @@ def test_get_membership_types_route_is_retired_returns_404():
 
     # The active_only variant is likewise gone.
     resp = app.handler(
-        _event("GET", "/membership-types", email=_EMAIL_ALL, query={"active_only": "true"})
+        _event(
+            "GET", "/membership-types", email=_EMAIL_ALL, query={"active_only": "true"}
+        )
     )
     assert resp["statusCode"] == 404
 

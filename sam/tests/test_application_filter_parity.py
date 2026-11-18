@@ -30,8 +30,6 @@ import json
 import os
 import sys
 
-import pytest
-
 _REPO_ROOT = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
@@ -48,7 +46,6 @@ from sam.members.domain.field_resolver import (
 )
 from sam.members.domain.fixed_fields import EnumOption, FieldType
 from sam.members.domain.membership_service import MembershipService
-
 from sam.tests.test_field_config_endpoint import FakeCatalogRepository, _entry
 
 # ── the ONE canonical fixture + its frontend vendored twin ────────────────────────────

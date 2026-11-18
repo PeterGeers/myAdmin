@@ -31,7 +31,6 @@ from sam.members.domain.fixed_fields import (
     FieldType,
     MemberNumberFormat,
 )
-
 from sam.members.repository._config_reader_base import (
     _CONFIG_ID_FIELDS,
     _normalize_functional_groups,
@@ -590,7 +589,7 @@ class _FieldOverlayReadMixin:
                     and version > 0
                 ):
                     state["published_version"] = int(version)
-            except Exception:  # noqa: BLE001 - fail-safe read
+            except Exception:  # noqa: S110
                 pass
         published_at = row.get("published_at")
         if isinstance(published_at, str) and published_at.strip():

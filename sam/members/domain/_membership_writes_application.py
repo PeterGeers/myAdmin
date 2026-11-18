@@ -21,12 +21,12 @@ from sam.members.domain._membership_errors import (
     MEMBERSHIP_TYPE_FIELD_KEY,
     MemberValidationError,
 )
+from sam.members.domain._membership_writes_validation import (
+    APPLICATION_SERVER_SET_MEMBERSHIP_KEYS,
+)
 from sam.members.domain.applicant_locale import (
     locale_record_patch,
     normalize_locale,
-)
-from sam.members.domain._membership_writes_validation import (
-    APPLICATION_SERVER_SET_MEMBERSHIP_KEYS,
 )
 from sam.members.domain.application_choices import (
     validate_application_choice,

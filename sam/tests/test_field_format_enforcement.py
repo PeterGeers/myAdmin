@@ -98,7 +98,9 @@ class TestFormatRunsWhenShown:
 
     def test_format_runs_for_an_overlay_field_too(self):
         # Overlay (VARIABLE) fields carry a format just like fixed fields; the step is generic.
-        config = _config(_field("contact_email", "overlay", fmt=FieldFormat(checker="EMAIL")))
+        config = _config(
+            _field("contact_email", "overlay", fmt=FieldFormat(checker="EMAIL"))
+        )
         errors = _validate(config, {"overlay": {"contact_email": "bad"}})
         assert "overlay.contact_email" in errors
 
@@ -138,7 +140,9 @@ class TestHiddenFieldSkipped:
     def test_field_with_no_show_when_is_always_checked(self):
         # A `None` show_when means "always shown" → the format always runs.
         config = _config(
-            _field("email", "personal", fmt=FieldFormat(checker="EMAIL"), show_when=None)
+            _field(
+                "email", "personal", fmt=FieldFormat(checker="EMAIL"), show_when=None
+            )
         )
         assert "personal.email" in _validate(config, {"personal": {"email": "bad"}})
 
@@ -174,9 +178,13 @@ class TestDegradeAndMerge:
         # The step MERGES into the shared map — it never clobbers an error another pass recorded.
         config = _config(_field("email", "personal", fmt=FieldFormat(checker="EMAIL")))
         errors: dict[str, FieldError] = {
-            "personal.last_name": FieldError(code=VALIDATION_REQUIRED, detail="is required")
+            "personal.last_name": FieldError(
+                code=VALIDATION_REQUIRED, detail="is required"
+            )
         }
-        WritesMixin._validate_field_formats(config, {"personal": {"email": "bad"}}, errors)
+        WritesMixin._validate_field_formats(
+            config, {"personal": {"email": "bad"}}, errors
+        )
         assert set(errors) == {"personal.last_name", "personal.email"}
 
     def test_multiple_formatted_fields_each_contribute_their_error(self):

@@ -38,7 +38,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -57,6 +59,14 @@ from sam.members.worker.mail_send_worker import (
     SesSendOutcome,
 )
 
+# Reuse the worker-side fakes so the SES failure / NO_NOTIFY branches are the REAL worker path.
+from sam.tests.test_application_mail_worker import (
+    FakeMarkerStore,
+    FakeRecipientResolver,
+    FakeSenderResolver,
+    FakeSes,
+)
+
 # Reuse the task-2.2 create-path fixtures: the in-memory repo (catalog + member store + first-wins
 # session claim) and the overlay that marks the public-form fields, plus the create-path helpers.
 from sam.tests.test_create_application import (
@@ -65,15 +75,6 @@ from sam.tests.test_create_application import (
     _flat_submission,
     _overlay_public_form,
 )
-# Reuse the worker-side fakes so the SES failure / NO_NOTIFY branches are the REAL worker path.
-from sam.tests.test_application_mail_worker import (
-    FROM_ADDRESS,
-    FakeMarkerStore,
-    FakeRecipientResolver,
-    FakeSenderResolver,
-    FakeSes,
-)
-
 
 # ── the inbox: the member overview filtered to status=application (task 7.2) ─────────────
 
@@ -121,7 +122,10 @@ def service(repo) -> MembershipService:
 def _create_application(service, *, session_key, **over) -> dict:
     """Commit one public application (affirmative consent) and return the created record."""
     return service.create_application(
-        TENANT, _flat_submission(**over), session_key=session_key, consent={"accepted": True}
+        TENANT,
+        _flat_submission(**over),
+        session_key=session_key,
+        consent={"accepted": True},
     )
 
 
@@ -130,7 +134,9 @@ def _worker(repo, *, ses=None, recipients=None, sender=None):
     return MailSendWorker(
         ses=ses or FakeSes(),
         marker_store=FakeMarkerStore(),
-        recipient_resolver=recipients if recipients is not None else FakeRecipientResolver(),
+        recipient_resolver=recipients
+        if recipients is not None
+        else FakeRecipientResolver(),
         sender_resolver=sender if sender is not None else FakeSenderResolver(),
         run_store=None,
         members_store=repo,
@@ -157,7 +163,11 @@ def _applicant_job(member_id, recipient, *, run_id="run-app-7-3"):
         "recipient": recipient,
         "locale": "nl",
         "submitted": {
-            "personal": {"first_name": "Sam", "last_name": "Jansen", "email": recipient},
+            "personal": {
+                "first_name": "Sam",
+                "last_name": "Jansen",
+                "email": recipient,
+            },
             "membership": {"status": "application"},
         },
     }
@@ -167,19 +177,26 @@ def _applicant_job(member_id, recipient, *, run_id="run-app-7-3"):
 
 
 class TestCreatedApplicationIsInTheInbox:
-    def test_committed_application_appears_in_the_status_application_filter(self, service, repo):
+    def test_committed_application_appears_in_the_status_application_filter(
+        self, service, repo
+    ):
         rec = _create_application(service, session_key="s1")
         # The authoritative channel: the record is discoverable in the inbox the instant it is
         # committed — before, and independent of, any notification.
         assert rec["member_id"] in _inbox_member_ids(repo, TENANT)
-        assert _applications_inbox(repo, TENANT)[0]["membership"]["status"] == "application"
+        assert (
+            _applications_inbox(repo, TENANT)[0]["membership"]["status"]
+            == "application"
+        )
 
 
 # ── R14.18: a send FAILURE never removes the record from the inbox ───────────────────────
 
 
 class TestInboxSurvivesSendFailure:
-    def test_permanent_staff_send_failure_leaves_record_in_the_inbox(self, service, repo):
+    def test_permanent_staff_send_failure_leaves_record_in_the_inbox(
+        self, service, repo
+    ):
         # The record is committed by the public write...
         rec = _create_application(service, session_key="s1")
         before = _inbox_member_ids(repo, TENANT)
@@ -187,7 +204,9 @@ class TestInboxSurvivesSendFailure:
 
         # ...then the OFFLOADED staff notification permanently fails (identity unverified → DLQ).
         ses = FakeSes(
-            outcome=SesSendOutcome(ok=False, error="MessageRejected: identity not verified")
+            outcome=SesSendOutcome(
+                ok=False, error="MessageRejected: identity not verified"
+            )
         )
         with pytest.raises(MailSendPermanent):
             _worker(repo, ses=ses).process(_staff_job(rec["member_id"]))
@@ -216,28 +235,36 @@ class TestInboxSurvivesSendFailure:
         # the inbox filters on is the create path's, never touched by the send outcome.
         rec = _create_application(service, session_key="s1")
         ses = FakeSes(
-            outcome=SesSendOutcome(ok=False, error="MessageRejected: identity not verified")
+            outcome=SesSendOutcome(
+                ok=False, error="MessageRejected: identity not verified"
+            )
         )
         with pytest.raises(MailSendPermanent):
             _worker(repo, ses=ses).process(_staff_job(rec["member_id"]))
         stored = repo.get_member(TENANT, rec["member_id"])
         assert stored["membership"]["status"] == "application"
         # A send failure is NOT a NO_NOTIFY — no keyword is stamped by a failed send.
-        assert NO_NOTIFY_KEYWORD not in (stored.get("overlay") or {}).get("additional_info", "")
+        assert NO_NOTIFY_KEYWORD not in (stored.get("overlay") or {}).get(
+            "additional_info", ""
+        )
 
 
 # ── R8b.4: a NO_NOTIFY (no recipients) record is STILL in the inbox ──────────────────────
 
 
 class TestInboxSurvivesNoNotify:
-    def test_no_recipients_record_stays_in_the_inbox_with_no_notify_marker(self, service, repo):
+    def test_no_recipients_record_stays_in_the_inbox_with_no_notify_marker(
+        self, service, repo
+    ):
         # No all-scope Members_CRUD and no TenantAdmin → NO recipients. The staff notification
         # cannot send, the record is annotated NO_NOTIFY — but it is STILL in the applications
         # inbox (the record, not the email, is authoritative — R8b.4). NO_NOTIFY is itself a
         # keyword-filterable marker ON the inbox record (R8b.5), not an eviction.
         rec = _create_application(service, session_key="s1")
         resolver = FakeRecipientResolver(recipients=(), reply_to=())
-        result = _worker(repo, recipients=resolver).process(_staff_job(rec["member_id"]))
+        result = _worker(repo, recipients=resolver).process(
+            _staff_job(rec["member_id"])
+        )
 
         assert result.sent is False  # nothing sent (NO_NOTIFY) — not a DLQ
         assert rec["member_id"] in _inbox_member_ids(repo, TENANT)
@@ -273,7 +300,9 @@ class TestInboxUnaffectedByASuccessfulSend:
 
 
 class TestPublicWriteStaysInResolvedTenantPartition:
-    def test_created_record_carries_the_resolved_tenant_and_only_that(self, service, repo):
+    def test_created_record_carries_the_resolved_tenant_and_only_that(
+        self, service, repo
+    ):
         rec = _create_application(service, session_key="s1")
         assert rec["tenant_id"] == TENANT
         # The record is in THIS tenant's inbox — and in no other tenant's inbox.
@@ -283,7 +312,7 @@ class TestPublicWriteStaysInResolvedTenantPartition:
     def test_client_supplied_tenant_id_cannot_redirect_the_write(self, service, repo):
         # A forged body tenant_id is stripped: the record lands in the slug-resolved tenant's
         # partition (its inbox), never the attacker's — the resolved tenant is authoritative.
-        rec = _create_application(service, session_key="s1", **{"tenant_id": "other-tenant"})
+        rec = _create_application(service, session_key="s1", tenant_id="other-tenant")
         assert rec["tenant_id"] == TENANT
         assert rec["member_id"] in _inbox_member_ids(repo, TENANT)
         assert _applications_inbox(repo, "other-tenant") == []

@@ -53,7 +53,9 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.members` imports.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -183,7 +185,9 @@ def test_property_subgroup_grant_resolves_to_exact_subset(data, dim):
     declared = list(dim.values)
     # A non-empty subset of the declared values (the projected scopegrant# values).
     subset = data.draw(
-        st.lists(st.sampled_from(declared), min_size=1, max_size=len(declared), unique=True)
+        st.lists(
+            st.sampled_from(declared), min_size=1, max_size=len(declared), unique=True
+        )
     )
     access = _scope_access_from_grant(_TENANT, dim, subset)
 
@@ -314,7 +318,9 @@ def test_e2e_subgroup_scopegrant_row_resolves_to_subset():
     table = _seed(
         [
             _config_scope_item(_TENANT, _E2E_DIMENSION),
-            _scopegrant_item(_TENANT, _E2E_EMAIL, _E2E_DIMENSION.key, ["Noord", "West"]),
+            _scopegrant_item(
+                _TENANT, _E2E_EMAIL, _E2E_DIMENSION.key, ["Noord", "West"]
+            ),
         ]
     )
     reader = MembersProjectionReader(table=table)

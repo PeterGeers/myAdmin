@@ -189,7 +189,11 @@ def test_set_look_and_feel_seeds_whole_slice_when_parent_map_absent():
     class _LegacyReader:
         def get_raw_fields_overlay(self, tenant_id, *, consistent_read=False):
             # A legacy row: fields/overrides present, but NO look_and_feel key at all.
-            return {"fields": {"nickname": {"type": "text"}}, "fixed_overrides": {}, "functional_groups": {}}
+            return {
+                "fields": {"nickname": {"type": "text"}},
+                "fixed_overrides": {},
+                "functional_groups": {},
+            }
 
         def get_config_fields_version(self, tenant_id, consistent_read=False):
             return (True, "v-1")
@@ -203,7 +207,11 @@ def test_set_look_and_feel_seeds_whole_slice_when_parent_map_absent():
     # SET look_and_feel.color_primary (which would be invalid on a row with no parent map).
     ops = repo.last["ops"]
     assert ops == [
-        {"action": SET, "path": ["look_and_feel"], "value": {"color_primary": "#2D5F8A"}}
+        {
+            "action": SET,
+            "path": ["look_and_feel"],
+            "value": {"color_primary": "#2D5F8A"},
+        }
     ]
     # Still names ONLY the look_and_feel path — unrelated slices untouched by construction.
     assert ops[0]["path"][0] == "look_and_feel"
@@ -279,9 +287,7 @@ def test_copy_look_and_feel_empty_snapshot_is_valid():
     # An empty snapshot overwrites the target to "all defaults" — a valid one-time copy.
     svc, repo = _service()
     svc.copy_look_and_feel(_TENANT, {})
-    assert repo.last["ops"] == [
-        {"action": SET, "path": ["look_and_feel"], "value": {}}
-    ]
+    assert repo.last["ops"] == [{"action": SET, "path": ["look_and_feel"], "value": {}}]
 
 
 @pytest.mark.parametrize("bad_snapshot", [None, "x", 1, ["a"]])
@@ -377,7 +383,10 @@ class _FakeTable:
         if not ok:
             raise ClientError(
                 {
-                    "Error": {"Code": "ConditionalCheckFailedException", "Message": "stale"},
+                    "Error": {
+                        "Code": "ConditionalCheckFailedException",
+                        "Message": "stale",
+                    },
                     "ResponseMetadata": {"HTTPStatusCode": 400},
                 },
                 "UpdateItem",
@@ -472,7 +481,9 @@ def _skeleton_item():
 
     return {
         schema.PARTITION_KEY_ATTR: _TENANT,
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, "fields"
+        ),
         schema.VERSION_ATTR: "v-1",
         "fields": {"nickname": {"type": "text"}},
         "overrides": {},
@@ -505,7 +516,10 @@ def test_real_repo_copy_look_and_feel_does_not_trip_truncation_backstop():
 
     svc.copy_look_and_feel(_TENANT, {"color_primary": "#111", "font_body": "Inter"})
 
-    assert table.item["look_and_feel"] == {"color_primary": "#111", "font_body": "Inter"}
+    assert table.item["look_and_feel"] == {
+        "color_primary": "#111",
+        "font_body": "Inter",
+    }
     # groups/fields counts unchanged → backstop never fired.
     assert set(table.item["functional_groups"]) == {"personal"}
     assert set(table.item["fields"]) == {"nickname"}
@@ -540,7 +554,9 @@ def _skeleton_item_with_slug_and_publish_state():
 
     return {
         schema.PARTITION_KEY_ATTR: _TENANT,
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, "fields"
+        ),
         schema.VERSION_ATTR: "v-1",
         "fields": {"nickname": {"type": "text"}},
         "overrides": {"personal.gender": {"application_visible": True}},
@@ -723,7 +739,9 @@ class _LookAndFeelAwareReader(_FakeReader):
     """
 
     def get_raw_fields_overlay(self, tenant_id, consistent_read=False):
-        overlay = super().get_raw_fields_overlay(tenant_id, consistent_read=consistent_read)
+        overlay = super().get_raw_fields_overlay(
+            tenant_id, consistent_read=consistent_read
+        )
         item = self._table.item or {}
         overlay["look_and_feel"] = dict(item.get("look_and_feel", {}))
         return overlay
@@ -737,7 +755,9 @@ def test_real_repo_set_new_value_attribute_preserves_existing_look_and_feel_sibl
     seed = _skeleton_item_with_slug_and_publish_state()
     seed["look_and_feel"] = {"color_primary": "#2D5F8A", "font_body": "Inter"}
     table = _FakeTable(seed)
-    svc = ConfigFieldsCrudService(_real_repo(table), reader=_LookAndFeelAwareReader(table))
+    svc = ConfigFieldsCrudService(
+        _real_repo(table), reader=_LookAndFeelAwareReader(table)
+    )
 
     svc.set_look_and_feel(_TENANT, "columns", 2)
 

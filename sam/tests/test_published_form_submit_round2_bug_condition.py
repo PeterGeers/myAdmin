@@ -62,13 +62,13 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
-from sam.members.handler import public_app  # noqa: E402
-from sam.members.repository.projection_config_reader import (  # noqa: E402
+from sam.members.handler import public_app
+from sam.members.repository.projection_config_reader import (
     MembersProjectionReader,
 )
-from sam.members.repository.slug_marker_store import SlugMarker  # noqa: E402
+from sam.members.repository.slug_marker_store import SlugMarker
 
 #: The verified real-data tenant whose published form is the dead end (design Round 2 Examples).
 _SLUG = "hdcn-aanmelden"
@@ -148,7 +148,9 @@ _NOTICE_TEXT = st.fixed_dictionaries(
 
 @settings(max_examples=25)
 @given(version=_NOTICE_VERSION, text=_NOTICE_TEXT)
-def test_notice_text_public_field_config_surfaces_full_notice_version_and_text(version, text):
+def test_notice_text_public_field_config_surfaces_full_notice_version_and_text(
+    version, text
+):
     """NOTICE_TEXT facet: `get_public_field_config` must surface the FULL notice {version, text}.
 
     SHIPPED: it serves `{version}` only — so this FAILS (the counterexample).
@@ -164,7 +166,9 @@ def test_notice_text_public_field_config_surfaces_full_notice_version_and_text(v
 
     # REAL reader round-trip (steering 39): the full notice genuinely lives in SAM on config#mail.
     real_notice = reader.get_consent_notice(_TENANT)
-    assert real_notice is not None, "precondition: the tenant has a well-formed notice in SAM"
+    assert real_notice is not None, (
+        "precondition: the tenant has a well-formed notice in SAM"
+    )
     assert real_notice["version"] == version and real_notice["text"] == text
 
     # The SAME real reader is the service's consent-notice provider (it satisfies the Protocol by
@@ -269,7 +273,12 @@ def _whitelisted_schema(tenant_id):
     return {
         "tenant_id": tenant_id,
         "fields": [
-            {"key": "email", "type": "email", "label": {"nl": "E-mail"}, "required": True}
+            {
+                "key": "email",
+                "type": "email",
+                "label": {"nl": "E-mail"},
+                "required": True,
+            }
         ],
         "functional_groups": [],
         "locales": ["nl", "en"],
@@ -278,7 +287,9 @@ def _whitelisted_schema(tenant_id):
 
 
 #: The slug segments the published form uses, resolving to a tenant with NO matching embed origin.
-_RESOLVED_SLUGS = st.sampled_from(["hdcn-aanmelden", "form-aanmelden", "club-inschrijven"])
+_RESOLVED_SLUGS = st.sampled_from(
+    ["hdcn-aanmelden", "form-aanmelden", "club-inschrijven"]
+)
 
 
 # `monkeypatch` is function-scoped (not reset per generated input), but every generated case
@@ -291,7 +302,9 @@ _RESOLVED_SLUGS = st.sampled_from(["hdcn-aanmelden", "form-aanmelden", "club-ins
     suppress_health_check=[HealthCheck.function_scoped_fixture],
 )
 @given(resolved_slug=_RESOLVED_SLUGS)
-def test_cors_resolved_slug_host_is_allowed_for_the_published_form(resolved_slug, monkeypatch):
+def test_cors_resolved_slug_host_is_allowed_for_the_published_form(
+    resolved_slug, monkeypatch
+):
     """CORS facet: the resolved slug host `https://{slug}.{apex}` must be CORS-allowed.
 
     SHIPPED: `_apply_cors_origin` exact-matches the baseline ∪ embed origins only; the per-slug
@@ -415,7 +428,7 @@ def test_error_clarity_submit_script_maps_consent_required_422_near_the_consent_
     # consent-adjacent mapping appears — the 422 falls to the generic catch-all.
     recognises_consent_code = "CONSENT_REQUIRED" in artifact
     maps_consent_control = ("consent" in artifact.lower()) and (
-        "data-field=\"consent\"" in artifact
+        'data-field="consent"' in artifact
     )
     # The fix wires the consent 422 to the consent control specifically — the generic catch-all
     # alone (the shipped behaviour) is NOT a consent-adjacent mapping.

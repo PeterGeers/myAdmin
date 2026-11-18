@@ -33,9 +33,6 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from sam.members.domain.mail_feedback_handler import (
-    EVENT_TYPE_BOUNCE,
-    EVENT_TYPE_COMPLAINT,
-    EVENT_TYPE_DELIVERY,
     MailFeedbackService,
 )
 from sam.members.domain.mail_feedback_tags import (
@@ -243,7 +240,11 @@ class TestUnroutable:
     def test_unknown_event_type_is_ignored_not_recorded(self):
         repo = FakeRepo()
         result = MailFeedbackService(repo).ingest(
-            {"eventType": "Reject", "mail": _mail(), "reject": {"reason": "Bad content"}}
+            {
+                "eventType": "Reject",
+                "mail": _mail(),
+                "reject": {"reason": "Bad content"},
+            }
         )
         assert result.ignored is True
         assert repo.calls == []
@@ -304,7 +305,9 @@ class TestFeedbackHandler:
         # never silently dropped, and does NOT raise (retrying can't make the tag appear).
         repo = FakeRepo()
         feedback_app._SERVICE = MailFeedbackService(repo)
-        summary = feedback_app.handler(self._sns_event(_bounce_event(include_tags=False)))
+        summary = feedback_app.handler(
+            self._sns_event(_bounce_event(include_tags=False))
+        )
         assert summary["unroutable"] == 1
         assert summary["recorded"] == 0
         assert repo.calls == []

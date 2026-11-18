@@ -34,17 +34,17 @@ from collections.abc import Mapping
 from html import escape
 from typing import Any
 
+from sam.members.domain.applicant_locale import DEFAULT_LOCALE, normalize_locale
 from sam.members.domain.application_notification import (
     JOB_KIND_APPLICANT,
     JOB_KIND_STAFF,
 )
-from sam.members.domain.applicant_locale import DEFAULT_LOCALE, normalize_locale
 
 __all__ = [
     "MEMBER_DEEP_LINK_TEMPLATE",
+    "render_applicant_message",
     "render_application_message",
     "render_staff_message",
-    "render_applicant_message",
 ]
 
 #: The deep-link to the authenticated member detail the staff email targets (R8.6/R8b.1). A
@@ -104,9 +104,7 @@ def render_application_message(
     raise ValueError(f"unknown application message kind {kind!r}")
 
 
-def render_staff_message(
-    lang: str, envelope: Mapping[str, Any]
-) -> tuple[str, str]:
+def render_staff_message(lang: str, envelope: Mapping[str, Any]) -> tuple[str, str]:
     """The STAFF "new application" body — deep-link + neutral DUP marker, NO applicant PII (R8.6).
 
     Carries ONLY: a display name (the one applicant-identifying string, R8.6), the deep-link to
@@ -119,7 +117,9 @@ def render_staff_message(
     member_id = _clean_str(envelope.get("member_id"))
 
     subject = (
-        copy["subject_named"].format(name=display_name) if display_name else copy["subject"]
+        copy["subject_named"].format(name=display_name)
+        if display_name
+        else copy["subject"]
     )
 
     parts: list[str] = [f"<p>{escape(copy['intro'])}</p>"]
@@ -133,9 +133,7 @@ def render_staff_message(
     return subject, "\n".join(parts)
 
 
-def render_applicant_message(
-    lang: str, envelope: Mapping[str, Any]
-) -> tuple[str, str]:
+def render_applicant_message(lang: str, envelope: Mapping[str, Any]) -> tuple[str, str]:
     """The APPLICANT "application received" confirmation — embeds their OWN submitted data (R8a).
 
     Rendered in the applicant's chosen locale (R6b/R8a.2). Embeds a copy of the applicant's OWN

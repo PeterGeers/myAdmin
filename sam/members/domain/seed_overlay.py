@@ -86,7 +86,8 @@ _SEED_ONLY_FUNCTIONAL_GROUPS: tuple[dict[str, Any], ...] = (
 #: (:data:`_SEED_ONLY_FUNCTIONAL_GROUPS`, e.g. ``group_a``) stay seed/test data and are appended
 #: after the base groups.
 SEED_FUNCTIONAL_GROUPS: tuple[dict[str, Any], ...] = (
-    tuple(_base_group_dict(g) for g in BASE_FUNCTIONAL_GROUPS) + _SEED_ONLY_FUNCTIONAL_GROUPS
+    tuple(_base_group_dict(g) for g in BASE_FUNCTIONAL_GROUPS)
+    + _SEED_ONLY_FUNCTIONAL_GROUPS
 )
 
 
@@ -147,7 +148,9 @@ def build_seed_overlay() -> TenantOverlay:
 
     functional_groups = {
         g["key"]: FunctionalGroup(
-            key=g["key"], label=dict(g.get("label") or {}), order=int(g.get("order", 0) or 0)
+            key=g["key"],
+            label=dict(g.get("label") or {}),
+            order=int(g.get("order", 0) or 0),
         )
         for g in raw["functional_groups"]
     }

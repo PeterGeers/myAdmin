@@ -40,7 +40,10 @@ class _FakeStore:
 
     def add_run(self, run_id, *, triggered_by, created_at, **tally):
         self.runs[(TENANT, run_id)] = {
-            "run_id": run_id, "triggered_by": triggered_by, "created_at": created_at, **tally
+            "run_id": run_id,
+            "triggered_by": triggered_by,
+            "created_at": created_at,
+            **tally,
         }
 
     def add_failure(self, run_id, **entry):
@@ -66,10 +69,18 @@ class _FakeStore:
 @pytest.fixture()
 def service():
     store = _FakeStore()
-    store.add_run("own-1", triggered_by=SUB_A, created_at="2026-01-01T00:00:00Z", sent=1, failed=0)
-    store.add_run("own-2", triggered_by=SUB_A, created_at="2026-01-02T00:00:00Z", sent=2, failed=1)
-    store.add_run("other", triggered_by=SUB_B, created_at="2026-01-03T00:00:00Z", sent=5, failed=0)
-    store.add_failure("own-2", address="x@y.z", status="failed", reason="MessageRejected")
+    store.add_run(
+        "own-1", triggered_by=SUB_A, created_at="2026-01-01T00:00:00Z", sent=1, failed=0
+    )
+    store.add_run(
+        "own-2", triggered_by=SUB_A, created_at="2026-01-02T00:00:00Z", sent=2, failed=1
+    )
+    store.add_run(
+        "other", triggered_by=SUB_B, created_at="2026-01-03T00:00:00Z", sent=5, failed=0
+    )
+    store.add_failure(
+        "own-2", address="x@y.z", status="failed", reason="MessageRejected"
+    )
     return MailRunStatusService(store)
 
 
@@ -135,7 +146,9 @@ def test_delete_run_own_deletes_and_returns_true(service):
 def test_delete_run_other_users_run_is_not_deleted_for_plain_user(service):
     # Exists in the tenant but triggered by SUB_B → not visible to non-admin SUB_A: returns the
     # not-visible signal (False, → 404 at the edge, no probe) and leaves the run intact.
-    assert service.delete_run(TENANT, "other", requester_sub=SUB_A, admin=False) is False
+    assert (
+        service.delete_run(TENANT, "other", requester_sub=SUB_A, admin=False) is False
+    )
     assert service.get_run(TENANT, "other", requester_sub=SUB_A, admin=True) is not None
 
 

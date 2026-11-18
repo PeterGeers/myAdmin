@@ -767,14 +767,14 @@ class TestExportNameStamping:
 
 class TestMailJobToEnvelope:
     def _job(self, **overrides) -> MailJob:
-        base = dict(
-            job_id="job-1",
-            tenant_id=TENANT,
-            set_id=SET_ID,
-            run_id=RUN_ID,
-            mode=DELIVERY_MODE_TO_FIXED,
-            recipients=("agent@example.com",),
-        )
+        base = {
+            "job_id": "job-1",
+            "tenant_id": TENANT,
+            "set_id": SET_ID,
+            "run_id": RUN_ID,
+            "mode": DELIVERY_MODE_TO_FIXED,
+            "recipients": ("agent@example.com",),
+        }
         base.update(overrides)
         return MailJob(**base)
 

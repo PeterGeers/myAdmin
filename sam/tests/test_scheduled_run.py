@@ -293,12 +293,10 @@ class TestTriggerEntrypoint:
     @pytest.fixture()
     def wired(self, monkeypatch, store, deliver, audit):
         """Wire the entrypoint over a service built on the fakes (no AWS)."""
-        import sam.members.handler.scheduler_app as scheduler_app
+        from sam.members.handler import scheduler_app
 
         service = ScheduledRunService(store, deliver, audit)
-        monkeypatch.setattr(
-            scheduler_app, "get_scheduled_run_service", lambda: service
-        )
+        monkeypatch.setattr(scheduler_app, "get_scheduled_run_service", lambda: service)
         return scheduler_app, store, deliver, audit
 
     def test_firing_event_delegates_to_the_service(self, wired):
@@ -400,7 +398,9 @@ class TestSchedulerApiPort:
         client = FakeSchedulerClient()
         api = self._api(client)
 
-        name = api.create_schedule(TENANT, SCHEDULE_ID, "cron(0 8 1 * ? *)", enabled=True)
+        name = api.create_schedule(
+            TENANT, SCHEDULE_ID, "cron(0 8 1 * ? *)", enabled=True
+        )
 
         assert name == build_schedule_name(TENANT, SCHEDULE_ID)
         [call] = client.created

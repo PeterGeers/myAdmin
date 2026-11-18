@@ -28,7 +28,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -134,7 +136,9 @@ def test_default_validate_member_returns_no_errors():
 
 
 def test_default_resolve_visible_regions_is_identity_over_resolved_regions():
-    assert default_resolve_visible_regions("club", {"sub": "u1"}, ["Noord", "Zuid"]) == [
+    assert default_resolve_visible_regions(
+        "club", {"sub": "u1"}, ["Noord", "Zuid"]
+    ) == [
         "Noord",
         "Zuid",
     ]
@@ -165,7 +169,10 @@ def test_dispatch_calls_resolved_hook_with_tenant_and_args():
 def test_dispatch_of_unregistered_point_uses_the_safe_default():
     registry = TenantHookRegistry()
     # No hook registered → dispatch runs the default. calculate_fee default → None.
-    assert registry.dispatch(HookName.CALCULATE_FEE, "club", {"membership": {}}, {}) is None
+    assert (
+        registry.dispatch(HookName.CALCULATE_FEE, "club", {"membership": {}}, {})
+        is None
+    )
     # validate default → empty errors.
     assert registry.dispatch(HookName.VALIDATE_MEMBER, "club", {}) == {}
 
@@ -179,7 +186,10 @@ def test_register_hdcn_hooks_binds_only_the_hooks_hdcn_needs():
 
     # Registered (Rung 3): validate_member only. (s5k retired derive_member_number.)
     assert registry.is_registered(HookName.VALIDATE_MEMBER, HDCN_TENANT_ID)
-    assert registry.resolve(HookName.VALIDATE_MEMBER, HDCN_TENANT_ID) is hdcn_validate_member
+    assert (
+        registry.resolve(HookName.VALIDATE_MEMBER, HDCN_TENANT_ID)
+        is hdcn_validate_member
+    )
 
     # Left on the safe default (Rung 1-2 / unused): resolve_visible_regions, calculate_fee —
     # the rung-distribution finding for the Go/No-Go. (on_transition was removed with the
@@ -222,4 +232,7 @@ def test_hdcn_hooks_do_not_leak_to_other_tenants():
     # h-dcn's validate_member is registered for "h-dcn" only; another tenant gets the safe
     # default (Property 5 — resolution is by tenant_id, no tenant literal in the core).
     assert not registry.is_registered(HookName.VALIDATE_MEMBER, "other-club")
-    assert registry.resolve(HookName.VALIDATE_MEMBER, "other-club") is default_validate_member
+    assert (
+        registry.resolve(HookName.VALIDATE_MEMBER, "other-club")
+        is default_validate_member
+    )

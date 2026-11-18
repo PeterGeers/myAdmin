@@ -108,9 +108,7 @@ def inject_config_fields_crud_service(monkeypatch, repo):
     fake empty reader, so no AWS is touched. Rejection-path tests then assert ``repo.calls == []``.
     """
     service = ConfigFieldsCrudService(repo, reader=FakeReader())
-    monkeypatch.setattr(
-        dispatch_mod, "get_config_fields_crud_service", lambda: service
-    )
+    monkeypatch.setattr(dispatch_mod, "get_config_fields_crud_service", lambda: service)
     return service
 
 
@@ -240,9 +238,7 @@ def test_config_fields_set_group_dispatches_group_op(repo):
     resp = app.handler(
         _event(
             body={
-                "ops": [
-                    {"op": "set_group", "group": "personal", "attrs": {"order": 2}}
-                ]
+                "ops": [{"op": "set_group", "group": "personal", "attrs": {"order": 2}}]
             }
         )
     )
@@ -291,7 +287,9 @@ def test_config_fields_client_op_id_is_forwarded(repo):
 # ── Error mapping: validation → 400, stale version → 409 ──────────────────────────────
 
 
-def test_config_fields_whole_overlay_body_is_rejected_as_stale_client_409_no_write(repo):
+def test_config_fields_whole_overlay_body_is_rejected_as_stale_client_409_no_write(
+    repo,
+):
     # Task 5.3a (design Slice 3): the RETIRED whole-overlay body a cached OLD SPA bundle sends
     # (`fields`/`overrides`/`functional_groups` as a whole record, no `ops` list) is now rejected
     # as a STALE CLIENT — a caller-safe 409 with the DISTINCT `errors.api.staleClient` code and NO
@@ -318,9 +316,7 @@ def test_config_fields_empty_ops_list_is_rejected_400(repo):
 
 
 def test_config_fields_unknown_op_token_is_rejected_400_no_write(repo):
-    resp = app.handler(
-        _event(body={"ops": [{"op": "drop_everything", "key": "x"}]})
-    )
+    resp = app.handler(_event(body={"ops": [{"op": "drop_everything", "key": "x"}]}))
     assert resp["statusCode"] == 400
     assert repo.calls == []
 
@@ -346,7 +342,9 @@ def test_config_fields_out_of_surface_attr_is_rejected_400_no_write(repo):
 
 
 def test_config_fields_missing_identity_is_rejected_400(repo):
-    resp = app.handler(_event(body={"ops": [{"op": "set_field", "attrs": {"label": "x"}}]}))
+    resp = app.handler(
+        _event(body={"ops": [{"op": "set_field", "attrs": {"label": "x"}}]})
+    )
     assert resp["statusCode"] == 400
     assert repo.calls == []
 
@@ -361,7 +359,10 @@ def test_config_fields_missing_identity_is_rejected_400(repo):
         ("overrides", {"personal.gender": {"label": "x"}}),
         ("fixed_overrides", {"personal.gender": {"label": "x"}}),
         ("functional_groups", {"personal": {"order": 1}}),
-        ("functional_groups", [{"key": "personal", "order": 1}]),  # pre-migration LIST shape
+        (
+            "functional_groups",
+            [{"key": "personal", "order": 1}],
+        ),  # pre-migration LIST shape
         ("field_overlay", {"fields": {}, "overrides": {}}),
     ],
 )

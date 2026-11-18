@@ -51,11 +51,16 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.shared` imports.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from sam.shared.page_styles import SUPPORTED_ATTRIBUTES, render_page_styles  # noqa: E402
+from sam.shared.page_styles import (
+    SUPPORTED_ATTRIBUTES,
+    render_page_styles,
+)
 
 # ─── Forbidden runtime surfaces (the Flask plane) ──────────────────────────────────────
 # Styling production must never import or call any of these at runtime. ``flask`` itself,
@@ -102,7 +107,7 @@ def _imported_module_names(source: str) -> set[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 names.add(alias.name)
-        elif isinstance(node, ast.ImportFrom):
+        elif isinstance(node, ast.ImportFrom):  # noqa: SIM102
             # level > 0 is a relative (intra-package) import — inherently SAM-owned.
             if node.level == 0 and node.module:
                 names.add(node.module)
@@ -136,7 +141,9 @@ def test_layer2_package_imports_only_stdlib_no_flask_plane():
             assert top != "boto3", (
                 f"{os.path.basename(path)} imports boto3; Layer 2 must be dependency-free."
             )
-            assert module.split(".")[0] in {p.split(".")[0] for p in _ALLOWED_IMPORT_PREFIXES}, (
+            assert module.split(".")[0] in {
+                p.split(".")[0] for p in _ALLOWED_IMPORT_PREFIXES
+            }, (
                 f"{os.path.basename(path)} imports non-stdlib module {module!r}; the Layer-2 "
                 "generator must stay dependency-free (stdlib only) so no Flask-plane runtime "
                 "dependency is possible (Req 3.1, 3.5)."
@@ -169,7 +176,6 @@ class _BlockFlaskPlaneFinder:
                 f"Flask-plane import {name!r} attempted during SAM styling production "
                 "(Property 7: no runtime read of or call to the Flask plane)."
             )
-        return None
 
 
 def _render_under_flask_block(mapping):

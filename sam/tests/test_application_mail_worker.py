@@ -37,7 +37,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -73,8 +75,15 @@ class FakeSes:
         self._outcome = outcome
 
     def send(
-        self, *, from_address, reply_to=None, recipients, subject, body_html,
-        attachments=None, tags=None,
+        self,
+        *,
+        from_address,
+        reply_to=None,
+        recipients,
+        subject,
+        body_html,
+        attachments=None,
+        tags=None,
     ):
         self.sends.append(
             {
@@ -104,7 +113,9 @@ class FakeMarkerStore:
         if key in self._seen:
             return False
         self._seen.add(key)
-        self.metadata.append({"tenant_id": tenant_id, "job_id": job_id, **dict(metadata)})
+        self.metadata.append(
+            {"tenant_id": tenant_id, "job_id": job_id, **dict(metadata)}
+        )
         return True
 
 
@@ -119,7 +130,9 @@ class _Resolution:
 class FakeRecipientResolver:
     """A fake ApplicationRecipientResolver capturing the call + returning a canned resolution."""
 
-    def __init__(self, recipients=("crud-a@h-dcn.nl", "crud-b@h-dcn.nl"), reply_to=None):
+    def __init__(
+        self, recipients=("crud-a@h-dcn.nl", "crud-b@h-dcn.nl"), reply_to=None
+    ):
         self._recipients = recipients
         self._reply_to = reply_to if reply_to is not None else recipients
         self.calls: list[dict] = []
@@ -146,10 +159,14 @@ class FakeRunStore:
         self.counts: list[dict] = []  # {tenant, run, sent, failed}
         self.failures: list[dict] = []  # {tenant, run, address, reason}
 
-    def create_mail_run(self, tenant_id, run_id, *, mode, triggered_by, recipient_count):
+    def create_mail_run(
+        self, tenant_id, run_id, *, mode, triggered_by, recipient_count
+    ):
         key = (tenant_id, run_id)
         if key in self.runs:
-            return self.runs[key]  # idempotent — the second job of the run must not reset it
+            return self.runs[
+                key
+            ]  # idempotent — the second job of the run must not reset it
         item = {
             "mode": mode,
             "triggered_by": triggered_by,
@@ -169,17 +186,29 @@ class FakeRunStore:
         return run
 
     def increment_mail_run_counts(self, tenant_id, run_id, *, sent=0, failed=0):
-        self.counts.append({"tenant": tenant_id, "run": run_id, "sent": sent, "failed": failed})
+        self.counts.append(
+            {"tenant": tenant_id, "run": run_id, "sent": sent, "failed": failed}
+        )
         run = self.runs.get((tenant_id, run_id))
         if run is not None:
             run["sent"] = run.get("sent", 0) + sent
             run["failed"] = run.get("failed", 0) + failed
         return run
 
-    def record_mail_failure(self, tenant_id, run_id, *, address, status="failed", reason=None,
-                            message_id=None, adjust_run_tally=False):
-        self.failures.append({"tenant": tenant_id, "run": run_id, "address": address,
-                              "reason": reason})
+    def record_mail_failure(
+        self,
+        tenant_id,
+        run_id,
+        *,
+        address,
+        status="failed",
+        reason=None,
+        message_id=None,
+        adjust_run_tally=False,
+    ):
+        self.failures.append(
+            {"tenant": tenant_id, "run": run_id, "address": address, "reason": reason}
+        )
         return {"address": address}
 
     @property
@@ -232,19 +261,30 @@ class FakeSenderResolver:
         return _SenderResolution(self._from)
 
 
-def _worker(*, ses=None, markers=None, recipients=None, sender=None, run_store=None,
-            members_store=None):
+def _worker(
+    *,
+    ses=None,
+    markers=None,
+    recipients=None,
+    sender=None,
+    run_store=None,
+    members_store=None,
+):
     return MailSendWorker(
         ses=ses or FakeSes(),
         marker_store=markers or FakeMarkerStore(),
-        recipient_resolver=recipients if recipients is not None else FakeRecipientResolver(),
+        recipient_resolver=recipients
+        if recipients is not None
+        else FakeRecipientResolver(),
         sender_resolver=sender if sender is not None else FakeSenderResolver(),
         run_store=run_store,
         members_store=members_store,
     )
 
 
-def _staff_job(*, duplicate_suspected=False, applicant_scope_value=None, name="Sam van Doe"):
+def _staff_job(
+    *, duplicate_suspected=False, applicant_scope_value=None, name="Sam van Doe"
+):
     job = {
         JOB_KIND_KEY: JOB_KIND_STAFF,
         "tenant_id": TENANT,
@@ -283,7 +323,9 @@ def _applicant_job(*, locale="en", recipient="sam@example.org"):
 class TestStaffRecipientResolution:
     def test_staff_job_sends_to_the_resolved_recipients(self):
         ses = FakeSes()
-        resolver = FakeRecipientResolver(recipients=("crud-a@h-dcn.nl", "crud-b@h-dcn.nl"))
+        resolver = FakeRecipientResolver(
+            recipients=("crud-a@h-dcn.nl", "crud-b@h-dcn.nl")
+        )
         result = _worker(ses=ses, recipients=resolver).process(_staff_job())
 
         assert result.sent is True and result.deduped is False
@@ -369,15 +411,21 @@ class TestStaffBodyNoPii:
         # display name is allowed (the one identifying string, R8.6); the email is NOT.
         assert "Sam van Doe" in body
         assert "sam@example.org" not in body
-        assert "status" not in body  # no submitted field values leak into the staff body
+        assert (
+            "status" not in body
+        )  # no submitted field values leak into the staff body
 
     def test_staff_body_shows_neutral_dup_marker_when_flagged(self):
         ses = FakeSes()
         _worker(ses=ses).process(_staff_job(duplicate_suspected=True))
         body = ses.sends[0]["body_html"]
         # neutral one-line triage marker (R8.6a) — never names a matched member.
-        assert "possible existing member" in body.lower() or "bestaand lid" in body.lower()
-        assert "mem-" not in body.replace("/members/mem-123", "")  # no OTHER member id leaks
+        assert (
+            "possible existing member" in body.lower() or "bestaand lid" in body.lower()
+        )
+        assert "mem-" not in body.replace(
+            "/members/mem-123", ""
+        )  # no OTHER member id leaks
 
     def test_staff_body_omits_dup_marker_when_not_flagged(self):
         ses = FakeSes()
@@ -400,9 +448,13 @@ class TestApplicantBody:
         ses = FakeSes()
         _worker(ses=ses).process(_applicant_job(recipient="sam@example.org"))
         [sent] = ses.sends
-        assert sent["recipients"] == ["sam@example.org"]  # their OWN validated address (R8a.4)
+        assert sent["recipients"] == [
+            "sam@example.org"
+        ]  # their OWN validated address (R8a.4)
         body = sent["body_html"]
-        assert "Sam" in body and "sam@example.org" in body  # own data is not a leak (R8a.4)
+        assert (
+            "Sam" in body and "sam@example.org" in body
+        )  # own data is not a leak (R8a.4)
 
     def test_applicant_body_renders_in_applicant_locale_en(self):
         ses = FakeSes()
@@ -431,7 +483,9 @@ class TestBestEffortAndDlq:
 
     def test_permanent_rejection_raises_permanent_to_dead_letter(self):
         ses = FakeSes(
-            outcome=SesSendOutcome(ok=False, error="MessageRejected: identity not verified")
+            outcome=SesSendOutcome(
+                ok=False, error="MessageRejected: identity not verified"
+            )
         )
         with pytest.raises(MailSendPermanent):
             _worker(ses=ses).process(_applicant_job())
@@ -443,10 +497,14 @@ class TestBestEffortAndDlq:
         ses = FakeSes()
         resolver = FakeRecipientResolver(recipients=(), reply_to=())
         runs = FakeRunStore()
-        result = _worker(ses=ses, recipients=resolver, run_store=runs).process(_staff_job())
+        result = _worker(ses=ses, recipients=resolver, run_store=runs).process(
+            _staff_job()
+        )
         assert result.sent is False and result.recipient_count == 0
         assert ses.sends == []  # nothing sent
-        assert runs.failures == []  # NO_NOTIFY is not a failure — the run is not marked failed
+        assert (
+            runs.failures == []
+        )  # NO_NOTIFY is not a failure — the run is not marked failed
 
     def test_no_usable_sender_skips_best_effort_without_dead_letter(self):
         # R8.8: a sender lapsing between the readiness precheck and send never crashes the worker
@@ -476,9 +534,13 @@ class TestRecordSurvivesSesFailure:
         # A permanent SES rejection on the STAFF job dead-letters (MailSendPermanent) — but the
         # committed application record is NEVER read or mutated on the send path, so it stands.
         store = FakeMembersStore(_committed_record())
-        before = dict(store.get_member(TENANT, MEMBER_ID))  # snapshot the committed record
+        before = dict(
+            store.get_member(TENANT, MEMBER_ID)
+        )  # snapshot the committed record
         ses = FakeSes(
-            outcome=SesSendOutcome(ok=False, error="MessageRejected: identity not verified")
+            outcome=SesSendOutcome(
+                ok=False, error="MessageRejected: identity not verified"
+            )
         )
         with pytest.raises(MailSendPermanent):
             _worker(ses=ses, members_store=store).process(_staff_job())
@@ -503,12 +565,16 @@ class TestRecordSurvivesSesFailure:
         # failed"). The record carries no DUP/NO_NOTIFY keyword it did not already have.
         store = FakeMembersStore(_committed_record())
         ses = FakeSes(
-            outcome=SesSendOutcome(ok=False, error="MessageRejected: identity not verified")
+            outcome=SesSendOutcome(
+                ok=False, error="MessageRejected: identity not verified"
+            )
         )
         with pytest.raises(MailSendPermanent):
             _worker(ses=ses, members_store=store).process(_staff_job())
         record = store.get_member(TENANT, MEMBER_ID)
-        assert NO_NOTIFY_KEYWORD not in record.get("overlay", {}).get("additional_info", "")
+        assert NO_NOTIFY_KEYWORD not in record.get("overlay", {}).get(
+            "additional_info", ""
+        )
 
 
 # ── idempotent redelivery (stable run_id#kind marker) ────────────────────────────────────
@@ -569,7 +635,11 @@ def _committed_record(*, additional_info=None):
         overlay["additional_info"] = additional_info
     return {
         "member_id": MEMBER_ID,
-        "personal": {"first_name": "Sam", "last_name": "Doe", "email": "sam@example.org"},
+        "personal": {
+            "first_name": "Sam",
+            "last_name": "Doe",
+            "email": "sam@example.org",
+        },
         "membership": {"status": "application"},
         "overlay": overlay,
     }
@@ -647,13 +717,16 @@ class TestOperatorAlert:
         import logging
 
         resolver = FakeRecipientResolver(recipients=(), reply_to=())
-        with caplog.at_level(logging.ERROR, logger="sam.members.worker.mail_send_worker"):
-            _worker(recipients=resolver, members_store=FakeMembersStore(_committed_record())).process(
-                _staff_job()
-            )
+        with caplog.at_level(
+            logging.ERROR, logger="sam.members.worker.mail_send_worker"
+        ):
+            _worker(
+                recipients=resolver, members_store=FakeMembersStore(_committed_record())
+            ).process(_staff_job())
         # A stable, greppable operator-alert marker at ERROR (a metric filter / alarm subscribes).
         assert any(
-            "OPERATOR_ALERT NO_RECIPIENTS" in r.getMessage() and r.levelno == logging.ERROR
+            "OPERATOR_ALERT NO_RECIPIENTS" in r.getMessage()
+            and r.levelno == logging.ERROR
             for r in caplog.records
         )
 
@@ -661,11 +734,15 @@ class TestOperatorAlert:
         import logging
 
         resolver = FakeRecipientResolver(recipients=(), reply_to=())
-        with caplog.at_level(logging.ERROR, logger="sam.members.worker.mail_send_worker"):
-            _worker(recipients=resolver, members_store=FakeMembersStore(_committed_record())).process(
-                _staff_job(name="Sam van Doe")
-            )
-        alert = next(r.getMessage() for r in caplog.records if "OPERATOR_ALERT" in r.getMessage())
+        with caplog.at_level(
+            logging.ERROR, logger="sam.members.worker.mail_send_worker"
+        ):
+            _worker(
+                recipients=resolver, members_store=FakeMembersStore(_committed_record())
+            ).process(_staff_job(name="Sam van Doe"))
+        alert = next(
+            r.getMessage() for r in caplog.records if "OPERATOR_ALERT" in r.getMessage()
+        )
         # Metadata only — tenant/run/member id, never the applicant's email or submitted data.
         assert "sam@example.org" not in alert
         assert TENANT in alert and RUN_ID in alert
@@ -673,8 +750,12 @@ class TestOperatorAlert:
     def test_no_operator_alert_on_a_normal_send(self, caplog):
         import logging
 
-        with caplog.at_level(logging.ERROR, logger="sam.members.worker.mail_send_worker"):
-            _worker(members_store=FakeMembersStore(_committed_record())).process(_staff_job())
+        with caplog.at_level(
+            logging.ERROR, logger="sam.members.worker.mail_send_worker"
+        ):
+            _worker(members_store=FakeMembersStore(_committed_record())).process(
+                _staff_job()
+            )
         assert not any("OPERATOR_ALERT" in r.getMessage() for r in caplog.records)
 
 
@@ -682,7 +763,9 @@ class TestOperatorAlert:
 
 
 class TestApplicationSendLog:
-    def test_application_run_created_with_application_mode_and_public_triggered_by(self):
+    def test_application_run_created_with_application_mode_and_public_triggered_by(
+        self,
+    ):
         runs = FakeRunStore()
         _worker(run_store=runs).process(_staff_job())
         run = runs.runs[(TENANT, RUN_ID)]
@@ -691,7 +774,9 @@ class TestApplicationSendLog:
 
     def test_successful_staff_send_advances_run_to_sending_and_counts_sent(self):
         runs = FakeRunStore()
-        resolver = FakeRecipientResolver(recipients=("crud-a@h-dcn.nl", "crud-b@h-dcn.nl"))
+        resolver = FakeRecipientResolver(
+            recipients=("crud-a@h-dcn.nl", "crud-b@h-dcn.nl")
+        )
         _worker(recipients=resolver, run_store=runs).process(_staff_job())
         assert (TENANT, RUN_ID, "sending") in runs.statuses
         assert runs.sent_total == 2  # both resolved recipients counted sent
@@ -701,8 +786,8 @@ class TestApplicationSendLog:
         # and both advance the SAME tally (no second run row, counts accumulate).
         runs = FakeRunStore()
         worker = _worker(run_store=runs)
-        worker.process(_staff_job())       # 2 recipients (default resolver)
-        worker.process(_applicant_job())   # 1 recipient (the applicant)
+        worker.process(_staff_job())  # 2 recipients (default resolver)
+        worker.process(_applicant_job())  # 1 recipient (the applicant)
         assert list(runs.runs.keys()) == [(TENANT, RUN_ID)]
         assert runs.sent_total == 3
 
@@ -711,7 +796,9 @@ class TestApplicationSendLog:
         # dead-lettering (so the send-log reflects the undeliverable recipient).
         runs = FakeRunStore()
         ses = FakeSes(
-            outcome=SesSendOutcome(ok=False, error="MessageRejected: identity not verified")
+            outcome=SesSendOutcome(
+                ok=False, error="MessageRejected: identity not verified"
+            )
         )
         with pytest.raises(MailSendPermanent):
             _worker(ses=ses, run_store=runs).process(_applicant_job())

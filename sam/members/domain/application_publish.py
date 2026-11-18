@@ -80,23 +80,23 @@ from sam.members.repository.slug_marker_store import SlugMarker, SlugTaken
 _LOG = logging.getLogger(__name__)
 
 __all__ = [
+    "FORM_OWNER_KIND",
+    "FORM_OWNER_PLANE",
+    "FORM_RESOURCE_REF",
+    "PUBLIC_API_BASE_ENV_VAR",
+    "ApplicationPublishService",
     "FormSlugReader",
     "LookAndFeelSettingsReader",
     "PublicFieldConfigReader",
-    "PublicPrefixReader",
     "PublicPageArtifactWriter",
-    "SlugMarkerClaimer",
+    "PublicPrefixReader",
     "PublishNotReady",
     "PublishNotReadyReason",
     "PublishPipelineNotWired",
-    "PublishSlugRejected",
     "PublishSlugConflict",
-    "FORM_OWNER_PLANE",
-    "FORM_OWNER_KIND",
-    "FORM_RESOURCE_REF",
-    "PUBLIC_API_BASE_ENV_VAR",
+    "PublishSlugRejected",
+    "SlugMarkerClaimer",
     "resolve_public_api_base",
-    "ApplicationPublishService",
 ]
 
 #: The producer identity this service writes into the ``_slugs/{slug}`` marker BODY (design
@@ -768,7 +768,7 @@ class ApplicationPublishService:
                     published_version=published_version,
                     published_at=published_at,
                 )
-            except Exception as exc:  # noqa: BLE001 - artifact is live; never fail the publish
+            except Exception as exc:
                 _LOG.warning(
                     "publish state not persisted after a successful artifact write "
                     "(tenant=%s, error=%s)",
@@ -809,7 +809,7 @@ class ApplicationPublishService:
         """
         try:
             config = self._field_config.get_public_field_config(tenant_id)
-        except Exception:  # noqa: BLE001 - version is best-effort metadata, never fail the publish
+        except Exception:
             return 1
         current = (
             config.get("published_version") if isinstance(config, Mapping) else None

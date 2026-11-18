@@ -501,8 +501,8 @@ def test_meta_controls_are_not_counted_as_config_fields():
 #
 # Validates: Requirements 2.3 (logo rendered), 2.4 (heading rendered), 3.2 (byte-identical when absent)
 
-from hypothesis import given, settings  # noqa: E402
-from hypothesis import strategies as st  # noqa: E402
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 
 def test_logo_img_emitted_inside_application_form_when_supplied():
@@ -660,9 +660,7 @@ def test_prop_header_title_never_injects_markup(title):
     """
     import html as _html
 
-    body = build_form_body_html(
-        _config(fields=[{"key": "name"}]), header_title=title
-    )
+    body = build_form_body_html(_config(fields=[{"key": "name"}]), header_title=title)
     if title.strip():
         escaped = _html.escape(title.strip())
         assert f'<h1 class="form-title">{escaped}</h1>' in body
@@ -679,7 +677,5 @@ def test_prop_blank_logo_and_title_render_byte_identical(blank_logo, blank_title
     """
     cfg = _config(fields=[{"key": "name"}])
     baseline = build_form_body_html(cfg)
-    with_blanks = build_form_body_html(
-        cfg, logo=blank_logo, header_title=blank_title
-    )
+    with_blanks = build_form_body_html(cfg, logo=blank_logo, header_title=blank_title)
     assert with_blanks == baseline

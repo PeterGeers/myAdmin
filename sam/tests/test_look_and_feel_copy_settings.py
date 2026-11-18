@@ -125,7 +125,7 @@ def test_copy_settings_issues_single_copy_op_with_source_snapshot():
         "font_body": "Inter",
         "shadow_style": "subtle",
     }
-    svc, reader, writer = _service(reader=FakeReader({_TENANT: source_values}))
+    svc, _reader, writer = _service(reader=FakeReader({_TENANT: source_values}))
 
     result = svc.copy_settings(
         _TENANT, APPLICATION_FORM_PAGE_ID, APPLICATION_FORM_PAGE_ID
@@ -144,7 +144,9 @@ def test_copy_settings_issues_single_copy_op_with_source_snapshot():
 
 
 def test_copy_settings_reads_source_scoped_to_verified_tenant():
-    svc, reader, _writer = _service(reader=FakeReader({_TENANT: {"base_spacing": "relaxed"}}))
+    svc, reader, _writer = _service(
+        reader=FakeReader({_TENANT: {"base_spacing": "relaxed"}})
+    )
     svc.copy_settings(_TENANT, APPLICATION_FORM_PAGE_ID, APPLICATION_FORM_PAGE_ID)
     # The source read is scoped to the verified tenant only — never another tenant's slice.
     assert reader.reads == [_TENANT]
@@ -167,14 +169,18 @@ def test_copy_settings_absent_source_is_a_valid_empty_snapshot():
 def test_copy_settings_establishes_no_link_only_one_copy_op():
     # No ongoing link (Req 9.2/9.5): the copy issues exactly ONE copy op and NO set/remove ops —
     # nothing is wired between source and target to propagate a later change.
-    svc, _reader, writer = _service(reader=FakeReader({_TENANT: {"font_heading": "Inter"}}))
+    svc, _reader, writer = _service(
+        reader=FakeReader({_TENANT: {"font_heading": "Inter"}})
+    )
     svc.copy_settings(_TENANT, APPLICATION_FORM_PAGE_ID, APPLICATION_FORM_PAGE_ID)
     ops = [c["op"] for c in writer.calls]
     assert ops == ["copy"]
 
 
 def test_copy_settings_threads_client_op_id():
-    svc, _reader, writer = _service(reader=FakeReader({_TENANT: {"shadow_style": "medium"}}))
+    svc, _reader, writer = _service(
+        reader=FakeReader({_TENANT: {"shadow_style": "medium"}})
+    )
     svc.copy_settings(
         _TENANT, APPLICATION_FORM_PAGE_ID, APPLICATION_FORM_PAGE_ID, client_op_id="op-7"
     )
@@ -199,7 +205,12 @@ def test_copy_settings_snapshot_is_independent_of_later_source_mutation():
 
 def test_copy_settings_cross_tenant_source_rejected_no_read_no_write():
     svc, reader, writer = _service(
-        reader=FakeReader({_TENANT: {"base_spacing": "normal"}, _OTHER_TENANT: {"base_spacing": "relaxed"}})
+        reader=FakeReader(
+            {
+                _TENANT: {"base_spacing": "normal"},
+                _OTHER_TENANT: {"base_spacing": "relaxed"},
+            }
+        )
     )
     with pytest.raises(CrossTenantCopyError):
         svc.copy_settings(
@@ -230,7 +241,9 @@ def test_copy_settings_cross_tenant_error_is_not_a_validation_error():
 
 def test_copy_settings_same_source_tenant_explicit_is_permitted():
     # Passing source_tenant_id explicitly equal to the verified tenant is the same-tenant case.
-    svc, _reader, writer = _service(reader=FakeReader({_TENANT: {"font_body": "system"}}))
+    svc, _reader, writer = _service(
+        reader=FakeReader({_TENANT: {"font_body": "system"}})
+    )
     svc.copy_settings(
         _TENANT,
         APPLICATION_FORM_PAGE_ID,

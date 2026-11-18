@@ -38,7 +38,9 @@ import pytest
 
 # repo root + backend/src on sys.path (mirrors test_members_repository.py) so
 # `sam.members...` and its `services.dynamodb_client` dependency both import.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -81,11 +83,19 @@ class RecordingTable:
 
     # -- reads -------------------------------------------------------------
     def get_item(self, Key=None):
-        self.calls.append({"op": "get_item", "pk": Key.get(td.PARTITION_KEY_ATTR), "key": Key})
+        self.calls.append(
+            {"op": "get_item", "pk": Key.get(td.PARTITION_KEY_ATTR), "key": Key}
+        )
         item = self.store.get((Key[td.PARTITION_KEY_ATTR], Key[td.SORT_KEY_ATTR]))
         return {"Item": dict(item)} if item is not None else {}
 
-    def query(self, KeyConditionExpression=None, ExclusiveStartKey=None, IndexName=None, Limit=None):
+    def query(
+        self,
+        KeyConditionExpression=None,
+        ExclusiveStartKey=None,
+        IndexName=None,
+        Limit=None,
+    ):
         # ``IndexName`` is accepted so a GSI query — e.g. the name+DOB duplicate-flag lookup
         # (task 2.5, ``query_by_name_dob``) — records like any other query for the
         # tenant-partition invariant. The GSI's HASH key is ``tenant_id`` (Property 1), so
@@ -108,12 +118,16 @@ class RecordingTable:
         # application-session ``attribute_not_exists`` claim (task 2.1) — records like any other
         # put for the tenant-partition invariant. The conditional FIRST-WINS semantics are
         # exercised separately in test_application_session_dedup.py; here we only assert the PK.
-        self.calls.append({"op": "put_item", "pk": Item.get(td.PARTITION_KEY_ATTR), "item": Item})
+        self.calls.append(
+            {"op": "put_item", "pk": Item.get(td.PARTITION_KEY_ATTR), "item": Item}
+        )
         self.store[(Item[td.PARTITION_KEY_ATTR], Item[td.SORT_KEY_ATTR])] = dict(Item)
         return {}
 
     def delete_item(self, Key=None):
-        self.calls.append({"op": "delete_item", "pk": Key.get(td.PARTITION_KEY_ATTR), "key": Key})
+        self.calls.append(
+            {"op": "delete_item", "pk": Key.get(td.PARTITION_KEY_ATTR), "key": Key}
+        )
         self.store.pop((Key[td.PARTITION_KEY_ATTR], Key[td.SORT_KEY_ATTR]), None)
         return {}
 
@@ -173,7 +187,11 @@ def _member(member_id: str, number="1001") -> dict:
 
 def _mtype(type_code: str) -> MembershipTypeEntry:
     return MembershipTypeEntry(
-        tenant_id=TENANT, type_code=type_code, label={"nl": type_code}, active=True, order=0
+        tenant_id=TENANT,
+        type_code=type_code,
+        label={"nl": type_code},
+        active=True,
+        order=0,
     )
 
 
@@ -183,7 +201,11 @@ def _aset(set_id: str) -> AnalyticsSetEntry:
         set_id=set_id,
         name="A set",
         kind="list",
-        definition={"data_source": "members", "group_columns": [], "aggregate_measures": []},
+        definition={
+            "data_source": "members",
+            "group_columns": [],
+            "aggregate_measures": [],
+        },
         created_at="2024-01-01T00:00:00+00:00",
         updated_at="2024-01-01T00:00:00+00:00",
     )
@@ -253,7 +275,9 @@ def _all_repository_operations(repo: DynamoDbMembersRepository):
             TENANT, "M-1", {"membership_id": "MS-1", "status": "active"}
         ),
         "delete_membership": lambda: repo.delete_membership(TENANT, "M-1", "MS-1"),
-        "save_delegates": lambda: repo.save_delegates(TENANT, "M-1", [{"email": "d@x.com"}]),
+        "save_delegates": lambda: repo.save_delegates(
+            TENANT, "M-1", [{"email": "d@x.com"}]
+        ),
         "list_member_delegates": lambda: repo.list_member_delegates(TENANT, "M-1"),
         "list_member_payments": lambda: repo.list_member_payments(TENANT, "M-1"),
         "list_membership_types": lambda: repo.list_membership_types(TENANT),
@@ -277,32 +301,54 @@ def _all_repository_operations(repo: DynamoDbMembersRepository):
             TENANT, _colprefs("sub-1")
         ),
         "create_mail_run": lambda: repo.create_mail_run(
-            TENANT, "run-1", mode="per_recipient", triggered_by="sub-1", recipient_count=3
+            TENANT,
+            "run-1",
+            mode="per_recipient",
+            triggered_by="sub-1",
+            recipient_count=3,
         ),
         "update_mail_run_status": lambda: (
             repo.create_mail_run(
-                TENANT, "run-1", mode="per_recipient", triggered_by="sub-1", recipient_count=3
+                TENANT,
+                "run-1",
+                mode="per_recipient",
+                triggered_by="sub-1",
+                recipient_count=3,
             ),
             repo.update_mail_run_status(TENANT, "run-1", "sending"),
         ),
         "increment_mail_run_counts": lambda: (
             repo.create_mail_run(
-                TENANT, "run-1", mode="per_recipient", triggered_by="sub-1", recipient_count=3
+                TENANT,
+                "run-1",
+                mode="per_recipient",
+                triggered_by="sub-1",
+                recipient_count=3,
             ),
             repo.increment_mail_run_counts(TENANT, "run-1", sent=1),
         ),
         "record_mail_failure": lambda: (
             repo.create_mail_run(
-                TENANT, "run-1", mode="per_recipient", triggered_by="sub-1", recipient_count=3
+                TENANT,
+                "run-1",
+                mode="per_recipient",
+                triggered_by="sub-1",
+                recipient_count=3,
             ),
-            repo.record_mail_failure(TENANT, "run-1", address="x@y.com", reason="MessageRejected"),
+            repo.record_mail_failure(
+                TENANT, "run-1", address="x@y.com", reason="MessageRejected"
+            ),
         ),
         "get_mail_run": lambda: repo.get_mail_run(TENANT, "run-1"),
         "list_mail_run_failures": lambda: repo.list_mail_run_failures(TENANT, "run-1"),
         "list_mail_runs": lambda: repo.list_mail_runs(TENANT),
         "delete_mail_run": lambda: (
             repo.create_mail_run(
-                TENANT, "run-1", mode="per_recipient", triggered_by="sub-1", recipient_count=3
+                TENANT,
+                "run-1",
+                mode="per_recipient",
+                triggered_by="sub-1",
+                recipient_count=3,
             ),
             repo.record_mail_failure(TENANT, "run-1", address="x@y.com"),
             repo.delete_mail_run(TENANT, "run-1"),
@@ -377,7 +423,9 @@ class TestEveryOperationPinsTheTenantPartition:
             "query_by_name_dob",
         ],
     )
-    def test_operation_only_touches_the_callers_tenant_partition(self, repo, table, op_name):
+    def test_operation_only_touches_the_callers_tenant_partition(
+        self, repo, table, op_name
+    ):
         ops = _all_repository_operations(repo)
         ops[op_name]()
         # At least one DynamoDB call must have been issued...
@@ -409,7 +457,9 @@ class TestCrossTenantIsInvisible:
         # 03b CONTRACT (Task 10.5): the catalog WRITE method is gone; seed the row directly via
         # the kept build_membership_type_item + put_item to exercise the read-isolation invariant.
         _a = _mtype("erelid")
-        repo.table.put_item(Item=td.build_membership_type_item("tenant-a", _a.type_code, _a.to_item()))
+        repo.table.put_item(
+            Item=td.build_membership_type_item("tenant-a", _a.type_code, _a.to_item())
+        )
         # Same ids, different tenant — all must come back empty / None.
         assert repo.get_member("tenant-b", "M-1") is None
         assert list(repo.list_members("tenant-b")) == []
@@ -445,7 +495,9 @@ class TestStaticSurfaceGuards:
             for node in ast.walk(tree)
             if isinstance(node, ast.Attribute) and node.attr == "scan"
         ]
-        assert not scan_calls, "repository must not use DynamoDB .scan() (reads across tenants)"
+        assert not scan_calls, (
+            "repository must not use DynamoDB .scan() (reads across tenants)"
+        )
 
     def test_every_public_repository_method_is_covered_by_the_invariant(self, repo):
         # Completeness guard: if a new public method is added to the repository, it MUST be

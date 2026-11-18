@@ -46,7 +46,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
-import json
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -119,9 +118,7 @@ def needs_migration(row: Mapping[str, Any]) -> bool:
     for parent in ("fields", "overrides", "functional_groups"):
         if not isinstance(row.get(parent), Mapping):
             return True
-    if "version" not in row:
-        return True
-    return False
+    return "version" not in row
 
 
 @dataclass(frozen=True)
@@ -300,7 +297,9 @@ def run(argv: list[str] | None = None) -> int:
 
     mode = "APPLY (writing)" if args.apply else "DRY-RUN (read-only preview)"
     print(f"functional_groups LIST->MAP migration — {mode}")
-    print(f"  table={getattr(table, 'name', '<resolved>')} version_stamp={version_value}")
+    print(
+        f"  table={getattr(table, 'name', '<resolved>')} version_stamp={version_value}"
+    )
 
     planned = 0
     skipped = 0
@@ -318,7 +317,9 @@ def run(argv: list[str] | None = None) -> int:
         )
         if not plan.changed:
             skipped += 1
-            print(f"  SKIP   {tenant_id}: already MAP + skeleton + version (idempotent)")
+            print(
+                f"  SKIP   {tenant_id}: already MAP + skeleton + version (idempotent)"
+            )
             continue
         planned += 1
         print(

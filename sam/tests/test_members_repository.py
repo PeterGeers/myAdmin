@@ -537,7 +537,9 @@ def _seed_mtype(repo, entry) -> None:
     READ tests seed the row through the kept ``table_design.build_membership_type_item`` +
     ``put_item`` to exercise the read path.
     """
-    item = td.build_membership_type_item(entry.tenant_id, entry.type_code, entry.to_item())
+    item = td.build_membership_type_item(
+        entry.tenant_id, entry.type_code, entry.to_item()
+    )
     repo.table.put_item(Item=item)
 
 
@@ -584,8 +586,6 @@ class TestMembershipTypeCatalog:
         repo.save_member("h-dcn", _member("M-1", "1001"))
         _seed_mtype(repo, _mtype("erelid"))
         assert [m["member_id"] for m in repo.list_members("h-dcn")] == ["M-1"]
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -660,7 +660,7 @@ class TestColumnPreferences:
 
     def test_save_validates_before_persist(self, repo):
         # Validate-before-persist: a malformed entry (blank sub) never lands in the store.
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             repo.save_column_preferences("h-dcn", _colprefs("", ["a"]))
         # Nothing was written for the empty sub.
         assert repo.get_column_preferences("h-dcn", "") is None
@@ -733,6 +733,7 @@ class TestFloatToDecimalCoercion:
         got = repo.get_member("h-dcn", "M-1")
         assert got["overlay"]["Bedrag"] == Decimal("22.6")
         assert isinstance(got["overlay"]["Bedrag"], Decimal)
+
 
 class TestAnalyticsSetDeliveryItemBuilder:
     """The optional ``delivery`` block (R3) survives the repository item builder.
@@ -1053,7 +1054,7 @@ class TestBug2PaginationUndercountExploration:
         """
         self._seed_members_with_children(paging_repo, count=60)
 
-        members, last_key = paging_repo.list_members_page("h-dcn", limit=50)
+        members, _last_key = paging_repo.list_members_page("h-dcn", limit=50)
 
         # The post-fix contract: a page_size of 50, with ≥50 members available, returns 50.
         assert len(members) == min(50, 60), (
@@ -1116,8 +1117,8 @@ class TestBug2PaginationUndercountExploration:
 # Validates: Requirements 6.5, 6.4
 # ---------------------------------------------------------------------------
 
-from hypothesis import given, settings  # noqa: E402
-from hypothesis import strategies as st  # noqa: E402
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 
 def _is_bare_member_sk(item) -> bool:

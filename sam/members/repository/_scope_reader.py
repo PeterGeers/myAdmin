@@ -13,7 +13,6 @@ from __future__ import annotations
 from services import projection_schema as schema
 
 from sam.members.domain.scope_dimensions import ScopeConfig, ScopeDimension
-
 from sam.members.repository._config_reader_base import _CONFIG_ID_SCOPE
 
 
