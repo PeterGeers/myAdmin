@@ -173,7 +173,7 @@ To switch back to local MySQL for development:
 # backend/.env
 DB_HOST=localhost
 DB_PORT=3306
-DB_PASSWORD=REDACTED  # Local MySQL password
+DB_PASSWORD=[REDACTED - rotated 2026-11-18]  # Local MySQL password
 ```
 
 ---

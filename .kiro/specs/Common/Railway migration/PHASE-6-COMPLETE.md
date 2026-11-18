@@ -152,7 +152,7 @@ curl https://invigorating-celebration-production.up.railway.app/api/health
 - **Version**: 8.0.44
 - **Host**: localhost:3306
 - **Purpose**: Local development and testing
-- **Password**: REDACTED
+- **Password**: [REDACTED - rotated 2026-11-18]
 
 ### Railway MySQL (Production)
 
@@ -259,7 +259,7 @@ If you need to switch backend back to local MySQL:
 # backend/.env
 DB_HOST=localhost
 DB_PORT=3306
-DB_PASSWORD=REDACTED
+DB_PASSWORD=[REDACTED - rotated 2026-11-18]
 ```
 
 ---
