@@ -33,7 +33,9 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -119,7 +121,9 @@ def resolver(reader) -> MailSenderResolver:
 
 
 def test_resolve_certified_tenant_with_local_part_composes_that_from(reader, resolver):
-    reader.put(TENANT, domain="h-dcn.nl", local_part="info", certified=True, enabled=True)
+    reader.put(
+        TENANT, domain="h-dcn.nl", local_part="info", certified=True, enabled=True
+    )
 
     result = resolver.resolve(TENANT)
 
@@ -128,7 +132,9 @@ def test_resolve_certified_tenant_with_local_part_composes_that_from(reader, res
     assert result.from_address == "info@h-dcn.nl"
 
 
-def test_resolve_certified_tenant_without_local_part_defaults_to_noreply(reader, resolver):
+def test_resolve_certified_tenant_without_local_part_defaults_to_noreply(
+    reader, resolver
+):
     # No local_part authored → the generic default (design Data Models).
     reader.put(TENANT, domain="h-dcn.nl", local_part=None, certified=True, enabled=True)
 
@@ -221,8 +227,12 @@ def test_resolve_not_certified_short_circuits_before_domain(reader, resolver):
 
 def test_resolve_is_bounded_to_the_queried_tenant(reader, resolver):
     # Two tenants, different domains. Resolving one NEVER uses the other's config.
-    reader.put(TENANT, domain="h-dcn.nl", local_part="info", certified=True, enabled=True)
-    reader.put(OTHER, domain="other.example", local_part="post", certified=True, enabled=True)
+    reader.put(
+        TENANT, domain="h-dcn.nl", local_part="info", certified=True, enabled=True
+    )
+    reader.put(
+        OTHER, domain="other.example", local_part="post", certified=True, enabled=True
+    )
 
     assert resolver.resolve(TENANT).from_address == "info@h-dcn.nl"
     assert resolver.resolve(OTHER).from_address == "post@other.example"
@@ -273,7 +283,11 @@ def test_resolver_opens_only_on_enabled_and_certified_and_domain(
     """
     reader = FakeMailConfigReader()
     reader.put(
-        TENANT, domain=domain, local_part=local_part, certified=certified, enabled=enabled
+        TENANT,
+        domain=domain,
+        local_part=local_part,
+        certified=certified,
+        enabled=enabled,
     )
     result = MailSenderResolver(reader).resolve(TENANT)
 

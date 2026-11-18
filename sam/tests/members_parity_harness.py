@@ -62,20 +62,21 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from typing_extensions import Self
+
 from sam.members.domain.application_publish import ApplicationPublishService
 from sam.members.domain.config_write_service import ConfigWriteService
+from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     StaticOverlayProvider,
     TenantOverlay,
 )
 from sam.members.domain.fixed_fields import EnumOption
-from sam.members.domain.membership_service import MembershipService
-from sam.members.domain.scope_dimensions import StaticScopeConfigProvider
-from sam.tests._scope_fixtures import SAMPLE_SCOPE_CONFIG
-from sam.members.domain.execute_and_deliver import ExecuteAndDeliverService
 from sam.members.domain.mail_run_status import MailRunStatusService
 from sam.members.domain.mail_sender_resolver import MailSenderResolver
+from sam.members.domain.membership_service import MembershipService
+from sam.members.domain.scope_dimensions import StaticScopeConfigProvider
 from sam.members.domain.template_service import (
     InMemoryTemplateBodyStore,
     TemplateService,
@@ -96,6 +97,7 @@ from sam.members.repository.projection_config_write_repository import (
     MembersConfigWriteRepository,
 )
 from sam.members.tenants.hdcn.hooks import register_hdcn_hooks
+from sam.tests._scope_fixtures import SAMPLE_SCOPE_CONFIG
 
 # The faithful in-memory DynamoDB fake (transactional conditional writes + atomic counter)
 # already used by the repository + dispatch tests. Reused here so the walkthrough runs over
@@ -458,8 +460,12 @@ class _HarnessLookAndFeelService:
 
     def set_setting(self, tenant_id, page_id, attribute, value, *, client_op_id=None):
         self.calls.append(
-            {"method": "set_setting", "tenant_id": tenant_id, "attribute": attribute,
-             "value": value}
+            {
+                "method": "set_setting",
+                "tenant_id": tenant_id,
+                "attribute": attribute,
+                "value": value,
+            }
         )
         if value is None:
             self._values.pop(attribute, None)
@@ -467,10 +473,22 @@ class _HarnessLookAndFeelService:
             self._values[attribute] = value
         return {"version": "harness-v1", "idempotent_replay": False}
 
-    def copy_settings(self, tenant_id, source_page, target_page, *, source_tenant_id=None, client_op_id=None):
+    def copy_settings(
+        self,
+        tenant_id,
+        source_page,
+        target_page,
+        *,
+        source_tenant_id=None,
+        client_op_id=None,
+    ):
         self.calls.append(
-            {"method": "copy_settings", "tenant_id": tenant_id, "source": source_page,
-             "target": target_page}
+            {
+                "method": "copy_settings",
+                "tenant_id": tenant_id,
+                "source": source_page,
+                "target": target_page,
+            }
         )
         return {"version": "harness-v1", "idempotent_replay": False}
 
@@ -660,8 +678,12 @@ class MembersParityHarness:
         # dispatch_mod.get_look_and_feel_settings_service; point it at the harness stand-in so
         # the GET + PUT /members/look-and-feel walkthrough steps dispatch without touching a
         # live projection table.
-        self._original_look_and_feel_getter = dispatch_mod.get_look_and_feel_settings_service
-        dispatch_mod.get_look_and_feel_settings_service = lambda: self.look_and_feel_service  # type: ignore[assignment]
+        self._original_look_and_feel_getter = (
+            dispatch_mod.get_look_and_feel_settings_service
+        )
+        dispatch_mod.get_look_and_feel_settings_service = lambda: (
+            self.look_and_feel_service
+        )  # type: ignore[assignment]
         # (The application-form live-preview dispatch seam was RETIRED — spec 12 redesign C / R3,
         #  task 5.2: preview is now in-browser — so there is no preview service getter to override.)
         app._SCOPE_CONFIG_PROVIDER_OVERRIDE = StaticScopeConfigProvider(
@@ -717,7 +739,7 @@ class MembersParityHarness:
             app._OVERLAY_PROVIDER_OVERRIDE = self._original_overlay
             app._SCOPE_GRANTS_READER_OVERRIDE = self._original_grants
 
-    def __enter__(self) -> MembersParityHarness:
+    def __enter__(self) -> Self:
         return self.install()
 
     def __exit__(self, *exc: object) -> None:

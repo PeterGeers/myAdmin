@@ -82,9 +82,7 @@ class MailRunStore(Protocol):
         """List the tenant's send-run tallies, newest first."""
         ...
 
-    def get_mail_run(
-        self, tenant_id: str, run_id: str
-    ) -> Mapping[str, Any] | None:
+    def get_mail_run(self, tenant_id: str, run_id: str) -> Mapping[str, Any] | None:
         """Return a run's tally for ``tenant_id``, or ``None`` if absent."""
         ...
 

@@ -41,8 +41,12 @@ def _entry(**overrides):
         "tenant_id": "h-dcn",
         "template_id": "t1",
         "name": "Welcome clubblad",
-        "languages": {"nl": _lang(), "en": _lang(subject="Hello {{first_name}}",
-                                                 key="h-dcn/templates/t1/en.html")},
+        "languages": {
+            "nl": _lang(),
+            "en": _lang(
+                subject="Hello {{first_name}}", key="h-dcn/templates/t1/en.html"
+            ),
+        },
         "merge_fields": ["first_name"],
         "created_at": "2024-01-01T00:00:00+00:00",
         "updated_at": "2024-01-01T00:00:00+00:00",
@@ -85,7 +89,9 @@ class TestTemplateEntryValidate:
     def test_all_blank_languages_is_invalid(self):
         # A language with a blank body key / subject is unusable; if NONE is usable → invalid.
         with pytest.raises(TemplateValidationError) as exc:
-            _entry(languages={"nl": TemplateLanguage(subject="", s3_body_key="")}).validate()
+            _entry(
+                languages={"nl": TemplateLanguage(subject="", s3_body_key="")}
+            ).validate()
         assert "languages" in exc.value.errors
 
     def test_non_string_merge_field_is_invalid(self):
@@ -167,7 +173,12 @@ def _label_entry(**overrides):
         "template_id": "lbl1",
         "name": "Address labels",
         "kind": "label",
-        "lines": (("display_name",), ("street",), ("postal_code", "city"), ("country",)),
+        "lines": (
+            ("display_name",),
+            ("street",),
+            ("postal_code", "city"),
+            ("country",),
+        ),
         "created_at": "2024-01-01T00:00:00+00:00",
         "updated_at": "2024-01-01T00:00:00+00:00",
     }
@@ -231,7 +242,7 @@ class TestLabelTemplateEntry:
             }
         )
         assert rebuilt.kind == "mail"
-        assert rebuilt.lines == tuple()
+        assert rebuilt.lines == ()
 
 
 class TestMergePlaceholders:
@@ -256,7 +267,9 @@ class TestRenderWithMerge:
         assert out == "Dag Ava, type erelid"
 
     def test_whitespace_insensitive_placeholder(self):
-        assert render_with_merge("Hi {{ first_name }}", {"first_name": "Ava"}) == "Hi Ava"
+        assert (
+            render_with_merge("Hi {{ first_name }}", {"first_name": "Ava"}) == "Hi Ava"
+        )
 
     def test_absent_value_renders_default_not_raw_placeholder(self):
         # A missing value must NOT leave a raw {{ }} and must NOT crash.

@@ -57,7 +57,6 @@ from sam.members.repository.slug_marker_store import (
     validate_slug_fast_fail,
 )
 
-
 # ---------------------------------------------------------------------------
 # In-memory fake S3 client — honours the if-none-match conditional put + get/delete.
 # ---------------------------------------------------------------------------

@@ -81,8 +81,12 @@ class StaticMailConfigProvider:
     tenant resolves to the fail-closed body — mail config reads as un-authored until projected.
     """
 
-    def __init__(self, config_by_tenant: Mapping[str, Mapping[str, Any]] | None = None) -> None:
-        self._config_by_tenant = {k: dict(v) for k, v in dict(config_by_tenant or {}).items()}
+    def __init__(
+        self, config_by_tenant: Mapping[str, Mapping[str, Any]] | None = None
+    ) -> None:
+        self._config_by_tenant = {
+            k: dict(v) for k, v in dict(config_by_tenant or {}).items()
+        }
 
     def get_mail_config(self, tenant_id: str) -> dict[str, Any]:
         entry = self._config_by_tenant.get(tenant_id)

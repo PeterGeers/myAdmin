@@ -28,7 +28,9 @@ from sam.shared import entitlement_claim as vendored
 # --- Guarded import of the single-source backend codec (test-only) ---------- #
 # The sam/shared PRODUCTION code never imports backend/src; this DRIFT TEST is the sole
 # exception and localises the sys.path tweak here, not in the shipped module.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
@@ -115,7 +117,6 @@ def test_vendored_decoder_capabilities_for_matches_source():
         json.dumps({"v": 1, "overflow": True, "t_keys": ["A"]}),
         json.dumps({"v": 999}),
     ):
-        assert (
-            vendored.decode_entitlements(bad).capabilities_for("A")
-            == source.decode_entitlements(bad).capabilities_for("A")
-        )
+        assert vendored.decode_entitlements(bad).capabilities_for(
+            "A"
+        ) == source.decode_entitlements(bad).capabilities_for("A")

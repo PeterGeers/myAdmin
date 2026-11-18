@@ -40,7 +40,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -54,7 +56,9 @@ from sam.members.domain.field_resolver import FieldResolver
 from sam.members.repository.projection_config_reader import MembersProjectionReader
 
 _FIXTURE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "fixtures", "hdcn_config_fields_overlay.json"
+    os.path.dirname(os.path.abspath(__file__)),
+    "fixtures",
+    "hdcn_config_fields_overlay.json",
 )
 
 
@@ -71,7 +75,9 @@ class FakeTable:
         self.store: dict[tuple, dict] = {}
 
     def put(self, item: dict) -> None:
-        self.store[(item[schema.PARTITION_KEY_ATTR], item[schema.SORT_KEY_ATTR])] = dict(item)
+        self.store[(item[schema.PARTITION_KEY_ATTR], item[schema.SORT_KEY_ATTR])] = (
+            dict(item)
+        )
 
     def query(self, KeyConditionExpression=None):
         expr = KeyConditionExpression.get_expression()
@@ -87,7 +93,9 @@ def _reader_over_real_row() -> tuple[MembersProjectionReader, str]:
     table.put(
         {
             schema.PARTITION_KEY_ATTR: tenant_id,
-            schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
             "fields": overlay["fields"],
             "overrides": overlay["overrides"],
             "functional_groups": overlay["functional_groups"],
@@ -135,7 +143,9 @@ def test_resolved_base_fields_are_never_orphaned_into_an_other_group():
     catalog = {g.key for g in config.functional_groups}
 
     orphaned = [
-        f.key for f in fields.values() if f.functional_group and f.functional_group not in catalog
+        f.key
+        for f in fields.values()
+        if f.functional_group and f.functional_group not in catalog
     ]
     assert orphaned == [], (
         f"no resolved field may fall outside the catalog groups; orphaned: {orphaned}"
@@ -154,7 +164,10 @@ def test_on_form_flag_round_trips_by_field_identity():
     # row; gender is not.)
     overlay = _load_real_overlay()
     assert overlay["overrides"]["personal.email"].get("application_visible") is True
-    assert overlay["overrides"]["personal.gender"].get("application_visible") in (None, False)
+    assert overlay["overrides"]["personal.gender"].get("application_visible") in (
+        None,
+        False,
+    )
 
     reader, tenant_id = _reader_over_real_row()
     fields, _ = _resolved_fields(reader, tenant_id)

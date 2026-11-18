@@ -41,7 +41,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -51,8 +53,12 @@ if _BACKEND_SRC not in sys.path:
 
 # ── Load the migration module from scripts/ (not an importable package) ─────────────────────
 def _load_migration_module():
-    path = os.path.join(_REPO_ROOT, "scripts", "migrate_config_fields_choices_to_options.py")
-    spec = importlib.util.spec_from_file_location("migrate_config_fields_choices_to_options", path)
+    path = os.path.join(
+        _REPO_ROOT, "scripts", "migrate_config_fields_choices_to_options.py"
+    )
+    spec = importlib.util.spec_from_file_location(
+        "migrate_config_fields_choices_to_options", path
+    )
     module = importlib.util.module_from_spec(spec)
     # Register in sys.modules BEFORE exec so dataclass machinery can resolve cls.__module__
     # (a module-level @dataclass with a default_factory looks the module up in sys.modules).
@@ -63,12 +69,16 @@ def _load_migration_module():
 
 mig = _load_migration_module()
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
-from sam.members.domain.config_fields_crud_service import ConfigFieldsCrudService  # noqa: E402
-from sam.members.domain.field_resolver import FieldResolver  # noqa: E402
-from sam.members.repository.projection_config_reader import MembersProjectionReader  # noqa: E402
-from sam.members.repository.projection_config_write_repository import (  # noqa: E402
+from sam.members.domain.config_fields_crud_service import (
+    ConfigFieldsCrudService,
+)
+from sam.members.domain.field_resolver import FieldResolver
+from sam.members.repository.projection_config_reader import (
+    MembersProjectionReader,
+)
+from sam.members.repository.projection_config_write_repository import (
     MembersConfigWriteRepository,
 )
 
@@ -107,8 +117,18 @@ def test_options_from_choices_rich_dicts_reduce_to_value_only():
 @pytest.mark.unit
 def test_options_from_choices_drops_malformed_never_fabricates():
     # A dict with no value, an empty/blank string, and a non-str/non-dict entry are all dropped.
-    mixed = ["keep", "  ", {"label": {"en": "no value"}}, {"value": "also_keep"}, 42, {"value": ""}]
-    assert mig.options_from_choices(mixed) == [{"value": "keep"}, {"value": "also_keep"}]
+    mixed = [
+        "keep",
+        "  ",
+        {"label": {"en": "no value"}},
+        {"value": "also_keep"},
+        42,
+        {"value": ""},
+    ]
+    assert mig.options_from_choices(mixed) == [
+        {"value": "keep"},
+        {"value": "also_keep"},
+    ]
 
 
 @pytest.mark.unit
@@ -145,7 +165,9 @@ def test_plan_selects_the_real_hdcn_gender_override_carrying_choices():
     gender = next(p for p in plans if p.entry_key == "personal.gender")
     # The real gender choices are the two rich dicts {man, vrouw}; reduce to value-only options.
     assert gender.options == [{"value": "man"}, {"value": "vrouw"}]
-    assert gender.field_key == "personal.gender"  # dotted identity accepted by the service
+    assert (
+        gender.field_key == "personal.gender"
+    )  # dotted identity accepted by the service
     assert gender.dropped == 0
 
 
@@ -153,7 +175,9 @@ def test_plan_selects_the_real_hdcn_gender_override_carrying_choices():
 def test_plan_selects_the_legacy_groups_list_fixture_gender_override():
     overlay = _load_fixture("hdcn_config_fields_overlay_legacy_groups_list.json")
     plans = mig.plan_choices_to_options(overlay)
-    assert [(p.map_name, p.entry_key) for p in plans] == [("overrides", "personal.gender")]
+    assert [(p.map_name, p.entry_key) for p in plans] == [
+        ("overrides", "personal.gender")
+    ]
     assert plans[0].options == [{"value": "man"}]
 
 
@@ -195,7 +219,9 @@ def test_plan_still_migrates_an_entry_that_has_both_choices_and_options():
 @pytest.mark.unit
 def test_plan_enumerates_variable_fields_under_fields_map():
     overlay = {
-        "fields": {"referral_source": {"type": "enum", "choices": ["internet", "facebook"]}},
+        "fields": {
+            "referral_source": {"type": "enum", "choices": ["internet", "facebook"]}
+        },
         "overrides": {},
     }
     plans = mig.plan_choices_to_options(overlay)
@@ -247,10 +273,12 @@ class FakeTable:
         item = self.store.get(self._key_tuple(Key))
         return {"Item": dict(item)} if item is not None else {}
 
-    def put_item(self, Item=None, ConditionExpression=None, ExpressionAttributeNames=None):
+    def put_item(
+        self, Item=None, ConditionExpression=None, ExpressionAttributeNames=None
+    ):
         self.put_item_calls += 1
         key = (Item[schema.PARTITION_KEY_ATTR], Item[schema.SORT_KEY_ATTR])
-        if ConditionExpression and "attribute_not_exists" in str(ConditionExpression):
+        if ConditionExpression and "attribute_not_exists" in str(ConditionExpression):  # noqa: SIM102
             if key in self.store:
                 from botocore.exceptions import ClientError
 
@@ -296,7 +324,7 @@ class FakeTable:
             head, remove_part = expr.split("REMOVE ", 1)
             set_part = head.replace("SET ", "", 1).strip() if "SET " in head else ""
         elif expr.startswith("SET "):
-            set_part = expr[len("SET "):].strip()
+            set_part = expr[len("SET ") :].strip()
         for clause in [c for c in set_part.split(",") if c.strip()]:
             path_expr, val_ph = clause.split("=", 1)
             segs = self._resolve_path(item, path_expr.strip().split("."), names)
@@ -326,7 +354,9 @@ def _seed_real_row(table, *, overrides):
     table.put_item(
         Item={
             schema.PARTITION_KEY_ATTR: _TENANT,
-            schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
             "fields": {},
             "overrides": overrides,
             "functional_groups": {},
@@ -339,7 +369,9 @@ def _seed_variable_field_row(table, *, fields):
     table.put_item(
         Item={
             schema.PARTITION_KEY_ATTR: _TENANT,
-            schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
             "fields": fields,
             "overrides": {},
             "functional_groups": {},
@@ -358,7 +390,9 @@ def _service_and_reader(table):
 @pytest.mark.unit
 def test_migrate_tenant_rewrites_real_gender_choices_to_value_only_options():
     # Seed the REAL h-dcn personal.gender shape (rich-dict choices, options absent).
-    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"]["personal.gender"]
+    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"][
+        "personal.gender"
+    ]
     table = FakeTable()
     _seed_real_row(table, overrides={"personal.gender": dict(real_gender)})
     service, reader = _service_and_reader(table)
@@ -382,7 +416,9 @@ def test_migrate_tenant_rewrites_real_gender_choices_to_value_only_options():
 
 @pytest.mark.unit
 def test_migrate_tenant_uses_change_op_update_item_never_whole_row_put():
-    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"]["personal.gender"]
+    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"][
+        "personal.gender"
+    ]
     table = FakeTable()
     _seed_real_row(table, overrides={"personal.gender": dict(real_gender)})
     puts_before = table.put_item_calls
@@ -402,7 +438,9 @@ def test_migrate_tenant_uses_change_op_update_item_never_whole_row_put():
 
 @pytest.mark.unit
 def test_migrate_tenant_is_idempotent_rerun_is_a_noop():
-    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"]["personal.gender"]
+    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"][
+        "personal.gender"
+    ]
     table = FakeTable()
     _seed_real_row(table, overrides={"personal.gender": dict(real_gender)})
     service, reader = _service_and_reader(table)
@@ -478,7 +516,9 @@ class _SetFieldSpy:
         self.set_field_calls: list[dict] = []
 
     def set_field(self, tenant_id, field_key, def_attrs, **kwargs):
-        self.set_field_calls.append({"field_key": field_key, "def_attrs": dict(def_attrs)})
+        self.set_field_calls.append(
+            {"field_key": field_key, "def_attrs": dict(def_attrs)}
+        )
         return self._service.set_field(tenant_id, field_key, def_attrs, **kwargs)
 
     def __getattr__(self, name):
@@ -527,10 +567,18 @@ def test_migrate_tenant_scope_backed_field_drops_choices_and_stale_options_no_co
         )
     )["Item"]
     entry = stored["fields"]["region"]
-    assert "choices" not in entry, "legacy `choices` must be dropped on a scope-backed field"
-    assert "options" not in entry, "stale inline `options` must be dropped on a scope-backed field"
-    assert entry["scope"] == {"enabled": True}, "the scope sub-object (the real source) survives"
-    assert entry["functional_group"] == "membership", "sibling attrs survive (no whole-row replace)"
+    assert "choices" not in entry, (
+        "legacy `choices` must be dropped on a scope-backed field"
+    )
+    assert "options" not in entry, (
+        "stale inline `options` must be dropped on a scope-backed field"
+    )
+    assert entry["scope"] == {"enabled": True}, (
+        "the scope sub-object (the real source) survives"
+    )
+    assert entry["functional_group"] == "membership", (
+        "sibling attrs survive (no whole-row replace)"
+    )
 
 
 @pytest.mark.unit
@@ -584,7 +632,9 @@ def test_migrate_tenant_scope_backed_rerun_is_a_noop():
 
     # Re-run: `choices` is gone so nothing is planned, and nothing is written (idempotent).
     second = mig.migrate_tenant(_TENANT, service=service, reader=reader)
-    assert second == [], "a re-run must plan nothing (idempotent) once choices is dropped"
+    assert second == [], (
+        "a re-run must plan nothing (idempotent) once choices is dropped"
+    )
     assert table.update_item_calls == updates_after_first, "a re-run must not write"
 
 
@@ -595,7 +645,9 @@ def test_migrate_tenant_scope_backed_only_choices_no_stale_options_drops_choices
     table = FakeTable()
     _seed_variable_field_row(
         table,
-        fields={"region": {"type": "enum", "scope": {"enabled": True}, "choices": ["noord"]}},
+        fields={
+            "region": {"type": "enum", "scope": {"enabled": True}, "choices": ["noord"]}
+        },
     )
     service, reader = _service_and_reader(table)
 
@@ -607,19 +659,21 @@ def test_migrate_tenant_scope_backed_only_choices_no_stale_options_drops_choices
         )
     )["Item"]["fields"]["region"]
     assert "choices" not in entry
-    assert "options" not in entry, "no inline options is created for a scope-backed field"
+    assert "options" not in entry, (
+        "no inline options is created for a scope-backed field"
+    )
 
 
 @pytest.mark.unit
 def test_classify_entry_kind_matches_write_edge_guards():
     # The migration's CONVERT-vs-DROP classifier reuses the service's W1/W2 predicates, so it can
     # never disagree with what set_field would actually reject.
-    assert mig.classify_entry_kind("region", {"type": "enum", "scope": {"enabled": True}}) == (
-        "scope-backed"
-    )
+    assert mig.classify_entry_kind(
+        "region", {"type": "enum", "scope": {"enabled": True}}
+    ) == ("scope-backed")
     assert mig.classify_entry_kind("some_ref", {"type": "reference"}) == "reference"
     assert mig.classify_entry_kind("gender", {"type": "enum"}) == "inline-enum"
     # An explicitly-disabled scope is NOT scope-backed (matches _is_scope_backed_field).
-    assert mig.classify_entry_kind("x", {"type": "enum", "scope": {"enabled": False}}) == (
-        "inline-enum"
-    )
+    assert mig.classify_entry_kind(
+        "x", {"type": "enum", "scope": {"enabled": False}}
+    ) == ("inline-enum")

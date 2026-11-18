@@ -48,20 +48,24 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 for _p in (_REPO_ROOT, os.path.join(_REPO_ROOT, "backend", "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from sam.members.domain.application_form_render import (  # noqa: E402
+from sam.members.domain.application_form_render import (
     build_form_body_html,
     render_application_form_page,
 )
-from sam.members.domain.application_publish import ApplicationPublishService  # noqa: E402
-from sam.members.domain.application_readiness import (  # noqa: E402
+from sam.members.domain.application_publish import (
+    ApplicationPublishService,
+)
+from sam.members.domain.application_readiness import (
     StaticMailReadinessProvider,
 )
-from sam.shared.page_styles import (  # noqa: E402
+from sam.shared.page_styles import (
     SUPPORTED_ATTRIBUTES,
     PageStyles,
     UnsupportedAttributeError,
@@ -138,7 +142,9 @@ def test_landing_class_rules_emitted_byte_identical():
 
 # Value pools per attribute (known vocabularies + arbitrary-but-safe tokens) so the property
 # exercises the recognised-value, default-fallback, and sanitiser branches of the generator.
-_COLORS = st.sampled_from(["#2D5F8A", "#F4A261", "#C01030", "#0A7E3F", "#fff", "#000000"])
+_COLORS = st.sampled_from(
+    ["#2D5F8A", "#F4A261", "#C01030", "#0A7E3F", "#fff", "#000000"]
+)
 _FONTS = st.sampled_from(["system", "Inter", "Lora", "Roboto", "Open Sans"])
 _SPACINGS = st.sampled_from(["compact", "normal", "relaxed"])
 _RADII = st.sampled_from(["sharp", "rounded", "pill"])
@@ -229,9 +235,7 @@ _CHECKER = st.sampled_from([None, "EMAIL", "IBAN"])
 @st.composite
 def _config_strategy(draw):
     n = draw(st.integers(min_value=0, max_value=4))
-    keys = draw(
-        st.lists(_FIELD_KEY, min_size=n, max_size=n, unique=True)
-    )
+    keys = draw(st.lists(_FIELD_KEY, min_size=n, max_size=n, unique=True))
     fields = []
     for key in keys:
         field = {
@@ -245,11 +249,14 @@ def _config_strategy(draw):
         if checker:
             field["format"] = {"checker": checker}
         fields.append(field)
-    groups = (
-        [{"key": "personal", "label": {"nl": "Persoonlijk"}}] if fields else []
-    )
+    groups = [{"key": "personal", "label": {"nl": "Persoonlijk"}}] if fields else []
     locales = draw(
-        st.lists(st.sampled_from(["nl", "en", "fr", "de"]), min_size=1, max_size=4, unique=True)
+        st.lists(
+            st.sampled_from(["nl", "en", "fr", "de"]),
+            min_size=1,
+            max_size=4,
+            unique=True,
+        )
     )
     notice_version = draw(st.sampled_from([None, "v1", "2024-05"]))
     return _public_field_config(
@@ -426,7 +433,12 @@ def test_defaults_or_partial_settings_publish_without_failing(values):
 def test_render_with_no_branding_uses_defaults_without_failing():
     """`render_application_form_page` with no branding renders using Layer-2 defaults (3.3)."""
     html = render_application_form_page(
-        {"fields": [], "functional_groups": [], "locales": ["nl"], "notice": {"version": None}},
+        {
+            "fields": [],
+            "functional_groups": [],
+            "locales": ["nl"],
+            "notice": {"version": None},
+        },
         head_meta={"title": "Aanmelden"},
         branding=None,
         slug=_SLUG,
@@ -488,10 +500,14 @@ def test_seven_attribute_layer2_output_preserved_against_golden():
         produced = render_page_styles(case["settings"])
         assert _is_ordered_subsequence(
             _rule_lines(case["css_variables"]), _rule_lines(produced.css_variables)
-        ), f"SEVEN_ATTRIBUTE (3.4): existing :root variable lines dropped/changed for {name!r}."
+        ), (
+            f"SEVEN_ATTRIBUTE (3.4): existing :root variable lines dropped/changed for {name!r}."
+        )
         assert _is_ordered_subsequence(
             _rule_lines(case["page_css"]), _rule_lines(produced.page_css)
-        ), f"SEVEN_ATTRIBUTE (3.4): existing page-CSS rules dropped/changed for {name!r}."
+        ), (
+            f"SEVEN_ATTRIBUTE (3.4): existing page-CSS rules dropped/changed for {name!r}."
+        )
         assert produced.font_links == case["font_links"], (
             f"SEVEN_ATTRIBUTE (3.4): font <link> tags must stay byte-identical for {name!r} "
             "(the fix does not touch font-link emission)."

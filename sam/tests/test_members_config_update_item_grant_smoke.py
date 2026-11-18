@@ -19,7 +19,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 
 
 def _load_smoke_module():
@@ -144,7 +146,9 @@ def test_assert_fresh_deploy_refuses_stale_deploy():
 
 
 def test_build_update_plan_sets_probe_and_version():
-    plan = smoke.build_update_plan("config#__smoketest__", "2026-10-25T00:00:00.000000Z")
+    plan = smoke.build_update_plan(
+        "config#__smoketest__", "2026-10-25T00:00:00.000000Z"
+    )
     # A SET expression that bumps version in the same op (the repo's pattern).
     assert "SET" in plan["UpdateExpression"]
     assert "#version" in plan["UpdateExpression"]
@@ -153,7 +157,9 @@ def test_build_update_plan_sets_probe_and_version():
     assert plan["ConditionExpression"] == "attribute_not_exists(#sk)"
     assert plan["ExpressionAttributeNames"]["#version"] == "version"
     assert plan["ExpressionAttributeNames"]["#sk"] == "sk"
-    assert plan["ExpressionAttributeValues"][":version"] == "2026-10-25T00:00:00.000000Z"
+    assert (
+        plan["ExpressionAttributeValues"][":version"] == "2026-10-25T00:00:00.000000Z"
+    )
 
 
 def test_build_update_plan_is_ready_to_splat_into_update_item():

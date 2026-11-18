@@ -51,7 +51,6 @@ from sam.members.repository.slug_marker_store import (
     is_reserved_slug,
 )
 
-
 # ---------------------------------------------------------------------------
 # In-memory fake S3 client — only the three calls the store makes.
 # ---------------------------------------------------------------------------

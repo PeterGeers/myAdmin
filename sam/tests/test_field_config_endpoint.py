@@ -39,7 +39,6 @@ if _REPO_ROOT not in sys.path:
 from sam.members.domain.field_resolver import (
     FieldOrigin,
     FieldResolver,
-    FieldScope,
     FixedFieldOverride,
     OverlayField,
     StaticOverlayProvider,
@@ -122,7 +121,7 @@ def _entry(tenant, code, *, label=None, active=True, order=0):
     )
 
 
-def _mt_options_provider(repo: "FakeCatalogRepository") -> StaticOverlayProvider:
+def _mt_options_provider(repo: FakeCatalogRepository) -> StaticOverlayProvider:
     """Author each tenant's membership_type vocabulary as INLINE field options (03b CONTRACT).
 
     Task 10.5 retired the `membershiptype#` catalog: membership_type owns its vocabulary as the
@@ -146,7 +145,9 @@ def _mt_options_provider(repo: "FakeCatalogRepository") -> StaticOverlayProvider
             for e in ordered
         )
         overlays[tenant] = TenantOverlay(
-            overrides={"membership.membership_type": FixedFieldOverride(options=options)},
+            overrides={
+                "membership.membership_type": FixedFieldOverride(options=options)
+            },
         )
     return StaticOverlayProvider(overlays)
 
@@ -358,8 +359,12 @@ class TestGetFieldConfigServesApplicationAttributes:
                     label={"nl": "Clubblad", "en": "Magazine"},
                     options=(
                         EnumOption(value="Geen", label={"nl": "Geen", "en": "None"}),
-                        EnumOption(value="Papier", label={"nl": "Papier", "en": "Paper"}),
-                        EnumOption(value="Digitaal", label={"nl": "Digitaal", "en": "Digital"}),
+                        EnumOption(
+                            value="Papier", label={"nl": "Papier", "en": "Paper"}
+                        ),
+                        EnumOption(
+                            value="Digitaal", label={"nl": "Digitaal", "en": "Digital"}
+                        ),
                     ),
                     order=20,
                     application_visible=True,
@@ -477,7 +482,9 @@ def test_field_config_route_returns_200_not_501(inject_service):
     assert data["tenant_id"] == "h-dcn"
 
 
-def test_field_config_route_carries_membership_type_options_on_the_field(inject_service):
+def test_field_config_route_carries_membership_type_options_on_the_field(
+    inject_service,
+):
     # 03b CONTRACT (Task 10.5): the membership_type vocabulary rides on the field's OWN inline
     # `options` (no standalone feed, no catalog fallback). The route serves the field's options
     # ordered by (order, code); a retired entry is carried with allowed:false, not excluded.
@@ -690,7 +697,9 @@ class TestGetFieldConfigDoesNotSurfaceRawOverlay:
         def get_raw_fields_overlay(self, tenant_id):
             return self._overlay
 
-    def test_field_overlay_is_not_surfaced_even_when_the_provider_exposes_it(self, repo):
+    def test_field_overlay_is_not_surfaced_even_when_the_provider_exposes_it(
+        self, repo
+    ):
         """steering 39 guard: no raw-shape key crosses the boundary, even with a raw-capable provider."""
         overlay = {
             "fields": {
@@ -734,7 +743,7 @@ class TestGetFieldConfigDoesNotSurfaceRawOverlay:
         config = service.get_field_config("h-dcn")
 
         # The Flat_View surfaces the UI needs are present.
-        assert "fields" in config and config["fields"], "Flat_View `fields` is empty"
+        assert config.get("fields"), "Flat_View `fields` is empty"
         assert "by_group" in config
         assert "functional_groups" in config
 
@@ -819,7 +828,9 @@ def _scope_service(repo, *, dim_values=("noord", "zuid")):
 
 
 class TestReadAssemblySeamPopulatesOptionsUniformly:
-    def test_reference_options_come_from_the_fields_inline_options_at_the_seam(self, repo):
+    def test_reference_options_come_from_the_fields_inline_options_at_the_seam(
+        self, repo
+    ):
         # reference (membership_type): 03b CONTRACT (Task 10.5) — the ONE `options` is the field's
         # OWN inline vocabulary (no catalog injection, no fallback). The uniform seam pass serves
         # the field's options, retired entries included as allowed:false, ordered by (order, code).
@@ -909,7 +920,9 @@ class TestResolverStaysCatalogFree:
         assert not hasattr(resolver, "_catalog")
         assert not hasattr(resolver, "_active_membership_type_options")
 
-    def test_resolver_resolve_takes_no_catalog_and_leaves_membership_type_options_empty(self):
+    def test_resolver_resolve_takes_no_catalog_and_leaves_membership_type_options_empty(
+        self,
+    ):
         # Resolving WITHOUT any catalog yields a membership_type field whose inline resolved
         # options are empty — the active catalog is attached LATER, at the seam, not here. This
         # pins that reference options are a seam concern, never a resolver catalog read.

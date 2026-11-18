@@ -14,7 +14,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -59,7 +61,6 @@ class _BlockMysqlFinder:
     def find_spec(self, name, path, target=None):
         if name == "mysql" or name.startswith("mysql."):
             raise ModuleNotFoundError(_CROSS_PLANE_LEAK_MSG)
-        return None
 
 
 def _install_mysql_import_guard() -> None:

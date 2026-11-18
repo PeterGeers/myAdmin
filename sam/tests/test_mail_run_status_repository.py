@@ -29,7 +29,9 @@ import pytest
 
 # repo root + backend/src on sys.path (mirrors test_members_repository.py) so
 # `sam.members...` and its `services.dynamodb_client` dependency both import.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -165,12 +167,17 @@ class TestMailRunTallyLifecycle:
             == MAIL_RUN_STATUS_SENDING
         )
         assert (
-            repo.update_mail_run_status(TENANT, RUN, MAIL_RUN_STATUS_COMPLETED)["status"]
+            repo.update_mail_run_status(TENANT, RUN, MAIL_RUN_STATUS_COMPLETED)[
+                "status"
+            ]
             == MAIL_RUN_STATUS_COMPLETED
         )
 
     def test_update_status_on_a_missing_run_returns_none(self, repo):
-        assert repo.update_mail_run_status(TENANT, "no-such-run", MAIL_RUN_STATUS_SENDING) is None
+        assert (
+            repo.update_mail_run_status(TENANT, "no-such-run", MAIL_RUN_STATUS_SENDING)
+            is None
+        )
 
     def test_unknown_status_is_rejected(self, repo):
         repo.create_mail_run(
@@ -259,7 +266,9 @@ class TestFailureOnlySubRecords:
 
 
 class TestLateBounceAdjustsTally:
-    def test_late_bounce_for_a_sent_recipient_creates_a_record_and_moves_sent_to_failed(self, repo):
+    def test_late_bounce_for_a_sent_recipient_creates_a_record_and_moves_sent_to_failed(
+        self, repo
+    ):
         # A run where all 3 were SENT (counted, no sub-records yet).
         repo.create_mail_run(
             TENANT, RUN, mode="per_recipient", triggered_by="sub-1", recipient_count=3
@@ -368,7 +377,11 @@ class TestManualDelete:
 class TestListMailRuns:
     def test_lists_runs_newest_first_and_excludes_failure_sub_records(self, repo):
         repo.create_mail_run(
-            TENANT, "run-old", mode="per_recipient", triggered_by="sub-1", recipient_count=1
+            TENANT,
+            "run-old",
+            mode="per_recipient",
+            triggered_by="sub-1",
+            recipient_count=1,
         )
         # Force a distinct, later created_at so the ordering is deterministic.
         import time
@@ -400,7 +413,11 @@ class TestListMailRuns:
 class TestTenancy:
     def test_a_second_tenants_run_is_invisible(self, repo):
         repo.create_mail_run(
-            "tenant-a", RUN, mode="per_recipient", triggered_by="sub-1", recipient_count=1
+            "tenant-a",
+            RUN,
+            mode="per_recipient",
+            triggered_by="sub-1",
+            recipient_count=1,
         )
         repo.record_mail_failure("tenant-a", RUN, address="a@x.com", reason="r")
         # Same run id, different tenant — nothing comes back.
@@ -435,8 +452,12 @@ class TestSortKeyHelpers:
         assert td.mail_run_sk("r1") == f"{td.RECORD_TYPE_MAIL_RUN}#r1"
 
     def test_mail_recipient_sk_shape_and_prefix(self):
-        assert td.mail_recipient_sk("r1", "0") == f"{td.RECORD_TYPE_MAIL_RECIPIENT}#r1#0"
-        assert td.mail_recipient_sk_prefix("r1") == f"{td.RECORD_TYPE_MAIL_RECIPIENT}#r1"
+        assert (
+            td.mail_recipient_sk("r1", "0") == f"{td.RECORD_TYPE_MAIL_RECIPIENT}#r1#0"
+        )
+        assert (
+            td.mail_recipient_sk_prefix("r1") == f"{td.RECORD_TYPE_MAIL_RECIPIENT}#r1"
+        )
 
     def test_blank_segments_are_refused(self):
         with pytest.raises(ValueError):
@@ -445,7 +466,9 @@ class TestSortKeyHelpers:
             td.mail_recipient_sk("r1", "")
 
     def test_item_builders_stamp_the_authoritative_key(self):
-        run_item = td.build_mail_run_item("t", "r1", {"tenant_id": "WRONG", "status": "queued"})
+        run_item = td.build_mail_run_item(
+            "t", "r1", {"tenant_id": "WRONG", "status": "queued"}
+        )
         assert run_item[td.PARTITION_KEY_ATTR] == "t"  # payload tenant_id overwritten
         assert run_item[td.SORT_KEY_ATTR] == td.mail_run_sk("r1")
         rec_item = td.build_mail_recipient_item("t", "r1", "0", {"address": "a@x.com"})

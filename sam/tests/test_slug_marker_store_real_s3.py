@@ -140,7 +140,7 @@ def real_store():
         for slug in created:
             try:
                 store.release(slug)
-            except Exception:  # noqa: BLE001, S110 - best-effort teardown; never mask the test result
+            except Exception:  # noqa: S110 - best-effort teardown; never mask the test result
                 pass
 
 

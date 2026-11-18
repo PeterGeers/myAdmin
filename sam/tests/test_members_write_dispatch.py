@@ -33,7 +33,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -81,9 +83,19 @@ _HDCN_MT_OVERLAY = TenantOverlay(
     overrides={
         "membership.membership_type": FixedFieldOverride(
             options=(
-                EnumOption(value="erelid", label={"nl": "erelid", "en": "erelid"}, allowed=True),
-                EnumOption(value="donateur", label={"nl": "donateur", "en": "donateur"}, allowed=True),
-                EnumOption(value="retired_type", label={"nl": "retired_type", "en": "retired_type"}, allowed=False),
+                EnumOption(
+                    value="erelid", label={"nl": "erelid", "en": "erelid"}, allowed=True
+                ),
+                EnumOption(
+                    value="donateur",
+                    label={"nl": "donateur", "en": "donateur"},
+                    allowed=True,
+                ),
+                EnumOption(
+                    value="retired_type",
+                    label={"nl": "retired_type", "en": "retired_type"},
+                    allowed=False,
+                ),
             )
         ),
     }
@@ -97,8 +109,8 @@ _HDCN_MT_OVERLAY = TenantOverlay(
 # projected grants: all-access → region ["*"], Noord → ["Noord"], and a Members_CRUD holder
 # with NO region grant is ABSENT (deny-by-default).
 
-_EMAIL_ALL = "all@h-dcn.test"          # all-access → region ["*"]
-_EMAIL_NOORD = "noord@h-dcn.test"      # scoped to Noord
+_EMAIL_ALL = "all@h-dcn.test"  # all-access → region ["*"]
+_EMAIL_NOORD = "noord@h-dcn.test"  # scoped to Noord
 _EMAIL_NOGRANT = "nogrant@h-dcn.test"  # holds Members_CRUD but NO region grant → deny
 
 _HDCN_GRANTS = {
@@ -133,9 +145,17 @@ def _entitlement(tenant, capabilities):
     return json.dumps({"v": 1, "t": {tenant: capabilities}})
 
 
-def _event(method, path, *, tenant="h-dcn",
-           capabilities=("members:read", "members:write", "members:admin", "members:export"),
-           email=_EMAIL_ALL, groups=(), sub="admin-sub", body=None):
+def _event(
+    method,
+    path,
+    *,
+    tenant="h-dcn",
+    capabilities=("members:read", "members:write", "members:admin", "members:export"),
+    email=_EMAIL_ALL,
+    groups=(),
+    sub="admin-sub",
+    body=None,
+):
     """A verified API-GW-authorizer event. Scope is driven by ``email`` (projected grants,
     design C5), not ``groups``.
     """
@@ -162,7 +182,9 @@ def _data(resp):
     return json.loads(resp["body"]).get("data")
 
 
-def _valid_member_body(*, region="Noord", member_number=None, status=None, membership_type="erelid"):
+def _valid_member_body(
+    *, region="Noord", member_number=None, status=None, membership_type="erelid"
+):
     membership = {"membership_type": membership_type, "joined_date": "2024-01-01"}
     if member_number is not None:
         membership["member_number"] = member_number
@@ -171,7 +193,11 @@ def _valid_member_body(*, region="Noord", member_number=None, status=None, membe
     # S5d D1/R3.4: scope is a PLAIN member field — h-dcn's `region` dimension binds to the
     # tenant-added `overlay.region` field, a scalar (no retired `scope_values` bucket).
     return {
-        "personal": {"first_name": "Alex", "last_name": "de Vries", "email": "alex@example.com"},
+        "personal": {
+            "first_name": "Alex",
+            "last_name": "de Vries",
+            "email": "alex@example.com",
+        },
         "membership": membership,
         "overlay": {"region": region},
     }
@@ -231,7 +257,9 @@ def test_create_member_missing_required_fields_returns_422():
     # No personal.last_name (the required identity anchor) → fixed-field validation fails → 422
     # with per-field errors. (first_name is now OPTIONAL, so last_name is the field that must be
     # present; asserting on it keeps the missing-required-field behavior covered.)
-    resp = app.handler(_event("POST", "/members", body={"membership": {"member_number": "9"}}))
+    resp = app.handler(
+        _event("POST", "/members", body={"membership": {"member_number": "9"}})
+    )
     assert resp["statusCode"] == 422
     assert "personal.last_name" in _error_fields(resp)
 
@@ -263,7 +291,12 @@ def test_update_member_partial_updates_only_supplied_fields(repo):
     mid = _data(create)["member_id"]
     # Partial update of just the first name.
     resp = app.handler(
-        _event("PUT", f"/members/{mid}", groups=("Regio_All",), body={"personal": {"first_name": "Alexandra"}})
+        _event(
+            "PUT",
+            f"/members/{mid}",
+            groups=("Regio_All",),
+            body={"personal": {"first_name": "Alexandra"}},
+        )
     )
     assert resp["statusCode"] == 200
     stored = repo.get_member("h-dcn", mid)
@@ -280,13 +313,20 @@ def test_update_member_out_of_scope_returns_403(repo):
     assert create["statusCode"] == 200
     mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("PUT", f"/members/{mid}", email=_EMAIL_NOORD, body={"personal": {"first_name": "Nope"}})
+        _event(
+            "PUT",
+            f"/members/{mid}",
+            email=_EMAIL_NOORD,
+            body={"personal": {"first_name": "Nope"}},
+        )
     )
     assert resp["statusCode"] == 403
 
 
 def test_update_missing_member_returns_404():
-    resp = app.handler(_event("PUT", "/members/ghost", body={"personal": {"first_name": "x"}}))
+    resp = app.handler(
+        _event("PUT", "/members/ghost", body={"personal": {"first_name": "x"}})
+    )
     assert resp["statusCode"] == 404
 
 
@@ -329,8 +369,11 @@ def test_create_and_update_membership(repo):
     assert create["statusCode"] == 200
     mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("POST", f"/members/{mid}/memberships",
-               body={"membership_id": "MS-1", "status": "active"})
+        _event(
+            "POST",
+            f"/members/{mid}/memberships",
+            body={"membership_id": "MS-1", "status": "active"},
+        )
     )
     assert resp["statusCode"] == 200
     assert repo.get_membership("h-dcn", mid, "MS-1")["status"] == "active"
@@ -368,8 +411,12 @@ def test_delete_membership_removes_it(repo):
     create = app.handler(_event("POST", "/members", body=body))
     assert create["statusCode"] == 200
     mid = _data(create)["member_id"]
-    app.handler(_event("POST", f"/members/{mid}/memberships", body={"membership_id": "MS-9"}))
-    resp = app.handler(_event("DELETE", f"/members/{mid}/memberships/MS-9", groups=("Regio_All",)))
+    app.handler(
+        _event("POST", f"/members/{mid}/memberships", body={"membership_id": "MS-9"})
+    )
+    resp = app.handler(
+        _event("DELETE", f"/members/{mid}/memberships/MS-9", groups=("Regio_All",))
+    )
     assert resp["statusCode"] == 200
     assert repo.get_membership("h-dcn", mid, "MS-9") is None
 
@@ -383,7 +430,11 @@ def test_manage_delegates_replaces_the_set(repo):
     assert create["statusCode"] == 200
     mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("PUT", f"/members/{mid}/delegates", body={"delegates": [{"email": "d@x.com"}]})
+        _event(
+            "PUT",
+            f"/members/{mid}/delegates",
+            body={"delegates": [{"email": "d@x.com"}]},
+        )
     )
     assert resp["statusCode"] == 200
     assert repo.list_member_delegates("h-dcn", mid) == [{"email": "d@x.com"}]
@@ -417,11 +468,18 @@ def test_send_delegate_invitation_records_intent(repo):
     assert create["statusCode"] == 200
     mid = _data(create)["member_id"]
     resp = app.handler(
-        _event("POST", f"/members/{mid}/delegates/invitations", body={"delegate_email": "invite@x.com"})
+        _event(
+            "POST",
+            f"/members/{mid}/delegates/invitations",
+            body={"delegate_email": "invite@x.com"},
+        )
     )
     assert resp["statusCode"] == 200
     stored = repo.list_member_delegates("h-dcn", mid)
-    assert any(d.get("email") == "invite@x.com" and d.get("status") == "invited" for d in stored)
+    assert any(
+        d.get("email") == "invite@x.com" and d.get("status") == "invited"
+        for d in stored
+    )
 
 
 def test_send_delegate_invitation_missing_email_returns_422(repo):
@@ -459,6 +517,7 @@ def test_duplicate_member_number_across_members_is_allowed(table):
     assert repo_a.get_member("h-dcn", created_b["member_id"]) is not None
     assert created_a["member_id"] != created_b["member_id"]
 
+
 # ── Task 4.8 (6b + 7b): authoritative WRITE gates surfaced through the EDGE ────────────
 #
 # The service-level gates for value-level role-restricted enums (R4.12) and show_when
@@ -471,7 +530,6 @@ def test_duplicate_member_number_across_members_is_allowed(table):
 # field). The frontend legs (options filtered by role; hidden field not rendered/required)
 # live in ``frontend/src/components/members/fieldForm.test.ts``.
 
-from sam.members.domain.field_resolver import StaticOverlayProvider
 from sam.tests.test_members_resolved_field_surface import (
     _overlay_with_groups_and_options,
 )
@@ -489,7 +547,9 @@ def _overlay_service_over(table) -> MembershipService:
     # field via `_overlay_with_groups_and_options()` (shared overlay), not a seeded catalog.
     return MembershipService(
         repo,
-        overlay_provider=StaticOverlayProvider({"h-dcn": _overlay_with_groups_and_options()}),
+        overlay_provider=StaticOverlayProvider(
+            {"h-dcn": _overlay_with_groups_and_options()}
+        ),
         # Lifecycle engine retired (retire-members-status-lifecycle-engine): no lifecycle_provider.
         tenant_hooks=register_hdcn_hooks(TenantHookRegistry()),
     )
@@ -508,10 +568,16 @@ def overlay_service(monkeypatch, table):
     return service
 
 
-def _overlay_member_body(*, membership_type="gewoon", tier=None, motor_brand=None, member_id="MO-1"):
+def _overlay_member_body(
+    *, membership_type="gewoon", tier=None, motor_brand=None, member_id="MO-1"
+):
     body = {
         "member_id": member_id,
-        "personal": {"first_name": "Sam", "last_name": "Jansen", "email": "sam@example.com"},
+        "personal": {
+            "first_name": "Sam",
+            "last_name": "Jansen",
+            "email": "sam@example.com",
+        },
         "membership": {
             # The overlay's fixed_override sets a tenant member-number format (Nr-0001).
             "member_number": "Nr-0001",
@@ -534,9 +600,7 @@ def test_create_role_restricted_enum_value_denied_role_returns_422(overlay_servi
     # (6b) A caller WITHOUT Members_CRUD sets the role-restricted "premium" tier → the DOMAIN
     # rejects it and the edge surfaces 422 with the per-field error (never a silent accept).
     body = _overlay_member_body(tier="premium", member_id="MO-1")
-    resp = app.handler(
-        _event("POST", "/members", groups=("Members_Read",), body=body)
-    )
+    resp = app.handler(_event("POST", "/members", groups=("Members_Read",), body=body))
     assert resp["statusCode"] == 422
     assert "overlay.tier" in _error_fields(resp)
 
@@ -615,7 +679,9 @@ def test_success_response_carries_success_true_and_data_envelope(repo):
 def test_validation_error_carries_success_false_error_envelope(repo):
     # A 422 → {success:false, error, errors:{...}} with the real 422 status (anticipated mapping
     # unchanged; envelope now carries success:false).
-    resp = app.handler(_event("POST", "/members", body={"membership": {"member_number": "9"}}))
+    resp = app.handler(
+        _event("POST", "/members", body={"membership": {"member_number": "9"}})
+    )
     assert resp["statusCode"] == 422
     env = _envelope(resp)
     assert env["success"] is False
@@ -642,7 +708,12 @@ def test_unhandled_exception_returns_bodied_500_not_empty_502(monkeypatch, repo,
     monkeypatch.setattr(app, "_get_membership_service", lambda: _BoomService())
 
     resp = app.handler(
-        _event("POST", "/members", groups=("Regio_All",), body=_valid_member_body(member_number="E-3"))
+        _event(
+            "POST",
+            "/members",
+            groups=("Regio_All",),
+            body=_valid_member_body(member_number="E-3"),
+        )
     )
     assert resp["statusCode"] == 500
     env = _envelope(resp)
@@ -656,7 +727,9 @@ def test_unhandled_exception_returns_bodied_500_not_empty_502(monkeypatch, repo,
 def test_catch_all_does_not_shadow_anticipated_mappings(repo):
     # The catch-all is LAST: anticipated domain errors keep their specific statuses/bodies.
     # 404 (out-of-scope/absent member on an update).
-    ghost = app.handler(_event("PUT", "/members/does-not-exist", body={"personal": {"first_name": "x"}}))
+    ghost = app.handler(
+        _event("PUT", "/members/does-not-exist", body={"personal": {"first_name": "x"}})
+    )
     assert ghost["statusCode"] == 404
     assert _envelope(ghost)["success"] is False
     # 501 (a declared-but-unimplemented route would answer 501, not 500) is covered elsewhere;
@@ -670,7 +743,9 @@ def test_422_errors_is_rfc9457_array_with_field_code_detail(repo):
     # A 422 body carries `errors` as an ARRAY of {field, code, params?, detail} (not a map) and a
     # top-level summary `code`. A missing required last_name → validation.required on that field.
     # (first_name is now OPTIONAL — last_name is the still-required identity anchor.)
-    resp = app.handler(_event("POST", "/members", body={"membership": {"member_number": "9"}}))
+    resp = app.handler(
+        _event("POST", "/members", body={"membership": {"member_number": "9"}})
+    )
     assert resp["statusCode"] == 422
     env = _envelope(resp)
     assert env["code"] == "errors.validation.failed"

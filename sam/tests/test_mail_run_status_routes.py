@@ -44,7 +44,9 @@ from sam.members.domain.mail_run_status import MailRunStatusService
 from sam.members.handler import _dispatch as dispatch_mod
 from sam.members.handler import app
 
-_EMAIL_ALL = "all@h-dcn.test"  # all-access → region ["*"] (scope grant for the export gate)
+_EMAIL_ALL = (
+    "all@h-dcn.test"  # all-access → region ["*"] (scope grant for the export gate)
+)
 _HDCN_GRANTS = {("h-dcn", _EMAIL_ALL): {"region": ["*"]}}
 
 _SUB_USER = "user-sub-1"
@@ -113,34 +115,64 @@ def store() -> FakeMailRunStore:
     s = FakeMailRunStore()
     # Two of the caller's OWN runs + one OTHER user's run, all in h-dcn.
     s.add_run(
-        "h-dcn", "run-own-1",
-        triggered_by=_SUB_USER, created_at="2026-01-01T10:00:00Z",
-        mode="per_recipient", status="completed", recipient_count=200, sent=198, failed=2,
+        "h-dcn",
+        "run-own-1",
+        triggered_by=_SUB_USER,
+        created_at="2026-01-01T10:00:00Z",
+        mode="per_recipient",
+        status="completed",
+        recipient_count=200,
+        sent=198,
+        failed=2,
     )
     s.add_run(
-        "h-dcn", "run-own-2",
-        triggered_by=_SUB_USER, created_at="2026-01-02T10:00:00Z",
-        mode="to_fixed", status="completed", recipient_count=1, sent=1, failed=0,
+        "h-dcn",
+        "run-own-2",
+        triggered_by=_SUB_USER,
+        created_at="2026-01-02T10:00:00Z",
+        mode="to_fixed",
+        status="completed",
+        recipient_count=1,
+        sent=1,
+        failed=0,
     )
     s.add_run(
-        "h-dcn", "run-other",
-        triggered_by=_SUB_OTHER, created_at="2026-01-03T10:00:00Z",
-        mode="per_recipient", status="sending", recipient_count=10, sent=5, failed=0,
+        "h-dcn",
+        "run-other",
+        triggered_by=_SUB_OTHER,
+        created_at="2026-01-03T10:00:00Z",
+        mode="per_recipient",
+        status="sending",
+        recipient_count=10,
+        sent=5,
+        failed=0,
     )
     # The caller's own run has two FAILURE sub-records (the drill-down).
     s.add_failure(
-        "h-dcn", "run-own-1",
-        address="bounce@example.com", status="failed", reason="MessageRejected",
+        "h-dcn",
+        "run-own-1",
+        address="bounce@example.com",
+        status="failed",
+        reason="MessageRejected",
     )
     s.add_failure(
-        "h-dcn", "run-own-1",
-        address="nope@example.com", status="failed", reason="MailFromDomainNotVerified",
+        "h-dcn",
+        "run-own-1",
+        address="nope@example.com",
+        status="failed",
+        reason="MailFromDomainNotVerified",
     )
     # A SECOND tenant's run — must never be visible to an h-dcn caller (Property 3).
     s.add_run(
-        "other-tenant", "run-foreign",
-        triggered_by=_SUB_USER, created_at="2026-01-04T10:00:00Z",
-        mode="to_fixed", status="completed", recipient_count=1, sent=1, failed=0,
+        "other-tenant",
+        "run-foreign",
+        triggered_by=_SUB_USER,
+        created_at="2026-01-04T10:00:00Z",
+        mode="to_fixed",
+        status="completed",
+        recipient_count=1,
+        sent=1,
+        failed=0,
     )
     return s
 
@@ -156,9 +188,7 @@ def inject_status_service(monkeypatch, store):
     from sam.tests.conftest import FakeScopeGrantsReader
 
     service = MailRunStatusService(store)
-    monkeypatch.setattr(
-        dispatch_mod, "get_mail_run_status_service", lambda: service
-    )
+    monkeypatch.setattr(dispatch_mod, "get_mail_run_status_service", lambda: service)
     monkeypatch.setattr(
         app, "_SCOPE_GRANTS_READER_OVERRIDE", FakeScopeGrantsReader(_HDCN_GRANTS)
     )
@@ -209,7 +239,9 @@ def _data(resp):
 
 class TestMailRunRouteAuth:
     def test_no_token_returns_401(self):
-        resp = app.handler({"httpMethod": "GET", "path": "/members/mail-runs", "headers": {}})
+        resp = app.handler(
+            {"httpMethod": "GET", "path": "/members/mail-runs", "headers": {}}
+        )
         assert resp["statusCode"] == 401
 
     def test_without_export_capability_is_403(self):
@@ -363,7 +395,11 @@ def test_route_not_shadowed_by_member_id_route():
 class TestMailRunDeleteAuth:
     def test_no_token_returns_401(self):
         resp = app.handler(
-            {"httpMethod": "DELETE", "path": "/members/mail-runs/run-own-1", "headers": {}}
+            {
+                "httpMethod": "DELETE",
+                "path": "/members/mail-runs/run-own-1",
+                "headers": {},
+            }
         )
         assert resp["statusCode"] == 401
 

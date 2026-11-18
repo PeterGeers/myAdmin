@@ -389,7 +389,7 @@ def test_write_route_now_dispatches_to_the_domain(monkeypatch):
 # fails; task 5 verifies them PASSING once the fix lands.
 # ---------------------------------------------------------------------------
 
-from sam.members.domain.scope_canon import scope_canon  # noqa: E402
+from sam.members.domain.scope_canon import scope_canon
 
 
 class _LimitHonoringPagingRepo:
@@ -562,10 +562,10 @@ class TestBug2PaginationUndercountDomainExploration:
 # Validates: Requirements 6.1, 6.2, 6.3, 6.4
 # ---------------------------------------------------------------------------
 
-from hypothesis import given, settings  # noqa: E402
-from hypothesis import strategies as st  # noqa: E402
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from sam.members.repository.members_cursor import (  # noqa: E402
+from sam.members.repository.members_cursor import (
     CursorError,
     encode_cursor,
 )

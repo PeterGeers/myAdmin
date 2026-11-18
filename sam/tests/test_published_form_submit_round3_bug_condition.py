@@ -74,14 +74,14 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
-from sam.members.domain._membership_errors import MemberValidationError  # noqa: E402
-from sam.members.handler import app, public_app  # noqa: E402
-from sam.members.repository.projection_config_reader import (  # noqa: E402
+from sam.members.domain._membership_errors import MemberValidationError
+from sam.members.handler import app, public_app
+from sam.members.repository.projection_config_reader import (
     MembersProjectionReader,
 )
-from sam.members.repository.slug_marker_store import SlugMarker  # noqa: E402
+from sam.members.repository.slug_marker_store import SlugMarker
 
 _SLUG = "hdcn-aanmelden"
 _APEX = "jabaki.nl"
@@ -323,11 +323,11 @@ def _render_without_notice() -> str:
 def _no_wrapper_branch(artifact: str) -> str | None:
     """Return the body of the `if (!wrap) { ... }` block inside `showFieldError`, or None."""
     fn = re.search(
-        r"function showFieldError\(name, message\) \{(.*?)\n  \}\n", artifact, re.S
+        r"function showFieldError\(name, message\) \{(.*?)\n  \}\n", artifact, re.DOTALL
     )
     if not fn:
         return None
-    branch = re.search(r"if \(!wrap\) \{(.*?)\}", fn.group(1), re.S)
+    branch = re.search(r"if \(!wrap\) \{(.*?)\}", fn.group(1), re.DOTALL)
     return branch.group(1) if branch else None
 
 

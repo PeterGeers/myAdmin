@@ -77,8 +77,11 @@ from services.module_registry import MODULE_REGISTRY
 from services.projection_sync import (
     ProjectionSync,
     TenantSource,
+    build_config_scope_row,
 )
 from services.user_tenant_scope_service import UserTenantScopeService
+
+from sam.members.domain.config_write_version import next_write_stamp
 
 # ── SAM plane (real code) ──────────────────────────────────────────────────────────────
 from sam.members.domain.membership_service import MembershipService
@@ -88,8 +91,6 @@ from sam.members.repository.projection_config_reader import MembersProjectionRea
 from sam.members.repository.projection_config_write_repository import (
     MembersConfigWriteRepository,
 )
-from services.projection_sync import build_config_scope_row
-from sam.members.domain.config_write_version import next_write_stamp
 
 # ── Fixtures for both planes' in-memory fakes ──────────────────────────────────────────
 from sam.tests.test_membership_service_reads import FakeMembersRepository
@@ -221,6 +222,13 @@ class FakeParameterService:
                 return self._overlay_from_dimensions(dims)
             return None
         return None
+
+    def get_item(self, tenant_id: str, sort_key: str) -> dict | None:
+        """Return the ``config#scope`` row for ``tenant_id`` keyed by ``sort_key``."""
+        dims = self._dims.get(tenant_id)
+        if not isinstance(dims, list):
+            return None
+        return {"dimensions": dims}
 
 
 class ProjectionFakeTable:

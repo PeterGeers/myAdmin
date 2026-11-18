@@ -236,7 +236,9 @@ class TestAdHocRouteAuth:
 
     def test_with_export_capability_is_accepted(self, mail_queue):
         resp = app.handler(
-            _event(capabilities=("members:read", "members:export"), body=_to_fixed_body())
+            _event(
+                capabilities=("members:read", "members:export"), body=_to_fixed_body()
+            )
         )
         assert resp["statusCode"] == 202
         assert len(mail_queue.jobs) == 1
@@ -321,7 +323,9 @@ class TestAdHocRouteNotCertified:
 class TestAdHocRouteMalformedBody:
     def test_unknown_mode_returns_422_adhoc_invalid(self, mail_queue):
         resp = app.handler(
-            _event(body={"mode": "broadcast", "result_rows": [_member("Ava", "a@x.io")]})
+            _event(
+                body={"mode": "broadcast", "result_rows": [_member("Ava", "a@x.io")]}
+            )
         )
         assert resp["statusCode"] == 422
         assert json.loads(resp["body"])["code"] == "errors.mail.adHocInvalid"

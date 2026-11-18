@@ -90,11 +90,15 @@ CLASSIFICATION_TABLE: tuple[tuple[str | None, str, str], ...] = (
     ("city", "address", "fixed"),
     ("country", "address", "fixed"),
     # membership lifecycle / catalog / number
-    ("status", "membership", "fixed"),          # Fixed; Parameter enum values
+    ("status", "membership", "fixed"),  # Fixed; Parameter enum values
     ("membership_type", "membership", "fixed"),  # Fixed ref + Parameter catalog
     # region — Parameter (scope dimension); functional group membership
     (None, "membership", "parameter"),
-    ("member_number", "membership", "fixed"),   # Fixed string; Parameter format; manual entry
+    (
+        "member_number",
+        "membership",
+        "fixed",
+    ),  # Fixed string; Parameter format; manual entry
     ("joined_date", "membership", "fixed"),
     ("years_member", "membership", "calculated"),
     # communication prefs (one row → four Parameter keys; illustrative — encode by group)
@@ -153,7 +157,9 @@ def test_every_fixed_row_maps_to_exactly_one_fixed_field():
     # And exactly one (no duplicate registry entries collapse two rows onto one key).
     for key in _FIXED_ROW_KEYS:
         matches = [f for f in FIXED_FIELDS if f.key == key]
-        assert len(matches) == 1, f"Fixed row {key!r} maps to {len(matches)} FixedFields"
+        assert len(matches) == 1, (
+            f"Fixed row {key!r} maps to {len(matches)} FixedFields"
+        )
 
 
 def test_no_fixed_field_is_absent_from_the_table():
@@ -176,7 +182,9 @@ def test_every_calculated_row_maps_to_exactly_one_derived_field():
     assert not missing, f"Calculated table rows with no derived field: {missing}"
     for key in _CALCULATED_ROW_KEYS:
         matches = [c for c in CALCULATED_FIELDS if c.key == key]
-        assert len(matches) == 1, f"Calculated row {key!r} maps to {len(matches)} derived fields"
+        assert len(matches) == 1, (
+            f"Calculated row {key!r} maps to {len(matches)} derived fields"
+        )
 
 
 def test_no_calculated_field_is_absent_from_the_table():
@@ -245,9 +253,19 @@ def test_seed_overlay_uses_generic_placeholder_names_not_hdcn_keys():
     # R4.5: the platform seed must not bake in h-dcn's real overlay vocabulary.
     seed = build_seed_overlay()
     hdcn_real_keys = {
-        "guardian_name", "magazine_pref", "newsletter_pref", "privacy_consent",
-        "referral_source", "motor_brand", "motor_type", "build_year", "license_plate",
-        "iban", "payment_method", "notes", "signature_date",
+        "guardian_name",
+        "magazine_pref",
+        "newsletter_pref",
+        "privacy_consent",
+        "referral_source",
+        "motor_brand",
+        "motor_type",
+        "build_year",
+        "license_plate",
+        "iban",
+        "payment_method",
+        "notes",
+        "signature_date",
     }
     assert not (set(seed.fields.keys()) & hdcn_real_keys)
 
@@ -257,7 +275,9 @@ def test_seed_overlay_resolves_cleanly_over_the_broadened_base():
     # of the full broadened base (fixed ⊕ calculated), proving the overlay mechanism is total.
     cfg = FieldResolver(StaticOverlayProvider({"t": build_seed_overlay()})).resolve("t")
     assert len(cfg.variable_fields()) == len(build_seed_overlay().fields)
-    assert {f.dotted_key() for f in FIXED_FIELDS}.issubset({f.dotted_key() for f in cfg.fields})
+    assert {f.dotted_key() for f in FIXED_FIELDS}.issubset(
+        {f.dotted_key() for f in cfg.fields}
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════

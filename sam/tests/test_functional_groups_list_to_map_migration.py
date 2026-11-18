@@ -23,7 +23,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -43,7 +45,9 @@ from sam.members.repository.projection_config_reader import MembersProjectionRea
 
 _FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 _MAP_FIXTURE = os.path.join(_FIXTURES, "hdcn_config_fields_overlay.json")
-_LIST_FIXTURE = os.path.join(_FIXTURES, "hdcn_config_fields_overlay_legacy_groups_list.json")
+_LIST_FIXTURE = os.path.join(
+    _FIXTURES, "hdcn_config_fields_overlay_legacy_groups_list.json"
+)
 
 
 def _load(path: str) -> dict:
@@ -58,7 +62,9 @@ class FakeTable:
         self.store: dict[tuple, dict] = {}
 
     def put(self, item: dict) -> None:
-        self.store[(item[schema.PARTITION_KEY_ATTR], item[schema.SORT_KEY_ATTR])] = dict(item)
+        self.store[(item[schema.PARTITION_KEY_ATTR], item[schema.SORT_KEY_ATTR])] = (
+            dict(item)
+        )
 
     def query(self, KeyConditionExpression=None):
         expr = KeyConditionExpression.get_expression()
@@ -87,7 +93,9 @@ def test_convert_is_idempotent_on_an_already_map_row():
     already_map = {
         "personal": {"key": "personal", "label": {"en": "Personal"}, "order": 1},
     }
-    assert convert_functional_groups(convert_functional_groups(already_map)) == already_map
+    assert (
+        convert_functional_groups(convert_functional_groups(already_map)) == already_map
+    )
 
 
 @pytest.mark.unit
@@ -116,10 +124,13 @@ def test_needs_migration_true_for_legacy_list_row():
 
 @pytest.mark.unit
 def test_needs_migration_true_when_skeleton_or_version_absent():
-    assert needs_migration({"functional_groups": {}}) is True  # missing fields/overrides/version
-    assert needs_migration(
-        {"fields": {}, "overrides": {}, "functional_groups": {}}
-    ) is True  # missing version
+    assert (
+        needs_migration({"functional_groups": {}}) is True
+    )  # missing fields/overrides/version
+    assert (
+        needs_migration({"fields": {}, "overrides": {}, "functional_groups": {}})
+        is True
+    )  # missing version
 
 
 @pytest.mark.unit
@@ -145,7 +156,9 @@ def _plan(row: dict):
 def test_plan_converts_groups_and_backfills_version_and_preserves_other_attrs():
     row = {
         schema.PARTITION_KEY_ATTR: "h-dcn",
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, "fields"
+        ),
         "fields": {"notes": {"key": "notes", "type": "string"}},
         "overrides": {"personal.gender": {"type": "enum"}},
         "functional_groups": [{"key": "personal", "order": 1}],
@@ -163,7 +176,9 @@ def test_plan_converts_groups_and_backfills_version_and_preserves_other_attrs():
     # version backfilled; unrelated attribute preserved; key excluded from the body.
     assert plan.new_attributes[schema.VERSION_ATTR] == "2026-10-26T00:00:00+00:00"
     assert plan.new_attributes["slug"] == "hdcn-application-form"
-    assert plan.new_attributes["fields"] == {"notes": {"key": "notes", "type": "string"}}
+    assert plan.new_attributes["fields"] == {
+        "notes": {"key": "notes", "type": "string"}
+    }
     assert schema.PARTITION_KEY_ATTR not in plan.new_attributes
 
 
@@ -171,7 +186,9 @@ def test_plan_converts_groups_and_backfills_version_and_preserves_other_attrs():
 def test_plan_backfills_absent_skeleton_parent_maps():
     row = {
         schema.PARTITION_KEY_ATTR: "fresh",
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, "fields"
+        ),
         "functional_groups": [{"key": "personal", "order": 1}],
         # fields / overrides / version all absent
     }
@@ -186,7 +203,9 @@ def test_plan_backfills_absent_skeleton_parent_maps():
 def test_plan_is_noop_for_already_migrated_row():
     row = {
         schema.PARTITION_KEY_ATTR: "h-dcn",
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, "fields"
+        ),
         "fields": {},
         "overrides": {},
         "functional_groups": {"personal": {"key": "personal", "order": 1}},
@@ -207,14 +226,18 @@ def _resolved_via_reader(overlay: dict) -> dict:
     table.put(
         {
             schema.PARTITION_KEY_ATTR: overlay["tenant_id"],
-            schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+            schema.SORT_KEY_ATTR: schema.build_sort_key(
+                schema.RECORD_TYPE_CONFIG, "fields"
+            ),
             "fields": overlay["fields"],
             "overrides": overlay["overrides"],
             "functional_groups": overlay["functional_groups"],
             schema.VERSION_ATTR: 1,
         }
     )
-    config = FieldResolver(MembersProjectionReader(table=table)).resolve(overlay["tenant_id"])
+    config = FieldResolver(MembersProjectionReader(table=table)).resolve(
+        overlay["tenant_id"]
+    )
     fields = {
         f.key: (f.functional_group, f.group, getattr(f.type, "value", f.type), f.order)
         for f in config.fields
@@ -236,7 +259,9 @@ def test_migrated_list_row_resolves_identically_to_the_map_fixture():
 
     # ... then migrate its groups to MAP and resolve again — the resolved view must be identical.
     migrated = dict(legacy)
-    migrated["functional_groups"] = convert_functional_groups(legacy["functional_groups"])
+    migrated["functional_groups"] = convert_functional_groups(
+        legacy["functional_groups"]
+    )
     after = _resolved_via_reader(migrated)
 
     assert before == after, (
@@ -257,15 +282,21 @@ def test_migrated_list_row_resolves_identically_to_the_map_fixture():
 def test_committed_map_fixture_and_legacy_list_fixture_carry_the_same_catalog():
     """Belt-and-suspenders: the migrated committed fixture (MAP) and the legacy fixture (LIST) name
     the SAME functional-group catalog, so the two committed real-data fixtures cannot drift."""
-    map_groups = set(convert_functional_groups(_load(_MAP_FIXTURE)["functional_groups"]))
+    map_groups = set(
+        convert_functional_groups(_load(_MAP_FIXTURE)["functional_groups"])
+    )
     list_groups = set(
         convert_functional_groups(_load(_LIST_FIXTURE)["functional_groups"])
     )
-    assert list_groups == map_groups == {
-        "personal",
-        "address",
-        "membership",
-        "motor",
-        "financial",
-        "administrative",
-    }
+    assert (
+        list_groups
+        == map_groups
+        == {
+            "personal",
+            "address",
+            "membership",
+            "motor",
+            "financial",
+            "administrative",
+        }
+    )

@@ -68,7 +68,9 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.*` imports resolve.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")

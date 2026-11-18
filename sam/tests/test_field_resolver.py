@@ -85,7 +85,9 @@ def test_resolve_empty_overlay_returns_exactly_the_fixed_base():
     assert all(
         f.origin in (FieldOrigin.FIXED, FieldOrigin.CALCULATED) for f in cfg.fields
     )
-    assert {f.dotted_key() for f in cfg.fields if f.origin is FieldOrigin.FIXED} == _FIXED_DOTTED
+    assert {
+        f.dotted_key() for f in cfg.fields if f.origin is FieldOrigin.FIXED
+    } == _FIXED_DOTTED
     assert {
         f.dotted_key() for f in cfg.fields if f.origin is FieldOrigin.CALCULATED
     } == _CALCULATED_DOTTED
@@ -140,13 +142,21 @@ def test_adding_a_tenant_needs_no_schema_change_only_new_overlay_data():
     # Two tenants, same resolver code, differ ONLY by overlay data (Property 5 / R2.2).
     provider = StaticOverlayProvider(
         {
-            "club-a": TenantOverlay(fields={"boat_name": OverlayField(key="boat_name")}),
-            "club-b": TenantOverlay(fields={"belt_rank": OverlayField(key="belt_rank")}),
+            "club-a": TenantOverlay(
+                fields={"boat_name": OverlayField(key="boat_name")}
+            ),
+            "club-b": TenantOverlay(
+                fields={"belt_rank": OverlayField(key="belt_rank")}
+            ),
         }
     )
     resolver = FieldResolver(provider)
-    assert [f.key for f in resolver.resolve("club-a").variable_fields()] == ["boat_name"]
-    assert [f.key for f in resolver.resolve("club-b").variable_fields()] == ["belt_rank"]
+    assert [f.key for f in resolver.resolve("club-a").variable_fields()] == [
+        "boat_name"
+    ]
+    assert [f.key for f in resolver.resolve("club-b").variable_fields()] == [
+        "belt_rank"
+    ]
     # A brand-new tenant not in the provider still resolves (to the base) — no code change.
     assert resolver.resolve("club-c").variable_fields() == ()
 
@@ -154,7 +164,9 @@ def test_adding_a_tenant_needs_no_schema_change_only_new_overlay_data():
 def test_enum_variable_field_carries_choices():
     overlay = TenantOverlay(
         fields={
-            "fuel": OverlayField(key="fuel", type=FieldType.ENUM, choices=("petrol", "electric"))
+            "fuel": OverlayField(
+                key="fuel", type=FieldType.ENUM, choices=("petrol", "electric")
+            )
         }
     )
     cfg = _resolver({"t": overlay}).resolve("t")
@@ -169,14 +181,18 @@ def test_enum_variable_field_carries_choices():
 def test_override_relabels_reorders_and_hides_a_fixed_field():
     overlay = TenantOverlay(
         overrides={
-            "personal.first_name": FixedFieldOverride(label={"nl": "Volledige naam"}, order=5),
+            "personal.first_name": FixedFieldOverride(
+                label={"nl": "Volledige naam"}, order=5
+            ),
             "personal.birth_date": FixedFieldOverride(visible=False),
         }
     )
     cfg = _resolver({"h-dcn": overlay}).resolve("h-dcn")
 
     name = cfg.field("personal.first_name")
-    assert name is not None and name.label == {"nl": "Volledige naam"} and name.order == 5
+    assert (
+        name is not None and name.label == {"nl": "Volledige naam"} and name.order == 5
+    )
     assert name.origin is FieldOrigin.FIXED  # still a fixed field, just re-presented
     # Single-list provenance (R1.2): an overridden base field badges as BASE_OVERRIDDEN.
     assert name.provenance is FieldProvenance.BASE_OVERRIDDEN
@@ -196,7 +212,9 @@ def test_override_relabels_reorders_and_hides_a_fixed_field():
 
 def test_override_can_tighten_optional_fixed_field_to_required():
     # 'personal.street' is optional in the base; a tenant may require it.
-    overlay = TenantOverlay(overrides={"personal.street": FixedFieldOverride(required=True)})
+    overlay = TenantOverlay(
+        overrides={"personal.street": FixedFieldOverride(required=True)}
+    )
     cfg = _resolver({"t": overlay}).resolve("t")
     street = cfg.field("personal.street")
     assert street.required is True
@@ -212,13 +230,17 @@ def test_overlay_may_loosen_a_platform_required_field():
     # fixed field optional) OVERRULED the admin and is REMOVED. An overlay setting required=False
     # on a platform-required field (here the identity anchor 'personal.last_name') now resolves
     # WITHOUT OverlayError — requiredness is the admin's to set on any field but member_id.
-    overlay = TenantOverlay(overrides={"personal.last_name": FixedFieldOverride(required=False)})
+    overlay = TenantOverlay(
+        overrides={"personal.last_name": FixedFieldOverride(required=False)}
+    )
     cfg = _resolver({"t": overlay}).resolve("t")
     assert cfg.field("personal.last_name").required is False
 
 
 def test_overlay_cannot_override_an_unknown_fixed_field():
-    overlay = TenantOverlay(overrides={"personal.nope": FixedFieldOverride(visible=False)})
+    overlay = TenantOverlay(
+        overrides={"personal.nope": FixedFieldOverride(visible=False)}
+    )
     with pytest.raises(OverlayError) as exc:
         _resolver({"t": overlay}).resolve("t")
     assert "personal.nope" in exc.value.reasons
@@ -232,7 +254,9 @@ def test_variable_field_cannot_collide_with_a_fixed_field_key():
 
 
 def test_enum_variable_field_without_choices_is_rejected():
-    overlay = TenantOverlay(fields={"grade": OverlayField(key="grade", type=FieldType.ENUM)})
+    overlay = TenantOverlay(
+        fields={"grade": OverlayField(key="grade", type=FieldType.ENUM)}
+    )
     with pytest.raises(OverlayError) as exc:
         _resolver({"t": overlay}).resolve("t")
     assert f"{OVERLAY_GROUP}.grade" in exc.value.reasons
@@ -242,7 +266,9 @@ def test_all_overlay_violations_are_collected_at_once():
     # The no-relax binding is gone (03b Req 1), so the collected violations are the remaining
     # well-formedness ones: a choiceless enum variable field AND an override of an unknown field.
     overlay = TenantOverlay(
-        fields={"grade": OverlayField(key="grade", type=FieldType.ENUM)},  # missing choices
+        fields={
+            "grade": OverlayField(key="grade", type=FieldType.ENUM)
+        },  # missing choices
         overrides={"personal.nope": FixedFieldOverride(visible=False)},  # unknown field
     )
     with pytest.raises(OverlayError) as exc:
@@ -263,7 +289,12 @@ def test_by_group_buckets_fixed_and_overlay_fields():
 
 
 def test_fields_are_deterministically_ordered():
-    overlay = TenantOverlay(fields={"z": OverlayField(key="z", order=1), "a": OverlayField(key="a", order=1)})
+    overlay = TenantOverlay(
+        fields={
+            "z": OverlayField(key="z", order=1),
+            "a": OverlayField(key="a", order=1),
+        }
+    )
     cfg = _resolver({"t": overlay}).resolve("t")
     keys = [(f.group, f.order, f.key) for f in cfg.fields]
     assert keys == sorted(keys)
@@ -289,12 +320,17 @@ def test_single_list_carries_all_three_provenance_markers():
     )
     cfg = _resolver({"t": overlay}).resolve("t")
 
-    assert cfg.field("personal.first_name").provenance is FieldProvenance.BASE_OVERRIDDEN
-    assert cfg.field("personal.last_name").provenance is FieldProvenance.BASE  # untouched base
+    assert (
+        cfg.field("personal.first_name").provenance is FieldProvenance.BASE_OVERRIDDEN
+    )
+    assert (
+        cfg.field("personal.last_name").provenance is FieldProvenance.BASE
+    )  # untouched base
     assert cfg.field("overlay.motor_type").provenance is FieldProvenance.TENANT_ADDED
     # Every resolved field has exactly one of the three single-list provenance markers.
     assert all(
-        f.provenance in (
+        f.provenance
+        in (
             FieldProvenance.BASE,
             FieldProvenance.TENANT_ADDED,
             FieldProvenance.BASE_OVERRIDDEN,
@@ -308,7 +344,9 @@ def test_provenance_collapse_preserves_resolved_set_and_order():
     # the resolved fields WITHOUT provenance (dotted key + the `(group, order, key)` sort key)
     # yields the same SET and the same order whether or not any field is overridden/added. The
     # badge re-presents; it adds, removes, and reorders nothing.
-    base_overlay = TenantOverlay(fields={"motor_type": OverlayField(key="motor_type", order=5)})
+    base_overlay = TenantOverlay(
+        fields={"motor_type": OverlayField(key="motor_type", order=5)}
+    )
     overridden_overlay = TenantOverlay(
         # Same variable field, PLUS presentation overrides on base fields that only flip
         # provenance to BASE_OVERRIDDEN — never the dotted key, group, order, or membership.
@@ -330,8 +368,14 @@ def test_provenance_collapse_preserves_resolved_set_and_order():
         (f.group, f.order, f.key) for f in over_cfg.fields
     ]
     # The only observable difference is the provenance badge on the two overridden base fields.
-    assert over_cfg.field("personal.first_name").provenance is FieldProvenance.BASE_OVERRIDDEN
-    assert over_cfg.field("membership.status").provenance is FieldProvenance.BASE_OVERRIDDEN
+    assert (
+        over_cfg.field("personal.first_name").provenance
+        is FieldProvenance.BASE_OVERRIDDEN
+    )
+    assert (
+        over_cfg.field("membership.status").provenance
+        is FieldProvenance.BASE_OVERRIDDEN
+    )
     assert base_cfg.field("personal.first_name").provenance is FieldProvenance.BASE
     assert base_cfg.field("membership.status").provenance is FieldProvenance.BASE
 
@@ -361,7 +405,9 @@ def test_resolver_uses_an_injected_provider_not_hardwired_storage():
 
 # Overlay field keys that never collide with the fixed registry (so overlays are valid).
 _safe_key = st.text(
-    alphabet=st.characters(whitelist_categories=("Ll",), min_codepoint=97, max_codepoint=122),
+    alphabet=st.characters(
+        whitelist_categories=("Ll",), min_codepoint=97, max_codepoint=122
+    ),
     min_size=3,
     max_size=12,
 ).filter(lambda s: s not in _RESERVED_KEYS)
@@ -371,7 +417,10 @@ _safe_key = st.text(
 def _valid_overlays(draw) -> TenantOverlay:
     """Build a valid overlay: a set of distinct, non-colliding string variable fields."""
     names = draw(st.lists(_safe_key, min_size=0, max_size=5, unique=True))
-    fields = {n: OverlayField(key=n, order=draw(st.integers(min_value=0, max_value=100))) for n in names}
+    fields = {
+        n: OverlayField(key=n, order=draw(st.integers(min_value=0, max_value=100)))
+        for n in names
+    }
     return TenantOverlay(fields=fields)
 
 
@@ -460,19 +509,23 @@ def test_functional_group_defaults_from_the_base():
 
 def test_functional_group_is_overridable_for_a_fixed_field_without_moving_storage():
     overlay = TenantOverlay(
-        functional_groups={"address": FunctionalGroup(key="address", label={"en": "Address"})},
+        functional_groups={
+            "address": FunctionalGroup(key="address", label={"en": "Address"})
+        },
         overrides={"personal.street": FixedFieldOverride(functional_group="address")},
     )
     cfg = _resolver({"t": overlay}).resolve("t")
     street = cfg.field("personal.street")
-    assert street.functional_group == "address"   # display group moved
-    assert street.group == "personal"             # storage bucket unchanged
+    assert street.functional_group == "address"  # display group moved
+    assert street.group == "personal"  # storage bucket unchanged
 
 
 def test_functional_group_is_overridable_for_a_calculated_field():
     overlay = TenantOverlay(
         functional_groups={"admin2": FunctionalGroup(key="admin2")},
-        overrides={"membership.application_year": FixedFieldOverride(functional_group="admin2")},
+        overrides={
+            "membership.application_year": FixedFieldOverride(functional_group="admin2")
+        },
     )
     cfg = _resolver({"t": overlay}).resolve("t")
     ay = cfg.field("membership.application_year")
@@ -488,7 +541,9 @@ def test_dangling_functional_group_reference_is_rejected():
     # `not_in_catalog`, which is absent from BASE ⊕ tenant (R5.3).
     overlay = TenantOverlay(
         functional_groups={"address": FunctionalGroup(key="address")},
-        overrides={"personal.city": FixedFieldOverride(functional_group="not_in_catalog")},
+        overrides={
+            "personal.city": FixedFieldOverride(functional_group="not_in_catalog")
+        },
     )
     with pytest.raises(OverlayError) as exc:
         _resolver({"t": overlay}).resolve("t")
@@ -498,7 +553,9 @@ def test_dangling_functional_group_reference_is_rejected():
 def test_variable_field_carries_its_functional_group():
     overlay = TenantOverlay(
         functional_groups={"motor": FunctionalGroup(key="motor")},
-        fields={"motor_brand": OverlayField(key="motor_brand", functional_group="motor")},
+        fields={
+            "motor_brand": OverlayField(key="motor_brand", functional_group="motor")
+        },
     )
     cfg = _resolver({"t": overlay}).resolve("t")
     mb = cfg.field("overlay.motor_brand")
@@ -530,7 +587,9 @@ def test_base_key_reference_resolves_with_no_authored_catalog():
     # "empty catalog ⇒ unchecked" path is now "validated against the base set", and the base
     # set makes the reference valid.
     overlay = TenantOverlay(
-        overrides={"personal.city": FixedFieldOverride(functional_group="administrative")},
+        overrides={
+            "personal.city": FixedFieldOverride(functional_group="administrative")
+        },
     )
     assert not overlay.functional_groups  # no authored catalog
     cfg = _resolver({"t": overlay}).resolve("t")
@@ -541,7 +600,11 @@ def test_base_key_variable_field_resolves_with_no_authored_catalog():
     # R5.4: a VARIABLE field referencing a base key (`membership`) also resolves against the base
     # set with no authored catalog — this is exactly the shape the scope-dimension overlays use.
     overlay = TenantOverlay(
-        fields={"motor_brand": OverlayField(key="motor_brand", functional_group="membership")},
+        fields={
+            "motor_brand": OverlayField(
+                key="motor_brand", functional_group="membership"
+            )
+        },
     )
     assert not overlay.functional_groups
     cfg = _resolver({"t": overlay}).resolve("t")
@@ -552,7 +615,9 @@ def test_dangling_non_base_reference_is_rejected_without_an_authored_catalog():
     # R5.4 (strict side): with NO authored catalog, a reference to a NON-base key is a dangling
     # reference and is rejected — the base set does not make an arbitrary key valid.
     overlay = TenantOverlay(
-        overrides={"personal.city": FixedFieldOverride(functional_group="not_a_base_group")},
+        overrides={
+            "personal.city": FixedFieldOverride(functional_group="not_a_base_group")
+        },
     )
     assert not overlay.functional_groups
     with pytest.raises(OverlayError) as exc:
@@ -567,10 +632,14 @@ def test_group_set_is_base_merged_with_tenant_catalog():
     overlay = TenantOverlay(
         functional_groups={"motor": FunctionalGroup(key="motor", order=9)},
         overrides={
-            "personal.city": FixedFieldOverride(functional_group="administrative"),  # base
+            "personal.city": FixedFieldOverride(
+                functional_group="administrative"
+            ),  # base
         },
         fields={
-            "motor_brand": OverlayField(key="motor_brand", functional_group="motor"),  # tenant
+            "motor_brand": OverlayField(
+                key="motor_brand", functional_group="motor"
+            ),  # tenant
         },
     )
     cfg = _resolver({"t": overlay}).resolve("t")
@@ -588,7 +657,9 @@ def test_tenant_may_reauthor_a_base_group_key_and_it_resolves():
                 key="administrative", label={"en": "Admin (tenant)"}, order=99
             ),
         },
-        overrides={"personal.city": FixedFieldOverride(functional_group="administrative")},
+        overrides={
+            "personal.city": FixedFieldOverride(functional_group="administrative")
+        },
     )
     cfg = _resolver({"t": overlay}).resolve("t")
     assert cfg.field("personal.city").functional_group == "administrative"
@@ -615,7 +686,9 @@ def test_overlay_can_supply_role_gated_options_on_a_fixed_enum():
                 options=(
                     EnumOption(value="m", label={"nl": "Man"}),
                     EnumOption(value="v", label={"nl": "Vrouw"}),
-                    EnumOption(value="x", label={"nl": "Overig"}, roles=("Members_CRUD",)),
+                    EnumOption(
+                        value="x", label={"nl": "Overig"}, roles=("Members_CRUD",)
+                    ),
                 )
             )
         }
@@ -677,7 +750,9 @@ def test_show_when_can_be_added_to_a_fixed_field_via_override():
 def test_member_number_format_surfaces_via_override():
     fmt = MemberNumberFormat(prefix="Nr-", width=4)
     overlay = TenantOverlay(
-        overrides={"membership.member_number": FixedFieldOverride(member_number_format=fmt)}
+        overrides={
+            "membership.member_number": FixedFieldOverride(member_number_format=fmt)
+        }
     )
     cfg = _resolver({"t": overlay}).resolve("t")
     mn = cfg.field("membership.member_number")
@@ -892,33 +967,276 @@ def _resolve_projection(cfg: FieldConfig):
 # The resolve() output locked at Phase-1 task 4.1 (the base-group-aware reference validation),
 # which that change preserves exactly for passing inputs. Any drift here is a behavior change.
 _EMPTY_OVERLAY_PROJECTION = [
-    ('membership.member_number', 'fixed', 'string', False, False, 'membership', 10, (('en', 'Member number'), ('nl', 'Lidnummer'))),
-    ('membership.status', 'fixed', 'enum', True, False, 'membership', 20, (('en', 'Status'), ('nl', 'Status'))),
-    ('membership.membership_type', 'fixed', 'reference', True, False, 'membership', 30, (('en', 'Membership type'), ('nl', 'Lidmaatschapstype'))),
-    ('membership.joined_date', 'fixed', 'date', True, False, 'membership', 40, (('en', 'Joined date'), ('nl', 'Ingangsdatum'))),
-    ('membership.years_member', 'calculated', 'string', False, True, 'membership', 45, (('en', 'Years member'), ('nl', 'Jaren lid'))),
-    ('membership.created_at', 'fixed', 'string', False, False, 'administrative', 90, (('en', 'Created at'), ('nl', 'Aangemaakt op'))),
-    ('membership.application_year', 'calculated', 'string', False, True, 'membership', 95, (('en', 'Application year'), ('nl', 'Aanmeldingsjaar'))),
-    ('membership.updated_at', 'fixed', 'string', False, False, 'administrative', 100, (('en', 'Updated at'), ('nl', 'Bijgewerkt op'))),
-    ('personal.display_name', 'calculated', 'string', False, True, 'personal', 5, (('en', 'Display name'), ('nl', 'Korte naam'))),
-    ('personal.first_name', 'fixed', 'string', False, False, 'personal', 10, (('en', 'First name'), ('nl', 'Voornaam'))),
-    ('personal.last_name', 'fixed', 'string', True, False, 'personal', 20, (('en', 'Last name'), ('nl', 'Achternaam'))),
-    ('personal.name_infix', 'fixed', 'string', False, False, 'personal', 30, (('en', 'Name infix'), ('nl', 'Tussenvoegsel'))),
-    ('personal.initials', 'fixed', 'string', False, False, 'personal', 40, (('en', 'Initials'), ('nl', 'Initialen'))),
-    ('personal.birth_date', 'fixed', 'date', False, False, 'personal', 50, (('en', 'Date of birth'), ('nl', 'Geboortedatum'))),
-    ('personal.age', 'calculated', 'string', False, True, 'personal', 55, (('en', 'Age'), ('nl', 'Leeftijd'))),
-    ('personal.birthday', 'calculated', 'string', False, True, 'personal', 56, (('en', 'Birthday'), ('nl', 'Verjaardag'))),
-    ('personal.birth_day', 'calculated', 'string', False, True, 'personal', 57, (('en', 'Birth day'), ('nl', 'Geboortedag'))),
-    ('personal.birth_month', 'calculated', 'string', False, True, 'personal', 58, (('en', 'Birth month'), ('nl', 'Geboortemaand'))),
-    ('personal.birth_year', 'calculated', 'string', False, True, 'personal', 59, (('en', 'Birth year'), ('nl', 'Geboortejaar'))),
-    ('personal.birth_quarter', 'calculated', 'string', False, True, 'personal', 60, (('en', 'Birth quarter'), ('nl', 'Geboortekwartaal'))),
-    ('personal.gender', 'fixed', 'enum', False, False, 'personal', 60, (('en', 'Gender'), ('nl', 'Geslacht'))),
-    ('personal.email', 'fixed', 'string', False, False, 'personal', 70, (('en', 'Email'), ('nl', 'E-mail'))),
-    ('personal.phone', 'fixed', 'string', False, False, 'personal', 80, (('en', 'Phone'), ('nl', 'Telefoon'))),
-    ('personal.street', 'fixed', 'string', False, False, 'personal', 90, (('en', 'Street'), ('nl', 'Straat'))),
-    ('personal.postal_code', 'fixed', 'string', False, False, 'personal', 100, (('en', 'Postal code'), ('nl', 'Postcode'))),
-    ('personal.city', 'fixed', 'string', False, False, 'personal', 110, (('en', 'City'), ('nl', 'Woonplaats'))),
-    ('personal.country', 'fixed', 'string', False, False, 'personal', 120, (('en', 'Country'), ('nl', 'Land'))),
+    (
+        "membership.member_number",
+        "fixed",
+        "string",
+        False,
+        False,
+        "membership",
+        10,
+        (("en", "Member number"), ("nl", "Lidnummer")),
+    ),
+    (
+        "membership.status",
+        "fixed",
+        "enum",
+        True,
+        False,
+        "membership",
+        20,
+        (("en", "Status"), ("nl", "Status")),
+    ),
+    (
+        "membership.membership_type",
+        "fixed",
+        "reference",
+        True,
+        False,
+        "membership",
+        30,
+        (("en", "Membership type"), ("nl", "Lidmaatschapstype")),
+    ),
+    (
+        "membership.joined_date",
+        "fixed",
+        "date",
+        True,
+        False,
+        "membership",
+        40,
+        (("en", "Joined date"), ("nl", "Ingangsdatum")),
+    ),
+    (
+        "membership.years_member",
+        "calculated",
+        "string",
+        False,
+        True,
+        "membership",
+        45,
+        (("en", "Years member"), ("nl", "Jaren lid")),
+    ),
+    (
+        "membership.created_at",
+        "fixed",
+        "string",
+        False,
+        False,
+        "administrative",
+        90,
+        (("en", "Created at"), ("nl", "Aangemaakt op")),
+    ),
+    (
+        "membership.application_year",
+        "calculated",
+        "string",
+        False,
+        True,
+        "membership",
+        95,
+        (("en", "Application year"), ("nl", "Aanmeldingsjaar")),
+    ),
+    (
+        "membership.updated_at",
+        "fixed",
+        "string",
+        False,
+        False,
+        "administrative",
+        100,
+        (("en", "Updated at"), ("nl", "Bijgewerkt op")),
+    ),
+    (
+        "personal.display_name",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        5,
+        (("en", "Display name"), ("nl", "Korte naam")),
+    ),
+    (
+        "personal.first_name",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        10,
+        (("en", "First name"), ("nl", "Voornaam")),
+    ),
+    (
+        "personal.last_name",
+        "fixed",
+        "string",
+        True,
+        False,
+        "personal",
+        20,
+        (("en", "Last name"), ("nl", "Achternaam")),
+    ),
+    (
+        "personal.name_infix",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        30,
+        (("en", "Name infix"), ("nl", "Tussenvoegsel")),
+    ),
+    (
+        "personal.initials",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        40,
+        (("en", "Initials"), ("nl", "Initialen")),
+    ),
+    (
+        "personal.birth_date",
+        "fixed",
+        "date",
+        False,
+        False,
+        "personal",
+        50,
+        (("en", "Date of birth"), ("nl", "Geboortedatum")),
+    ),
+    (
+        "personal.age",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        55,
+        (("en", "Age"), ("nl", "Leeftijd")),
+    ),
+    (
+        "personal.birthday",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        56,
+        (("en", "Birthday"), ("nl", "Verjaardag")),
+    ),
+    (
+        "personal.birth_day",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        57,
+        (("en", "Birth day"), ("nl", "Geboortedag")),
+    ),
+    (
+        "personal.birth_month",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        58,
+        (("en", "Birth month"), ("nl", "Geboortemaand")),
+    ),
+    (
+        "personal.birth_year",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        59,
+        (("en", "Birth year"), ("nl", "Geboortejaar")),
+    ),
+    (
+        "personal.birth_quarter",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        60,
+        (("en", "Birth quarter"), ("nl", "Geboortekwartaal")),
+    ),
+    (
+        "personal.gender",
+        "fixed",
+        "enum",
+        False,
+        False,
+        "personal",
+        60,
+        (("en", "Gender"), ("nl", "Geslacht")),
+    ),
+    (
+        "personal.email",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        70,
+        (("en", "Email"), ("nl", "E-mail")),
+    ),
+    (
+        "personal.phone",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        80,
+        (("en", "Phone"), ("nl", "Telefoon")),
+    ),
+    (
+        "personal.street",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        90,
+        (("en", "Street"), ("nl", "Straat")),
+    ),
+    (
+        "personal.postal_code",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        100,
+        (("en", "Postal code"), ("nl", "Postcode")),
+    ),
+    (
+        "personal.city",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        110,
+        (("en", "City"), ("nl", "Woonplaats")),
+    ),
+    (
+        "personal.country",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        120,
+        (("en", "Country"), ("nl", "Land")),
+    ),
 ]
 
 # The committed seed overlay (`seed_overlay.build_seed_overlay()`): the address fixed fields move
@@ -926,45 +1244,306 @@ _EMPTY_OVERLAY_PROJECTION = [
 # (field_a string, field_b enum) land under `group_a`. The fixed/calculated base is otherwise
 # identical to the empty-overlay projection above.
 _SEED_OVERLAY_PROJECTION = [
-    ('membership.member_number', 'fixed', 'string', False, False, 'membership', 10, (('en', 'Member number'), ('nl', 'Lidnummer'))),
-    ('membership.status', 'fixed', 'enum', True, False, 'membership', 20, (('en', 'Status'), ('nl', 'Status'))),
-    ('membership.membership_type', 'fixed', 'reference', True, False, 'membership', 30, (('en', 'Membership type'), ('nl', 'Lidmaatschapstype'))),
-    ('membership.joined_date', 'fixed', 'date', True, False, 'membership', 40, (('en', 'Joined date'), ('nl', 'Ingangsdatum'))),
-    ('membership.years_member', 'calculated', 'string', False, True, 'membership', 45, (('en', 'Years member'), ('nl', 'Jaren lid'))),
-    ('membership.created_at', 'fixed', 'string', False, False, 'administrative', 90, (('en', 'Created at'), ('nl', 'Aangemaakt op'))),
-    ('membership.application_year', 'calculated', 'string', False, True, 'membership', 95, (('en', 'Application year'), ('nl', 'Aanmeldingsjaar'))),
-    ('membership.updated_at', 'fixed', 'string', False, False, 'administrative', 100, (('en', 'Updated at'), ('nl', 'Bijgewerkt op'))),
-    ('overlay.field_a', 'variable', 'string', False, False, 'group_a', 10, (('en', 'Field A'), ('nl', 'Veld A'))),
-    ('overlay.field_b', 'variable', 'enum', False, False, 'group_a', 20, (('en', 'Field B'), ('nl', 'Veld B'))),
-    ('personal.display_name', 'calculated', 'string', False, True, 'personal', 5, (('en', 'Display name'), ('nl', 'Korte naam'))),
-    ('personal.first_name', 'fixed', 'string', False, False, 'personal', 10, (('en', 'First name'), ('nl', 'Voornaam'))),
-    ('personal.last_name', 'fixed', 'string', True, False, 'personal', 20, (('en', 'Last name'), ('nl', 'Achternaam'))),
-    ('personal.name_infix', 'fixed', 'string', False, False, 'personal', 30, (('en', 'Name infix'), ('nl', 'Tussenvoegsel'))),
-    ('personal.initials', 'fixed', 'string', False, False, 'personal', 40, (('en', 'Initials'), ('nl', 'Initialen'))),
-    ('personal.birth_date', 'fixed', 'date', False, False, 'personal', 50, (('en', 'Date of birth'), ('nl', 'Geboortedatum'))),
-    ('personal.age', 'calculated', 'string', False, True, 'personal', 55, (('en', 'Age'), ('nl', 'Leeftijd'))),
-    ('personal.birthday', 'calculated', 'string', False, True, 'personal', 56, (('en', 'Birthday'), ('nl', 'Verjaardag'))),
-    ('personal.birth_day', 'calculated', 'string', False, True, 'personal', 57, (('en', 'Birth day'), ('nl', 'Geboortedag'))),
-    ('personal.birth_month', 'calculated', 'string', False, True, 'personal', 58, (('en', 'Birth month'), ('nl', 'Geboortemaand'))),
-    ('personal.birth_year', 'calculated', 'string', False, True, 'personal', 59, (('en', 'Birth year'), ('nl', 'Geboortejaar'))),
-    ('personal.birth_quarter', 'calculated', 'string', False, True, 'personal', 60, (('en', 'Birth quarter'), ('nl', 'Geboortekwartaal'))),
-    ('personal.gender', 'fixed', 'enum', False, False, 'personal', 60, (('en', 'Gender'), ('nl', 'Geslacht'))),
-    ('personal.email', 'fixed', 'string', False, False, 'personal', 70, (('en', 'Email'), ('nl', 'E-mail'))),
-    ('personal.phone', 'fixed', 'string', False, False, 'personal', 80, (('en', 'Phone'), ('nl', 'Telefoon'))),
-    ('personal.street', 'fixed', 'string', False, False, 'address', 90, (('en', 'Street'), ('nl', 'Straat'))),
-    ('personal.postal_code', 'fixed', 'string', False, False, 'address', 100, (('en', 'Postal code'), ('nl', 'Postcode'))),
-    ('personal.city', 'fixed', 'string', False, False, 'address', 110, (('en', 'City'), ('nl', 'Woonplaats'))),
-    ('personal.country', 'fixed', 'string', False, False, 'address', 120, (('en', 'Country'), ('nl', 'Land'))),
+    (
+        "membership.member_number",
+        "fixed",
+        "string",
+        False,
+        False,
+        "membership",
+        10,
+        (("en", "Member number"), ("nl", "Lidnummer")),
+    ),
+    (
+        "membership.status",
+        "fixed",
+        "enum",
+        True,
+        False,
+        "membership",
+        20,
+        (("en", "Status"), ("nl", "Status")),
+    ),
+    (
+        "membership.membership_type",
+        "fixed",
+        "reference",
+        True,
+        False,
+        "membership",
+        30,
+        (("en", "Membership type"), ("nl", "Lidmaatschapstype")),
+    ),
+    (
+        "membership.joined_date",
+        "fixed",
+        "date",
+        True,
+        False,
+        "membership",
+        40,
+        (("en", "Joined date"), ("nl", "Ingangsdatum")),
+    ),
+    (
+        "membership.years_member",
+        "calculated",
+        "string",
+        False,
+        True,
+        "membership",
+        45,
+        (("en", "Years member"), ("nl", "Jaren lid")),
+    ),
+    (
+        "membership.created_at",
+        "fixed",
+        "string",
+        False,
+        False,
+        "administrative",
+        90,
+        (("en", "Created at"), ("nl", "Aangemaakt op")),
+    ),
+    (
+        "membership.application_year",
+        "calculated",
+        "string",
+        False,
+        True,
+        "membership",
+        95,
+        (("en", "Application year"), ("nl", "Aanmeldingsjaar")),
+    ),
+    (
+        "membership.updated_at",
+        "fixed",
+        "string",
+        False,
+        False,
+        "administrative",
+        100,
+        (("en", "Updated at"), ("nl", "Bijgewerkt op")),
+    ),
+    (
+        "overlay.field_a",
+        "variable",
+        "string",
+        False,
+        False,
+        "group_a",
+        10,
+        (("en", "Field A"), ("nl", "Veld A")),
+    ),
+    (
+        "overlay.field_b",
+        "variable",
+        "enum",
+        False,
+        False,
+        "group_a",
+        20,
+        (("en", "Field B"), ("nl", "Veld B")),
+    ),
+    (
+        "personal.display_name",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        5,
+        (("en", "Display name"), ("nl", "Korte naam")),
+    ),
+    (
+        "personal.first_name",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        10,
+        (("en", "First name"), ("nl", "Voornaam")),
+    ),
+    (
+        "personal.last_name",
+        "fixed",
+        "string",
+        True,
+        False,
+        "personal",
+        20,
+        (("en", "Last name"), ("nl", "Achternaam")),
+    ),
+    (
+        "personal.name_infix",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        30,
+        (("en", "Name infix"), ("nl", "Tussenvoegsel")),
+    ),
+    (
+        "personal.initials",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        40,
+        (("en", "Initials"), ("nl", "Initialen")),
+    ),
+    (
+        "personal.birth_date",
+        "fixed",
+        "date",
+        False,
+        False,
+        "personal",
+        50,
+        (("en", "Date of birth"), ("nl", "Geboortedatum")),
+    ),
+    (
+        "personal.age",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        55,
+        (("en", "Age"), ("nl", "Leeftijd")),
+    ),
+    (
+        "personal.birthday",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        56,
+        (("en", "Birthday"), ("nl", "Verjaardag")),
+    ),
+    (
+        "personal.birth_day",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        57,
+        (("en", "Birth day"), ("nl", "Geboortedag")),
+    ),
+    (
+        "personal.birth_month",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        58,
+        (("en", "Birth month"), ("nl", "Geboortemaand")),
+    ),
+    (
+        "personal.birth_year",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        59,
+        (("en", "Birth year"), ("nl", "Geboortejaar")),
+    ),
+    (
+        "personal.birth_quarter",
+        "calculated",
+        "string",
+        False,
+        True,
+        "personal",
+        60,
+        (("en", "Birth quarter"), ("nl", "Geboortekwartaal")),
+    ),
+    (
+        "personal.gender",
+        "fixed",
+        "enum",
+        False,
+        False,
+        "personal",
+        60,
+        (("en", "Gender"), ("nl", "Geslacht")),
+    ),
+    (
+        "personal.email",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        70,
+        (("en", "Email"), ("nl", "E-mail")),
+    ),
+    (
+        "personal.phone",
+        "fixed",
+        "string",
+        False,
+        False,
+        "personal",
+        80,
+        (("en", "Phone"), ("nl", "Telefoon")),
+    ),
+    (
+        "personal.street",
+        "fixed",
+        "string",
+        False,
+        False,
+        "address",
+        90,
+        (("en", "Street"), ("nl", "Straat")),
+    ),
+    (
+        "personal.postal_code",
+        "fixed",
+        "string",
+        False,
+        False,
+        "address",
+        100,
+        (("en", "Postal code"), ("nl", "Postcode")),
+    ),
+    (
+        "personal.city",
+        "fixed",
+        "string",
+        False,
+        False,
+        "address",
+        110,
+        (("en", "City"), ("nl", "Woonplaats")),
+    ),
+    (
+        "personal.country",
+        "fixed",
+        "string",
+        False,
+        False,
+        "address",
+        120,
+        (("en", "Country"), ("nl", "Land")),
+    ),
 ]
 
 # The seed overlay's resolved functional-group catalog: BASE_FUNCTIONAL_GROUPS (personal/address/
 # membership/administrative) ⊕ the seed-only `group_a`, ordered by (order, key).
 _SEED_FUNCTIONAL_GROUPS_PROJECTION = [
-    ('personal', 1, (('en', 'Personal'), ('nl', 'Persoonlijk'))),
-    ('address', 2, (('en', 'Address'), ('nl', 'Adres'))),
-    ('membership', 3, (('en', 'Membership'), ('nl', 'Lidmaatschap'))),
-    ('administrative', 4, (('en', 'Administrative'), ('nl', 'Administratie'))),
-    ('group_a', 5, (('en', 'Group A'), ('nl', 'Groep A'))),
+    ("personal", 1, (("en", "Personal"), ("nl", "Persoonlijk"))),
+    ("address", 2, (("en", "Address"), ("nl", "Adres"))),
+    ("membership", 3, (("en", "Membership"), ("nl", "Lidmaatschap"))),
+    ("administrative", 4, (("en", "Administrative"), ("nl", "Administratie"))),
+    ("group_a", 5, (("en", "Group A"), ("nl", "Groep A"))),
 ]
 
 
@@ -1033,15 +1612,27 @@ def test_every_base_group_is_always_present_with_no_authored_catalog():
         overrides={
             dotted: FixedFieldOverride(functional_group=base_key)
             for dotted, base_key in zip(
-                ("personal.first_name", "personal.city", "membership.member_number", "membership.created_at"),
+                (
+                    "personal.first_name",
+                    "personal.city",
+                    "membership.member_number",
+                    "membership.created_at",
+                ),
                 _BASE_GROUP_KEYS,
             )
         },
     )
-    assert not overlay.functional_groups  # no authored catalog — base set alone fills the rest
+    assert (
+        not overlay.functional_groups
+    )  # no authored catalog — base set alone fills the rest
     cfg = _resolver({"t": overlay}).resolve("t")
     for dotted, base_key in zip(
-        ("personal.first_name", "personal.city", "membership.member_number", "membership.created_at"),
+        (
+            "personal.first_name",
+            "personal.city",
+            "membership.member_number",
+            "membership.created_at",
+        ),
         _BASE_GROUP_KEYS,
     ):
         assert cfg.field(dotted).functional_group == base_key
@@ -1061,11 +1652,17 @@ def test_tenant_collision_wins_without_displacing_the_other_base_keys():
             "motor": FunctionalGroup(key="motor", label={"en": "Motor"}, order=9),
         },
         overrides={
-            "membership.created_at": FixedFieldOverride(functional_group="administrative"),  # collided base key
-            "personal.city": FixedFieldOverride(functional_group="membership"),              # other base key, still valid
+            "membership.created_at": FixedFieldOverride(
+                functional_group="administrative"
+            ),  # collided base key
+            "personal.city": FixedFieldOverride(
+                functional_group="membership"
+            ),  # other base key, still valid
         },
         fields={
-            "motor_brand": OverlayField(key="motor_brand", functional_group="motor"),         # tenant-only key
+            "motor_brand": OverlayField(
+                key="motor_brand", functional_group="motor"
+            ),  # tenant-only key
         },
     )
     cfg = _resolver({"t": overlay}).resolve("t")
@@ -1087,15 +1684,21 @@ def test_merge_rule_resolved_set_is_exactly_base_union_tenant_keys():
     # dangling reference and raises. One overlay exercises both sides of the membership test.
     tenant_only_key = "motor"
     overlay_valid = TenantOverlay(
-        functional_groups={tenant_only_key: FunctionalGroup(key=tenant_only_key, order=9)},
+        functional_groups={
+            tenant_only_key: FunctionalGroup(key=tenant_only_key, order=9)
+        },
     )
     cfg = _resolver(
         {
             "t": TenantOverlay(
                 functional_groups=overlay_valid.functional_groups,
                 overrides={
-                    "personal.city": FixedFieldOverride(functional_group="personal"),   # ∈ base
-                    "membership.created_at": FixedFieldOverride(functional_group=tenant_only_key),  # ∈ tenant
+                    "personal.city": FixedFieldOverride(
+                        functional_group="personal"
+                    ),  # ∈ base
+                    "membership.created_at": FixedFieldOverride(
+                        functional_group=tenant_only_key
+                    ),  # ∈ tenant
                 },
             )
         }
@@ -1107,7 +1710,9 @@ def test_merge_rule_resolved_set_is_exactly_base_union_tenant_keys():
     outside = "neither_base_nor_tenant"
     assert outside not in _BASE_GROUP_KEYS
     overlay_bad = TenantOverlay(
-        functional_groups={tenant_only_key: FunctionalGroup(key=tenant_only_key, order=9)},
+        functional_groups={
+            tenant_only_key: FunctionalGroup(key=tenant_only_key, order=9)
+        },
         overrides={"personal.city": FixedFieldOverride(functional_group=outside)},
     )
     with pytest.raises(OverlayError) as exc:
@@ -1150,10 +1755,13 @@ def test_admin_may_relax_every_platform_required_fixed_field():
     # Req 1.1/1.2/1.4 (Property 3): EVERY platform-required fixed field — last_name, status,
     # membership_type, joined_date — can be made optional by an override, all in ONE overlay,
     # with no OverlayError. The resolver obeys the admin on all of them, not just one.
-    assert _PLATFORM_REQUIRED_FIXED  # guard: the registry still has required fixed fields
+    assert (
+        _PLATFORM_REQUIRED_FIXED
+    )  # guard: the registry still has required fixed fields
     overlay = TenantOverlay(
         overrides={
-            dotted: FixedFieldOverride(required=False) for dotted in _PLATFORM_REQUIRED_FIXED
+            dotted: FixedFieldOverride(required=False)
+            for dotted in _PLATFORM_REQUIRED_FIXED
         }
     )
     cfg = _resolver({"t": overlay}).resolve("t")
@@ -1172,7 +1780,8 @@ def test_admin_may_tighten_every_platform_optional_fixed_field():
     assert _PLATFORM_OPTIONAL_FIXED
     overlay = TenantOverlay(
         overrides={
-            dotted: FixedFieldOverride(required=True) for dotted in _PLATFORM_OPTIONAL_FIXED
+            dotted: FixedFieldOverride(required=True)
+            for dotted in _PLATFORM_OPTIONAL_FIXED
         }
     )
     cfg = _resolver({"t": overlay}).resolve("t")
@@ -1194,7 +1803,9 @@ _ALL_FIXED_DOTTED = tuple(f.dotted_key() for f in FIXED_FIELDS)
         max_size=len(_ALL_FIXED_DOTTED),
     )
 )
-def test_property3_admin_authored_requiredness_is_obeyed_verbatim_for_any_field(required_by_field):
+def test_property3_admin_authored_requiredness_is_obeyed_verbatim_for_any_field(
+    required_by_field,
+):
     # Property 3 (Validates: Requirements 1.1, 1.2, 1.4): for an ARBITRARY admin-authored
     # {fixed field → required bool} overlay, resolve NEVER raises on a requiredness choice, and
     # the resolved `required` of every authored field equals EXACTLY the admin's value — the
@@ -1206,7 +1817,9 @@ def test_property3_admin_authored_requiredness_is_obeyed_verbatim_for_any_field(
             for dotted, value in required_by_field.items()
         }
     )
-    cfg = _resolver({"t": overlay}).resolve("t")  # must not raise OverlayError for ANY combination
+    cfg = _resolver({"t": overlay}).resolve(
+        "t"
+    )  # must not raise OverlayError for ANY combination
     for dotted, value in required_by_field.items():
         resolved = cfg.field(dotted)
         assert resolved is not None

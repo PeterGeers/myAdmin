@@ -33,19 +33,21 @@ from datetime import datetime, timezone
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from sam.members.domain._membership_errors import MemberValidationError
 from sam.members.domain.consent_notice import StaticConsentNoticeProvider
 from sam.members.domain.error_codes import CONSENT_REQUIRED
-from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     StaticOverlayProvider,
     TenantOverlay,
 )
+from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.membership_service import MembershipService
 
 # Reuse the task-2.2 fake repo (member store + first-wins session claim + catalog surface) and
@@ -71,7 +73,12 @@ def _overlay_public_form() -> TenantOverlay:
                 application_visible=True,
                 # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE options.
                 options=(
-                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Regular"}, allowed=True, order=10),
+                    EnumOption(
+                        value="gewoon",
+                        label={"nl": "Gewoon", "en": "Regular"},
+                        allowed=True,
+                        order=10,
+                    ),
                 ),
             ),
         },
@@ -202,11 +209,20 @@ class TestServerAuthoritativeStamp:
         )
         assert rec["consent"]["accepted_at"] != "1999-01-01T00:00:00+00:00"
         stamped = datetime.fromisoformat(rec["consent"]["accepted_at"])
-        assert stamped.year >= 2024  # a real server timestamp, not the client's 1999 value
+        assert (
+            stamped.year >= 2024
+        )  # a real server timestamp, not the client's 1999 value
 
     @pytest.mark.parametrize(
         "submitted, expected",
-        [("en", "en"), ("nl", "nl"), ("EN", "en"), (" nl ", "nl"), ("de", "nl"), (None, "nl")],
+        [
+            ("en", "en"),
+            ("nl", "nl"),
+            ("EN", "en"),
+            (" nl ", "nl"),
+            ("de", "nl"),
+            (None, "nl"),
+        ],
     )
     def test_locale_is_the_normalized_applicant_locale(self, submitted, expected):
         # R12.1a: the recorded consent locale is the normalized applicant locale (task 5.1).
@@ -283,8 +299,11 @@ class _NoticeReader:
 
     @staticmethod
     def reader(consent_notice):
-        from sam.members.repository.projection_config_reader import MembersProjectionReader
         from services import projection_schema as schema
+
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
 
         row = {
             schema.PARTITION_KEY_ATTR: TENANT,
@@ -292,7 +311,9 @@ class _NoticeReader:
         }
         if consent_notice is not None:
             row["consent_notice"] = consent_notice
-        r = MembersProjectionReader(table=object())  # table never queried (cache pre-seeded)
+        r = MembersProjectionReader(
+            table=object()
+        )  # table never queried (cache pre-seeded)
         r._partition_cache[TENANT] = [row]
         return r
 
@@ -300,7 +321,10 @@ class _NoticeReader:
 class TestReaderAccessors:
     def test_well_formed_notice_is_returned(self):
         reader = _NoticeReader.reader(
-            {"version": "v1", "text": {"nl": "Privacyverklaring", "en": "Privacy notice"}}
+            {
+                "version": "v1",
+                "text": {"nl": "Privacyverklaring", "en": "Privacy notice"},
+            }
         )
         notice = reader.get_consent_notice(TENANT)
         assert notice == {
@@ -310,7 +334,9 @@ class TestReaderAccessors:
         assert reader.get_consent_notice_version(TENANT) == "v1"
 
     def test_absent_notice_resolves_to_none(self):
-        reader = _NoticeReader.reader(None)  # config#mail row present, no consent_notice attr
+        reader = _NoticeReader.reader(
+            None
+        )  # config#mail row present, no consent_notice attr
         assert reader.get_consent_notice(TENANT) is None
         assert reader.get_consent_notice_version(TENANT) is None
 
@@ -334,4 +360,7 @@ class TestReaderAccessors:
         reader = _NoticeReader.reader(
             {"version": "v1", "text": {"nl": "ok", "en": "   ", "de": 5}}
         )
-        assert reader.get_consent_notice(TENANT) == {"version": "v1", "text": {"nl": "ok"}}
+        assert reader.get_consent_notice(TENANT) == {
+            "version": "v1",
+            "text": {"nl": "ok"},
+        }

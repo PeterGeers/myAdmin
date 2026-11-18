@@ -129,7 +129,7 @@ class S3TemplateBodyStore:
             return None
         try:
             response = self.client.get_object(Bucket=self.bucket, Key=key)
-        except Exception as exc:  # noqa: BLE001 - narrow to not-found below, re-raise the rest
+        except Exception as exc:
             if _is_not_found(exc):
                 return None
             raise

@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any
 
 from sam.members.handler._dispatch_services import (
     UNHANDLED,
-    _query_flag,
     _parse_page_size,
     _require_path_param,
     _write_body,
@@ -35,10 +34,10 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 
 def dispatch_members(
-    service: "MembershipService",
+    service: MembershipService,
     spec: RouteSpec,
     request: ParsedRequest,
-    ctx: "RequestContext",
+    ctx: RequestContext,
 ) -> Any:
     """Delegate a MEMBER / MEMBERSHIP / PAYMENT / CATALOG / DELEGATE route, or :data:`UNHANDLED`."""
     tenant_id = ctx.tenant_id

@@ -24,14 +24,16 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.migration.membership_type_catalog_to_field_options import (  # noqa: E402
+from sam.members.migration.membership_type_catalog_to_field_options import (
     DOTTED_MEMBERSHIP_TYPE_KEY,
     CatalogEntry,
     fold_catalog_into_options,
@@ -60,7 +62,9 @@ def _real_catalog() -> list[CatalogEntry]:
 # ── Load the Task-7.1 integrity scan module (scripts/ is not an importable package) ──────────
 def _load_scan_module():
     path = os.path.join(_REPO_ROOT, "scripts", "scan_membership_type_integrity.py")
-    spec = importlib.util.spec_from_file_location("scan_membership_type_integrity", path)
+    spec = importlib.util.spec_from_file_location(
+        "scan_membership_type_integrity", path
+    )
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -88,7 +92,10 @@ def test_fold_maps_each_catalog_entry_to_one_option_with_value_label_order_allow
         "overig",
     }
     # value = type_code, label carried through, order carried through.
-    assert by_value["gewoon_lid"]["label"] == {"nl": "Gewoon lid", "en": "Regular member"}
+    assert by_value["gewoon_lid"]["label"] == {
+        "nl": "Gewoon lid",
+        "en": "Regular member",
+    }
     assert by_value["gewoon_lid"]["order"] == 10
     assert by_value["gewoon_lid"]["allowed"] is True
 
@@ -140,7 +147,10 @@ def test_strip_removes_choices_when_options_coexist_including_region():
     }
     cleaned, touched = strip_forbidden_choices(overrides)
     assert "choices" not in cleaned["demographics.region"]
-    assert cleaned["demographics.region"]["options"] == [{"value": "noord"}, {"value": "zuid"}]
+    assert cleaned["demographics.region"]["options"] == [
+        {"value": "noord"},
+        {"value": "zuid"},
+    ]
     assert touched == ["demographics.region"]
 
 
@@ -234,7 +244,9 @@ def test_row_with_retired_code_still_allowed_true_needs_fold():
     overrides = _folded_overrides()
     for o in overrides[DOTTED_MEMBERSHIP_TYPE_KEY]["options"]:
         if o["value"] == "erelid":
-            o["allowed"] = True  # retired but still offered -> must be re-folded to false
+            o["allowed"] = (
+                True  # retired but still offered -> must be re-folded to false
+            )
     assert row_needs_fold(overrides, _real_catalog()) is True
 
 
@@ -246,7 +258,9 @@ def test_row_with_retired_code_still_allowed_true_needs_fold():
 @pytest.mark.unit
 def test_plan_folds_catalog_and_strips_region_choices_in_one_pass():
     overrides = {
-        DOTTED_MEMBERSHIP_TYPE_KEY: {"application_visible": True},  # pre-fold: flags only
+        DOTTED_MEMBERSHIP_TYPE_KEY: {
+            "application_visible": True
+        },  # pre-fold: flags only
         "demographics.region": {
             "scope": {"enabled": True},
             "choices": ["Noord"],
@@ -260,8 +274,13 @@ def test_plan_folds_catalog_and_strips_region_choices_in_one_pass():
     mt = plan.new_overrides[DOTTED_MEMBERSHIP_TYPE_KEY]
     assert mt["application_visible"] is True
     assert {o["value"] for o in mt["options"]} == {
-        "gewoon_lid", "gezins_lid", "erelid", "donateur",
-        "gezins_donateur", "sponsor", "overig",
+        "gewoon_lid",
+        "gezins_lid",
+        "erelid",
+        "donateur",
+        "gezins_donateur",
+        "sponsor",
+        "overig",
     }
     # region choices stripped, options kept.
     assert "choices" not in plan.new_overrides["demographics.region"]
@@ -301,7 +320,10 @@ def test_plan_preserves_unrelated_override_attributes_verbatim():
     mt = plan.new_overrides[DOTTED_MEMBERSHIP_TYPE_KEY]
     assert mt["required"] is True and mt["application_visible"] is True
     # an unrelated field is untouched.
-    assert plan.new_overrides["personal.gender"] == {"type": "enum", "options": [{"value": "f"}]}
+    assert plan.new_overrides["personal.gender"] == {
+        "type": "enum",
+        "options": [{"value": "f"}],
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -324,7 +346,9 @@ def test_integrity_scan_passes_over_the_folded_output():
     folded_entry = plan.new_overrides[DOTTED_MEMBERSHIP_TYPE_KEY]
 
     # Feed the migration's OWN output through the scan's extractor + core (the EXPAND->VERIFY gate).
-    field_options = scan.extract_field_options({"overrides": {DOTTED_MEMBERSHIP_TYPE_KEY: folded_entry}})
+    field_options = scan.extract_field_options(
+        {"overrides": {DOTTED_MEMBERSHIP_TYPE_KEY: folded_entry}}
+    )
     catalog_rows = [scan.CatalogRow.from_raw(r) for r in fx["catalog_rows"]]
     result = scan.scan_membership_type(
         "h-dcn",
@@ -356,10 +380,12 @@ def test_integrity_scan_passes_over_the_folded_output():
 # (catalog read against an empty/wrong source) this would print SKIP and `options: []`, so the test
 # would FAIL — which is exactly the gap that let the bug through.
 
-import io  # noqa: E402
+import io
 
-from sam.members.migration.membership_type_catalog_to_field_options import run  # noqa: E402
-from sam.members.domain.membership_type_catalog import MembershipTypeEntry  # noqa: E402
+from sam.members.domain.membership_type_catalog import MembershipTypeEntry
+from sam.members.migration.membership_type_catalog_to_field_options import (
+    run,
+)
 
 
 class _FakeProjectionTable:
@@ -466,7 +492,14 @@ def test_run_dry_run_wires_catalog_from_members_repo_not_projection_table():
     assert "SKIP" not in output
     # The resulting option values are LISTED for owner verification, with erelid flagged retired.
     assert "erelid (retired)" in output
-    for code in ("gewoon_lid", "gezins_lid", "donateur", "gezins_donateur", "sponsor", "overig"):
+    for code in (
+        "gewoon_lid",
+        "gezins_lid",
+        "donateur",
+        "gezins_donateur",
+        "sponsor",
+        "overig",
+    ):
         assert code in output
     assert "options: []" not in output
     # Dry-run writes NOTHING.

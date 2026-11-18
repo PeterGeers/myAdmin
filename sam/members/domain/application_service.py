@@ -80,7 +80,7 @@ class ApplicationService:
 
     def __init__(
         self,
-        membership_service: "MembershipService",
+        membership_service: MembershipService,
         mail_readiness_provider: MailReadinessProvider | None = None,
     ) -> None:
         self._service = membership_service
@@ -138,7 +138,7 @@ class ApplicationService:
         session_key: str,
         locale: str | None = None,
         consent: Mapping[str, Any] | None = None,
-    ) -> "Member":
+    ) -> Member:
         """Land a public applicant's submission as a ``status=application`` member (task 2.2).
 
         Delegates to :meth:`MembershipService.create_application` — the authoritative create

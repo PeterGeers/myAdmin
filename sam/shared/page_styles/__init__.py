@@ -395,9 +395,7 @@ def _build_page_css(
 {_build_application_form_css(color_primary, color_accent)}"""
 
 
-def _build_application_form_css(
-    color_primary: str, color_accent: str
-) -> str:
+def _build_application_form_css(color_primary: str, color_accent: str) -> str:
     """Build the application-form CSS block (bugfix ``bugfix-published-form-styling`` DD-B1).
 
     This is the ADDITIVE block that makes the PUBLISHED form genuinely carry the tenant's

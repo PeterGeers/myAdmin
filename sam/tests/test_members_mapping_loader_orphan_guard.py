@@ -34,7 +34,9 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # repo root + backend/src on sys.path (mirrors the sibling exploration test + sam/conftest.py).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -43,7 +45,9 @@ if _BACKEND_SRC not in sys.path:
 
 # The h-dcn scripts dir carries the CSV + its two loaders; on sys.path so they import as
 # top-level modules (mirrors test_hdcn_backfill.py and the exploration test).
-_HDCN_SCRIPTS_DIR = os.path.join(_REPO_ROOT, "scripts", "onboarding", "members", "h-dcn")
+_HDCN_SCRIPTS_DIR = os.path.join(
+    _REPO_ROOT, "scripts", "onboarding", "members", "h-dcn"
+)
 if _HDCN_SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _HDCN_SCRIPTS_DIR)
 
@@ -87,7 +91,9 @@ class TestOrphanGuardRaises:
     Validates: Requirements 2.5
     """
 
-    def test_load_mapping_contract_raises_for_declared_unmapped_overlay_field(self, tmp_path):
+    def test_load_mapping_contract_raises_for_declared_unmapped_overlay_field(
+        self, tmp_path
+    ):
         orphan_config = {
             "field_overlay": {
                 "fields": {
@@ -100,7 +106,9 @@ class TestOrphanGuardRaises:
             }
         }
         # The mapping maps only a fixed field, so the declared overlay field has NO backing.
-        mapping_path = _write_mapping(tmp_path, "Voornaam,0,personal.first_name,single,x\n")
+        mapping_path = _write_mapping(
+            tmp_path, "Voornaam,0,personal.first_name,single,x\n"
+        )
 
         with pytest.raises(MappingContractError) as exc:
             load_mapping_contract(mapping_path, config=orphan_config)
@@ -174,7 +182,8 @@ class TestDriftGuardStillRaises:
         with pytest.raises(MappingContractError) as exc:
             load_mapping_contract(mapping_path, config=config)
         assert any(
-            "drift guard" in e.lower() and "undeclared_field" in e for e in exc.value.errors
+            "drift guard" in e.lower() and "undeclared_field" in e
+            for e in exc.value.errors
         ), exc.value.errors
 
 

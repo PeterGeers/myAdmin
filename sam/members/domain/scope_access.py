@@ -168,7 +168,9 @@ def resolve_scope_access(
     # (1) No dimension or a disabled one → the tenant-wide collapse (R3.2). No code path
     #     differs for an un-partitioned tenant.
     if dimension is None or not dimension.enabled:
-        return ScopeAccess(full_access=True, allowed_scopes=[WILDCARD], access_type="all")
+        return ScopeAccess(
+            full_access=True, allowed_scopes=[WILDCARD], access_type="all"
+        )
 
     roles = set(user_roles)
 
@@ -206,5 +208,9 @@ def resolve_scope_access_for_config(
     disabled-dimension rule gives, because an un-partitioned tenant has nothing to scope by.
     """
     if config.is_tenant_wide():
-        return ScopeAccess(full_access=True, allowed_scopes=[WILDCARD], access_type="all")
-    return resolve_scope_access(config.tenant_id, config.dimension(dimension_key), user_roles)
+        return ScopeAccess(
+            full_access=True, allowed_scopes=[WILDCARD], access_type="all"
+        )
+    return resolve_scope_access(
+        config.tenant_id, config.dimension(dimension_key), user_roles
+    )

@@ -84,13 +84,13 @@ from services.dynamodb_client import REGION_ENV_VAR, require_env
 from sam.members.domain.form_slug import validate_slug_format
 
 __all__ = [
+    "KNOWN_KINDS",
     "LANDING_PAGES_BUCKET_ENV_VAR",
     "SLUG_MARKER_PREFIX",
-    "KNOWN_KINDS",
-    "SlugClaimConflict",
-    "SlugTaken",
-    "SlugMarker",
     "S3SlugMarkerStore",
+    "SlugClaimConflict",
+    "SlugMarker",
+    "SlugTaken",
     "is_reserved_slug",
     "resolve_public_pages_bucket_name",
     "validate_slug_fast_fail",
@@ -163,7 +163,7 @@ class SlugMarker:
         ).encode("utf-8")
 
     @classmethod
-    def from_mapping(cls, data: Any) -> "SlugMarker | None":
+    def from_mapping(cls, data: Any) -> SlugMarker | None:
         """Build a marker from a parsed JSON body, or ``None`` if it is not a structured marker.
 
         Fail-safe: a body that is not a mapping, or that lacks a non-blank ``tenant_id``, returns
@@ -356,7 +356,7 @@ class S3SlugMarkerStore:
                 # returns a 412 PreconditionFailed (ClientError) when something is already there.
                 IfNoneMatch="*",
             )
-        except Exception as exc:  # noqa: BLE001 - narrow to precondition-failed below, re-raise rest
+        except Exception as exc:
             if _is_precondition_failed(exc):
                 raise SlugClaimConflict(slug) from exc
             raise
@@ -402,7 +402,7 @@ class S3SlugMarkerStore:
                 "and cannot be claimed as a page slug"
             )
         if not isinstance(owner, SlugMarker):
-            raise ValueError("owner must be a SlugMarker to claim a slug")
+            raise ValueError("owner must be a SlugMarker to claim a slug")  # noqa: TRY004
         for name in ("owner_plane", "kind", "tenant_id"):
             value = getattr(owner, name)
             if not isinstance(value, str) or not value.strip():
@@ -422,7 +422,7 @@ class S3SlugMarkerStore:
                 # returns a 412 PreconditionFailed (ClientError) when something is already there.
                 IfNoneMatch="*",
             )
-        except Exception as exc:  # noqa: BLE001 - narrow to precondition-failed below, re-raise rest
+        except Exception as exc:
             if _is_precondition_failed(exc):
                 # The slug is already claimed. Decide idempotent re-publish vs foreign conflict from
                 # the EXISTING marker BODY (Property 2) — never by parsing the slug string.
@@ -504,7 +504,7 @@ class S3SlugMarkerStore:
             return None
         try:
             response = self.client.get_object(Bucket=self.bucket, Key=_marker_key(slug))
-        except Exception as exc:  # noqa: BLE001 - a missing marker is "no match", not an error
+        except Exception as exc:
             if _is_not_found(exc):
                 return None
             raise
@@ -562,7 +562,7 @@ class S3SlugMarkerStore:
             return None
         try:
             response = self.client.get_object(Bucket=self.bucket, Key=_marker_key(slug))
-        except Exception as exc:  # noqa: BLE001 - a missing marker is "no match", not an error
+        except Exception as exc:
             if _is_not_found(exc):
                 return None
             raise

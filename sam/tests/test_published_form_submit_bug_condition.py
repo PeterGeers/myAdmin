@@ -54,7 +54,7 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.application_form_render import (  # noqa: E402
+from sam.members.domain.application_form_render import (
     build_form_body_html,
     render_application_form_page,
 )
@@ -64,9 +64,7 @@ _SLUG = "hdcn-aanmelden"
 
 #: The backend public submit endpoint the published artifact MUST call (design Property 1 / R5.5).
 #: A fixed artifact references this path (with the slug substituted) inside its submit script.
-_SUBMIT_PATH_RE = re.compile(
-    r"/public/members/[^/\"'\s]+/applications", re.IGNORECASE
-)
+_SUBMIT_PATH_RE = re.compile(r"/public/members/[^/\"'\s]+/applications", re.IGNORECASE)
 
 
 # ── The scoped input space: a REPRESENTATIVE public field config ──────────────────────
@@ -105,9 +103,16 @@ def _public_field_configs(draw):
     Guaranteed to carry the IBAN format field, a non-empty `locales`, and a `notice.version` so
     every draw exercises SUBMIT + FORMAT + CONSENT_LOCALE at once.
     """
-    extras = draw(st.lists(_PLAIN_FIELD, min_size=0, max_size=3, unique_by=lambda f: f["key"]))
+    extras = draw(
+        st.lists(_PLAIN_FIELD, min_size=0, max_size=3, unique_by=lambda f: f["key"])
+    )
     locales = draw(
-        st.lists(st.sampled_from(["nl", "en", "de", "fr"]), min_size=1, max_size=4, unique=True)
+        st.lists(
+            st.sampled_from(["nl", "en", "de", "fr"]),
+            min_size=1,
+            max_size=4,
+            unique=True,
+        )
     )
     version = draw(st.sampled_from(["v1", "2024-01", "3", "notice-7"]))
     return {
@@ -149,16 +154,16 @@ def _render(config):
 
 @settings(max_examples=25)
 @given(config=_public_field_configs())
-def test_submit_published_artifact_prevents_native_post_and_posts_json_to_backend(config):
+def test_submit_published_artifact_prevents_native_post_and_posts_json_to_backend(
+    config,
+):
     artifact = _render(config)
     body = build_form_body_html(config)
 
     # Documented root-cause fact (the buggy shape we observe): the unfixed body IS a bare
     # method="post" form with a submit button and no action. (Not asserted as the property — it is
     # the current defect; pinning it in the message documents the counterexample.)
-    bare_native_form = bool(
-        re.search(r'<form[^>]*method="post"', body, re.IGNORECASE)
-    )
+    bare_native_form = bool(re.search(r'<form[^>]*method="post"', body, re.IGNORECASE))
 
     has_prevent_default = "preventDefault" in artifact
     has_submit_script = "<script" in artifact and (
@@ -189,7 +194,9 @@ def test_submit_published_artifact_prevents_native_post_and_posts_json_to_backen
 
 @settings(max_examples=25)
 @given(config=_public_field_configs())
-def test_format_published_artifact_wires_client_side_iban_check_for_the_iban_field(config):
+def test_format_published_artifact_wires_client_side_iban_check_for_the_iban_field(
+    config,
+):
     artifact = _render(config)
 
     # A fixed artifact references the IBAN checker semantics for the `iban` field: either the
@@ -198,7 +205,9 @@ def test_format_published_artifact_wires_client_side_iban_check_for_the_iban_fie
     mentions_iban_checker = "IBAN" in artifact or "iban" in artifact.lower()
     wires_iban_check = mentions_iban_checker and (
         "<script" in artifact
-        and ("format" in artifact or "checker" in artifact or "mod97" in artifact.lower())
+        and (
+            "format" in artifact or "checker" in artifact or "mod97" in artifact.lower()
+        )
     )
 
     assert wires_iban_check, (
@@ -236,9 +245,9 @@ def test_consent_locale_published_artifact_renders_consent_bound_to_notice_and_l
 
     # Locale selector: a <select>/control exposing the config's `locales`. The unfixed render has
     # no locale selector — the applicant cannot pick a locale the backend requires on submit.
-    renders_locale_selector = ("locale" in artifact.lower() or "lang" in artifact.lower()) and all(
-        loc in artifact for loc in locales
-    )
+    renders_locale_selector = (
+        "locale" in artifact.lower() or "lang" in artifact.lower()
+    ) and all(loc in artifact for loc in locales)
 
     assert renders_consent and renders_locale_selector, (
         "BUG (CONSENT_LOCALE facet): the PUBLISHED artifact renders NEITHER a consent control "

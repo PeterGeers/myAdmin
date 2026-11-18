@@ -35,7 +35,9 @@ import subprocess
 import sys
 import textwrap
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 
 # The child-process prelude installs the SAME mysql block the conftest installs, drops any
 # warm ``mysql`` module, and wires the SAM plane's sys.path (repo root + backend/src +

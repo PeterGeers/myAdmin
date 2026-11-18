@@ -39,7 +39,9 @@ import sys
 import pytest
 
 # repo root + backend/src on sys.path (mirrors the sibling write-repo test).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -77,7 +79,12 @@ def _conditional_check_failed() -> ClientError:
     ``mail_send_adapters.py``), so the fake raises the genuine type DynamoDB would.
     """
     return ClientError(
-        {"Error": {"Code": "ConditionalCheckFailedException", "Message": "The conditional request failed"}},
+        {
+            "Error": {
+                "Code": "ConditionalCheckFailedException",
+                "Message": "The conditional request failed",
+            }
+        },
         "UpdateItem",
     )
 
@@ -234,10 +241,16 @@ class TestCombinedExpressionBuild:
         repo = _make_repo(table, version="v-2")
 
         ops = [
-            {"action": SET, "path": ["overrides", "personal.gender", "label"], "value": "Gender"},
+            {
+                "action": SET,
+                "path": ["overrides", "personal.gender", "label"],
+                "value": "Gender",
+            },
             {"action": REMOVE, "path": ["fields", "nickname"]},
         ]
-        result = repo.apply_ops(_TENANT_ID, schema.CONFIG_ID_FIELDS, ops, base_version="v1")
+        result = repo.apply_ops(
+            _TENANT_ID, schema.CONFIG_ID_FIELDS, ops, base_version="v1"
+        )
 
         call = table.update_calls[-1]
         expr = call["UpdateExpression"]
@@ -712,7 +725,9 @@ class TestTruncationTripwireAllowsLegitimateDeletes:
             base_version="v1",
         )
         assert result["version"] == "v-2"
-        assert "personal.gender" not in table.store[(_TENANT_ID, _FIELDS_SK)]["overrides"]
+        assert (
+            "personal.gender" not in table.store[(_TENANT_ID, _FIELDS_SK)]["overrides"]
+        )
 
     def test_multiple_explicit_deletes_drop_count_by_exactly_that_many(self):
         """Two whole-entry deletes in one request drop the field count by exactly two — allowed.
@@ -794,7 +809,11 @@ class TestTruncationTripwireRefusesSilentShrink:
         # simulate the whole-map replace a buggy caller might emit: SET the "fields" PARENT itself
         # to a smaller map. This drops field entries with NO delete op.
         buggy_ops = [
-            {"action": SET, "path": ["fields"], "value": {"nickname": {"key": "nickname"}}},
+            {
+                "action": SET,
+                "path": ["fields"],
+                "value": {"nickname": {"key": "nickname"}},
+            },
         ]
         with pytest.raises(TruncationTripwireError):
             repo.apply_ops(
@@ -842,7 +861,9 @@ class TestTruncationTripwireRefusesSilentShrink:
         Validates: Requirement 11.5
         """
         table = ConditionalFakeTable()
-        table.seed(_populated_fields_row(version="v1"))  # fields: nickname, shoe_size (2)
+        table.seed(
+            _populated_fields_row(version="v1")
+        )  # fields: nickname, shoe_size (2)
         repo = _make_repo(table, version="v-2")
 
         # overrides has 1 entry; delete it (legit, +1 allowed drop) but ALSO a buggy whole-fields
@@ -850,7 +871,11 @@ class TestTruncationTripwireRefusesSilentShrink:
         # base = 3, explicit deletes = 1 → allowed floor = 2 > 1 → refused.
         buggy_ops = [
             {"action": REMOVE, "path": ["overrides", "personal.gender"]},
-            {"action": SET, "path": ["fields"], "value": {"nickname": {"key": "nickname"}}},
+            {
+                "action": SET,
+                "path": ["fields"],
+                "value": {"nickname": {"key": "nickname"}},
+            },
         ]
         with pytest.raises(TruncationTripwireError):
             repo.apply_ops(

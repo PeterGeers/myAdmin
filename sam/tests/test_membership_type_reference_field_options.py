@@ -29,7 +29,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -93,7 +95,9 @@ def _record(membership_type):
 # Two allowed options + one retired (grandfathered) option, ordered.
 def _options_two_allowed_one_retired():
     return [
-        EnumOption(value="gewoon_lid", label={"nl": "Gewoon lid"}, allowed=True, order=10),
+        EnumOption(
+            value="gewoon_lid", label={"nl": "Gewoon lid"}, allowed=True, order=10
+        ),
         EnumOption(value="donateur", label={"nl": "Donateur"}, allowed=True, order=30),
         EnumOption(value="erelid", label={"nl": "Erelid"}, allowed=False, order=20),
     ]
@@ -104,16 +108,22 @@ def _options_two_allowed_one_retired():
 
 class TestReferenceAgainstFieldOptions:
     def test_unknown_value_is_rejected_unknown_reference(self):
-        service = _service(_overlay_with_inline_options(_options_two_allowed_one_retired()))
+        service = _service(
+            _overlay_with_inline_options(_options_two_allowed_one_retired())
+        )
         with pytest.raises(MemberValidationError) as exc:
-            service._validate_membership_type_reference(TENANT, _record("does-not-exist"))
+            service._validate_membership_type_reference(
+                TENANT, _record("does-not-exist")
+            )
         assert (
             exc.value.errors[MEMBERSHIP_TYPE_FIELD_KEY].code
             == MEMBERSHIP_TYPE_UNKNOWN_REFERENCE
         )
 
     def test_allowed_option_value_is_accepted(self):
-        service = _service(_overlay_with_inline_options(_options_two_allowed_one_retired()))
+        service = _service(
+            _overlay_with_inline_options(_options_two_allowed_one_retired())
+        )
         # No raise = accepted.
         service._validate_membership_type_reference(TENANT, _record("gewoon_lid"))
         service._validate_membership_type_reference(TENANT, _record("donateur"))
@@ -121,19 +131,27 @@ class TestReferenceAgainstFieldOptions:
     def test_retired_option_value_is_rejected_retired(self):
         # `erelid` is a KNOWN option but allowed:false → retired, not assignable to a new/changed
         # record (Req 3.2 grandfather: it has left the picker).
-        service = _service(_overlay_with_inline_options(_options_two_allowed_one_retired()))
+        service = _service(
+            _overlay_with_inline_options(_options_two_allowed_one_retired())
+        )
         with pytest.raises(MemberValidationError) as exc:
             service._validate_membership_type_reference(TENANT, _record("erelid"))
-        assert exc.value.errors[MEMBERSHIP_TYPE_FIELD_KEY].code == MEMBERSHIP_TYPE_RETIRED
+        assert (
+            exc.value.errors[MEMBERSHIP_TYPE_FIELD_KEY].code == MEMBERSHIP_TYPE_RETIRED
+        )
 
     def test_blank_value_is_not_our_concern(self):
         # Absence/blank is the fixed-field required rule's concern, not the reference check.
-        service = _service(_overlay_with_inline_options(_options_two_allowed_one_retired()))
+        service = _service(
+            _overlay_with_inline_options(_options_two_allowed_one_retired())
+        )
         service._validate_membership_type_reference(TENANT, _record(None))
         service._validate_membership_type_reference(TENANT, _record("   "))
 
     def test_error_message_names_the_field_and_is_caller_safe(self):
-        service = _service(_overlay_with_inline_options(_options_two_allowed_one_retired()))
+        service = _service(
+            _overlay_with_inline_options(_options_two_allowed_one_retired())
+        )
         with pytest.raises(MemberValidationError) as exc:
             service._validate_membership_type_reference(TENANT, _record("ghost"))
         assert MEMBERSHIP_TYPE_FIELD_KEY in exc.value.errors
@@ -153,14 +171,16 @@ class TestGrandfatherPreserved:
         # type must stay valid. We model the guard the caller applies: the reference check is NOT
         # invoked when the value is unchanged — so directly invoking it on the unchanged retired
         # value would reject, but the caller never does. Assert the two halves:
-        service = _service(_overlay_with_inline_options(_options_two_allowed_one_retired()))
+        service = _service(
+            _overlay_with_inline_options(_options_two_allowed_one_retired())
+        )
         # (a) the stored retired value would be rejected IF re-validated (it is retired)...
         with pytest.raises(MemberValidationError):
             service._validate_membership_type_reference(TENANT, _record("erelid"))
         # (b) ...but the value-changed-only guard means an unchanged value is not re-validated.
-        unchanged = service._membership_type_of(_record("erelid")) == service._membership_type_of(
+        unchanged = service._membership_type_of(
             _record("erelid")
-        )
+        ) == service._membership_type_of(_record("erelid"))
         assert unchanged is True  # equal → the caller skips the reference check
 
 
@@ -171,7 +191,9 @@ class TestDefaultFromFieldOptions:
     def test_default_is_first_allowed_true_option_by_order(self):
         # gewoon_lid(order 10, allowed) < erelid(order 20, retired) < donateur(order 30, allowed).
         # The default is the first ALLOWED option by order → gewoon_lid (erelid is skipped).
-        service = _service(_overlay_with_inline_options(_options_two_allowed_one_retired()))
+        service = _service(
+            _overlay_with_inline_options(_options_two_allowed_one_retired())
+        )
         assert service._default_membership_type(TENANT) == "gewoon_lid"
 
     def test_default_skips_retired_option_even_when_lowest_order(self):

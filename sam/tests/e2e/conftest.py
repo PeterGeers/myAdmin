@@ -48,7 +48,7 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
 # The committed real-data fixture (NOT hand-built) — steering 39 "prove against real data".
 _FIXTURE_PATH = os.path.join(

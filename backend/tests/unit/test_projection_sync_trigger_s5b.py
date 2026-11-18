@@ -156,13 +156,21 @@ class TestConfigChangeTriggersSync:
             patch("routes.parameter_admin_routes.DatabaseManager"),
             patch("routes.parameter_admin_routes._get_service"),
         ]
-        with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6] as svc:
+        with (
+            mocks[0],
+            mocks[1],
+            mocks[2],
+            mocks[3],
+            mocks[4],
+            mocks[5],
+            mocks[6] as svc,
+        ):
             svc.return_value = MagicMock()
             resp = param_client.post(
                 "/api/tenant-admin/parameters",
                 json={
                     "scope": "tenant",
-                    "namespace": "members",
+                    "namespace": "general",
                     "key": "enabled",
                     "value": True,
                     "value_type": "boolean",
@@ -183,13 +191,21 @@ class TestConfigChangeTriggersSync:
             patch("routes.parameter_admin_routes.DatabaseManager"),
             patch("routes.parameter_admin_routes._get_service"),
         ]
-        with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6] as svc:
+        with (
+            mocks[0],
+            mocks[1],
+            mocks[2],
+            mocks[3],
+            mocks[4],
+            mocks[5],
+            mocks[6] as svc,
+        ):
             svc.return_value = MagicMock()
             resp = param_client.post(
                 "/api/tenant-admin/parameters",
                 json={
                     "scope": "system",
-                    "namespace": "members",
+                    "namespace": "general",
                     "key": "enabled",
                     "value": True,
                     "value_type": "boolean",
@@ -211,7 +227,7 @@ class TestConfigChangeTriggersSync:
             {
                 "scope": "tenant",
                 "scope_id": "TestTenant",
-                "namespace": "members",
+                "namespace": "general",
                 "key": "enabled",
                 "value_type": "boolean",
                 "is_secret": False,
@@ -224,7 +240,15 @@ class TestConfigChangeTriggersSync:
             ),
             patch("routes.parameter_admin_routes._get_service"),
         ]
-        with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6] as svc:
+        with (
+            mocks[0],
+            mocks[1],
+            mocks[2],
+            mocks[3],
+            mocks[4],
+            mocks[5],
+            mocks[6] as svc,
+        ):
             svc.return_value = MagicMock()
             resp = param_client.put(
                 "/api/tenant-admin/parameters/42",
@@ -244,7 +268,7 @@ class TestConfigChangeTriggersSync:
             {
                 "scope": "system",
                 "scope_id": "_system_",
-                "namespace": "members",
+                "namespace": "general",
                 "key": "enabled",
                 "value_type": "boolean",
                 "is_secret": False,
@@ -257,7 +281,15 @@ class TestConfigChangeTriggersSync:
             ),
             patch("routes.parameter_admin_routes._get_service"),
         ]
-        with mocks[0], mocks[1], mocks[2], mocks[3], mocks[4], mocks[5], mocks[6] as svc:
+        with (
+            mocks[0],
+            mocks[1],
+            mocks[2],
+            mocks[3],
+            mocks[4],
+            mocks[5],
+            mocks[6] as svc,
+        ):
             svc.return_value = MagicMock()
             resp = param_client.put(
                 "/api/tenant-admin/parameters/7",
@@ -277,7 +309,7 @@ class TestConfigChangeTriggersSync:
             {
                 "scope": "tenant",
                 "scope_id": "TestTenant",
-                "namespace": "members",
+                "namespace": "general",
                 "key": "enabled",
             }
         ]
@@ -311,7 +343,7 @@ class TestConfigChangeTriggersSync:
             {
                 "scope": "system",
                 "scope_id": "_system_",
-                "namespace": "members",
+                "namespace": "general",
                 "key": "enabled",
             }
         ]
@@ -405,9 +437,7 @@ class TestReconciliationBackstop:
     config/grant signal is re-projected on the next pass.
     """
 
-    def test_reconcile_runs_sync_all_backstop_for_missed_signal(
-        self, injected_trigger
-    ):
+    def test_reconcile_runs_sync_all_backstop_for_missed_signal(self, injected_trigger):
         result = reconcile()
 
         assert injected_trigger.sync_all_calls == 1

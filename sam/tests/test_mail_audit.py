@@ -122,9 +122,7 @@ class TestBuildMailAuditRecord:
     def test_valid_output_kinds_mirror_the_flask_helper_set(self):
         # The SAM sink classifies output actions identically to the Flask helper so records
         # from both planes are greppable as one group.
-        assert VALID_OUTPUT_KINDS == frozenset(
-            {"csv_export", "pdf_labels", "ses_mail"}
-        )
+        assert VALID_OUTPUT_KINDS == frozenset({"csv_export", "pdf_labels", "ses_mail"})
 
 
 # ── log_analytics_output: the emitting callable ─────────────────────────────────────────
@@ -209,7 +207,7 @@ class TestLogAnalyticsOutput:
         assert _access_log_payloads(caplog)[0]["attended"] is False
 
     def test_invalid_kind_raises_before_emitting(self, caplog):
-        with caplog.at_level(logging.INFO, logger="sam.members.worker.mail_audit"):
+        with caplog.at_level(logging.INFO, logger="sam.members.worker.mail_audit"):  # noqa: SIM117
             with pytest.raises(ValueError, match="Unknown analytics output_kind"):
                 log_analytics_output(
                     actor="run-1",

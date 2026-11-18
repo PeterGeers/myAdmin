@@ -98,7 +98,9 @@ class ExplodingRepo:
     def list_members(self, *a, **k):  # pragma: no cover - must never be called
         raise AssertionError("ad-hoc send must not re-fetch members")
 
-    def create_mail_run(self, tenant_id, run_id, *, mode, triggered_by, recipient_count):
+    def create_mail_run(
+        self, tenant_id, run_id, *, mode, triggered_by, recipient_count
+    ):
         key = (tenant_id, run_id)
         if key in self.mail_runs:
             return self.mail_runs[key]
@@ -241,7 +243,10 @@ class TestAdHocPerRecipient:
 
         by_addr = {job.recipients[0]: job for job in queue.jobs}
         assert by_addr["ava@example.com"].merge_values["first_name"] == "Ava"
-        assert by_addr["ava@example.com"].merge_values["personal.email"] == "ava@example.com"
+        assert (
+            by_addr["ava@example.com"].merge_values["personal.email"]
+            == "ava@example.com"
+        )
         assert by_addr["ben@example.com"].merge_values["first_name"] == "Ben"
 
     def test_skips_rows_with_no_resolvable_address(self, queue):
