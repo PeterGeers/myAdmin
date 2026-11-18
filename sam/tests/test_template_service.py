@@ -123,7 +123,9 @@ class TestTemplateServiceCrud:
         nl = got["languages"]["nl"]
         assert nl["subject"] == "Dag {{first_name}}"
         assert "s3_body_key" in nl
-        assert "Beste {{first_name}}" in nl["body_html"]  # body resolved, not just the key
+        assert (
+            "Beste {{first_name}}" in nl["body_html"]
+        )  # body resolved, not just the key
 
     def test_list_stays_metadata_only_no_body(self, service):
         # list_templates is the cheap metadata path (picker labels only) — it must NOT load
@@ -153,7 +155,10 @@ class TestTemplateServiceCrud:
             {
                 "name": "Renamed",
                 "languages": {
-                    "nl": {"subject": "Hoi {{first_name}}", "body_html": "<p>Nieuw {{first_name}}</p>"}
+                    "nl": {
+                        "subject": "Hoi {{first_name}}",
+                        "body_html": "<p>Nieuw {{first_name}}</p>",
+                    }
                 },
             },
         )
@@ -208,7 +213,11 @@ class TestTemplateServiceLabelCrud:
     def test_create_label_persists_kind_and_lines_no_bodies(self, service, body_store):
         result = service.create_template("h-dcn", _label_body(), created_by="sub-1")
         assert result["kind"] == "label"
-        assert result["lines"] == [["display_name"], ["street"], ["postal_code", "city"]]
+        assert result["lines"] == [
+            ["display_name"],
+            ["street"],
+            ["postal_code", "city"],
+        ]
         # A label has no mail body → no languages, no merge fields.
         assert result["languages"] == {}
         assert result["merge_fields"] == []
@@ -230,7 +239,11 @@ class TestTemplateServiceLabelCrud:
         listed = service.list_templates("h-dcn")
         assert len(listed) == 1
         assert listed[0]["kind"] == "label"
-        assert listed[0]["lines"] == [["display_name"], ["street"], ["postal_code", "city"]]
+        assert listed[0]["lines"] == [
+            ["display_name"],
+            ["street"],
+            ["postal_code", "city"],
+        ]
 
     def test_create_label_sanitizes_blank_keys_and_lines(self, service):
         # Blank field keys dropped from a line; a line left empty is dropped entirely.
@@ -255,7 +268,9 @@ class TestTemplateServiceLabelCrud:
                 "h-dcn", {"name": "No lines", "kind": "label", "lines": []}
             )
 
-    def test_update_label_lines_preserves_attribution_and_bumps_updated_at(self, service):
+    def test_update_label_lines_preserves_attribution_and_bumps_updated_at(
+        self, service
+    ):
         created = service.create_template("h-dcn", _label_body(), created_by="sub-1")
         tid = created["template_id"]
         updated = service.update_template(
@@ -292,14 +307,20 @@ class TestTemplateServiceRenderWithMerge:
 
     def test_render_two_recipients_personalizes_each(self, service):
         tid = service.create_template("h-dcn", _create_body())["template_id"]
-        a = service.render_for_recipient("h-dcn", tid, "en", {"first_name": "Ava", "membership_type": "lid"})
-        b = service.render_for_recipient("h-dcn", tid, "en", {"first_name": "Ben", "membership_type": "erelid"})
+        a = service.render_for_recipient(
+            "h-dcn", tid, "en", {"first_name": "Ava", "membership_type": "lid"}
+        )
+        b = service.render_for_recipient(
+            "h-dcn", tid, "en", {"first_name": "Ben", "membership_type": "erelid"}
+        )
         assert a.body_html == "<p>Dear Ava, type lid.</p>"
         assert b.body_html == "<p>Dear Ben, type erelid.</p>"
 
     def test_render_absent_merge_value_does_not_leak_placeholder(self, service):
         tid = service.create_template("h-dcn", _create_body())["template_id"]
-        rendered = service.render_for_recipient("h-dcn", tid, "nl", {"first_name": "Ava"})
+        rendered = service.render_for_recipient(
+            "h-dcn", tid, "nl", {"first_name": "Ava"}
+        )
         # membership_type missing → filled with the default (""), never a raw {{ }}.
         assert "{{" not in rendered.body_html
         assert rendered.body_html == "<p>Beste Ava, type .</p>"

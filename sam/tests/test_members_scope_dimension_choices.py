@@ -56,7 +56,10 @@ REGION_VALUES = (
 @pytest.fixture()
 def catalog_repo() -> FakeCatalogRepository:
     r = FakeCatalogRepository()
-    r.add_type(TENANT, _entry(TENANT, "gewoon", label={"nl": "Gewoon", "en": "Ordinary"}, order=10))
+    r.add_type(
+        TENANT,
+        _entry(TENANT, "gewoon", label={"nl": "Gewoon", "en": "Ordinary"}, order=10),
+    )
     return r
 
 
@@ -112,7 +115,11 @@ class TestScopeDimensionSourcesChoices:
     ):
         # h-dcn's real case: region is a choiceless enum; the region dimension carries values.
         overlay = _overlay_with_choiceless_enum("region")
-        dims = [ScopeDimension(key="region", values=REGION_VALUES, required_for=("Members_CRUD",))]
+        dims = [
+            ScopeDimension(
+                key="region", values=REGION_VALUES, required_for=("Members_CRUD",)
+            )
+        ]
         svc = _service(overlay, dims, catalog_repo)
 
         config = svc.get_field_config(TENANT)  # was: raises OverlayError (→ 502)
@@ -138,17 +145,25 @@ class TestScopeDimensionSourcesChoices:
         field = _field(config, "woonregio")
         assert field["options"] == _rich(REGION_VALUES)
 
-    def test_get_field_config_multiple_dimensions_fill_multiple_fields(self, catalog_repo):
+    def test_get_field_config_multiple_dimensions_fill_multiple_fields(
+        self, catalog_repo
+    ):
         # Two enabled dimensions binding two different choiceless overlay enums → BOTH filled.
         overlay = TenantOverlay(
             fields={
                 "region": OverlayField(
-                    key="region", type=FieldType.ENUM, label={"nl": "Regio", "en": "Region"},
-                    functional_group="membership", order=10,
+                    key="region",
+                    type=FieldType.ENUM,
+                    label={"nl": "Regio", "en": "Region"},
+                    functional_group="membership",
+                    order=10,
                 ),
                 "team": OverlayField(
-                    key="team", type=FieldType.ENUM, label={"nl": "Team", "en": "Team"},
-                    functional_group="membership", order=20,
+                    key="team",
+                    type=FieldType.ENUM,
+                    label={"nl": "Team", "en": "Team"},
+                    functional_group="membership",
+                    order=20,
                 ),
             }
         )
@@ -163,22 +178,26 @@ class TestScopeDimensionSourcesChoices:
         assert _field(config, "region")["options"] == _rich(REGION_VALUES)
         assert _field(config, "team")["options"] == _rich(("A", "B", "C"))
 
-    def test_get_field_config_non_dimension_enum_without_choices_still_raises(self, catalog_repo):
+    def test_get_field_config_non_dimension_enum_without_choices_still_raises(
+        self, catalog_repo
+    ):
         # CONTROL (R1.4): a choiceless enum that is NOT a scope dimension is still a config bug.
         overlay = _overlay_with_choiceless_enum("motor_brand")  # not a dimension
         dims = [ScopeDimension(key="region", values=REGION_VALUES)]
         svc = _service(overlay, dims, catalog_repo)
 
-        with pytest.raises(Exception):  # OverlayError surfaces the genuine misconfig
+        with pytest.raises(Exception):  # noqa: B017
             svc.get_field_config(TENANT)
 
-    def test_get_field_config_disabled_dimension_does_not_source_choices(self, catalog_repo):
+    def test_get_field_config_disabled_dimension_does_not_source_choices(
+        self, catalog_repo
+    ):
         # A DISABLED dimension must not source choices → the choiceless enum stays invalid.
         overlay = _overlay_with_choiceless_enum("region")
         dims = [ScopeDimension(key="region", values=REGION_VALUES, enabled=False)]
         svc = _service(overlay, dims, catalog_repo)
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             svc.get_field_config(TENANT)
 
 
@@ -191,8 +210,13 @@ class TestFieldConfigEmitsDimensions:
 
     def test_dimensions_array_carries_enabled_dimension_values(self, catalog_repo):
         overlay = _overlay_with_choiceless_enum("region")
-        dims = [ScopeDimension(key="region", label={"nl": "Regio", "en": "Region"},
-                               values=REGION_VALUES)]
+        dims = [
+            ScopeDimension(
+                key="region",
+                label={"nl": "Regio", "en": "Region"},
+                values=REGION_VALUES,
+            )
+        ]
         svc = _service(overlay, dims, catalog_repo)
 
         config = svc.get_field_config(TENANT)
@@ -248,14 +272,20 @@ class TestRegionChangeGatedValidation:
         # Rebuild a ResolvedFieldConfig-like path is internal; drive via the write validator.
         errors: dict = {}
         # Access the resolved config object (not the serialized dict) via the resolver.
-        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))
+        resolved = svc._field_resolver.resolve(
+            TENANT, scope_vocab=svc._scope_vocab(TENANT)
+        )
         MS._reject_invalid_overlay_enum_values(resolved, _member("Oost"), errors)
         assert errors == {}
 
-    def test_reject_invalid_overlay_enum_values_create_region_not_in_values_errors(self, svc):
+    def test_reject_invalid_overlay_enum_values_create_region_not_in_values_errors(
+        self, svc
+    ):
         from sam.members.domain.membership_service import MembershipService as MS
 
-        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))
+        resolved = svc._field_resolver.resolve(
+            TENANT, scope_vocab=svc._scope_vocab(TENANT)
+        )
         errors: dict = {}
         MS._reject_invalid_overlay_enum_values(resolved, _member("Atlantis"), errors)
         assert "overlay.region" in errors
@@ -263,7 +293,9 @@ class TestRegionChangeGatedValidation:
     def test_reject_invalid_overlay_enum_values_update_unchanged_legacy_ok(self, svc):
         from sam.members.domain.membership_service import MembershipService as MS
 
-        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))
+        resolved = svc._field_resolver.resolve(
+            TENANT, scope_vocab=svc._scope_vocab(TENANT)
+        )
         legacy = _member("Groningen/Drente")  # old spelling, not in the current values
         errors: dict = {}
         MS._reject_invalid_overlay_enum_values(
@@ -271,10 +303,14 @@ class TestRegionChangeGatedValidation:
         )
         assert errors == {}  # unchanged legacy value tolerated
 
-    def test_reject_invalid_overlay_enum_values_update_change_to_invalid_errors(self, svc):
+    def test_reject_invalid_overlay_enum_values_update_change_to_invalid_errors(
+        self, svc
+    ):
         from sam.members.domain.membership_service import MembershipService as MS
 
-        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))
+        resolved = svc._field_resolver.resolve(
+            TENANT, scope_vocab=svc._scope_vocab(TENANT)
+        )
         previous = _member("Oost")
         changed = _member("Atlantis")
         errors: dict = {}
@@ -286,7 +322,9 @@ class TestRegionChangeGatedValidation:
     def test_reject_invalid_overlay_enum_values_update_legacy_to_valid_ok(self, svc):
         from sam.members.domain.membership_service import MembershipService as MS
 
-        resolved = svc._field_resolver.resolve(TENANT, scope_vocab=svc._scope_vocab(TENANT))
+        resolved = svc._field_resolver.resolve(
+            TENANT, scope_vocab=svc._scope_vocab(TENANT)
+        )
         previous = _member("Groningen/Drente")  # legacy
         changed = _member("Groningen/Drenthe")  # corrected, in values
         errors: dict = {}
@@ -317,11 +355,13 @@ class TestAppWiresScopeConfigProviderIntoService:
         # Drive the SAME projection-override seams the read path uses (conftest pattern), so the
         # app's `_ProjectionScopeConfigProvider` / `_ProjectionOverlayProvider` resolve to these.
         monkeypatch.setattr(
-            members_app, "_OVERLAY_PROVIDER_OVERRIDE",
+            members_app,
+            "_OVERLAY_PROVIDER_OVERRIDE",
             StaticOverlayProvider({TENANT: overlay}),
         )
         monkeypatch.setattr(
-            members_app, "_SCOPE_CONFIG_PROVIDER_OVERRIDE",
+            members_app,
+            "_SCOPE_CONFIG_PROVIDER_OVERRIDE",
             StaticScopeConfigProvider({TENANT: dims}),
         )
         # Rebuild the module singleton so it captures the (now overridden) providers, over a

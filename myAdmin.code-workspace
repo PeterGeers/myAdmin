@@ -18,10 +18,10 @@
 				"driver": "MySQL",
 				"name": "myAdmin",
 				"database": "finance",
-				"username": "peter",
-				"password": "REDACTED"
+				"username": "peter"
 			}
 		],
-		"typescript.autoClosingTags": false
+		"typescript.autoClosingTags": false,
+		"python.analysis.excludeLibraryDiagnostics": true
 	}
 }

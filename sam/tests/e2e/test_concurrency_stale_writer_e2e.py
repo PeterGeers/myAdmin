@@ -69,15 +69,15 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
-from sam.members.domain.config_fields_crud_service import (  # noqa: E402
+from sam.members.domain.config_fields_crud_service import (
     ConfigFieldsCrudService,
 )
-from sam.members.repository.projection_config_reader import (  # noqa: E402
+from sam.members.repository.projection_config_reader import (
     MembersProjectionReader,
 )
-from sam.members.repository.projection_config_write_repository import (  # noqa: E402
+from sam.members.repository.projection_config_write_repository import (
     SET,
     MembersConfigWriteRepository,
     StaleVersionError,
@@ -115,7 +115,9 @@ def _service(table) -> ConfigFieldsCrudService:
     snapshots — which is exactly what the two-client stale-writer scenario needs.
     """
     reader = MembersProjectionReader(table=table)
-    repository = MembersConfigWriteRepository(table=table, version_fn=_monotonic_version)
+    repository = MembersConfigWriteRepository(
+        table=table, version_fn=_monotonic_version
+    )
     return ConfigFieldsCrudService(repository, reader=reader)
 
 
@@ -164,7 +166,13 @@ def test_two_clients_one_base_version_second_rejected_atomically_repository(conc
     _repo(table).apply_ops(
         _CONC_TENANT,
         schema.CONFIG_ID_FIELDS,
-        [{"action": SET, "path": ["fields", "a_field"], "value": {"key": "a_field", "order": 1}}],
+        [
+            {
+                "action": SET,
+                "path": ["fields", "a_field"],
+                "value": {"key": "a_field", "order": 1},
+            }
+        ],
         base_version=base_a,
     )
     bumped = _current_version(table, _CONC_TENANT)
@@ -187,8 +195,12 @@ def test_two_clients_one_base_version_second_rejected_atomically_repository(conc
 
     row = _raw_row(table, _CONC_TENANT)
     assert "a_field" in row["fields"], "client A's change must stand"
-    assert "b_field" not in row["fields"], "the stale client B must make NO partial change"
-    assert row[schema.VERSION_ATTR] == bumped, "a rejected write must not bump the version again"
+    assert "b_field" not in row["fields"], (
+        "the stale client B must make NO partial change"
+    )
+    assert row[schema.VERSION_ATTR] == bumped, (
+        "a rejected write must not bump the version again"
+    )
 
 
 def test_two_clients_one_base_version_second_rejected_atomically_service(conc_table):
@@ -237,7 +249,9 @@ class _ping_pong_service:
 
     def __init__(self, table):
         self._table = table
-        self._repo = MembersConfigWriteRepository(table=table, version_fn=_monotonic_version)
+        self._repo = MembersConfigWriteRepository(
+            table=table, version_fn=_monotonic_version
+        )
         self._primed = None
 
     def prime(self, tenant_id, field_key, attrs):
@@ -257,7 +271,13 @@ class _ping_pong_service:
                     for k, v in attrs.items()
                 ]
             else:
-                ops = [{"action": SET, "path": ["fields", field_key], "value": {"key": field_key, **attrs}}]
+                ops = [
+                    {
+                        "action": SET,
+                        "path": ["fields", field_key],
+                        "value": {"key": field_key, **attrs},
+                    }
+                ]
             return self._repo.apply_ops(
                 tenant_id, schema.CONFIG_ID_FIELDS, ops, base_version=base
             )
@@ -289,7 +309,13 @@ def test_idempotent_replay_same_op_id_returns_success_no_double_apply(conc_table
     first = repo.apply_ops(
         _CONC_TENANT,
         schema.CONFIG_ID_FIELDS,
-        [{"action": SET, "path": ["fields", "shirt_size"], "value": {"key": "shirt_size", "order": 9}}],
+        [
+            {
+                "action": SET,
+                "path": ["fields", "shirt_size"],
+                "value": {"key": "shirt_size", "order": 9},
+            }
+        ],
         base_version=base,
         client_op_id="op-replay-1",
     )
@@ -302,12 +328,20 @@ def test_idempotent_replay_same_op_id_returns_success_no_double_apply(conc_table
     replay = repo.apply_ops(
         _CONC_TENANT,
         schema.CONFIG_ID_FIELDS,
-        [{"action": SET, "path": ["fields", "shirt_size"], "value": {"key": "shirt_size", "order": 9}}],
+        [
+            {
+                "action": SET,
+                "path": ["fields", "shirt_size"],
+                "value": {"key": "shirt_size", "order": 9},
+            }
+        ],
         base_version=base,  # stale — the pre-write base
         client_op_id="op-replay-1",  # SAME id that already applied
     )
     assert replay["idempotent_replay"] is True
-    assert replay["version"] == applied_version, "replay returns the already-applied version"
+    assert replay["version"] == applied_version, (
+        "replay returns the already-applied version"
+    )
     # No double apply: the version did not advance past the first write.
     assert _current_version(table, _CONC_TENANT) == applied_version
 
@@ -327,7 +361,13 @@ def test_stale_retry_with_a_different_op_id_is_a_genuine_conflict(conc_table):
     repo.apply_ops(
         _CONC_TENANT,
         schema.CONFIG_ID_FIELDS,
-        [{"action": SET, "path": ["fields", "other"], "value": {"key": "other", "order": 1}}],
+        [
+            {
+                "action": SET,
+                "path": ["fields", "other"],
+                "value": {"key": "other", "order": 1},
+            }
+        ],
         base_version=base,
         client_op_id="op-OTHER",
     )
@@ -339,13 +379,21 @@ def test_stale_retry_with_a_different_op_id_is_a_genuine_conflict(conc_table):
         repo.apply_ops(
             _CONC_TENANT,
             schema.CONFIG_ID_FIELDS,
-            [{"action": SET, "path": ["fields", "ours"], "value": {"key": "ours", "order": 2}}],
+            [
+                {
+                    "action": SET,
+                    "path": ["fields", "ours"],
+                    "value": {"key": "ours", "order": 2},
+                }
+            ],
             base_version=base,
             client_op_id="op-abc",
         )
 
     row = _raw_row(table, _CONC_TENANT)
-    assert row[schema.VERSION_ATTR] == advanced, "the other writer's version stands (no clobber)"
+    assert row[schema.VERSION_ATTR] == advanced, (
+        "the other writer's version stands (no clobber)"
+    )
     assert row["last_client_op_id"] == "op-OTHER"
     assert "ours" not in row["fields"], "the conflicting write made NO partial change"
 
@@ -372,8 +420,16 @@ def test_absent_op_id_on_a_stale_base_is_a_plain_409(conc_table):
         repo.apply_ops(
             _CONC_TENANT,
             schema.CONFIG_ID_FIELDS,
-            [{"action": SET, "path": ["fields", "y"], "value": {"key": "y", "order": 2}}],
+            [
+                {
+                    "action": SET,
+                    "path": ["fields", "y"],
+                    "value": {"key": "y", "order": 2},
+                }
+            ],
             base_version=base,  # stale
             client_op_id=None,  # absent → NO idempotency shortcut
         )
-    assert "y" not in _raw_row(table, _CONC_TENANT)["fields"], "no partial change on a plain 409"
+    assert "y" not in _raw_row(table, _CONC_TENANT)["fields"], (
+        "no partial change on a plain 409"
+    )

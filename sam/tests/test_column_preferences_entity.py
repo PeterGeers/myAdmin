@@ -131,9 +131,7 @@ class TestColumnPreferencesRoundTrip:
         assert rebuilt.columns == ["years_member", "membership.region"]
 
     def test_from_item_defaults_absent_columns_to_empty(self):
-        rebuilt = ColumnPreferences.from_item(
-            {"tenant_id": "h-dcn", "sub": "s"}
-        )
+        rebuilt = ColumnPreferences.from_item({"tenant_id": "h-dcn", "sub": "s"})
         assert rebuilt.columns == []
         assert rebuilt.updated_at == ""
 

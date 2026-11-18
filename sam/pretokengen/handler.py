@@ -77,7 +77,9 @@ from typing import Any
 # The deploy bundle vendors backend/src/auth/* + backend/src/services/* onto the
 # artifact; adding backend/src here makes `import auth.*` / `import services.*`
 # resolve in local test, CI, and the deployed Lambda alike.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)

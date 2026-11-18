@@ -45,7 +45,9 @@ def _run_import_with_flask_hidden(import_stmt: str) -> subprocess.CompletedProce
     submodule) so the import genuinely fails the way the Flask-free Lambda/CI
     environment would — without uninstalling anything from the current venv.
     """
-    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    repo_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    )
     backend_src = os.path.join(repo_root, "backend", "src")
 
     prelude = textwrap.dedent(

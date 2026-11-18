@@ -216,7 +216,9 @@ def test_verify_token_unknown_kid_refetches_once_then_rejects(registry, signing_
     assert fetch_calls["n"] == 2
 
 
-def test_verify_token_unknown_kid_refetch_finds_rotated_key_accepts(registry, signing_key):
+def test_verify_token_unknown_kid_refetch_finds_rotated_key_accepts(
+    registry, signing_key
+):
     """If the refetch surfaces the new kid, the token verifies (rotation success)."""
     old_only = {"keys": [_jwk_from_private_key(signing_key, TEST_KID)]}
     rotated_key = _generate_rsa_key()

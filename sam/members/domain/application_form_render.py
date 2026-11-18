@@ -62,7 +62,7 @@ from typing import Any
 from sam.shared.page_shell import render_page
 from sam.shared.page_styles import render_page_styles
 
-__all__ = ["render_application_form_page", "build_form_body_html"]
+__all__ = ["build_form_body_html", "render_application_form_page"]
 
 # Fallback brand colours (match the Flask shell's defaults so a tenant with no branding
 # still renders a coherent, on-brand page — parity with generate_index_html).

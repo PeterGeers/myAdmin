@@ -2007,7 +2007,7 @@ class TestGetLookAndFeel:
     Validates: Requirements 2.1, 2.4, 8.4
     """
 
-    _FULL = {
+    _FULL = {  # noqa: RUF012
         "color_primary": "#2D5F8A",
         "color_accent": "#F4A261",
         "font_heading": "Inter",
@@ -2102,10 +2102,14 @@ class TestGetLookAndFeel:
         """Each tenant's look-and-feel answers only from its own partition (Req 2.4 / Property 8)."""
         table = FakeTable()
         table.put(
-            _config_fields_item_with_look_and_feel("tenant-a", {"color_primary": "#AAAAAA"})
+            _config_fields_item_with_look_and_feel(
+                "tenant-a", {"color_primary": "#AAAAAA"}
+            )
         )
         table.put(
-            _config_fields_item_with_look_and_feel("tenant-b", {"color_primary": "#BBBBBB"})
+            _config_fields_item_with_look_and_feel(
+                "tenant-b", {"color_primary": "#BBBBBB"}
+            )
         )
         reader = MembersProjectionReader(table=table)
         assert reader.get_look_and_feel("tenant-a") == {"color_primary": "#AAAAAA"}

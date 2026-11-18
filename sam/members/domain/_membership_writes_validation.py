@@ -105,7 +105,7 @@ def effective_application_required(field: ResolvedField) -> bool:
     # the single predicate so render and enforce agree on it (and the prune need not special-case
     # the dotted key separately — though it does, belt-and-braces, so membership_type can never
     # be dropped).
-    if dotted == MEMBERSHIP_TYPE_FIELD_KEY and field.application_visible:
+    if dotted == MEMBERSHIP_TYPE_FIELD_KEY and field.application_visible:  # noqa: SIM103
         return True
     # Everything else is NOT required on the public form. This explicitly includes the
     # server-stamped keys (membership keys in APPLICATION_SERVER_SET_MEMBERSHIP_KEYS, plus
@@ -512,7 +512,7 @@ class ValidationMixin:
             value = ValidationMixin._record_value(record, field)
             if value is None or (isinstance(value, str) and not value.strip()):
                 continue
-            if previous is not None:
+            if previous is not None:  # noqa: SIM102
                 # UPDATE: only enforce when the value actually changed (tolerate legacy).
                 if ValidationMixin._record_value(previous, field) == value:
                     continue

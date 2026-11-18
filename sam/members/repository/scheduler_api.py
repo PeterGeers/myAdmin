@@ -59,21 +59,22 @@ scheduler and assert the create/delete call shape, never touching EventBridge.
 from __future__ import annotations
 
 import json
-from typing import Any, Mapping, Protocol, runtime_checkable
+from collections.abc import Mapping
+from typing import Any, Protocol, runtime_checkable
 
 from services.dynamodb_client import REGION_ENV_VAR, require_env
 
 __all__ = [
-    "SCHEDULER_EXECUTION_ROLE_ARN_ENV_VAR",
     "SCHEDULER_EVENT_SOURCE",
+    "SCHEDULER_EXECUTION_ROLE_ARN_ENV_VAR",
     "SCHEDULER_GROUP_NAME_ENV_VAR",
     "SCHEDULER_TARGET_FUNCTION_ARN_ENV_VAR",
+    "EventBridgeSchedulerApi",
     "SchedulerApiPort",
-    "build_schedule_target_input",
     "build_schedule_name",
+    "build_schedule_target_input",
     "resolve_scheduler_execution_role_arn",
     "resolve_scheduler_target_function_arn",
-    "EventBridgeSchedulerApi",
 ]
 
 #: The ``source`` discriminator stamped on every scheduled target payload. The scheduler trigger
@@ -320,7 +321,7 @@ class EventBridgeSchedulerApi:
         name = build_schedule_name(tenant_id, schedule_id)
         try:
             self.client.delete_schedule(Name=name, GroupName=self.group_name)
-        except Exception as exc:  # noqa: BLE001 — only a not-found is swallowed; re-raise others
+        except Exception as exc:
             if type(exc).__name__ == "ResourceNotFoundException" or _is_not_found(exc):
                 return
             raise

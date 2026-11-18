@@ -392,12 +392,14 @@ class TemplateEntry:
             # No lines → the dataclass default (empty tuple) so a mail entry rebuilt from a
             # legacy item stays `== ` the original (which also defaults lines to `()`), keeping
             # the round-trip identity test green.
-            lines=tuple(tuple(line) for line in lines) if lines else tuple(),
+            lines=tuple(tuple(line) for line in lines) if lines else (),
         )
 
     def language(self, lang: str) -> TemplateLanguage | None:
         """Return the :class:`TemplateLanguage` for ``lang``, or ``None`` if the template has none."""
-        variant = self.languages.get(lang) if isinstance(self.languages, Mapping) else None
+        variant = (
+            self.languages.get(lang) if isinstance(self.languages, Mapping) else None
+        )
         return variant if isinstance(variant, TemplateLanguage) else None
 
     def sort_order_key(self) -> tuple[str, str]:

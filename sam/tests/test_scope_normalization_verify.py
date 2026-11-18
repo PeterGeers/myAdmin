@@ -30,7 +30,9 @@ import os
 import sys
 from pathlib import Path
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -117,9 +119,9 @@ def test_verify_canonical_equality_accepts_case_diacritic_separator_variants():
     # VARIANT SPELLINGS that canonicalize to a member of the set — R9.6 folds them, so they
     # are NOT offenders (case / whitespace / separator fold via scope_canon).
     members = [
-        _member("M-1", "east"),      # case
-        _member("M-2", " North "),   # surrounding whitespace
-        _member("M-3", "SOUTH"),     # case
+        _member("M-1", "east"),  # case
+        _member("M-2", " North "),  # surrounding whitespace
+        _member("M-3", "SOUTH"),  # case
     ]
     report = verify_scope_normalization(TENANT, members, REGION_DIM)
     assert report.ok is True
@@ -157,8 +159,8 @@ def test_verify_absent_or_blank_region_is_not_an_offender():
     # An absent value is a deny-by-default ABSENCE, not an un-normalizable variant.
     members = [
         _member("M-1", "East"),
-        _member("M-2"),           # no region at all
-        _member("M-3", "   "),    # blank → canonicalizes to "" → excluded from the census
+        _member("M-2"),  # no region at all
+        _member("M-3", "   "),  # blank → canonicalizes to "" → excluded from the census
     ]
     report = verify_scope_normalization(TENANT, members, REGION_DIM)
     assert report.ok is True
@@ -189,7 +191,10 @@ def test_exact_grant_returns_expected_non_empty_subset():
     matched = members_matching_grant(members, ["East"], REGION_DIM)
 
     matched_ids = {m["member_id"] for m in matched}
-    assert matched_ids == {"M-1", "M-3"}  # exactly the Oost members — a non-empty subset
+    assert matched_ids == {
+        "M-1",
+        "M-3",
+    }  # exactly the Oost members — a non-empty subset
     assert len(matched) == 2
 
 
@@ -289,7 +294,11 @@ def test_runner_empty_projection_is_not_onboarded_exits_two():
     repo = _FakeRepo([_member("M-1", "East")])
     empty_reader = _FakeReader(ScopeConfig(tenant_id=TENANT, dimensions=()))
     code = runner.verify(
-        TENANT, region="eu-west-1", dimension_key="region", repo=repo, reader=empty_reader
+        TENANT,
+        region="eu-west-1",
+        dimension_key="region",
+        repo=repo,
+        reader=empty_reader,
     )
     assert code == 2
 
@@ -302,7 +311,11 @@ def test_runner_projection_read_failure_is_system_error_exits_four():
 
     repo = _FakeRepo([_member("M-1", "East")])
     code = runner.verify(
-        TENANT, region="eu-west-1", dimension_key="region", repo=repo, reader=_BrokenReader()
+        TENANT,
+        region="eu-west-1",
+        dimension_key="region",
+        repo=repo,
+        reader=_BrokenReader(),
     )
     assert code == 4
 
@@ -313,6 +326,10 @@ def test_runner_unknown_dimension_exits_two():
     repo = _FakeRepo([_member("M-1", "East")])
     reader = _FakeReader(ScopeConfig(tenant_id=TENANT, dimensions=(REGION_DIM,)))
     code = runner.verify(
-        TENANT, region="eu-west-1", dimension_key="no_such_dim", repo=repo, reader=reader
+        TENANT,
+        region="eu-west-1",
+        dimension_key="no_such_dim",
+        repo=repo,
+        reader=reader,
     )
     assert code == 2  # dimension could not be resolved

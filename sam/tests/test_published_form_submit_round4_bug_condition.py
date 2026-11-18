@@ -36,14 +36,14 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.handler import public_app  # noqa: E402
-from sam.members.repository.slug_marker_store import SlugMarker  # noqa: E402
-from sam.tests.test_public_api_stack_contract import (  # noqa: E402
+from sam.members.handler import public_app
+from sam.members.repository.slug_marker_store import SlugMarker
+from sam.tests.test_public_api_stack_contract import (
     _TEMPLATE_PATH,
     _CfnLoader,
     _CfnTag,
 )
-from sam.tests.test_published_form_submit_round3_bug_condition import (  # noqa: E402
+from sam.tests.test_published_form_submit_round3_bug_condition import (
     _FakeEmbedOriginReader,
     _FakeSlugReader,
 )

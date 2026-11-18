@@ -45,16 +45,16 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 __all__ = [
-    "FREE_MODEL_ALLOW_LIST",
     "DEFAULT_FREE_MODEL",
+    "FREE_MODEL_ALLOW_LIST",
     "AIConfigError",
-    "DisallowedModelError",
     "AIServiceError",
+    "DisallowedModelError",
     "ImproveRequest",
     "ImproveResult",
+    "OpenRouterAdapter",
     "OpenRouterTransport",
     "RequestsOpenRouterTransport",
-    "OpenRouterAdapter",
     "require_env",
     "resolve_model",
 ]
@@ -182,7 +182,9 @@ class OpenRouterTransport(Protocol):
     pure, network-free unit under test.
     """
 
-    def post_completion(self, *, api_key: str, payload: dict) -> dict:  # pragma: no cover - interface
+    def post_completion(
+        self, *, api_key: str, payload: dict
+    ) -> dict:  # pragma: no cover - interface
         ...
 
 
@@ -220,9 +222,7 @@ class RequestsOpenRouterTransport:
             raise AIServiceError(f"OpenRouter request failed: {exc}") from exc
 
         if response.status_code != 200:
-            raise AIServiceError(
-                f"OpenRouter returned HTTP {response.status_code}"
-            )
+            raise AIServiceError(f"OpenRouter returned HTTP {response.status_code}")
         try:
             return response.json()
         except ValueError as exc:  # non-JSON body

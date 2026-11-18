@@ -468,7 +468,7 @@ class ConfigFieldsSlugOpsMixin:
             return None
         try:
             current = reader.get_form_slug(tenant_id)
-        except Exception:  # noqa: BLE001 - a read fault must not block authoring; degrade to "none"
+        except Exception:
             return None
         if isinstance(current, str) and current.strip():
             return current.strip()

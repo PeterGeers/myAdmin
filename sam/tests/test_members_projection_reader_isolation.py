@@ -33,7 +33,9 @@ import os
 import sys
 
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.members` imports.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -125,7 +127,9 @@ def _config_scope_item(tenant_id, dimensions, version=1):
 def _config_fields_item(tenant_id, fields, overrides, version=1):
     return {
         schema.PARTITION_KEY_ATTR: tenant_id,
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, "fields"
+        ),
         "fields": fields,
         "overrides": overrides,
         schema.VERSION_ATTR: version,
@@ -216,7 +220,9 @@ class TestOneQueryPerPartition:
                 "tenant-a", _fields_variable("a_field", {"en": "A field"}), overrides={}
             )
         )
-        table.put(_scopegrant_item("tenant-a", "alice@example.com", "region", ["Noord"]))
+        table.put(
+            _scopegrant_item("tenant-a", "alice@example.com", "region", ["Noord"])
+        )
 
         reader = MembersProjectionReader(table=table)
         reader.get_scope_config("tenant-a")

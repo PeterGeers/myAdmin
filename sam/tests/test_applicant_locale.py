@@ -25,7 +25,9 @@ import sys
 import pytest
 
 # repo root on sys.path (mirrors the other sam/tests modules) so `sam.members...` imports.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -37,7 +39,6 @@ from sam.members.domain.applicant_locale import (
     locale_record_patch,
     normalize_locale,
 )
-
 
 # ── R6b.1 — the supported set (nl/en), nl the default ────────────────────────────────
 
@@ -62,7 +63,9 @@ class TestAcceptsSupported:
         ("raw", "expected"),
         [("EN", "en"), ("NL", "nl"), ("En", "en"), (" en ", "en"), ("  NL", "nl")],
     )
-    def test_supported_value_matched_case_and_whitespace_insensitively(self, raw, expected):
+    def test_supported_value_matched_case_and_whitespace_insensitively(
+        self, raw, expected
+    ):
         # Wrong-case / padded but genuinely supported → canonical lower-case form (R6b.1).
         assert normalize_locale(raw) == expected
 
@@ -74,16 +77,16 @@ class TestFallsBackToNl:
     @pytest.mark.parametrize(
         "value",
         [
-            None,          # missing locale (default, R6b.2)
-            "",            # blank
-            "   ",         # whitespace-only
-            "de",          # supported-looking but unsupported
+            None,  # missing locale (default, R6b.2)
+            "",  # blank
+            "   ",  # whitespace-only
+            "de",  # supported-looking but unsupported
             "fr",
-            "english",     # language name, not a code
-            "nl-NL",       # region-tagged, not the bare supported code
+            "english",  # language name, not a code
+            "nl-NL",  # region-tagged, not the bare supported code
             "xx",
-            123,           # non-string
-            ["nl"],        # non-string container
+            123,  # non-string
+            ["nl"],  # non-string container
             {"locale": "nl"},
             object(),
         ],
@@ -114,7 +117,11 @@ class TestRecordPersistenceContract:
     def test_patch_merges_as_top_level_record_attribute(self):
         # The create spine merges the patch into the record it writes — a flat sibling of
         # status/member_id, not nested (R6b.4, D12).
-        record = {"member_id": "m-1", "status": "application", "personal": {"name": "Jo"}}
+        record = {
+            "member_id": "m-1",
+            "status": "application",
+            "personal": {"name": "Jo"},
+        }
         record.update(locale_record_patch("en"))
         assert record["locale"] == "en"
         assert record["status"] == "application"  # patch touches only the locale key
@@ -124,7 +131,12 @@ class TestRecordPersistenceContract:
         assert locale_of_record({"locale": "nl"}) == "nl"
 
     def test_read_back_round_trips_the_patch(self):
-        for submitted, expected in [("en", "en"), ("nl", "nl"), ("de", "nl"), (None, "nl")]:
+        for submitted, expected in [
+            ("en", "en"),
+            ("nl", "nl"),
+            ("de", "nl"),
+            (None, "nl"),
+        ]:
             record = {"member_id": "m", "status": "application"}
             record.update(locale_record_patch(submitted))
             assert locale_of_record(record) == expected

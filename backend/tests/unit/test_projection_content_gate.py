@@ -515,7 +515,7 @@ def test_sync_heals_wedged_scopegrant_when_content_differs_at_equal_version(sam_
     assert _grant_values_in(table, tenant_id) == _GRANT_STALE
 
     source = _grant_source(tenant_id, sam_module, _GRANT_FRESH)
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     sync.sync_administration(tenant_id)
 
@@ -534,7 +534,7 @@ def test_sync_rerun_unchanged_scopegrant_is_noop(sam_module):
     table = FakeTable()
     params = _grant_params(tenant_id, _GRANT_FRESH)
     source = _grant_source(tenant_id, sam_module, _GRANT_FRESH)
-    sync = ProjectionSync(source, table=table, parameter_service=params)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
 
     first = sync.sync_administration(tenant_id)
     assert first.written > 0

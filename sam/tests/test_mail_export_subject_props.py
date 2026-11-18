@@ -45,11 +45,13 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # repo root on sys.path (mirrors sam/conftest.py + the sibling tests) so `sam.members` imports.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from sam.members.worker.mail_send_worker import (  # noqa: E402
+from sam.members.worker.mail_send_worker import (
     DEFAULT_EXPORT_SUBJECT,
     _export_subject,
     _sanitize_export_part,

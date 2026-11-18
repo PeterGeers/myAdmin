@@ -180,7 +180,11 @@ def _seed_set_with_delivery(service, tenant="h-dcn") -> str:
     """Create a saved set and store a `to_fixed` delivery block on it; return its set_id."""
     created = service.create_analytics_set(
         tenant,
-        {"name": "Monthly clubblad", "kind": "count", "definition": _count_definition()},
+        {
+            "name": "Monthly clubblad",
+            "kind": "count",
+            "definition": _count_definition(),
+        },
     )
     set_id = created["set_id"]
     service.set_analytics_set_delivery(
@@ -372,7 +376,9 @@ class TestScheduleEdge:
         set_id = _seed_set_with_delivery(service)
         app.handler(
             _event(
-                "POST", "/members/schedules", body={"set_id": set_id, "cron": "rate(1 day)"}
+                "POST",
+                "/members/schedules",
+                body={"set_id": set_id, "cron": "rate(1 day)"},
             )
         )
         resp = app.handler(_event("GET", "/members/schedules"))
@@ -462,7 +468,9 @@ class TestScheduleEdge:
         set_id = _seed_set_with_delivery(service)
         resp = app.handler(
             _event(
-                "POST", "/members/schedules", body={"set_id": set_id, "cron": "rate(1 day)"}
+                "POST",
+                "/members/schedules",
+                body={"set_id": set_id, "cron": "rate(1 day)"},
             )
         )
         assert resp["statusCode"] == 200
@@ -529,9 +537,7 @@ class TestScheduleGate:
         assert resp["statusCode"] == 403
 
     def test_read_only_caller_is_rejected_403(self, service):
-        resp = self._create(
-            service, capabilities=("members:read",), email=_EMAIL_ALL
-        )
+        resp = self._create(service, capabilities=("members:read",), email=_EMAIL_ALL)
         assert resp["statusCode"] == 403
 
     def test_export_only_caller_is_rejected_403(self, service):
@@ -731,7 +737,9 @@ class TestScheduleLifecycleDrivesScheduler:
             "h-dcn", {"set_id": set_id, "cron": "rate(1 day)"}
         )
         service_with_scheduler.update_schedule(
-            "h-dcn", created["schedule_id"], {"cron": "cron(0 9 1 * ? *)", "enabled": False}
+            "h-dcn",
+            created["schedule_id"],
+            {"cron": "cron(0 9 1 * ? *)", "enabled": False},
         )
         assert len(scheduler.updated) == 1
         tenant_id, schedule_id, cron, enabled = scheduler.updated[0]
@@ -758,8 +766,14 @@ class TestScheduleLifecycleDrivesScheduler:
         # touches the fake port (which it was not given). This preserves the pre-5.3 behaviour
         # and the auth-only / unit tests that build the service without AWS wiring.
         set_id = _seed_set_with_delivery(service)
-        created = service.create_schedule("h-dcn", {"set_id": set_id, "cron": "rate(1 day)"})
+        created = service.create_schedule(
+            "h-dcn", {"set_id": set_id, "cron": "rate(1 day)"}
+        )
         service.update_schedule("h-dcn", created["schedule_id"], {"enabled": False})
         service.delete_schedule("h-dcn", created["schedule_id"])
         # The fake we did NOT inject saw nothing.
-        assert scheduler.created == [] and scheduler.updated == [] and scheduler.deleted == []
+        assert (
+            scheduler.created == []
+            and scheduler.updated == []
+            and scheduler.deleted == []
+        )

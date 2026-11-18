@@ -106,33 +106,33 @@ from sam.shared.entitlement_claim import (
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "ENTITLEMENT_CLAIM_NAME",
+    # Entitlement reader (S4 / T14) — per-tenant capability from the VERIFIED token
+    "DecodedEntitlements",
     # Errors
     "InvalidTokenError",
-    "ServiceUnavailableError",
-    "PoolRegistryError",
-    "UnknownIssuerError",
-    "UnknownKidError",
+    # Cache + verifier
+    "JWKSCache",
     "JWKSFetchError",
+    "JWTVerifier",
     # Registry
     "PoolConfig",
     "PoolRegistry",
-    "load_pool_registry",
-    # Cache + verifier
-    "JWKSCache",
-    "JWTVerifier",
-    "get_global_verifier",
-    "reset_global_verifier",
-    # Handler-facing API
-    "get_verified_claims",
-    "get_groups",
-    "get_verified_identity",
+    "PoolRegistryError",
+    "ServiceUnavailableError",
+    "UnknownIssuerError",
+    "UnknownKidError",
     "VerifiedIdentity",
-    # Entitlement reader (S4 / T14) — per-tenant capability from the VERIFIED token
-    "DecodedEntitlements",
-    "ENTITLEMENT_CLAIM_NAME",
     "get_entitlements",
     "get_entitlements_from_claims",
+    "get_global_verifier",
+    "get_groups",
+    # Handler-facing API
+    "get_verified_claims",
+    "get_verified_identity",
     "has_capability",
+    "load_pool_registry",
+    "reset_global_verifier",
 ]
 
 

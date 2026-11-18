@@ -41,11 +41,13 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from sam.shared.page_styles import (  # noqa: E402
+from sam.shared.page_styles import (
     SUPPORTED_ATTRIBUTES,
     PageStyles,
     UnsupportedAttributeError,
@@ -85,9 +87,11 @@ def _form_group_is_width_driven_auto_fit(css: str) -> bool:
     norm = _normalize(css)
     base = re.sub(r"@media[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", norm)
     for selector, body in _iter_rule_blocks(base):
-        if ".application-form .form-group" in selector and "grid-template-columns" in body:
-            if re.search(r"auto-fit,\s*minmax\(", body):
-                return True
+        if (
+            ".application-form .form-group" in selector
+            and "grid-template-columns" in body
+        ) and re.search(r"auto-fit,\s*minmax\(", body):
+            return True
     return False
 
 
@@ -223,9 +227,9 @@ def test_logo_and_header_title_do_not_change_generated_css(logo, header_title):
 
 @settings(max_examples=150)
 @given(
-    bad_key=st.text(alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=20).filter(
-        lambda s: s not in _NINE and s != "columns"
-    )
+    bad_key=st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=20
+    ).filter(lambda s: s not in _NINE and s != "columns")
 )
 def test_key_outside_the_ten_is_rejected(bad_key):
     """Any key outside the nine (and not the tolerated legacy ``columns``) raises

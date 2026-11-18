@@ -35,23 +35,21 @@ Properties: 6
 """
 
 import os
-import re
 import sys
 
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.look_and_feel_settings_service import (  # noqa: E402
-    APPLICATION_FORM_PAGE_ID,
-    LookAndFeelSettingsService,
-    LookAndFeelValidationError,
+from sam.members.domain.look_and_feel_settings_service import (
     _COLOUR_ATTRIBUTES,
     _FONT_ATTRIBUTES,
     _FONT_NAME_PATTERN,
@@ -63,12 +61,15 @@ from sam.members.domain.look_and_feel_settings_service import (  # noqa: E402
     _MAX_HEADER_TITLE_LENGTH,
     _MAX_LOGO_LENGTH,
     _PERMITTED_VALUES,
+    APPLICATION_FORM_PAGE_ID,
+    LookAndFeelSettingsService,
+    LookAndFeelValidationError,
 )
-from sam.shared.page_styles import SUPPORTED_ATTRIBUTES  # noqa: E402
+from sam.shared.page_styles import SUPPORTED_ATTRIBUTES
 
 # Reuse the exact in-memory fakes the task-5.1 service unit suite uses, so this property runs on
 # the same no-boto3 reader/writer model the service is tested against.
-from sam.tests.test_look_and_feel_settings_service import (  # noqa: E402
+from sam.tests.test_look_and_feel_settings_service import (
     FakeReader,
     RecordingWriter,
 )

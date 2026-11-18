@@ -37,11 +37,15 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
+from sam.members.domain.default_page_size import StaticDefaultPageSizeProvider
 from sam.members.domain.field_resolver import (
+    _RESERVED_KEYS,
     FieldResolver,
     FieldScope,
     FixedFieldOverride,
@@ -51,14 +55,12 @@ from sam.members.domain.field_resolver import (
     TenantOverlay,
     evaluate_show_when,
 )
-from sam.members.domain.field_resolver import _RESERVED_KEYS
-from sam.members.domain.fixed_fields import FieldType as _FieldType
 from sam.members.domain.fixed_fields import (
     EnumOption,
     FieldType,
     MemberNumberFormat,
 )
-from sam.members.domain.default_page_size import StaticDefaultPageSizeProvider
+from sam.members.domain.fixed_fields import FieldType as _FieldType
 from sam.members.domain.membership_service import (
     MembershipService,
     MemberValidationError,
@@ -73,8 +75,16 @@ from sam.tests.test_field_config_endpoint import FakeCatalogRepository, _entry
 @pytest.fixture()
 def catalog_repo() -> FakeCatalogRepository:
     r = FakeCatalogRepository()
-    r.add_type("h-dcn", _entry("h-dcn", "gewoon", label={"nl": "Gewoon lid", "en": "Ordinary"}, order=10))
-    r.add_type("h-dcn", _entry("h-dcn", "erelid", label={"nl": "Erelid", "en": "Honorary"}, order=20))
+    r.add_type(
+        "h-dcn",
+        _entry(
+            "h-dcn", "gewoon", label={"nl": "Gewoon lid", "en": "Ordinary"}, order=10
+        ),
+    )
+    r.add_type(
+        "h-dcn",
+        _entry("h-dcn", "erelid", label={"nl": "Erelid", "en": "Honorary"}, order=20),
+    )
     return r
 
 
@@ -85,10 +95,20 @@ def _overlay_with_groups_and_options() -> TenantOverlay:
     """
     return TenantOverlay(
         functional_groups={
-            "personal": FunctionalGroup(key="personal", label={"nl": "Persoonlijk", "en": "Personal"}, order=1),
-            "address": FunctionalGroup(key="address", label={"nl": "Adres", "en": "Address"}, order=2),
-            "motor": FunctionalGroup(key="motor", label={"nl": "Motor", "en": "Motor"}, order=3),
-            "membership": FunctionalGroup(key="membership", label={"nl": "Lidmaatschap", "en": "Membership"}, order=4),
+            "personal": FunctionalGroup(
+                key="personal", label={"nl": "Persoonlijk", "en": "Personal"}, order=1
+            ),
+            "address": FunctionalGroup(
+                key="address", label={"nl": "Adres", "en": "Address"}, order=2
+            ),
+            "motor": FunctionalGroup(
+                key="motor", label={"nl": "Motor", "en": "Motor"}, order=3
+            ),
+            "membership": FunctionalGroup(
+                key="membership",
+                label={"nl": "Lidmaatschap", "en": "Membership"},
+                order=4,
+            ),
         },
         fields={
             # A role-gated overlay enum: "premium" restricted to Members_CRUD (R4.12).
@@ -98,8 +118,14 @@ def _overlay_with_groups_and_options() -> TenantOverlay:
                 required=False,
                 label={"nl": "Niveau", "en": "Tier"},
                 options=(
-                    EnumOption(value="standard", label={"nl": "Standaard", "en": "Standard"}),
-                    EnumOption(value="premium", label={"nl": "Premium", "en": "Premium"}, roles=("Members_CRUD",)),
+                    EnumOption(
+                        value="standard", label={"nl": "Standaard", "en": "Standard"}
+                    ),
+                    EnumOption(
+                        value="premium",
+                        label={"nl": "Premium", "en": "Premium"},
+                        roles=("Members_CRUD",),
+                    ),
                 ),
                 functional_group="membership",
                 order=50,
@@ -125,8 +151,18 @@ def _overlay_with_groups_and_options() -> TenantOverlay:
             # the show_when-gated `motor_brand` keys off; the reference check reads these.
             "membership.membership_type": FixedFieldOverride(
                 options=(
-                    EnumOption(value="gewoon", label={"nl": "Gewoon", "en": "Regular"}, allowed=True, order=10),
-                    EnumOption(value="motor", label={"nl": "Motor", "en": "Motor"}, allowed=True, order=20),
+                    EnumOption(
+                        value="gewoon",
+                        label={"nl": "Gewoon", "en": "Regular"},
+                        allowed=True,
+                        order=10,
+                    ),
+                    EnumOption(
+                        value="motor",
+                        label={"nl": "Motor", "en": "Motor"},
+                        allowed=True,
+                        order=20,
+                    ),
                 ),
             ),
         },
@@ -149,7 +185,10 @@ class TestFieldConfigSurfacesTask44Attributes:
         config = service.get_field_config("h-dcn")
         keys = [g["key"] for g in config["functional_groups"]]
         assert keys == ["personal", "address", "motor", "membership"]  # by `order`
-        assert config["functional_groups"][0]["label"] == {"nl": "Persoonlijk", "en": "Personal"}
+        assert config["functional_groups"][0]["label"] == {
+            "nl": "Persoonlijk",
+            "en": "Personal",
+        }
 
     def test_every_field_carries_a_functional_group(self, service):
         config = service.get_field_config("h-dcn")
@@ -172,8 +211,10 @@ class TestFieldConfigSurfacesTask44Attributes:
         config = service.get_field_config("h-dcn")
         tier = next(f for f in config["fields"] if f["key"] == "tier")
         by_value = {o["value"]: o for o in tier["options"]}
-        assert "roles" not in by_value["standard"]          # open option → no roles key
-        assert by_value["premium"]["roles"] == ["Members_CRUD"]  # gated option carries its roles
+        assert "roles" not in by_value["standard"]  # open option → no roles key
+        assert by_value["premium"]["roles"] == [
+            "Members_CRUD"
+        ]  # gated option carries its roles
         assert by_value["premium"]["label"] == {"nl": "Premium", "en": "Premium"}
 
     def test_show_when_condition_surfaced(self, service):
@@ -234,7 +275,9 @@ class TestFieldConfigSurfacesScope:
             overlay_provider=StaticOverlayProvider({"h-dcn": _overlay_with_scope()}),
         )
 
-    def test_scope_surfaced_on_a_variable_field_as_enabled_required_for(self, scope_service):
+    def test_scope_surfaced_on_a_variable_field_as_enabled_required_for(
+        self, scope_service
+    ):
         config = scope_service.get_field_config("h-dcn")
         team = next(f for f in config["fields"] if f["key"] == "team")
         assert team["scope"] == {"enabled": True, "required_for": ["Members_CRUD"]}
@@ -298,7 +341,9 @@ class TestFieldConfigDefaultPageSizeStepA:
     def test_default_page_size_is_json_serializable(self, catalog_repo):
         service = MembershipService(
             catalog_repo,
-            overlay_provider=StaticOverlayProvider({"h-dcn": _overlay_with_groups_and_options()}),
+            overlay_provider=StaticOverlayProvider(
+                {"h-dcn": _overlay_with_groups_and_options()}
+            ),
             default_page_size_provider=StaticDefaultPageSizeProvider({"h-dcn": 25}),
         )
         json.dumps(service.get_field_config("h-dcn"))  # must not raise
@@ -312,7 +357,9 @@ class TestFieldConfigDefaultPageSizeStepA:
         # flipped to the intended new behaviour, not weakened.)
         service = MembershipService(
             catalog_repo,
-            overlay_provider=StaticOverlayProvider({"h-dcn": _overlay_with_groups_and_options()}),
+            overlay_provider=StaticOverlayProvider(
+                {"h-dcn": _overlay_with_groups_and_options()}
+            ),
             default_page_size_provider=StaticDefaultPageSizeProvider({"h-dcn": 50}),
         )
         config = service.get_field_config("h-dcn")
@@ -340,18 +387,31 @@ class TestEvaluateShowWhen:
 
     def test_list_membership(self):
         record = {"membership": {"membership_type": "motor"}}
-        assert evaluate_show_when({"membership_type": ["motor", "sport"]}, record) is True
+        assert (
+            evaluate_show_when({"membership_type": ["motor", "sport"]}, record) is True
+        )
         assert evaluate_show_when({"membership_type": ["family"]}, record) is False
 
     def test_dotted_key_and_top_level(self):
         record = {"membership": {"membership_type": "motor"}, "flag": "y"}
-        assert evaluate_show_when({"membership.membership_type": "motor"}, record) is True
+        assert (
+            evaluate_show_when({"membership.membership_type": "motor"}, record) is True
+        )
         assert evaluate_show_when({"flag": "y"}, record) is True
 
     def test_all_conditions_must_hold(self):
-        record = {"membership": {"membership_type": "motor"}, "overlay": {"active": "yes"}}
-        assert evaluate_show_when({"membership_type": "motor", "active": "yes"}, record) is True
-        assert evaluate_show_when({"membership_type": "motor", "active": "no"}, record) is False
+        record = {
+            "membership": {"membership_type": "motor"},
+            "overlay": {"active": "yes"},
+        }
+        assert (
+            evaluate_show_when({"membership_type": "motor", "active": "yes"}, record)
+            is True
+        )
+        assert (
+            evaluate_show_when({"membership_type": "motor", "active": "no"}, record)
+            is False
+        )
 
 
 # ── (3) Authoritative write gates ──────────────────────────────────────────────────────
@@ -394,10 +454,14 @@ def write_service() -> MembershipService:
     repo.add_type("h-dcn", _entry("h-dcn", "gewoon", order=10))
     repo.add_type("h-dcn", _entry("h-dcn", "motor", order=20))
     overlay = _overlay_with_groups_and_options()
-    return MembershipService(repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay}))
+    return MembershipService(
+        repo, overlay_provider=StaticOverlayProvider({"h-dcn": overlay})
+    )
 
 
-def _create_body(*, member_number="Nr-0001", membership_type="gewoon", **membership_extra):
+def _create_body(
+    *, member_number="Nr-0001", membership_type="gewoon", **membership_extra
+):
     # A create body carries NO member_id: it is a SYSTEM-minted uuid (create strips any client
     # value). member_number (Lidnummer) is just a field — no longer the identity (the old
     # "member_id == Lidnummer" conflation is exactly what s5k removes).
@@ -409,7 +473,11 @@ def _create_body(*, member_number="Nr-0001", membership_type="gewoon", **members
         **membership_extra,
     }
     return {
-        "personal": {"first_name": "Sam", "last_name": "Jansen", "email": "sam@example.com"},
+        "personal": {
+            "first_name": "Sam",
+            "last_name": "Jansen",
+            "email": "sam@example.com",
+        },
         "membership": membership,
     }
 
@@ -419,34 +487,46 @@ class TestValueLevelEnumRoleGate:
         body = _create_body()
         body["overlay"] = {"tier": "standard"}
         # A caller with no relevant role may still set the open "standard" option.
-        created = write_service.create_member("h-dcn", body, {"region": ["*"]}, caller_roles=())
+        created = write_service.create_member(
+            "h-dcn", body, {"region": ["*"]}, caller_roles=()
+        )
         assert created["overlay"]["tier"] == "standard"
 
     def test_role_gated_option_rejected_without_role(self, write_service):
         body = _create_body()
         body["overlay"] = {"tier": "premium"}  # restricted to Members_CRUD
         with pytest.raises(MemberValidationError) as exc:
-            write_service.create_member("h-dcn", body, {"region": ["*"]}, caller_roles=("Members_Read",))
+            write_service.create_member(
+                "h-dcn", body, {"region": ["*"]}, caller_roles=("Members_Read",)
+            )
         assert "overlay.tier" in exc.value.errors
 
     def test_role_gated_option_allowed_with_role(self, write_service):
         body = _create_body()
         body["overlay"] = {"tier": "premium"}
-        created = write_service.create_member("h-dcn", body, {"region": ["*"]}, caller_roles=("Members_CRUD",))
+        created = write_service.create_member(
+            "h-dcn", body, {"region": ["*"]}, caller_roles=("Members_CRUD",)
+        )
         assert created["overlay"]["tier"] == "premium"
 
 
 class TestMemberNumberFormatGate:
     def test_matching_member_number_accepted(self, write_service):
         created = write_service.create_member(
-            "h-dcn", _create_body(member_number="Nr-0042"), {"region": ["*"]}, caller_roles=("Members_CRUD",)
+            "h-dcn",
+            _create_body(member_number="Nr-0042"),
+            {"region": ["*"]},
+            caller_roles=("Members_CRUD",),
         )
         assert created["membership"]["member_number"] == "Nr-0042"
 
     def test_malformed_member_number_rejected(self, write_service):
         with pytest.raises(MemberValidationError) as exc:
             write_service.create_member(
-                "h-dcn", _create_body(member_number="BAD1"), {"region": ["*"]}, caller_roles=("Members_CRUD",)
+                "h-dcn",
+                _create_body(member_number="BAD1"),
+                {"region": ["*"]},
+                caller_roles=("Members_CRUD",),
             )
         assert "membership.member_number" in exc.value.errors
 
@@ -456,7 +536,10 @@ class TestShowWhenHiddenNotRequired:
         # motor_brand is required BUT only shown for membership_type "motor". A "gewoon"
         # member hides it → the create must NOT fail for a missing motor_brand.
         created = write_service.create_member(
-            "h-dcn", _create_body(membership_type="gewoon"), {"region": ["*"]}, caller_roles=("Members_CRUD",)
+            "h-dcn",
+            _create_body(membership_type="gewoon"),
+            {"region": ["*"]},
+            caller_roles=("Members_CRUD",),
         )
         # member_id is a SYSTEM-minted uuid (the body id is ignored — see TestCreateMintsMemberId).
         assert created["member_id"]
@@ -465,14 +548,19 @@ class TestShowWhenHiddenNotRequired:
         # A "motor" member SHOWS motor_brand → it is required; omitting it fails (422).
         with pytest.raises(MemberValidationError) as exc:
             write_service.create_member(
-                "h-dcn", _create_body(membership_type="motor"), {"region": ["*"]}, caller_roles=("Members_CRUD",)
+                "h-dcn",
+                _create_body(membership_type="motor"),
+                {"region": ["*"]},
+                caller_roles=("Members_CRUD",),
             )
         assert "overlay.motor_brand" in exc.value.errors
 
     def test_visible_required_field_satisfied(self, write_service):
         body = _create_body(membership_type="motor")
         body["overlay"] = {"motor_brand": "Honda"}
-        created = write_service.create_member("h-dcn", body, {"region": ["*"]}, caller_roles=("Members_CRUD",))
+        created = write_service.create_member(
+            "h-dcn", body, {"region": ["*"]}, caller_roles=("Members_CRUD",)
+        )
         assert created["overlay"]["motor_brand"] == "Honda"
 
 
@@ -489,7 +577,9 @@ class TestCreateMintsMemberId:
         import uuid as _uuid
 
         created = write_service.create_member(
-            "h-dcn", _create_body(member_number="Nr-0007"), {"region": ["*"]},
+            "h-dcn",
+            _create_body(member_number="Nr-0007"),
+            {"region": ["*"]},
             caller_roles=("Members_CRUD",),
         )
         mid = created["member_id"]
@@ -502,7 +592,9 @@ class TestCreateMintsMemberId:
         import uuid as _uuid
 
         body = _create_body(member_number="Nr-0008")
-        body["member_id"] = "hacker-supplied-id"  # must be stripped + replaced (verify-before-trust)
+        body["member_id"] = (
+            "hacker-supplied-id"  # must be stripped + replaced (verify-before-trust)
+        )
         created = write_service.create_member(
             "h-dcn", body, {"region": ["*"]}, caller_roles=("Members_CRUD",)
         )
@@ -511,11 +603,15 @@ class TestCreateMintsMemberId:
 
     def test_two_creates_get_distinct_member_ids(self, write_service):
         a = write_service.create_member(
-            "h-dcn", _create_body(member_number="Nr-1001"), {"region": ["*"]},
+            "h-dcn",
+            _create_body(member_number="Nr-1001"),
+            {"region": ["*"]},
             caller_roles=("Members_CRUD",),
         )
         b = write_service.create_member(
-            "h-dcn", _create_body(member_number="Nr-1002"), {"region": ["*"]},
+            "h-dcn",
+            _create_body(member_number="Nr-1002"),
+            {"region": ["*"]},
             caller_roles=("Members_CRUD",),
         )
         assert a["member_id"] != b["member_id"]
@@ -559,9 +655,7 @@ def _arbitrary_overlay(draw) -> TenantOverlay:
     == resolver's), not about exercising every overlay attribute. Plain string fields in the
     base `membership` group always validate, so the generator never produces an OverlayError.
     """
-    names = draw(
-        st.lists(_OVERLAY_FIELD_NAME, min_size=0, max_size=4, unique=True)
-    )
+    names = draw(st.lists(_OVERLAY_FIELD_NAME, min_size=0, max_size=4, unique=True))
     fields = {
         name: OverlayField(
             key=name,

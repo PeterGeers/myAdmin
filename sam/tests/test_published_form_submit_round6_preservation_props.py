@@ -62,19 +62,18 @@ for _p in (_REPO_ROOT, os.path.join(_REPO_ROOT, "backend", "src")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from sam.members.domain._membership_errors import MemberValidationError  # noqa: E402
-from sam.members.domain.error_codes import VALIDATION_REQUIRED  # noqa: E402
+from sam.members.domain._membership_errors import MemberValidationError
+from sam.members.domain.error_codes import VALIDATION_REQUIRED
 
 # Reuse the Round-6 exploration harness VERBATIM (no duplicate setup): the REAL h-dcn service over
 # the stored live `config#fields` row, plus the valid-submission / create helpers.
-from sam.tests.test_published_form_submit_round6_bug_condition import (  # noqa: E402
+from sam.tests.test_published_form_submit_round6_bug_condition import (
     _REGION_KEY,
     _TENANT,
     _create,
     _hdcn_service,
     _valid_submission_fields,
 )
-
 
 # ══════════════════════════════════════════════════════════════════════════════════════
 # STAFF_FLOOR_INTACT — Requirement 18.1 (the key guard: public rule loosens, staff floor stays)
@@ -117,7 +116,7 @@ def test_staff_floor_intact_blank_platform_required_field_still_rejected():
         "STAFF_FLOOR_INTACT (18.1): the authenticated staff write path must still REJECT a missing "
         "platform-required field (`personal.last_name`) with VALIDATION_REQUIRED. The members-table "
         "floor is NOT the public form's requiredness rule the Round-6 fix loosens. "
-        f"errors={ {k: v.code for k, v in exc.value.errors.items()} !r}"
+        f"errors={ {k: v.code for k, v in exc.value.errors.items()}!r}"
     )
 
 
@@ -147,7 +146,7 @@ def test_membership_type_exposed_is_application_required_on_public_path():
     assert err is not None and err.code == VALIDATION_REQUIRED, (
         "MEMBERSHIP_TYPE_UNCHANGED (18.3): an EXPOSED membership_type left blank on the public path "
         "must be a VALIDATION_REQUIRED 422 (its own D21/R11 rule, unchanged by Round 6). "
-        f"errors={ {k: v.code for k, v in exc.value.errors.items()} !r}"
+        f"errors={ {k: v.code for k, v in exc.value.errors.items()}!r}"
     )
 
 
@@ -231,7 +230,7 @@ def test_identity_key_still_required_on_public_path(blank_key, dotted):
     assert err is not None and err.code == VALIDATION_REQUIRED, (
         f"IDENTITY_REQUIRED (18.2): the public identity key {dotted!r} must stay required on the "
         f"public path (blank -> VALIDATION_REQUIRED). "
-        f"errors={ {k: v.code for k, v in exc.value.errors.items()} !r}"
+        f"errors={ {k: v.code for k, v in exc.value.errors.items()}!r}"
     )
 
 
@@ -254,7 +253,9 @@ def test_server_stamped_status_and_member_number_forged_body_is_stripped():
     fields = _valid_submission_fields()
     # Forge the server-owned keys via their dotted public keys (they are application_visible in the
     # fixture, so they ride through the field gate — the create spine must still strip/force them).
-    fields["membership.status"] = "active"  # forged: try to escalate the lifecycle state
+    fields["membership.status"] = (
+        "active"  # forged: try to escalate the lifecycle state
+    )
     fields["membership.member_number"] = "HACK-0001"  # forged staff-owned number
 
     rec = _create(service, fields, "r6-server-stamped")

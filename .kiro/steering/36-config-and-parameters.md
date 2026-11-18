@@ -152,3 +152,8 @@ legacy row" as whole-slice, not single-attribute.
   generator, publish wiring) → the Members 15 `sam-page-look-and-feel` spec; the SAM Change-Op write
   contract and resolved-view read rules → `39-sam-data-access-sam.md`; the one-directional
   projection ADR this carve-out qualifies → `docs/decisions/0005-two-pool-identity-mysql-system-of-record-one-directional-projection.md`.
+- Admin-surface registry (which admin tab exists, and which namespace each one edits) →
+  `.kiro/specs/Common/Tenant/admin-surface-registry/`. It carries the `flask` / `module`
+  **namespace-ownership** values and validates at startup that a surface's editor targets the
+  namespace's owning plane, so the "config chooses, code runs" rule above has one registry-driven
+  door per namespace.

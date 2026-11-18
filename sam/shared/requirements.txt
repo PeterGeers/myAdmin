@@ -2,6 +2,7 @@
 # Same libraries as the myAdmin Flask plane so the verification contract matches.
 # Ship these to Lambda as a layer or bundled dependencies. All pinned to exact
 # versions (supply-chain hygiene). No secrets here — only library pins.
+typing_extensions==4.14.1
 PyJWT==2.10.1
 cryptography==44.0.0
 requests==2.32.3

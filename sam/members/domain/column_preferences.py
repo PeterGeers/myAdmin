@@ -161,7 +161,11 @@ class ColumnPreferences:
         """
         if not isinstance(item, Mapping):
             raise ColumnPreferencesValidationError(
-                {"item": FieldError(code=COLUMN_PREFS_COLUMNS, detail="must be a mapping")}
+                {
+                    "item": FieldError(
+                        code=COLUMN_PREFS_COLUMNS, detail="must be a mapping"
+                    )
+                }
             )
         raw_columns = item.get("columns") or []
         columns = (

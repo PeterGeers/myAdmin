@@ -143,7 +143,10 @@ def test_copy_settings_empty_source_overwrites_target_to_all_defaults():
     # has no slice (empty snapshot), the target tenant is pre-populated.
     store = FakeSlotStore(
         {
-            _TENANT: {"color_primary": "#ABCDEF", "base_spacing": "relaxed"},  # target pre-populated
+            _TENANT: {
+                "color_primary": "#ABCDEF",
+                "base_spacing": "relaxed",
+            },  # target pre-populated
             # _OTHER_TENANT (the source) has NO slice → empty snapshot
         }
     )
@@ -162,7 +165,10 @@ def test_copy_settings_replaces_not_merges_dropping_target_only_keys():
     # must be DROPPED (a merge would keep it). Source and target are two tenants sharing one store.
     store = FakeSlotStore(
         {
-            _OTHER_TENANT: {"color_primary": "#222222", "font_heading": "Inter"},  # source
+            _OTHER_TENANT: {
+                "color_primary": "#222222",
+                "font_heading": "Inter",
+            },  # source
             _TENANT: {"shadow_style": "subtle"},  # target: a DIFFERENT, target-only key
         }
     )
@@ -219,7 +225,12 @@ def test_copy_settings_cross_tenant_maps_to_caller_safe_403_permission_error():
     # The cross-tenant rejection is a PermissionError (the edge's 403 branch), NOT a validation
     # error (422). Keeping the two as distinct types is what lets the edge map each to its own
     # caller-safe status without inspecting the message.
-    store = FakeSlotStore({_TENANT: {"base_spacing": "normal"}, _OTHER_TENANT: {"base_spacing": "relaxed"}})
+    store = FakeSlotStore(
+        {
+            _TENANT: {"base_spacing": "normal"},
+            _OTHER_TENANT: {"base_spacing": "relaxed"},
+        }
+    )
     svc = _service_over(store)
 
     with pytest.raises(CrossTenantCopyError) as exc:
@@ -232,7 +243,9 @@ def test_copy_settings_cross_tenant_maps_to_caller_safe_403_permission_error():
 
     err = exc.value
     assert isinstance(err, PermissionError)  # → 403 branch at the edge
-    assert not isinstance(err, LookAndFeelValidationError)  # NOT the 422 (validation) branch
+    assert not isinstance(
+        err, LookAndFeelValidationError
+    )  # NOT the 422 (validation) branch
     # Generic, caller-safe message: must not confirm whether the other tenant/page exists.
     assert _OTHER_TENANT not in str(err)
 
@@ -241,7 +254,10 @@ def test_copy_settings_cross_tenant_leaves_both_tenants_state_untouched():
     # The 403 fires BEFORE any read or write, so neither tenant's stored slice is observed or
     # mutated — asserted here on the STATEFUL store (5.3 asserts the same via op-shape recording).
     store = FakeSlotStore(
-        {_TENANT: {"base_spacing": "normal"}, _OTHER_TENANT: {"base_spacing": "relaxed"}}
+        {
+            _TENANT: {"base_spacing": "normal"},
+            _OTHER_TENANT: {"base_spacing": "relaxed"},
+        }
     )
     svc = _service_over(store)
 

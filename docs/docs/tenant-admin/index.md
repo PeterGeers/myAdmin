@@ -20,6 +20,31 @@ Je bent Tenant Admin geworden doordat de SysAdmin je heeft uitgenodigd als eerst
 | [Audit logging](audit-logging.md)        | Activiteiten bijhouden en compliance rapporten           |
 | [Landing Page](../landing-page/index.md) | Publieke landingspagina aanmaken, bewerken en publiceren |
 
+## Welke tabbladen je ziet
+
+De tabbladen van Tenant Beheer volgen de **modules** die voor jouw organisatie zijn
+ingeschakeld. Je ziet altijd de basis-tabbladen (Gebruikers, Tenant Info, Afzender,
+Landingspagina) plus de onderdelen die bij jouw modules horen:
+
+| Ingeschakelde module | Extra tabbladen                                                |
+| -------------------- | -------------------------------------------------------------- |
+| FIN                  | Financieel, Opslag, Sjablonen, Draaitabellen                   |
+| MEMBERS              | Leden (Veldconfiguratie / Mail / Aanmeldformulier), Opslag, Media |
+| STR                  | Opslag, Draaitabellen                                          |
+| ZZP                  | Opslag, Sjablonen, Draaitabellen                               |
+| — (geen module)      | alleen de basis-tabbladen                                      |
+
+!!! info
+Een gedeeld tabblad zoals **Opslag** verschijnt alleen als minstens één van jouw
+modules daadwerkelijk bestanden opslaat. Zo zie je nooit instellingen die voor jouw
+organisatie niets doen.
+
+Het tabblad **Parameters** (geavanceerd) is zichtbaar voor `Tenant_Admin`. Het toont
+alleen de configuratie van jouw eigen organisatie en de actieve modules, en geheimen
+worden afgeschermd. Ledengegevens (`members.*`) worden hier bewust **niet** getoond:
+die worden beheerd in het tabblad **Leden**.
+
+
 ## Jouw rol vs SysAdmin
 
 |                  | Tenant Admin                            | SysAdmin                           |

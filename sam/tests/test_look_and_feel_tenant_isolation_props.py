@@ -37,21 +37,23 @@ import sys
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.repository.projection_config_reader import (  # noqa: E402
+from sam.members.repository.projection_config_reader import (
     MembersProjectionReader,
 )
-from sam.shared.page_styles import SUPPORTED_ATTRIBUTES  # noqa: E402
+from sam.shared.page_styles import SUPPORTED_ATTRIBUTES
 
 # Reuse the exact in-memory DynamoDB fake + seed helper the task-4.2 reader suite uses, so this
 # property runs on the same partition-isolation model (query() returns only the queried partition).
-from sam.tests.test_members_projection_reader import (  # noqa: E402
+from sam.tests.test_members_projection_reader import (
     FakeTable,
     _config_fields_item,
 )
@@ -66,7 +68,9 @@ _tenant_id = st.text(
 
 # Each supported attribute draws from its permitted value space.
 _hex_color = st.from_regex(r"\#[0-9A-Fa-f]{6}", fullmatch=True)
-_font_name = st.sampled_from(["system", "Inter", "Lora", "Roboto", "Open Sans", "Poppins"])
+_font_name = st.sampled_from(
+    ["system", "Inter", "Lora", "Roboto", "Open Sans", "Poppins"]
+)
 _base_spacing = st.sampled_from(["compact", "normal", "relaxed"])
 _border_radius = st.sampled_from(["sharp", "rounded", "pill"])
 _shadow_style = st.sampled_from(["none", "subtle", "medium", "dramatic"])
@@ -109,9 +113,7 @@ def _look_and_feel_values(draw):
 @st.composite
 def _tenants_with_values(draw):
     """Draw a mapping of {tenant_id: look_and_feel_values} for >=2 distinct tenants."""
-    ids = draw(
-        st.lists(_tenant_id, min_size=2, max_size=6, unique=True)
-    )
+    ids = draw(st.lists(_tenant_id, min_size=2, max_size=6, unique=True))
     return {tid: draw(_look_and_feel_values()) for tid in ids}
 
 

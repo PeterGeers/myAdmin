@@ -27,7 +27,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -37,7 +39,9 @@ if _BACKEND_SRC not in sys.path:
 
 def _load_script_module():
     """Import the hyphen-named provisioning script by path (not a valid module name)."""
-    path = os.path.join(_REPO_ROOT, "scripts", "test-environment", "provision-test-account.py")
+    path = os.path.join(
+        _REPO_ROOT, "scripts", "test-environment", "provision-test-account.py"
+    )
     spec = importlib.util.spec_from_file_location("provision_test_account", path)
     module = importlib.util.module_from_spec(spec)
     # Register BEFORE exec so @dataclass (under `from __future__ import annotations`)
@@ -80,22 +84,32 @@ class FakeCognito:
             raise _FakeUserNotFound()
         return {"Username": Username}
 
-    def admin_create_user(self, UserPoolId=None, Username=None, UserAttributes=None, **_):
+    def admin_create_user(
+        self, UserPoolId=None, Username=None, UserAttributes=None, **_
+    ):
         self.users[Username] = {a["Name"]: a["Value"] for a in (UserAttributes or [])}
         self.created.append(Username)
 
-    def admin_update_user_attributes(self, UserPoolId=None, Username=None, UserAttributes=None, **_):
+    def admin_update_user_attributes(
+        self, UserPoolId=None, Username=None, UserAttributes=None, **_
+    ):
         self.users.setdefault(Username, {})
-        self.users[Username].update({a["Name"]: a["Value"] for a in (UserAttributes or [])})
+        self.users[Username].update(
+            {a["Name"]: a["Value"] for a in (UserAttributes or [])}
+        )
         self.updated.append(Username)
 
-    def admin_set_user_password(self, UserPoolId=None, Username=None, Password=None, Permanent=None):
+    def admin_set_user_password(
+        self, UserPoolId=None, Username=None, Password=None, Permanent=None
+    ):
         self.password_calls.append((Username, bool(Permanent)))
 
 
 def _client(existing=None):
     fake = FakeCognito(existing=existing)
-    return prov.CognitoAdminClient(region="eu-west-1", pool_id=TEST_POOL, client=fake), fake
+    return prov.CognitoAdminClient(
+        region="eu-west-1", pool_id=TEST_POOL, client=fake
+    ), fake
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +128,9 @@ class TestAccountShape:
 
     def test_shape_may_be_a_non_production_configuration(self):
         # Req 17.3: any valid shape, including one with no prod counterpart.
-        shape = prov.build_account_shape("t@example.org", ["Imaginary-Tenant"], "MadeUpRole")
+        shape = prov.build_account_shape(
+            "t@example.org", ["Imaginary-Tenant"], "MadeUpRole"
+        )
         attrs = {a["Name"]: a["Value"] for a in shape.cognito_attributes()}
         assert attrs["custom:tenants"] == "Imaginary-Tenant"
         assert attrs["custom:role"] == "MadeUpRole"
@@ -142,7 +158,9 @@ class TestProvision:
     def test_dry_run_writes_nothing(self):
         client, fake = _client()
         shape = prov.build_account_shape("t@example.org", ["A"], "Admin")
-        result = prov.provision_test_account(shape, region="eu-west-1", apply=False, client=client)
+        result = prov.provision_test_account(
+            shape, region="eu-west-1", apply=False, client=client
+        )
         assert result.applied is False
         assert fake.created == [] and fake.updated == [] and fake.password_calls == []
 
@@ -196,7 +214,9 @@ class TestPoolGuard:
             )
 
     def test_test_pool_is_accepted(self):
-        c = prov.CognitoAdminClient(region="eu-west-1", pool_id=TEST_POOL, client=FakeCognito())
+        c = prov.CognitoAdminClient(
+            region="eu-west-1", pool_id=TEST_POOL, client=FakeCognito()
+        )
         assert c is not None
 
 
@@ -228,10 +248,13 @@ class TestCli:
         monkeypatch.setattr(
             prov.CognitoAdminClient,
             "__init__",
-            lambda self, *, region, pool_id, client=None: setattr(self, "_client", fake)
-            or setattr(self, "_pool_id", pool_id),
+            lambda self, *, region, pool_id, client=None: (
+                setattr(self, "_client", fake) or setattr(self, "_pool_id", pool_id)
+            ),
         )
-        rc = prov.main(["--email", "t@example.org", "--tenants", "A", "--role", "Admin"])
+        rc = prov.main(
+            ["--email", "t@example.org", "--tenants", "A", "--role", "Admin"]
+        )
         assert rc == 0
         assert fake.created == [] and fake.password_calls == []
 

@@ -7,10 +7,17 @@ rows the SAM/Lambda module plane reads (S5b design.md C2, R2.1/R2.2). Re-exporte
 :mod:`services.projection_sync`; its public import surface is unchanged.
 
 One-directional discipline (Property 1): the builder issues **zero** MySQL writes and
-does **not** write the projection itself — it only READS the scope rows it is handed and
-the dimension params via ``ParameterService`` (read-only) and RETURNS the items for the
-sole writer (:class:`services.projection_sync.ProjectionSync`). Pure structural split
-(code-quality M2) with zero behaviour change.
+does **not** write the projection it reads — it READS the scope rows it is handed and the
+tenant's ``config#scope`` vocabulary (read-only, via the shared
+:mod:`services.scope_vocabulary` resolver) and RETURNS the items for the sole writer
+(:class:`services.projection_sync.ProjectionSync`). Pure structural split (code-quality
+M2) with zero behaviour change.
+
+Option B (Members/02 mirror retirement): the vocabulary used to come from the
+frontend-written ``members.scope_dimensions`` MySQL mirror. It now comes from the
+module-plane-owned ``config#scope`` projection row — the SAME row the authoring
+validators and the picker API read, so a grant can never be checked against one
+vocabulary and then projected under another.
 """
 
 from __future__ import annotations
@@ -21,16 +28,13 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from services import projection_schema as schema
-from services._projection_config_builders import (
-    _MEMBERS_PARAM_NAMESPACE,
-    _SCOPE_DIMENSIONS_PARAM_KEY,
-    _scope_config_version,
-)
+from services._projection_config_builders import _scope_config_version
 from services.projection_builder import (
     ProjectionItem,
     _normalize_version,
 )
 from services.scope_canon import scope_canon
+from services.scope_vocabulary import dimension_index, load_scope_dimensions
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +142,7 @@ def _parse_scopes(raw: Any) -> Mapping[str, Any] | None:
 def build_scopegrant_rows(
     tenant: Mapping[str, Any],
     user_tenant_scope: Sequence[Mapping[str, Any]] | None,
-    parameter_service: Any,
+    reader: Any = None,
 ) -> list[ProjectionItem]:
     """Build the per-user ``scopegrant#<email>#<dimension>`` items (R2.1/R2.3/R2.5).
 
@@ -189,9 +193,9 @@ def build_scopegrant_rows(
             ``scopes`` may be a JSON string or an already-parsed dict. ``updated_at``
             (the per-row freshness signal) drives the emitted row's ``version``
             (ODx4a); absent → the tenant config version fallback.
-        parameter_service: A ``ParameterService`` (or anything exposing
-            ``get_param(namespace, key, tenant=...)``). Read-only — supplies the
-            ``members.scope_dimensions`` dimension definitions used to validate values.
+        reader: An optional ``ProjectionReader`` used to read the tenant's
+            ``config#scope`` vocabulary (injected in tests). Omitted → a default
+            reader reads the real projection. Read-only, like everything else here.
 
     Returns:
         The ``scopegrant#<email>#<dimension>`` :class:`ProjectionItem`s — one per
@@ -207,44 +211,20 @@ def build_scopegrant_rows(
             "partition key is a cross-tenant hazard (R5.4)"
         )
 
-    raw_dimensions = parameter_service.get_param(
-        _MEMBERS_PARAM_NAMESPACE,
-        _SCOPE_DIMENSIONS_PARAM_KEY,
-        tenant=tenant_id,
-    )
-    dimensions: list[Mapping[str, Any]] = []
-    if isinstance(raw_dimensions, Sequence) and not isinstance(raw_dimensions, str):
-        for entry in raw_dimensions:
-            if isinstance(entry, Mapping) and entry.get("key"):
-                dimensions.append(entry)
+    # The scope vocabulary comes from the projected ``config#scope`` row (Option B) —
+    # the SAME resolver the authoring validators and the picker API read, so a grant
+    # can never be validated against one vocabulary and then projected under another.
+    dimensions = load_scope_dimensions(tenant_id, reader=reader)
 
     if not dimensions:
         return []
 
-    # Index dimensions by key, precomputing each dimension's canonical value map
-    # (canonical form -> declared value) so a granted value is validated by
+    # Index by key (enabled dimensions only), precomputing each dimension's canonical
+    # value map (canonical form -> declared value) so a granted value is validated by
     # canonicalized-equality (belt-and-suspenders, R9.6) and emitted as the declared
-    # value in declared order.
-    dimension_by_key: dict[str, dict[str, Any]] = {}
-    for dimension in dimensions:
-        if not dimension.get("enabled", True):
-            # A disabled dimension is a tenant-wide no-op — no per-user grant row.
-            continue
-        key = dimension["key"]
-        raw_values = dimension.get("values") or ()
-        if isinstance(raw_values, str) or not isinstance(raw_values, Sequence):
-            raw_values = ()
-        canon_to_value: dict[str, str] = {}
-        declared_order: list[str] = []
-        for value in raw_values:
-            if not isinstance(value, str):
-                continue
-            declared_order.append(value)
-            canon_to_value.setdefault(scope_canon(value), value)
-        dimension_by_key[key] = {
-            "canon_to_value": canon_to_value,
-            "declared_order": declared_order,
-        }
+    # value in declared order. The iteration below still walks ``dimensions`` so the
+    # emitted row order is the authoring/declaration order.
+    dimension_by_key = dimension_index(dimensions)
 
     # Collect each user's parsed scopes for the s5d MEMBERS slice (skip non-MEMBERS
     # rows and malformed rows — never raise). A later duplicate row for the same

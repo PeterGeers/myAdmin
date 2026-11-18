@@ -72,7 +72,9 @@ class TemplateMetadataStore(Protocol):
     tenant isolation — Property 1).
     """
 
-    def get_template(self, tenant_id: str, template_id: str) -> TemplateEntry | None: ...
+    def get_template(
+        self, tenant_id: str, template_id: str
+    ) -> TemplateEntry | None: ...
 
     def list_templates(self, tenant_id: str) -> Sequence[TemplateEntry]: ...
 
@@ -221,7 +223,9 @@ class TemplateService:
         return self._body_key_builder(tenant_id, template_id, lang)
 
     @staticmethod
-    def _merge_fields_from_body(body_payload: Mapping[str, Mapping[str, Any]]) -> list[str]:
+    def _merge_fields_from_body(
+        body_payload: Mapping[str, Mapping[str, Any]],
+    ) -> list[str]:
         """Discover the union of ``{{ merge_field }}`` keys across every language body.
 
         A convenience for ``create`` / ``update`` when the caller does not pass ``merge_fields``
@@ -232,7 +236,9 @@ class TemplateService:
 
         seen: list[str] = []
         for variant in body_payload.values():
-            body_html = variant.get("body_html", "") if isinstance(variant, Mapping) else ""
+            body_html = (
+                variant.get("body_html", "") if isinstance(variant, Mapping) else ""
+            )
             for key in merge_placeholders(body_html):
                 if key not in seen:
                     seen.append(key)
@@ -268,6 +274,7 @@ class TemplateService:
         ``tenant_id`` is omitted (the caller already knows the tenant context). Body HTML is
         NOT included — it is loaded on demand via :meth:`render_for_recipient`.
         """
+
         def _variant_dict(variant: Any) -> dict[str, Any]:
             d = dict(variant.to_dict())
             if include_bodies:
@@ -280,7 +287,8 @@ class TemplateService:
             "template_id": entry.template_id,
             "name": entry.name,
             "languages": {
-                lang: _variant_dict(variant) for lang, variant in entry.languages.items()
+                lang: _variant_dict(variant)
+                for lang, variant in entry.languages.items()
             },
             "merge_fields": list(entry.merge_fields),
             "logo_asset_ref": entry.logo_asset_ref,
@@ -400,7 +408,9 @@ class TemplateService:
         if not isinstance(merge_fields, (list, tuple)):
             merge_fields = self._merge_fields_from_body(body_payload)
         else:
-            merge_fields = [str(m) for m in merge_fields if isinstance(m, str) and m.strip()]
+            merge_fields = [
+                str(m) for m in merge_fields if isinstance(m, str) and m.strip()
+            ]
 
         logo = payload.get("logo_asset_ref")
         entry = TemplateEntry(

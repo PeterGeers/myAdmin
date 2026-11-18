@@ -287,9 +287,7 @@ def test_governance_projection_write_is_a_single_scoped_putitem(template):
         )
 
     # Exactly one statement grants PutItem on the projection — the config write grant.
-    put_stmts = [
-        s for s in projection_stmts if "dynamodb:PutItem" in _actions_list(s)
-    ]
+    put_stmts = [s for s in projection_stmts if "dynamodb:PutItem" in _actions_list(s)]
     assert len(put_stmts) == 1, (
         "expected exactly one PutItem grant on the projection (the config write path)"
     )
@@ -446,7 +444,9 @@ def _ses_send_statement(statements: list) -> dict:
     ses_statements = [
         s for s in statements if any(a.startswith("ses:") for a in _actions_list(s))
     ]
-    assert len(ses_statements) == 1, "expected exactly one SES send statement on the role"
+    assert len(ses_statements) == 1, (
+        "expected exactly one SES send statement on the role"
+    )
     return ses_statements[0]
 
 
@@ -471,12 +471,16 @@ def _assert_ses_scoped_to_tenant_domain(stmt: dict) -> None:
     if not isinstance(resources, list):
         resources = [resources]
     values = [r.value for r in resources if isinstance(r, _CfnTag) and r.tag == "Sub"]
-    assert any("identity/${MailSenderDomain}" in v for v in values), "must grant the domain identity"
+    assert any("identity/${MailSenderDomain}" in v for v in values), (
+        "must grant the domain identity"
+    )
     assert any("configuration-set/${SesConfigurationSet}" in v for v in values), (
         "must ALSO grant the config-set resource — else SES AccessDenies the send (C2)"
     )
     for v in values:
-        assert "identity/*" not in v, "a wildcard identity would re-open the foreign-sender risk"
+        assert "identity/*" not in v, (
+            "a wildcard identity would re-open the foreign-sender risk"
+        )
         # Regression guard (R4.2): the old single-address jabaki.nl assumption must be gone.
         assert "SesSenderEmail" not in v
         assert "jabaki" not in v
@@ -493,7 +497,9 @@ def test_edge_ses_send_is_scoped_to_the_tenant_domain(template):
 
 def test_worker_ses_send_is_scoped_to_the_tenant_domain(template):
     """The worker's SES grant mirrors the edge: send-only, scoped to the verified tenant domain."""
-    _assert_ses_scoped_to_tenant_domain(_ses_send_statement(_worker_statements(template)))
+    _assert_ses_scoped_to_tenant_domain(
+        _ses_send_statement(_worker_statements(template))
+    )
 
 
 def test_no_jabaki_substitute_sender_in_the_stack(template, samconfig):
@@ -503,12 +509,18 @@ def test_no_jabaki_substitute_sender_in_the_stack(template, samconfig):
     sender (and the `support@jabaki.nl` substitute it carried) must be absent from both the
     template parameters/env and the samconfig overrides.
     """
-    assert "SesSenderEmail" not in template["Parameters"], "the single-address sender param is removed"
-    assert "MailSenderDomain" in template["Parameters"], "the per-tenant domain param replaces it"
+    assert "SesSenderEmail" not in template["Parameters"], (
+        "the single-address sender param is removed"
+    )
+    assert "MailSenderDomain" in template["Parameters"], (
+        "the per-tenant domain param replaces it"
+    )
     # No Lambda injects the dead SES_SENDER_EMAIL env var any more.
     for fn in ("MembersFunction", "MailWorkerFunction"):
         env = template["Resources"][fn]["Properties"]["Environment"]["Variables"]
-        assert "SES_SENDER_EMAIL" not in env, f"{fn} must not inject the dead SES_SENDER_EMAIL"
+        assert "SES_SENDER_EMAIL" not in env, (
+            f"{fn} must not inject the dead SES_SENDER_EMAIL"
+        )
     # samconfig supplies the verified tenant domain, not a jabaki address.
     for env_name in ("test", "prod"):
         overrides = _override_map(samconfig, env_name)
@@ -909,7 +921,10 @@ def test_ses_config_set_param_is_per_env_owned_not_the_flask_set(template, samco
     assert test_set == "members-emails-test"
     assert prod_set == "members-emails"
     for env_name in ("test", "prod"):
-        assert "myadmin-emails" not in _override_map(samconfig, env_name)["SesConfigurationSet"]
+        assert (
+            "myadmin-emails"
+            not in _override_map(samconfig, env_name)["SesConfigurationSet"]
+        )
 
 
 def test_ses_event_destination_publishes_bounce_complaint_delivery_to_sns(template):
@@ -947,8 +962,14 @@ def test_feedback_topic_is_named_per_env(template, samconfig):
     assert re.match(pattern, "members-mail-feedback-test")
     assert not re.match(pattern, "something-else")
     assert "Default" not in param, "no default — fail-fast per steering 23"
-    assert _override_map(samconfig, "test")["MailFeedbackTopicName"] == "members-mail-feedback-test"
-    assert _override_map(samconfig, "prod")["MailFeedbackTopicName"] == "members-mail-feedback"
+    assert (
+        _override_map(samconfig, "test")["MailFeedbackTopicName"]
+        == "members-mail-feedback-test"
+    )
+    assert (
+        _override_map(samconfig, "prod")["MailFeedbackTopicName"]
+        == "members-mail-feedback"
+    )
 
 
 def test_feedback_topic_policy_allows_only_ses_in_this_account(template):
@@ -1000,7 +1021,9 @@ def test_feedback_topic_arn_is_a_discoverable_output(template):
 
 def _feedback_statements(template) -> list:
     policies = template["Resources"]["MailFeedbackFunction"]["Properties"]["Policies"]
-    assert len(policies) == 1, "expected a single inline policy on the feedback function"
+    assert len(policies) == 1, (
+        "expected a single inline policy on the feedback function"
+    )
     return policies[0]["Statement"]
 
 
@@ -1029,9 +1052,9 @@ def test_feedback_function_handler_points_at_the_ingestion_entrypoint(template):
 
 def test_feedback_function_app_env_is_derived_from_stage(template):
     """APP_ENV is !FindInMap[StageToAppEnv, Stage, AppEnv] — no drift from the edge/worker."""
-    env_vars = template["Resources"]["MailFeedbackFunction"]["Properties"]["Environment"][
-        "Variables"
-    ]
+    env_vars = template["Resources"]["MailFeedbackFunction"]["Properties"][
+        "Environment"
+    ]["Variables"]
     app_env = env_vars["APP_ENV"]
     assert isinstance(app_env, _CfnTag) and app_env.tag == "FindInMap"
     assert app_env.value[0] == "StageToAppEnv"
@@ -1047,7 +1070,9 @@ def test_feedback_function_subscribes_to_the_feedback_topic(template):
     """
     events = template["Resources"]["MailFeedbackFunction"]["Properties"]["Events"]
     sns_events = [e for e in events.values() if e["Type"] == "SNS"]
-    assert len(sns_events) == 1, "expected exactly one SNS event source on the ingestion Lambda"
+    assert len(sns_events) == 1, (
+        "expected exactly one SNS event source on the ingestion Lambda"
+    )
     topic = sns_events[0]["Properties"]["Topic"]
     assert isinstance(topic, _CfnTag) and topic.tag == "Ref"
     assert topic.value == "MembersMailFeedbackTopic"
@@ -1088,8 +1113,12 @@ def test_feedback_function_has_no_ses_sqs_or_scheduler_grants(template):
     """Least privilege: the ingestion role sends no SES, touches no SQS, manages no schedules."""
     actions = {a for s in _feedback_statements(template) for a in _actions_list(s)}
     assert not any(a.startswith("ses:") for a in actions), "ingestion must not send SES"
-    assert not any(a.startswith("sqs:") for a in actions), "ingestion must not touch SQS"
-    assert not any(a.startswith("scheduler:") for a in actions), "ingestion manages no schedules"
+    assert not any(a.startswith("sqs:") for a in actions), (
+        "ingestion must not touch SQS"
+    )
+    assert not any(a.startswith("scheduler:") for a in actions), (
+        "ingestion manages no schedules"
+    )
     assert "iam:PassRole" not in actions
     # And it never writes to (or reads) the projection.
     for stmt in _feedback_statements(template):

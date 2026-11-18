@@ -22,7 +22,9 @@ import pytest
 
 # repo root on sys.path so ``scripts.sam.onboarding._lib`` imports (mirrors sibling runner
 # tests' bootstrap). This is the ONE allowed path line — the thing under test IS the resolver.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -46,9 +48,7 @@ def test_repo_root_resolves_to_the_actual_repo_root():
 
 def test_repo_root_finds_root_from_a_deep_start(tmp_path):
     """A deep start path still walks UP to the nearest marker (not a dirname count)."""
-    deep = os.path.join(
-        _REPO_ROOT, "scripts", "sam", "onboarding", "_lib"
-    )
+    deep = os.path.join(_REPO_ROOT, "scripts", "sam", "onboarding", "_lib")
     assert paths.repo_root(deep) == _REPO_ROOT
 
 
@@ -101,7 +101,9 @@ def test_tenant_secrets_path_uses_convention_when_no_override():
 
 def test_tenant_secrets_path_override_wins_verbatim(tmp_path):
     override = str(tmp_path / "custom.json")
-    assert tenant_resolver.tenant_secrets_path("acme", override) == os.path.abspath(override)
+    assert tenant_resolver.tenant_secrets_path("acme", override) == os.path.abspath(
+        override
+    )
 
 
 def test_tenant_secrets_path_requires_a_tenant():
@@ -195,9 +197,9 @@ def test_credential_file_override_wins_verbatim(tmp_path):
 def test_credential_file_absolute_filename_honored_as_is(tmp_path):
     abs_name = str(tmp_path / "abs-key.json")
     creds = {"credentials": {"google_sheets": {"type": "x", "file": abs_name}}}
-    assert tenant_resolver.credential_file(creds, "google_sheets", "h-dcn") == os.path.abspath(
-        abs_name
-    )
+    assert tenant_resolver.credential_file(
+        creds, "google_sheets", "h-dcn"
+    ) == os.path.abspath(abs_name)
 
 
 def test_credential_file_unknown_purpose_raises_named_error():

@@ -175,9 +175,7 @@ def _is_public_route(request: ParsedRequest) -> bool:
         return False
     if request.method == "GET" and path.endswith("/field-config"):
         return True
-    if request.method == "POST" and path.endswith("/applications"):
-        return True
-    return False
+    return bool(request.method == "POST" and path.endswith("/applications"))
 
 
 def _slug_from_path(request: ParsedRequest) -> str:

@@ -64,12 +64,13 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.members` imports.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
 from sam.members.domain.config_write_version import next_write_stamp
-
 
 # ---------------------------------------------------------------------------
 # A shared well-formedness check: a stamp is a parseable, timezone-aware ISO-8601 UTC string.
@@ -130,9 +131,7 @@ def test_property_later_write_yields_lexicographically_greater_stamp(data):
 @given(
     # Arbitrary already-present row attributes the idempotent re-put would carry.
     attributes=st.dictionaries(
-        keys=st.text(
-            alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=10
-        ),
+        keys=st.text(alphabet="abcdefghijklmnopqrstuvwxyz_", min_size=1, max_size=10),
         values=st.one_of(st.text(max_size=20), st.booleans(), st.integers()),
         max_size=5,
     )
@@ -192,7 +191,9 @@ _consent_notice_version = st.one_of(
 
 @settings(max_examples=100)
 @given(consent_notice_version=_consent_notice_version)
-def test_property_stamp_is_independent_of_consent_notice_version(consent_notice_version):
+def test_property_stamp_is_independent_of_consent_notice_version(
+    consent_notice_version,
+):
     """Feature: Members config SAM-owned write path, Property 3 (separation leg).
 
     Validates: Requirement 6.5

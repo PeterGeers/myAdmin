@@ -38,7 +38,9 @@ import sys
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -55,11 +57,15 @@ _HEX_COLOR = st.from_regex(r"\A#[0-9a-fA-F]{6}\Z")
 # stack) so the change is observable in BOTH css_variables (the quoted family) and
 # font_links (the Google-Fonts <link>). Kept to plain letters/spaces so it is a clean
 # font name (no CSS-injection sanitiser interference).
-_WEB_FONT = st.text(
-    alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ",
-    min_size=1,
-    max_size=14,
-).map(lambda s: s.strip()).filter(lambda s: s and s.lower() != "system")
+_WEB_FONT = (
+    st.text(
+        alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ",
+        min_size=1,
+        max_size=14,
+    )
+    .map(lambda s: s.strip())
+    .filter(lambda s: s and s.lower() != "system")
+)
 
 # The enumerated token sets for the three CSS-variable attributes (the permitted values the
 # Layer-2 lookup maps recognise — each distinct token yields distinct CSS).

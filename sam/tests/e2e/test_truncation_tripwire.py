@@ -57,18 +57,18 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.config_fields_crud_service import (  # noqa: E402
+from sam.members.domain.config_fields_crud_service import (
     ConfigFieldsCrudService,
 )
-from sam.members.domain.field_resolver import FieldResolver  # noqa: E402
-from sam.members.repository.projection_config_reader import (  # noqa: E402
+from sam.members.domain.field_resolver import FieldResolver
+from sam.members.repository.projection_config_reader import (
     MembersProjectionReader,
 )
-from sam.members.repository.projection_config_write_repository import (  # noqa: E402
+from sam.members.repository.projection_config_write_repository import (
     MembersConfigWriteRepository,
 )
 
-from .invariant import ChangeOp, assert_change_op_isolated  # noqa: E402
+from .invariant import ChangeOp, assert_change_op_isolated
 
 # Container-gated e2e: skips cleanly without the local-DynamoDB container (via the
 # seeded_config_fields_table → local_dynamodb_endpoint fixture chain, task 1.1).
@@ -172,7 +172,9 @@ def test_partial_groups_save_must_not_truncate_catalog(seeded_config_fields_tabl
     assert len(catalog_before) >= 2, (
         "fixture sanity: the real h-dcn catalog must have several groups to prove truncation"
     )
-    assert "personal" in catalog_before, "fixture sanity: 'personal' must be a catalog group"
+    assert "personal" in catalog_before, (
+        "fixture sanity: 'personal' must be a catalog group"
+    )
 
     # Edit ONE existing group (change its order + label) — the partial group-modal edit that
     # truncated the catalog 6 → 2 on TEST. Through the Change-Op path this touches only `personal`.
@@ -237,7 +239,9 @@ def test_partial_groups_save_must_not_orphan_fields(seeded_config_fields_table):
     writer = _ChangeOpGroupWriter(table, tenant_id)
 
     before = _resolved_record(table, tenant_id)
-    groups_before = {g for f in before["fields"].values() if (g := f["functional_group"])}
+    groups_before = {
+        g for f in before["fields"].values() if (g := f["functional_group"])
+    }
     assert len(before["functional_groups"]) >= 2, "fixture sanity: need several groups"
 
     # The SAME partial group-modal edit as tripwire 1 (edit one group, touch only it).

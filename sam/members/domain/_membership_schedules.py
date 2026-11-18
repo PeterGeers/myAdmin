@@ -151,7 +151,7 @@ class SchedulesMixin:
                 # worse than a clean failure the caller can retry.
                 try:
                     self._repo.delete_schedule(tenant_id, schedule_id)
-                except Exception:
+                except Exception:  # noqa: S110
                     pass  # the original scheduler error is what matters; don't mask it
                 raise
 

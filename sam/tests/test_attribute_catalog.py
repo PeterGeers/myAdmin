@@ -19,7 +19,6 @@ from sam.members.domain.attribute_catalog import BASE_FUNCTIONAL_GROUPS
 from sam.members.domain.field_resolver import FunctionalGroup
 from sam.members.domain.seed_overlay import SEED_FUNCTIONAL_GROUPS
 
-
 # ── Base functional-group set (R5.1) ───────────────────────────────────────────────────
 
 
@@ -75,7 +74,8 @@ def test_seed_functional_groups_base_entries_derive_from_base_set():
     # Task 1.2 / R5.2: the seed's base groups are NOT a second hand-maintained copy — they are
     # the SAME keys/labels/orders as BASE_FUNCTIONAL_GROUPS, projected into the seed's dict shape.
     expected_base = [
-        {"key": g.key, "label": dict(g.label), "order": g.order} for g in BASE_FUNCTIONAL_GROUPS
+        {"key": g.key, "label": dict(g.label), "order": g.order}
+        for g in BASE_FUNCTIONAL_GROUPS
     ]
     seed_base = [g for g in SEED_FUNCTIONAL_GROUPS if g["key"] != "group_a"]
     assert seed_base == expected_base
@@ -98,6 +98,7 @@ def test_seed_functional_groups_dict_shape_is_preserved():
     for g in SEED_FUNCTIONAL_GROUPS:
         assert set(g) == {"key", "label", "order"}
         assert isinstance(g["label"], dict) and set(g["label"]) == {"nl", "en"}
+
 
 # ── Base-group closure (R5.2 — every shipped field resolves to a base-set key) ─────────
 #
@@ -172,7 +173,6 @@ from sam.members.domain.attribute_catalog import (
     AttributeSpec,
     CatalogField,
 )
-
 
 # ── AttributeApplies (origin vocabulary) ───────────────────────────────────────────────
 
@@ -344,7 +344,6 @@ def test_attribute_catalog_is_frozen():
 
 from sam.members.domain.attribute_catalog import ATTRIBUTE_VOCABULARY
 
-
 #: The exact attribute keys the design §2 table names (task 2.2 "the attributes the model carries").
 _DESIGNED_ATTRIBUTE_KEYS = {
     "key",
@@ -458,7 +457,11 @@ def test_enum_rule_is_identical_on_choices_and_options():
     # The resolver rejects a choiceless enum only when BOTH choices AND options are empty
     # (`not of.choices and not of.options`). The catalog must therefore carry the SAME
     # required_when on both — a mismatch would mean the mirror only half-encodes the rule.
-    assert _spec("choices").required_when == _spec("options").required_when == (("type", "enum"),)
+    assert (
+        _spec("choices").required_when
+        == _spec("options").required_when
+        == (("type", "enum"),)
+    )
 
 
 def test_only_enum_value_attributes_carry_the_type_enum_rule():
@@ -749,9 +752,15 @@ def test_validate_catalog_consistency_raises_on_a_duplicate_attribute_key():
 
 def test_validate_catalog_consistency_raises_on_a_dangling_functional_group():
     # Case 2: a CatalogField whose functional_group is not a base-set key.
-    dangling_field = dataclasses.replace(_VALID_FIELD, functional_group="not_a_base_group")
-    with pytest.raises(ValueError, match="functional group absent from the base group set"):
-        validate_catalog_consistency((_VALID_SPEC,), (dangling_field,), BASE_FUNCTIONAL_GROUPS)
+    dangling_field = dataclasses.replace(
+        _VALID_FIELD, functional_group="not_a_base_group"
+    )
+    with pytest.raises(
+        ValueError, match="functional group absent from the base group set"
+    ):
+        validate_catalog_consistency(
+            (_VALID_SPEC,), (dangling_field,), BASE_FUNCTIONAL_GROUPS
+        )
 
 
 def test_validate_catalog_consistency_raises_on_an_enum_rule_inconsistency():
@@ -764,11 +773,15 @@ def test_validate_catalog_consistency_raises_on_an_enum_rule_inconsistency():
             required=False,
             applies_to=(AttributeApplies.FIXED,),
             tenant_authorable=True,
-            required_when=(("type", "enumm"),),  # typo'd type value — not a FieldType member
+            required_when=(
+                ("type", "enumm"),
+            ),  # typo'd type value — not a FieldType member
         ),
     )
     with pytest.raises(ValueError, match="enum-rule inconsistency"):
-        validate_catalog_consistency(bad_enum_rule, (_VALID_FIELD,), BASE_FUNCTIONAL_GROUPS)
+        validate_catalog_consistency(
+            bad_enum_rule, (_VALID_FIELD,), BASE_FUNCTIONAL_GROUPS
+        )
 
 
 def test_validate_catalog_consistency_accepts_a_valid_enum_type_rule():
@@ -783,7 +796,9 @@ def test_validate_catalog_consistency_accepts_a_valid_enum_type_rule():
             required_when=(("type", FieldType.ENUM.value),),
         ),
     )
-    validate_catalog_consistency(good_enum_rule, (_VALID_FIELD,), BASE_FUNCTIONAL_GROUPS)  # no raise
+    validate_catalog_consistency(
+        good_enum_rule, (_VALID_FIELD,), BASE_FUNCTIONAL_GROUPS
+    )  # no raise
 
 
 # ── Inventory ⇄ registry DRIFT GUARD (task 3.3; design §2 "field inventory", §6, R1.4/R7.2) ──
@@ -834,7 +849,9 @@ def test_catalog_inventory_has_no_duplicate_dotted_keys():
     # duplicate dotted key (which a set comparison would silently absorb) — the inventory is a
     # 1:1 projection, so its dotted keys are unique, exactly as the registries' are.
     dotted_keys = [cf.dotted_key for cf in build_attribute_catalog().fields]
-    assert len(dotted_keys) == len(set(dotted_keys)), "duplicate dotted key in the catalog inventory"
+    assert len(dotted_keys) == len(set(dotted_keys)), (
+        "duplicate dotted key in the catalog inventory"
+    )
 
 
 def test_catalog_fixed_field_platform_fixed_attributes_track_the_registry():
@@ -850,7 +867,9 @@ def test_catalog_fixed_field_platform_fixed_attributes_track_the_registry():
         assert cf.key == f.key, f"{dk}: key drifted"
         assert cf.type == f.type.value, f"{dk}: type drifted from the registry"
         assert cf.required == f.required, f"{dk}: required drifted from the registry"
-        assert cf.read_only is False, f"{dk}: a stored fixed field must stay read_only=False"
+        assert cf.read_only is False, (
+            f"{dk}: a stored fixed field must stay read_only=False"
+        )
         assert cf.storage_group == f.group.value, f"{dk}: storage_group drifted"
         assert cf.functional_group == f.default_functional_group(), (
             f"{dk}: functional_group drifted from default_functional_group()"
@@ -871,8 +890,12 @@ def test_catalog_calculated_field_platform_fixed_attributes_track_the_registry()
         assert cf.origin is AttributeApplies.CALCULATED, f"{dk}: origin drifted"
         assert cf.key == c.key, f"{dk}: key drifted"
         assert cf.type == c.type.value, f"{dk}: type drifted from the registry"
-        assert cf.required is False, f"{dk}: a calculated field is platform-pinned required=False"
-        assert cf.read_only is True, f"{dk}: a calculated field is platform-pinned read_only=True"
+        assert cf.required is False, (
+            f"{dk}: a calculated field is platform-pinned required=False"
+        )
+        assert cf.read_only is True, (
+            f"{dk}: a calculated field is platform-pinned read_only=True"
+        )
         assert cf.storage_group == c.group.value, f"{dk}: storage_group drifted"
         assert cf.functional_group == c.default_functional_group(), (
             f"{dk}: functional_group drifted from default_functional_group()"
@@ -891,7 +914,10 @@ def test_catalog_inventory_drift_guard_covers_every_field_exactly_once():
     calc_count = sum(1 for cf in fields if cf.origin is AttributeApplies.CALCULATED)
     assert fixed_count == len(FIXED_FIELDS)
     assert calc_count == len(CALCULATED_FIELDS)
-    assert fixed_count + calc_count == len(fields), "a catalog field has an origin outside fixed/calculated"
+    assert fixed_count + calc_count == len(fields), (
+        "a catalog field has an origin outside fixed/calculated"
+    )
+
 
 # ── Vocabulary COMPLETENESS: every modelled dataclass attribute has an AttributeSpec (task 3.4) ──
 #
@@ -1005,7 +1031,9 @@ def test_vocabulary_completeness_mapping_targets_are_real_vocabulary_keys():
     # completeness check below pass vacuously for that dataclass field.
     vocab_keys = {s.key for s in ATTRIBUTE_VOCABULARY}
     unknown_targets = {
-        src: dst for src, dst in _DATACLASS_FIELD_TO_ATTRIBUTE.items() if dst not in vocab_keys
+        src: dst
+        for src, dst in _DATACLASS_FIELD_TO_ATTRIBUTE.items()
+        if dst not in vocab_keys
     }
     assert not unknown_targets, (
         f"the dataclass→attribute mapping points at vocabulary keys that do not exist: "
@@ -1017,7 +1045,9 @@ def test_vocabulary_completeness_mapping_and_allow_list_are_disjoint():
     # A dataclass field is EITHER a modelled attribute OR an intentional non-attribute — never
     # both. Overlap would hide a drift (a field could be "covered" two ways and mask a problem).
     overlap = set(_DATACLASS_FIELD_TO_ATTRIBUTE) & set(_NON_ATTRIBUTE_DATACLASS_FIELDS)
-    assert not overlap, f"dataclass field classified as both attribute and non-attribute: {overlap}"
+    assert not overlap, (
+        f"dataclass field classified as both attribute and non-attribute: {overlap}"
+    )
 
 
 def test_every_dataclass_field_is_explicitly_classified():
@@ -1025,7 +1055,9 @@ def test_every_dataclass_field_is_explicitly_classified():
     # mapped to a vocabulary attribute OR on the documented non-attribute allow-list. A brand-new
     # attribute added to a dataclass without a vocabulary entry (and without being allow-listed)
     # lands here, UNCLASSIFIED — breaking CI, naming the offender, exactly as R7.2 requires.
-    classified = set(_DATACLASS_FIELD_TO_ATTRIBUTE) | set(_NON_ATTRIBUTE_DATACLASS_FIELDS)
+    classified = set(_DATACLASS_FIELD_TO_ATTRIBUTE) | set(
+        _NON_ATTRIBUTE_DATACLASS_FIELDS
+    )
     unclassified = _all_dataclass_field_names() - classified
     assert not unclassified, (
         f"dataclass attribute(s) with no matching AttributeSpec and not on the documented "
@@ -1058,7 +1090,10 @@ def test_vocabulary_completeness_allow_list_only_names_real_dataclass_fields():
     # A stale allow-list entry (a field since renamed/removed) would silently suppress nothing and
     # rot — fail if the allow-list references a field no dataclass exposes any more.
     stale = set(_NON_ATTRIBUTE_DATACLASS_FIELDS) - _all_dataclass_field_names()
-    assert not stale, f"allow-list names dataclass field(s) that no longer exist: {sorted(stale)}"
+    assert not stale, (
+        f"allow-list names dataclass field(s) that no longer exist: {sorted(stale)}"
+    )
+
 
 # ── build_attribute_catalog() ITSELF raises on an inconsistent catalog (task 3.5; R7.1) ──
 #
@@ -1083,7 +1118,7 @@ def test_vocabulary_completeness_allow_list_only_names_real_dataclass_fields():
 #
 # Validates: Requirements R7.1
 
-import sam.members.domain.attribute_catalog as attribute_catalog
+from sam.members.domain import attribute_catalog
 
 
 def test_build_attribute_catalog_raises_on_a_duplicate_attribute_key(monkeypatch):
@@ -1091,7 +1126,9 @@ def test_build_attribute_catalog_raises_on_a_duplicate_attribute_key(monkeypatch
     # build_attribute_catalog() ITSELF raises — not just the helper. The duplicate is the shipped
     # vocabulary with one real spec appended again (same key), so the only inconsistency is the dup.
     duplicated_vocabulary = ATTRIBUTE_VOCABULARY + (ATTRIBUTE_VOCABULARY[0],)
-    monkeypatch.setattr(attribute_catalog, "ATTRIBUTE_VOCABULARY", duplicated_vocabulary)
+    monkeypatch.setattr(
+        attribute_catalog, "ATTRIBUTE_VOCABULARY", duplicated_vocabulary
+    )
     with pytest.raises(ValueError, match="duplicate attribute key"):
         attribute_catalog.build_attribute_catalog()
 
@@ -1112,7 +1149,9 @@ def test_build_attribute_catalog_raises_on_a_dangling_functional_group(monkeypat
         "no shipped field references a base group — cannot inject a dangling reference"
     )
     monkeypatch.setattr(attribute_catalog, "BASE_FUNCTIONAL_GROUPS", shrunk_base_groups)
-    with pytest.raises(ValueError, match="functional group absent from the base group set"):
+    with pytest.raises(
+        ValueError, match="functional group absent from the base group set"
+    ):
         attribute_catalog.build_attribute_catalog()
 
 
@@ -1185,8 +1224,8 @@ def test_resolve_label_merges_locales_independently():
     # R3.3 (the independence property): the merge is PER LOCALE — nl taken from the tenant inline
     # dict, en from the resource layer, in the SAME returned dict. No tier wins the whole label.
     served = resolve_label(
-        tenant_inline={"nl": "Tenant NL"},            # only nl authored by the tenant
-        resource={"en": "Resource EN"},               # only en in the resource layer
+        tenant_inline={"nl": "Tenant NL"},  # only nl authored by the tenant
+        resource={"en": "Resource EN"},  # only en in the resource layer
         fallback={"nl": "Fallback NL", "en": "Fallback EN"},
     )
     assert served == {"nl": "Tenant NL", "en": "Resource EN"}
@@ -1205,8 +1244,8 @@ def test_resolve_label_falls_through_a_blank_tier_entry():
     # R3.5: a blank/empty value at a higher-precedence tier is treated as ABSENT for that locale,
     # so the next tier supplies it — a label is never rendered blank when a lower tier can fill it.
     served = resolve_label(
-        tenant_inline={"nl": "   ", "en": ""},        # blank/whitespace → absent per locale
-        resource={"nl": "Resource NL"},               # supplies nl
+        tenant_inline={"nl": "   ", "en": ""},  # blank/whitespace → absent per locale
+        resource={"nl": "Resource NL"},  # supplies nl
         fallback={"nl": "Fallback NL", "en": "Fallback EN"},  # supplies en
     )
     assert served == {"nl": "Resource NL", "en": "Fallback EN"}
@@ -1259,7 +1298,7 @@ def test_resolve_label_reproduces_the_registry_dict_when_resource_equals_fallbac
     registry_label = {"nl": "Voornaam", "en": "First name"}
     served = resolve_label(
         tenant_inline=None,
-        resource=dict(registry_label),   # seeded from the same values (task 5.1)
+        resource=dict(registry_label),  # seeded from the same values (task 5.1)
         fallback=registry_label,
     )
     assert served == registry_label
@@ -1270,6 +1309,7 @@ def test_label_fallback_order_tail_is_recorded_on_the_artifact():
     # recorded in the artifact, so the serializer and the frontend resolve a missing locale the SAME
     # way (the leading `active` locale is supplied at render by the caller). Pin the recorded tail.
     assert LABEL_FALLBACK_ORDER == ("en", "nl")
+
 
 # ── Enum value/label SPLIT guardrail: value is language-neutral, only label is per-locale (task 5.3) ──
 #
@@ -1296,7 +1336,9 @@ from sam.members.domain.fixed_fields import EnumOption, field_by_key
 def _status_options() -> tuple[EnumOption, ...]:
     """The shipped `membership.status` rich enum options from the fixed-field registry (real API)."""
     status = field_by_key("membership.status")
-    assert status is not None and status.options, "membership.status must ship rich enum options"
+    assert status is not None and status.options, (
+        "membership.status must ship rich enum options"
+    )
     return tuple(status.options)
 
 
@@ -1304,12 +1346,20 @@ def test_enum_option_value_is_a_language_neutral_string_not_a_language_keyed_dic
     # R3.4: every shipped status option's `value` is a single bare string — NOT a Mapping and NOT a
     # {nl,en,…} per-language dict. The language-neutral canonical token can never be a label.
     for opt in _status_options():
-        assert isinstance(opt.value, str), f"option value must be a str, got {type(opt.value)!r}"
-        assert not isinstance(opt.value, Mapping), f"option value must not be language-keyed: {opt.value!r}"
+        assert isinstance(opt.value, str), (
+            f"option value must be a str, got {type(opt.value)!r}"
+        )
+        assert not isinstance(opt.value, Mapping), (
+            f"option value must not be language-keyed: {opt.value!r}"
+        )
         assert opt.value.strip(), "option value must be a non-blank canonical token"
         # Only the LABEL is per-language — it IS the {nl,en} dict, so the split is unmistakable.
-        assert isinstance(opt.label, Mapping), f"option {opt.value!r} label must be the per-locale dict"
-        assert set(opt.label) == {"nl", "en"}, f"option {opt.value!r} ships nl+en labels"
+        assert isinstance(opt.label, Mapping), (
+            f"option {opt.value!r} label must be the per-locale dict"
+        )
+        assert set(opt.label) == {"nl", "en"}, (
+            f"option {opt.value!r} ships nl+en labels"
+        )
 
 
 def test_shipped_status_option_values_are_the_stable_canonical_tokens():
@@ -1325,12 +1375,14 @@ def test_resolving_an_option_label_across_locales_leaves_value_identical():
     # stored `value`. `resolve_label` operates on the label dict only — the canonical token is stable
     # across locales because the value is simply never an input to label resolution.
     for opt in _status_options():
-        served = resolve_label(fallback=dict(opt.label))      # render the per-locale label
+        served = resolve_label(fallback=dict(opt.label))  # render the per-locale label
         # The label differs per locale (that's the point of translating it: Actief vs Active, …)…
-        assert served["nl"] != served["en"], f"option {opt.value!r} labels should differ nl vs en"
+        assert served["nl"] != served["en"], (
+            f"option {opt.value!r} labels should differ nl vs en"
+        )
         # …but the stored value is identical regardless of which locale we render the label in: the
         # value never participates in label resolution, so it is stable across locales.
-        assert opt.value == opt.value  # noqa: PLR0124 — the token is the same object for every locale
+        assert opt.value == opt.value
         # And the value is NEVER one of the (translated) label texts — it is the neutral token.
         assert opt.value not in served.values(), (
             f"option value {opt.value!r} must not equal a translated label text {served!r}"
@@ -1353,6 +1405,7 @@ def test_option_value_is_the_enum_resource_key_segment_never_translated_text():
             assert opt.value != locale_text, (
                 f"option value {opt.value!r} must differ from its translated label {locale_text!r}"
             )
+
 
 # ── Add-a-language PROOF: a new locale is a DATA change, not a code change (task 5.6) ──
 #
@@ -1427,7 +1480,12 @@ def test_a_field_with_no_de_label_falls_back_per_task_5_5_chain():
     assert LABEL_FALLBACK_ORDER == ("en", "nl")
     # Simulate the render-side pick for a `de`-active user over the served dict: en wins (the tail's
     # head), proving the fallback is deterministic and non-blank without any `de`-specific code.
-    de_active = served.get("de") or served.get("en") or served.get("nl") or "membersConfig.field.first_name"
+    de_active = (
+        served.get("de")
+        or served.get("en")
+        or served.get("nl")
+        or "membersConfig.field.first_name"
+    )
     assert de_active == "First name"
     assert de_active != ""
 
@@ -1438,10 +1496,15 @@ def test_resolve_label_has_no_locale_specific_branch_so_any_new_locale_resolves(
     # language is a data change: there is no per-language code to add.
     for new_locale in ("de", "fr", "xx"):
         served = resolve_label(
-            resource={"nl": "Voornaam", "en": "First name", new_locale: f"{new_locale}-label"},
+            resource={
+                "nl": "Voornaam",
+                "en": "First name",
+                new_locale: f"{new_locale}-label",
+            },
             fallback=_FIRST_NAME_REGISTRY_LABEL,
         )
         assert served[new_locale] == f"{new_locale}-label"
+
 
 # ── The COMPLETE i18n convention is recorded ON the artifact (task 5.7; design §3, R3.7) ──
 #
@@ -1484,19 +1547,33 @@ def test_label_key_scheme_templates_match_the_task_5_1_scheme():
     # change here that the frontend did not follow (or vice versa) surfaces as a contradiction.
     assert LABEL_KEY_SCHEME.field_template == "admin:membersConfig.field.{field_key}"
     assert LABEL_KEY_SCHEME.group_template == "admin:membersConfig.group.{group_key}"
-    assert LABEL_KEY_SCHEME.enum_template == "admin:membersConfig.enum.{field_key}.{option_value}"
+    assert (
+        LABEL_KEY_SCHEME.enum_template
+        == "admin:membersConfig.enum.{field_key}.{option_value}"
+    )
 
 
 def test_label_key_scheme_field_key_builds_the_shipped_field_resource_key():
     # The field template resolves to the task-5.1 key for a shipped field (snake_case key segment
     # preserved verbatim — translating it would break the key, R3.4).
-    assert LABEL_KEY_SCHEME.field_key("first_name") == "admin:membersConfig.field.first_name"
-    assert LABEL_KEY_SCHEME.field_key("member_number") == "admin:membersConfig.field.member_number"
+    assert (
+        LABEL_KEY_SCHEME.field_key("first_name")
+        == "admin:membersConfig.field.first_name"
+    )
+    assert (
+        LABEL_KEY_SCHEME.field_key("member_number")
+        == "admin:membersConfig.field.member_number"
+    )
 
 
 def test_label_key_scheme_group_key_builds_the_shipped_group_resource_key():
-    assert LABEL_KEY_SCHEME.group_key("administrative") == "admin:membersConfig.group.administrative"
-    assert LABEL_KEY_SCHEME.group_key("personal") == "admin:membersConfig.group.personal"
+    assert (
+        LABEL_KEY_SCHEME.group_key("administrative")
+        == "admin:membersConfig.group.administrative"
+    )
+    assert (
+        LABEL_KEY_SCHEME.group_key("personal") == "admin:membersConfig.group.personal"
+    )
 
 
 def test_label_key_scheme_enum_key_builds_the_shipped_enum_option_resource_key():
@@ -1551,8 +1628,12 @@ def test_catalog_recorded_key_scheme_agrees_with_the_frontend_task_5_1_scheme():
     assert scheme is not None
     # Transcribed frontend expectations (mirrors the frontend test's documented scheme):
     assert scheme.field_key("first_name") == "admin:membersConfig.field.first_name"
-    assert scheme.group_key("administrative") == "admin:membersConfig.group.administrative"
-    assert scheme.enum_key("status", "active") == "admin:membersConfig.enum.status.active"
+    assert (
+        scheme.group_key("administrative") == "admin:membersConfig.group.administrative"
+    )
+    assert (
+        scheme.enum_key("status", "active") == "admin:membersConfig.enum.status.active"
+    )
 
 
 def test_hand_built_catalog_defaults_keep_the_task_2_1_shape_valid():

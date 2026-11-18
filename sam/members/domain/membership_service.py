@@ -73,33 +73,33 @@ from sam.members.domain._membership_errors import (
 from sam.members.domain._membership_reads import ReadsMixin
 from sam.members.domain._membership_schedules import SchedulesMixin
 from sam.members.domain._membership_writes import WritesMixin
-from sam.members.domain.field_resolver import (
-    FieldResolver,
-    StaticOverlayProvider,
-    TenantOverlayProvider,
+from sam.members.domain.config_status import (
+    ConfigStatusProvider,
+    StaticConfigStatusProvider,
 )
-from sam.members.domain.scope_dimensions import (
-    ScopeConfigProvider,
+from sam.members.domain.consent_notice import (
+    ConsentNoticeProvider,
+    StaticConsentNoticeProvider,
 )
 from sam.members.domain.default_page_size import (
     DefaultPageSizeProvider,
     StaticDefaultPageSizeProvider,
 )
-from sam.members.domain.config_status import (
-    ConfigStatusProvider,
-    StaticConfigStatusProvider,
-)
-from sam.members.domain.mail_gate import (
-    MailGateProvider,
-    StaticMailGateProvider,
+from sam.members.domain.field_resolver import (
+    FieldResolver,
+    StaticOverlayProvider,
+    TenantOverlayProvider,
 )
 from sam.members.domain.mail_config import (
     MailConfigProvider,
     StaticMailConfigProvider,
 )
-from sam.members.domain.consent_notice import (
-    ConsentNoticeProvider,
-    StaticConsentNoticeProvider,
+from sam.members.domain.mail_gate import (
+    MailGateProvider,
+    StaticMailGateProvider,
+)
+from sam.members.domain.scope_dimensions import (
+    ScopeConfigProvider,
 )
 from sam.members.domain.tenant_hooks import TenantHookRegistry
 from sam.members.repository.members_repository import (
@@ -197,7 +197,7 @@ class MembershipService(
         default_page_size_provider: DefaultPageSizeProvider | None = None,
         consent_notice_provider: ConsentNoticeProvider | None = None,
         form_slug_provider: object | None = None,
-        scheduler_port: "SchedulerApiPort | None" = None,
+        scheduler_port: SchedulerApiPort | None = None,
     ):
         self._repo = repository
         # The EventBridge-Scheduler management port the SchedulesMixin uses to materialize /

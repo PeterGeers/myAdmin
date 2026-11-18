@@ -89,12 +89,16 @@ def test_calculated_field_by_key_round_trips_and_misses_gracefully():
 
 
 def test_display_name_joins_first_infix_last():
-    rec = _record(personal={"first_name": "Jan", "name_infix": "de", "last_name": "Vries"})
+    rec = _record(
+        personal={"first_name": "Jan", "name_infix": "de", "last_name": "Vries"}
+    )
     assert _derive_display_name(rec) == "Jan de Vries"
 
 
 def test_display_name_omits_blank_infix():
-    rec = _record(personal={"first_name": "Jan", "name_infix": "", "last_name": "Jansen"})
+    rec = _record(
+        personal={"first_name": "Jan", "name_infix": "", "last_name": "Jansen"}
+    )
     assert _derive_display_name(rec) == "Jan Jansen"
 
 
@@ -110,9 +114,9 @@ def test_display_name_only_first_name():
 @pytest.mark.parametrize(
     "personal",
     [
-        {},                                   # empty personal group
+        {},  # empty personal group
         {"first_name": "", "last_name": ""},  # all blank
-        {"first_name": "   "},                # whitespace only
+        {"first_name": "   "},  # whitespace only
     ],
 )
 def test_display_name_missing_or_blank_inputs_return_none(personal):
@@ -244,7 +248,9 @@ def test_birth_year_returns_full_year():
     ],
 )
 def test_birth_quarter_maps_month_to_quarter(birth_date, expected):
-    assert _derive_birth_quarter(_record(personal={"birth_date": birth_date})) == expected
+    assert (
+        _derive_birth_quarter(_record(personal={"birth_date": birth_date})) == expected
+    )
 
 
 def test_birth_fields_accept_datetime_prefixed_string():
@@ -297,7 +303,10 @@ def test_years_member_future_join_date_is_none():
 
 @pytest.mark.parametrize("bad", [None, "", "   ", "nope"])
 def test_years_member_missing_or_malformed_returns_none(bad):
-    assert _derive_years_member(_record(membership={"joined_date": bad}), today=_TODAY) is None
+    assert (
+        _derive_years_member(_record(membership={"joined_date": bad}), today=_TODAY)
+        is None
+    )
 
 
 def test_years_member_missing_group_returns_none():
@@ -349,7 +358,12 @@ def test_evaluate_delegates_to_the_derivation():
 
 def test_compute_calculated_fields_returns_every_key_and_never_raises():
     rec = _record(
-        personal={"first_name": "Jan", "name_infix": "van", "last_name": "Dijk", "birth_date": "1990-06-15"},
+        personal={
+            "first_name": "Jan",
+            "name_infix": "van",
+            "last_name": "Dijk",
+            "birth_date": "1990-06-15",
+        },
         membership={"joined_date": "2015-01-01", "created_at": "2015-01-02"},
     )
     result = compute_calculated_fields(rec)
