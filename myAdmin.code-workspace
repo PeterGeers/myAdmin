@@ -18,8 +18,7 @@
 				"driver": "MySQL",
 				"name": "myAdmin",
 				"database": "finance",
-				"username": "peter",
-				"password": "@Mm0sw1*v6Mb@*jNQ9pL"
+				"username": "peter"
 			}
 		],
 		"typescript.autoClosingTags": false,
