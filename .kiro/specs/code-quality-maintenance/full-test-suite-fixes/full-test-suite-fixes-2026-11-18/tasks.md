@@ -122,7 +122,7 @@ reproducible and deterministic. No Medium task exists this cycle.
     ```
   - _Requirements: 1.2, 1.3_
 
-- [ ] 5. L2. Re-dispatch the Full Test Suite on the branch tip and confirm green.
+- [x] 5. L2. Re-dispatch the Full Test Suite on the branch tip and confirm green.
 
   - **Why**: run 44199159239 is FAILURE; the suite must be re-run after H1–H3 and L1 land. Note
     the analysed head is `a26e3561a`; fixes must be committed and pushed to the branch before
