@@ -22,6 +22,7 @@
 				"password": "@Mm0sw1*v6Mb@*jNQ9pL"
 			}
 		],
-		"typescript.autoClosingTags": false
+		"typescript.autoClosingTags": false,
+		"python.analysis.excludeLibraryDiagnostics": true
 	}
 }

@@ -82,22 +82,26 @@ class TestExportFileName:
         assert _export_file_name("Tenant", "Pivot") != "members.csv"
 
     def test_file_name_is_deterministic(self):
-        assert _export_file_name("Tenant", "Pivot") == _export_file_name("Tenant", "Pivot")
+        assert _export_file_name("Tenant", "Pivot") == _export_file_name(
+            "Tenant", "Pivot"
+        )
 
     @pytest.mark.parametrize(
         "tenant,pivot",
         [
-            ("", "Pivot"),      # missing tenant (older in-flight job)
-            ("Tenant", ""),     # missing pivot
-            ("", ""),           # both missing
-            ("   ", "Pivot"),   # tenant sanitizes to blank
-            (None, None),       # neither stamped
-            ("///", "Pivot"),   # tenant sanitizes to empty after strip
+            ("", "Pivot"),  # missing tenant (older in-flight job)
+            ("Tenant", ""),  # missing pivot
+            ("", ""),  # both missing
+            ("   ", "Pivot"),  # tenant sanitizes to blank
+            (None, None),  # neither stamped
+            ("///", "Pivot"),  # tenant sanitizes to empty after strip
         ],
     )
     def test_file_name_falls_back_to_generic_when_a_part_is_blank(self, tenant, pivot):
         # Backward-compat: degrade to a safe generic name rather than emit ``-.csv`` or raise.
-        assert _export_file_name(tenant, pivot) == DEFAULT_EXPORT_FILENAME == "export.csv"
+        assert (
+            _export_file_name(tenant, pivot) == DEFAULT_EXPORT_FILENAME == "export.csv"
+        )
 
 
 # ── _export_subject ────────────────────────────────────────────────────────────────────

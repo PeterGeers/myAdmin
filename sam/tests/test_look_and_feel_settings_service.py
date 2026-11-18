@@ -150,7 +150,9 @@ def test_get_settings_page_id_defaults_to_application_form():
 
 
 def test_get_settings_does_not_write():
-    svc, _reader, writer = _service(reader=FakeReader({_TENANT: {"font_body": "Inter"}}))
+    svc, _reader, writer = _service(
+        reader=FakeReader({_TENANT: {"font_body": "Inter"}})
+    )
     svc.get_settings(_TENANT)
     assert writer.calls == [], "a read must never issue a Change-Op"
 
@@ -160,7 +162,9 @@ def test_get_settings_does_not_write():
 
 def test_set_setting_valid_enum_issues_single_set_op():
     svc, _reader, writer = _service()
-    result = svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, "base_spacing", "relaxed")
+    result = svc.set_setting(
+        _TENANT, APPLICATION_FORM_PAGE_ID, "base_spacing", "relaxed"
+    )
 
     assert result == {"version": "v-next", "idempotent_replay": False}
     assert writer.calls == [
@@ -386,7 +390,9 @@ def test_set_setting_new_attribute_valid_value_issues_single_set_op(attribute, v
         ("header_title", 42),  # non-string
     ],
 )
-def test_set_setting_new_attribute_invalid_value_rejected_no_write(attribute, bad_value):
+def test_set_setting_new_attribute_invalid_value_rejected_no_write(
+    attribute, bad_value
+):
     svc, _reader, writer = _service()
     with pytest.raises(LookAndFeelValidationError) as exc:
         svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, attribute, bad_value)
@@ -398,12 +404,18 @@ def test_set_setting_new_attribute_invalid_value_rejected_no_write(attribute, ba
 
 def test_new_attribute_invalid_value_leaves_resolved_read_unchanged():
     # A rejected set of a NEW attribute does not perturb what a subsequent get resolves.
-    stored = {"logo": "https://assets.example.org/logo.png", "header_title": "Keep me", "color_primary": "#2D5F8A"}
+    stored = {
+        "logo": "https://assets.example.org/logo.png",
+        "header_title": "Keep me",
+        "color_primary": "#2D5F8A",
+    }
     reader = FakeReader({_TENANT: stored})
     svc, _reader, writer = _service(reader=reader)
 
     with pytest.raises(LookAndFeelValidationError):
-        svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, "logo", "javascript:alert(1)")
+        svc.set_setting(
+            _TENANT, APPLICATION_FORM_PAGE_ID, "logo", "javascript:alert(1)"
+        )
 
     assert writer.calls == []
     assert svc.get_settings(_TENANT) == stored
@@ -420,4 +432,3 @@ def test_set_setting_new_attribute_none_value_clears_via_remove_op():
         "attribute": "logo",
         "client_op_id": None,
     }
-

@@ -41,7 +41,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -80,14 +82,18 @@ CASES = FIXTURE["cases"]
 _CASE_DEFS = [
     (
         "all_defaults_empty",
-        "All-defaults: empty settings -> every attribute resolves to its SAM-owned default "
-        "(system fonts, professional colours, normal/rounded/subtle).",
+        (
+            "All-defaults: empty settings -> every attribute resolves to its SAM-owned default "
+            "(system fonts, professional colours, normal/rounded/subtle)."
+        ),
         {},
     ),
     (
         "full_seven_custom",
-        "Full seven custom values: every supported attribute supplied a distinct non-default "
-        "value, with web fonts so font_links are emitted.",
+        (
+            "Full seven custom values: every supported attribute supplied a distinct non-default "
+            "value, with web fonts so font_links are emitted."
+        ),
         {
             "color_primary": "#112233",
             "color_accent": "#ffeedd",
@@ -100,8 +106,10 @@ _CASE_DEFS = [
     ),
     (
         "partial_colours_only",
-        "Partial subset: only the two brand colours supplied; the other five fall back to "
-        "defaults.",
+        (
+            "Partial subset: only the two brand colours supplied; the other five fall back to "
+            "defaults."
+        ),
         {
             "color_primary": "#2D5F8A",
             "color_accent": "#F4A261",
@@ -109,8 +117,10 @@ _CASE_DEFS = [
     ),
     (
         "partial_fonts_mixed",
-        "Partial subset: a web heading font + a system body font (two fonts, one web one "
-        "system) with a compact/sharp enum mix; colours + shadow default.",
+        (
+            "Partial subset: a web heading font + a system body font (two fonts, one web one "
+            "system) with a compact/sharp enum mix; colours + shadow default."
+        ),
         {
             "font_heading": "Open Sans",
             "font_body": "system",
@@ -120,8 +130,10 @@ _CASE_DEFS = [
     ),
     (
         "partial_enums_only",
-        "Partial subset: only the three enum attributes supplied (no colours, no fonts); "
-        "fonts + colours default.",
+        (
+            "Partial subset: only the three enum attributes supplied (no colours, no fonts); "
+            "fonts + colours default."
+        ),
         {
             "base_spacing": "normal",
             "border_radius_global": "rounded",
@@ -130,8 +142,10 @@ _CASE_DEFS = [
     ),
     (
         "sanitiser_dangerous_values",
-        "Sanitiser exercise: a brand colour carrying url(...) and a font family carrying "
-        "expression(...)/javascript: — all dangerous patterns stripped before reaching CSS.",
+        (
+            "Sanitiser exercise: a brand colour carrying url(...) and a font family carrying "
+            "expression(...)/javascript: — all dangerous patterns stripped before reaching CSS."
+        ),
         {
             "color_primary": "url(evil.css)#2D5F8A",
             "color_accent": "javascript:alert(1)#F4A261",
@@ -226,8 +240,8 @@ def test_committed_fixture_matches_the_freshly_built_serialization():
         committed = fh.read()
     assert committed == _serialize_fixture(), (
         "The committed page-styles parity fixture is stale vs. the Python generator. Regenerate "
-        "it in THIS change: python -c \"from sam.tests.test_page_styles_parity import "
-        "write_fixtures; write_fixtures()\" (PYTHONPATH=repo root); do NOT hand-edit expected values."
+        'it in THIS change: python -c "from sam.tests.test_page_styles_parity import '
+        'write_fixtures; write_fixtures()" (PYTHONPATH=repo root); do NOT hand-edit expected values.'
     )
 
 
@@ -279,7 +293,11 @@ def test_sanitiser_case_actually_strips_dangerous_patterns():
     pinned ``expected`` output has them stripped (so the fixture genuinely exercises the sanitiser)."""
     case = next(c for c in CASES if c["name"] == "sanitiser_dangerous_values")
     raw_values = " ".join(str(v) for v in case["input"].values())
-    assert "url(" in raw_values or "javascript:" in raw_values or "expression(" in raw_values
+    assert (
+        "url(" in raw_values
+        or "javascript:" in raw_values
+        or "expression(" in raw_values
+    )
     out = case["expected"]["cssVariables"] + case["expected"]["pageCss"]
     assert "url(" not in out
     assert "javascript:" not in out

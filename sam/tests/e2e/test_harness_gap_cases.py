@@ -67,24 +67,28 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
-from sam.members.domain._field_models import (  # noqa: E402
+from sam.members.domain._field_models import (
     FixedFieldOverride,
     OverlayError,
     StaticOverlayProvider,
     TenantOverlay,
 )
-from sam.members.domain.config_fields_crud_service import ConfigFieldsCrudService  # noqa: E402
-from sam.members.domain.field_resolver import FieldResolver  # noqa: E402
-from sam.members.migration.functional_groups_list_to_map import (  # noqa: E402
+from sam.members.domain.config_fields_crud_service import (
+    ConfigFieldsCrudService,
+)
+from sam.members.domain.field_resolver import FieldResolver
+from sam.members.migration.functional_groups_list_to_map import (
     convert_functional_groups,
 )
-from sam.members.repository.projection_config_reader import MembersProjectionReader  # noqa: E402
-from sam.members.repository.projection_config_write_repository import (  # noqa: E402
+from sam.members.repository.projection_config_reader import (
+    MembersProjectionReader,
+)
+from sam.members.repository.projection_config_write_repository import (
     MembersConfigWriteRepository,
 )
-from sam.tests.e2e.invariant import ChangeOp, assert_change_op_isolated  # noqa: E402
+from sam.tests.e2e.invariant import ChangeOp, assert_change_op_isolated
 
 _FIXTURES = os.path.join(_REPO_ROOT, "sam", "tests", "fixtures")
 _MAP_FIXTURE = os.path.join(_FIXTURES, "hdcn_config_fields_overlay.json")
@@ -160,7 +164,9 @@ class _FakeQueryTable:
         self.store: dict[tuple, dict] = {}
 
     def put(self, item: dict) -> None:
-        self.store[(item[schema.PARTITION_KEY_ATTR], item[schema.SORT_KEY_ATTR])] = dict(item)
+        self.store[(item[schema.PARTITION_KEY_ATTR], item[schema.SORT_KEY_ATTR])] = (
+            dict(item)
+        )
 
     def query(self, KeyConditionExpression=None):
         expr = KeyConditionExpression.get_expression()
@@ -180,7 +186,9 @@ def test_list_to_map_migration_is_a_no_change_op_in_the_resolved_view():
     before = _resolved_via_overlay(legacy)
 
     migrated = dict(legacy)
-    migrated["functional_groups"] = convert_functional_groups(legacy["functional_groups"])
+    migrated["functional_groups"] = convert_functional_groups(
+        legacy["functional_groups"]
+    )
     after = _resolved_via_overlay(migrated)
 
     # A migration op is allowed to change NOTHING in the resolved view (storage shape only).
@@ -209,16 +217,24 @@ def test_committed_list_and_map_fixtures_carry_the_same_catalog_engine_level():
     MAP) name the SAME functional-group catalog, so the migration invariant above cannot silently
     rot because a fixture drifted. (The unit test asserts this too; keeping a copy at the e2e seam
     means the e2e suite fails loudly if the fixtures diverge, independent of the unit run.)"""
-    list_groups = set(convert_functional_groups(_load(_LIST_FIXTURE)["functional_groups"]))
-    map_groups = set(convert_functional_groups(_load(_MAP_FIXTURE)["functional_groups"]))
-    assert list_groups == map_groups == {
-        "personal",
-        "address",
-        "membership",
-        "motor",
-        "financial",
-        "administrative",
-    }
+    list_groups = set(
+        convert_functional_groups(_load(_LIST_FIXTURE)["functional_groups"])
+    )
+    map_groups = set(
+        convert_functional_groups(_load(_MAP_FIXTURE)["functional_groups"])
+    )
+    assert (
+        list_groups
+        == map_groups
+        == {
+            "personal",
+            "address",
+            "membership",
+            "motor",
+            "financial",
+            "administrative",
+        }
+    )
 
 
 # ════════════════════════════════════════════════════════════════════════════════════════
@@ -269,8 +285,12 @@ def test_orphaned_override_alongside_valid_overrides_still_surfaces_only_the_orp
     legitimate one (the operator sees exactly what to fix after a code rename)."""
     overlay = TenantOverlay(
         overrides={
-            "personal.gender": FixedFieldOverride(label={"en": "Sex"}),  # VALID — gender exists
-            _ORPHAN_DOTTED: FixedFieldOverride(visible=False),  # ORPHANED — no such base field
+            "personal.gender": FixedFieldOverride(
+                label={"en": "Sex"}
+            ),  # VALID — gender exists
+            _ORPHAN_DOTTED: FixedFieldOverride(
+                visible=False
+            ),  # ORPHANED — no such base field
         }
     )
     with pytest.raises(OverlayError) as excinfo:
@@ -331,7 +351,9 @@ def _serialize_resolved(config) -> dict:
             "application_visible": f.application_visible,
             "application_required": f.application_required,
             "application_choices": (
-                list(f.application_choices) if f.application_choices is not None else None
+                list(f.application_choices)
+                if f.application_choices is not None
+                else None
             ),
         }
     groups = {
@@ -378,7 +400,9 @@ class _SequenceHarness:
 
     def _service(self) -> ConfigFieldsCrudService:
         reader = self._reader()
-        repo = MembersConfigWriteRepository(table=self._table, version_fn=_monotonic_version)
+        repo = MembersConfigWriteRepository(
+            table=self._table, version_fn=_monotonic_version
+        )
         return ConfigFieldsCrudService(repo, reader=reader)
 
     def _read_resolved(self) -> dict:
@@ -386,10 +410,16 @@ class _SequenceHarness:
         return _serialize_resolved(config)
 
     # -- the op generator: returns (apply_callable, ChangeOp) or None to skip ------------------
-    _BASE_FIELDS = ["gender", "first_name", "last_name", "email", "birth_date"]
-    _BASE_GROUPS = ["personal", "address", "membership"]
-    _VAR_FIELD_POOL = ["club_motor", "club_note", "club_flag", "club_size", "club_region"]
-    _TENANT_GROUP_POOL = ["club_extra", "club_misc", "club_aux"]
+    _BASE_FIELDS = ["gender", "first_name", "last_name", "email", "birth_date"]  # noqa: RUF012
+    _BASE_GROUPS = ["personal", "address", "membership"]  # noqa: RUF012
+    _VAR_FIELD_POOL = [  # noqa: RUF012
+        "club_motor",
+        "club_note",
+        "club_flag",
+        "club_size",
+        "club_region",
+    ]
+    _TENANT_GROUP_POOL = ["club_extra", "club_misc", "club_aux"]  # noqa: RUF012
 
     def _gen_op(self, rng: random.Random):
         kinds = [
@@ -450,7 +480,9 @@ class _SequenceHarness:
             )
 
         if kind == "add_field":
-            available = [k for k in self._VAR_FIELD_POOL if k not in self._variable_fields]
+            available = [
+                k for k in self._VAR_FIELD_POOL if k not in self._variable_fields
+            ]
             if not available:
                 return None  # pool exhausted this sequence — skip
             key = rng.choice(available)
@@ -485,7 +517,9 @@ class _SequenceHarness:
             # Create a fresh tenant (non-base) group key with no field referencing it — an EMPTY
             # catalog group, which is later safely deletable. Only functional_groups.<gkey> may
             # appear.
-            available = [g for g in self._TENANT_GROUP_POOL if g not in self._tenant_groups]
+            available = [
+                g for g in self._TENANT_GROUP_POOL if g not in self._tenant_groups
+            ]
             if not available:
                 return None
             gkey = rng.choice(available)
@@ -534,7 +568,9 @@ class _SequenceHarness:
             after = self._read_resolved()
             try:
                 assert_change_op_isolated(before, op, after)
-            except AssertionError as exc:  # pragma: no cover - only on a real isolation leak
+            except (
+                AssertionError
+            ) as exc:  # pragma: no cover - only on a real isolation leak
                 raise AssertionError(
                     f"RANDOMIZED SEQUENCE isolation leak at seed={seed} step={step} "
                     f"(op {applied + 1} applied) kind={op.kind!r} target={op.target!r}.\n"
@@ -546,7 +582,9 @@ class _SequenceHarness:
 
 @pytest_e2e
 @pytest.mark.parametrize("seed", _SEQUENCE_SEEDS)
-def test_randomized_op_sequence_preserves_isolation_per_op(seeded_config_fields_table, seed):
+def test_randomized_op_sequence_preserves_isolation_per_op(
+    seeded_config_fields_table, seed
+):
     """gap (iii): a SEEDED random sequence of real Change-Ops over the seeded h-dcn row keeps the
     isolation invariant op-after-op. Each op changes ONLY what it names even as overlay state
     accumulates — the condition single-op cases can miss. The seed is parametrized so each run is

@@ -78,7 +78,9 @@ def _derive_display_name(record: Mapping[str, Any]) -> str | None:
     return joined or None
 
 
-def _derive_age(record: Mapping[str, Any], *, today: _dt.date | None = None) -> int | None:
+def _derive_age(
+    record: Mapping[str, Any], *, today: _dt.date | None = None
+) -> int | None:
     """Whole years between ``birth_date`` and today (never negative → None for a future date)."""
     born = _parse_iso_date(_personal(record).get("birth_date"))
     if born is None:
@@ -270,7 +272,7 @@ CALCULATED_FIELDS: tuple[CalculatedField, ...] = (
     ),
     CalculatedField(
         key="application_year",
-        group=FieldGroup.MEMBERSHIP,      # not stored; grouped under membership for ordering
+        group=FieldGroup.MEMBERSHIP,  # not stored; grouped under membership for ordering
         type=FieldType.STRING,
         label={"nl": "Aanmeldingsjaar", "en": "Application year"},
         inputs=("membership.created_at", "membership.joined_date"),
@@ -298,7 +300,9 @@ for _c in CALCULATED_FIELDS:
 del _seen, _fixed_dotted, _c, _dk
 
 
-_CALC_BY_DOTTED: Mapping[str, CalculatedField] = {c.dotted_key(): c for c in CALCULATED_FIELDS}
+_CALC_BY_DOTTED: Mapping[str, CalculatedField] = {
+    c.dotted_key(): c for c in CALCULATED_FIELDS
+}
 
 
 def calculated_field_by_key(dotted_key: str) -> CalculatedField | None:

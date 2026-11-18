@@ -301,10 +301,14 @@ def test_public_fn_projection_grant_is_read_only_and_scoped(template):
     # READ-ONLY — one-way projection (ADR 0005). No write of any kind.
     assert actions == {"dynamodb:Query", "dynamodb:GetItem"}
     assert not any(
-        a.startswith("dynamodb:Put")
-        or a.startswith("dynamodb:Update")
-        or a.startswith("dynamodb:Delete")
-        or a.startswith("dynamodb:BatchWrite")
+        a.startswith(
+            (
+                "dynamodb:Put",
+                "dynamodb:Update",
+                "dynamodb:Delete",
+                "dynamodb:BatchWrite",
+            )
+        )
         for a in actions
     )
     [res] = stmt["Resource"]

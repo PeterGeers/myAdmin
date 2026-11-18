@@ -18,7 +18,9 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -62,7 +64,7 @@ class TestEntryShape:
 
     def test_entry_is_frozen(self):
         e = _entry()
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             e.type_code = "changed"  # type: ignore[misc]
 
     def test_catalog_locales_are_nl_and_en(self):
@@ -188,7 +190,12 @@ class TestItemRoundTrip:
         from decimal import Decimal
 
         e = MembershipTypeEntry.from_item(
-            {"tenant_id": "t", "type_code": "c", "label": {"nl": "L"}, "order": Decimal(7)}
+            {
+                "tenant_id": "t",
+                "type_code": "c",
+                "label": {"nl": "L"},
+                "order": Decimal(7),
+            }
         )
         assert e.order == 7
 
@@ -221,7 +228,9 @@ _labels = st.builds(
     active=st.booleans(),
     order=st.integers(min_value=-100, max_value=1000),
 )
-def test_property_item_round_trip_is_lossless(tenant_id, type_code, label, active, order):
+def test_property_item_round_trip_is_lossless(
+    tenant_id, type_code, label, active, order
+):
     """Validates: Requirements R2.4 — a valid entry survives to_item -> from_item unchanged."""
     entry = MembershipTypeEntry(
         tenant_id=tenant_id,

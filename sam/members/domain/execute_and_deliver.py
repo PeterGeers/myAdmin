@@ -229,13 +229,27 @@ class ExecuteAndDeliverService:
         pivot_name = entry.name if isinstance(entry.name, str) else ""
         if mode == DELIVERY_MODE_PER_RECIPIENT:
             return self._deliver_per_recipient(
-                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to,
-                tenant_name=tenant_id, pivot_name=pivot_name,
+                tenant_id,
+                set_id,
+                run_id,
+                delivery,
+                result_rows,
+                from_address,
+                reply_to,
+                tenant_name=tenant_id,
+                pivot_name=pivot_name,
             )
         if mode == DELIVERY_MODE_TO_FIXED:
             return self._deliver_to_fixed(
-                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to,
-                tenant_name=tenant_id, pivot_name=pivot_name,
+                tenant_id,
+                set_id,
+                run_id,
+                delivery,
+                result_rows,
+                from_address,
+                reply_to,
+                tenant_name=tenant_id,
+                pivot_name=pivot_name,
             )
         # The entity validates the mode at save time, so an unknown mode here is a stored-data
         # fault; refuse it loudly rather than enqueue nothing silently.

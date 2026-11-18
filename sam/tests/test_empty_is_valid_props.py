@@ -52,7 +52,9 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # repo root on sys.path (mirrors sam/conftest.py) so `sam.members` imports.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -125,7 +127,9 @@ def _module_item(tenant_id, module, version=1):
 def _role_item(tenant_id, email, role, version=1):
     return {
         schema.PARTITION_KEY_ATTR: tenant_id,
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_ROLE, email, role),
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_ROLE, email, role
+        ),
         schema.VERSION_ATTR: version,
     }
 
@@ -146,7 +150,9 @@ def _config_fields_item(tenant_id, fields=None, overrides=None, version=1):
     """A ``config#fields`` row — allowed as NOISE for the scope property (never for fields)."""
     return {
         schema.PARTITION_KEY_ATTR: tenant_id,
-        schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "fields"),
+        schema.SORT_KEY_ATTR: schema.build_sort_key(
+            schema.RECORD_TYPE_CONFIG, "fields"
+        ),
         "fields": fields or {},
         "overrides": overrides or {},
         schema.VERSION_ATTR: version,
@@ -214,7 +220,9 @@ def _noise_rows(draw, tenant_id, *, allow_config_scope, allow_config_fields):
         builders.append(_module_item(tenant_id, module))
 
     for email, role in draw(
-        st.lists(st.tuples(_EMAIL, _TOKEN), max_size=3, unique_by=lambda er: (er[0], er[1]))
+        st.lists(
+            st.tuples(_EMAIL, _TOKEN), max_size=3, unique_by=lambda er: (er[0], er[1])
+        )
     ):
         builders.append(_role_item(tenant_id, email, role))
 
@@ -299,6 +307,7 @@ def test_property_no_config_scope_collapses_to_tenant_wide(data, tenant_id, role
 # Property 3b — no config#fields → the fixed-field base (R1.7)
 # ---------------------------------------------------------------------------
 
+
 def _expected_choices(f):
     """The resolved `choices` the FieldResolver reproduces for a fixed field.
 
@@ -372,7 +381,9 @@ def test_property_no_config_fields_yields_fixed_base(data, tenant_id):
     assert len(fixed_resolved) == len(FIXED_FIELDS)
     # ...and the calculated fields are all present as read-only CALCULATED fields.
     calc_resolved = [f for f in resolved.fields if f.origin is FieldOrigin.CALCULATED]
-    assert {f.dotted_key() for f in calc_resolved} == {c.dotted_key() for c in CALCULATED_FIELDS}
+    assert {f.dotted_key() for f in calc_resolved} == {
+        c.dotted_key() for c in CALCULATED_FIELDS
+    }
     assert all(f.read_only for f in calc_resolved)
     assert len(resolved.fields) == len(FIXED_FIELDS) + len(CALCULATED_FIELDS)
 

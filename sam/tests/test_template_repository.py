@@ -142,7 +142,9 @@ class TestTemplateRepositoryRoundTrip:
     def test_save_get_roundtrip_preserves_metadata(self, repo):
         repo.save_template("h-dcn", _entry())
         got = repo.get_template("h-dcn", "t1")
-        assert got == _entry()  # full metadata survives to_item/from_item through the store
+        assert (
+            got == _entry()
+        )  # full metadata survives to_item/from_item through the store
 
     def test_get_absent_returns_none(self, repo):
         assert repo.get_template("h-dcn", "missing") is None
@@ -180,8 +182,12 @@ class TestTemplateRepositoryRoundTrip:
 
 class TestTemplateRepositoryTenantIsolation:
     def test_second_tenant_same_id_is_invisible(self, repo):
-        repo.save_template("h-dcn", _entry(tenant_id="h-dcn", template_id="t1", name="A"))
-        repo.save_template("other", _entry(tenant_id="other", template_id="t1", name="B"))
+        repo.save_template(
+            "h-dcn", _entry(tenant_id="h-dcn", template_id="t1", name="A")
+        )
+        repo.save_template(
+            "other", _entry(tenant_id="other", template_id="t1", name="B")
+        )
         # Each tenant sees only its own template of the shared id.
         assert repo.get_template("h-dcn", "t1").name == "A"
         assert repo.get_template("other", "t1").name == "B"

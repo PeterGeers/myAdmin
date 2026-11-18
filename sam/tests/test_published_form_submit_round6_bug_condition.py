@@ -293,7 +293,7 @@ def test_form_required_enforced_blank_application_required_field_is_rejected():
     err = exc.value.errors.get("overlay.magazine_pref")
     assert err is not None and err.code == VALIDATION_REQUIRED, (
         "a field the tenant marked `application_required` (`magazine_pref`) left blank must be a "
-        f"VALIDATION_REQUIRED 422. errors={ {k: v.code for k, v in exc.value.errors.items()} !r}"
+        f"VALIDATION_REQUIRED 422. errors={ {k: v.code for k, v in exc.value.errors.items()}!r}"
     )
 
 

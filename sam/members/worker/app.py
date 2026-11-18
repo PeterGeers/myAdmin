@@ -74,7 +74,9 @@ def get_worker() -> Any:
             SesBotoSender,
         )
         from sam.members.repository.members_repository import DynamoDbMembersRepository
-        from sam.members.repository.projection_config_reader import MembersProjectionReader
+        from sam.members.repository.projection_config_reader import (
+            MembersProjectionReader,
+        )
         from sam.members.repository.role_recipients_reader import RoleRecipientsReader
         from sam.members.repository.template_body_store import S3TemplateBodyStore
         from sam.members.worker.mail_audit import log_analytics_output
@@ -130,7 +132,7 @@ def handler(event: Any, context: Any = None) -> dict[str, Any]:
                 result.sent,
                 result.deduped,
             )
-        except Exception as exc:  # noqa: BLE001 — a failed record must be retried, not dropped
+        except Exception as exc:
             logger.warning(
                 "mail-send worker: message %s failed (will retry → DLQ after N): %s",
                 message_id,

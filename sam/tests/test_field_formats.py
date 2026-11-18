@@ -29,7 +29,6 @@ from sam.members.domain.field_formats import (
     known_tokens,
 )
 
-
 # ── Registry shape: platform-defined token set (R7.6/R7.7) ────────────────────────────
 
 
@@ -105,12 +104,12 @@ class TestCheckIban:
     @pytest.mark.parametrize(
         "value",
         [
-            "NL91ABNA0417164300",            # canonical NL example
-            "NL91 ABNA 0417 1643 00",        # spaces tolerated
-            "nl91 abna 0417 1643 00",        # lower-case normalised
-            "DE89370400440532013000",        # DE example
-            "GB82WEST12345698765432",        # GB example
-            "FR1420041010050500013M02606",   # FR example (letter in BBAN)
+            "NL91ABNA0417164300",  # canonical NL example
+            "NL91 ABNA 0417 1643 00",  # spaces tolerated
+            "nl91 abna 0417 1643 00",  # lower-case normalised
+            "DE89370400440532013000",  # DE example
+            "GB82WEST12345698765432",  # GB example
+            "FR1420041010050500013M02606",  # FR example (letter in BBAN)
         ],
     )
     def test_valid_iban_returns_none(self, value):
@@ -119,11 +118,11 @@ class TestCheckIban:
     @pytest.mark.parametrize(
         "value",
         [
-            "NL91ABNA0417164301",   # last digit flipped → mod-97 fails
+            "NL91ABNA0417164301",  # last digit flipped → mod-97 fails
             "DE89370400440532013001",  # checksum broken
             "GB00WEST12345698765432",  # wrong check digits
-            "ZZ00",                 # structurally too short / bad checksum
-            "1234567890",           # no country prefix
+            "ZZ00",  # structurally too short / bad checksum
+            "1234567890",  # no country prefix
             "NL91-ABNA-0417164300",  # stray punctuation
             "",
             "   ",

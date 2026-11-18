@@ -48,24 +48,26 @@ import sys
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain.look_and_feel_settings_service import (  # noqa: E402
-    APPLICATION_FORM_PAGE_ID,
-    LookAndFeelSettingsService,
+from sam.members.domain.look_and_feel_settings_service import (
     _COLOUR_ATTRIBUTES,
     _FONT_ATTRIBUTES,
     _HEADER_TITLE_ATTRIBUTE,
     _LOGO_ATTRIBUTE,
     _MAX_HEADER_TITLE_LENGTH,
     _PERMITTED_VALUES,
+    APPLICATION_FORM_PAGE_ID,
+    LookAndFeelSettingsService,
 )
-from sam.shared.page_styles import SUPPORTED_ATTRIBUTES  # noqa: E402
+from sam.shared.page_styles import SUPPORTED_ATTRIBUTES
 
 # The attributes the SERVICE validates (enum + colour + font + the bugfix extension logo /
 # header_title). The earlier ``columns`` attribute was removed (the form grid is now fully
@@ -127,7 +129,9 @@ def _service_over(store: _Store) -> LookAndFeelSettingsService:
     return LookAndFeelSettingsService(store, store)
 
 
-def _copy_service(source_store: _Store, target_store: _Store) -> LookAndFeelSettingsService:
+def _copy_service(
+    source_store: _Store, target_store: _Store
+) -> LookAndFeelSettingsService:
     """A service whose READ seam is the source Page's store and whose WRITE seam is the target
     Page's store — so a real ``copy_settings`` call reads the source's resolved view and applies the
     one-time snapshot onto the (independent) target store. This drives the ACTUAL product method
@@ -144,7 +148,9 @@ _VALID_BY_ATTR = {
     "font_heading": st.sampled_from(["system", "Inter", "Lora", "Roboto", "Open Sans"]),
     "font_body": st.sampled_from(["system", "Inter", "Lora", "Roboto", "Open Sans"]),
     "base_spacing": st.sampled_from(sorted(_PERMITTED_VALUES["base_spacing"])),
-    "border_radius_global": st.sampled_from(sorted(_PERMITTED_VALUES["border_radius_global"])),
+    "border_radius_global": st.sampled_from(
+        sorted(_PERMITTED_VALUES["border_radius_global"])
+    ),
     "shadow_style": st.sampled_from(sorted(_PERMITTED_VALUES["shadow_style"])),
     # bugfix ``bugfix-published-form-styling`` Task 10 — the two new values-only attributes, each
     # drawn from its PERMITTED set so ``set_setting`` accepts them. (The earlier ``columns``
@@ -228,19 +234,22 @@ def test_copy_is_a_one_time_independent_snapshot(
     copy_svc.copy_settings(_TENANT, APPLICATION_FORM_PAGE_ID, APPLICATION_FORM_PAGE_ID)
 
     # (1) After the copy, the TARGET equals the SOURCE at copy time (Req 9.1 / 9.3).
-    assert target_svc.get_settings(_TENANT, APPLICATION_FORM_PAGE_ID) == source_at_copy_time
+    assert (
+        target_svc.get_settings(_TENANT, APPLICATION_FORM_PAGE_ID)
+        == source_at_copy_time
+    )
 
     # ── Independence: a subsequent change to EITHER Page must not alter the other (Req 9.2/9.5) ──
 
     target_after_copy = target_svc.get_settings(_TENANT, APPLICATION_FORM_PAGE_ID)
-    source_after_copy = source_svc.get_settings(_TENANT, APPLICATION_FORM_PAGE_ID)
+    source_svc.get_settings(_TENANT, APPLICATION_FORM_PAGE_ID)
 
     # (2) Mutate the SOURCE after the copy → the TARGET is unaffected.
     s_attr, s_val = source_mutation
     source_svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, s_attr, s_val)
-    assert target_svc.get_settings(_TENANT, APPLICATION_FORM_PAGE_ID) == target_after_copy, (
-        "a change to the source Page must not alter the target Page"
-    )
+    assert (
+        target_svc.get_settings(_TENANT, APPLICATION_FORM_PAGE_ID) == target_after_copy
+    ), "a change to the source Page must not alter the target Page"
 
     # (3) Mutate the TARGET after the copy → the SOURCE is unaffected (compare against the source's
     # state as it is NOW, i.e. after its own mutation in step 2 — the target change still must not
@@ -254,7 +263,9 @@ def test_copy_is_a_one_time_independent_snapshot(
 
     # (4) A REMOVE on the target likewise leaves the source untouched.
     source_now2 = source_svc.get_settings(_TENANT, APPLICATION_FORM_PAGE_ID)
-    target_svc.set_setting(_TENANT, APPLICATION_FORM_PAGE_ID, t_attr, None)  # None => REMOVE
+    target_svc.set_setting(
+        _TENANT, APPLICATION_FORM_PAGE_ID, t_attr, None
+    )  # None => REMOVE
     assert source_svc.get_settings(_TENANT, APPLICATION_FORM_PAGE_ID) == source_now2, (
         "removing a target attribute must not alter the source Page"
     )

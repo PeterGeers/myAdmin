@@ -126,7 +126,9 @@ def _parse_firing(event: Any) -> tuple[str, str]:
     tenant_id = event.get("tenant_id")
     schedule_id = event.get("schedule_id")
     if not isinstance(tenant_id, str) or not tenant_id.strip():
-        raise ScheduledInvocationError("firing payload is missing a non-blank tenant_id")
+        raise ScheduledInvocationError(
+            "firing payload is missing a non-blank tenant_id"
+        )
     if not isinstance(schedule_id, str) or not schedule_id.strip():
         raise ScheduledInvocationError(
             "firing payload is missing a non-blank schedule_id"

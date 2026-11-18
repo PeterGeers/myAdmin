@@ -31,7 +31,9 @@ import sys
 import pytest
 
 # repo root on sys.path (mirrors the other sam/tests modules) so `sam.members...` imports.
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -63,7 +65,10 @@ class TestAppendAdditionalInfoKeyword:
     def test_preserves_an_existing_keyword(self):
         record = {"overlay": {"additional_info": "DUP"}}
         assert append_additional_info_keyword(record, NO_NOTIFY_KEYWORD) is True
-        assert record["overlay"]["additional_info"].split() == ["DUP", NO_NOTIFY_KEYWORD]
+        assert record["overlay"]["additional_info"].split() == [
+            "DUP",
+            NO_NOTIFY_KEYWORD,
+        ]
 
     def test_idempotent_when_already_present_returns_false(self):
         record = {"overlay": {"additional_info": NO_NOTIFY_KEYWORD}}
@@ -125,7 +130,11 @@ def _record(**overrides):
         "membership": {"status": "application"},
         "overlay": {},
         "locale": "en",
-        "consent": {"version": "v1", "accepted_at": "2026-01-01T00:00:00+00:00", "locale": "en"},
+        "consent": {
+            "version": "v1",
+            "accepted_at": "2026-01-01T00:00:00+00:00",
+            "locale": "en",
+        },
     }
     record.update(overrides)
     return record
@@ -163,7 +172,9 @@ def test_staff_job_carries_deep_link_member_id_and_no_applicant_pii_body():
     staff, _applicant = build_application_notification_jobs(TENANT, _record(), RUN_ID)
 
     assert staff[JOB_KIND_KEY] == JOB_KIND_STAFF
-    assert staff["member_id"] == "mem-123"  # the deep-link target /members/{member_id} (R8.6)
+    assert (
+        staff["member_id"] == "mem-123"
+    )  # the deep-link target /members/{member_id} (R8.6)
     # A display name is the ONLY applicant-identifying text; no email / no submitted data body.
     assert staff["applicant_display_name"] == "Sam van Doe"
     assert "recipient" not in staff
@@ -190,7 +201,9 @@ def test_applicant_job_carries_own_email_locale_and_submitted_copy():
     applicant = build_application_notification_jobs(TENANT, _record(), RUN_ID)[1]
 
     assert applicant[JOB_KIND_KEY] == JOB_KIND_APPLICANT
-    assert applicant["recipient"] == "sam@example.org"  # the server-validated own address (R8a.4)
+    assert (
+        applicant["recipient"] == "sam@example.org"
+    )  # the server-validated own address (R8a.4)
     assert applicant["locale"] == "en"  # the applicant's chosen locale (R6b/R8a.2)
     # A copy of their OWN submitted data (their own data is not a leak, R8a.4).
     assert applicant["submitted"]["personal"]["email"] == "sam@example.org"
@@ -226,14 +239,19 @@ def test_enqueue_places_both_jobs_on_the_queue():
 
     assert len(queue.jobs) == 2
     assert len(message_ids) == 2
-    assert [job[JOB_KIND_KEY] for job in queue.jobs] == [JOB_KIND_STAFF, JOB_KIND_APPLICANT]
+    assert [job[JOB_KIND_KEY] for job in queue.jobs] == [
+        JOB_KIND_STAFF,
+        JOB_KIND_APPLICANT,
+    ]
 
 
 def test_enqueue_stamps_authoritative_tenant_on_each_enqueued_job():
     queue = FakeQueue()
     service = ApplicationNotificationService(queue)
 
-    service.enqueue_application_notifications(TENANT, _record(tenant_id="forged"), RUN_ID)
+    service.enqueue_application_notifications(
+        TENANT, _record(tenant_id="forged"), RUN_ID
+    )
 
     assert [job["tenant_id"] for job in queue.jobs] == [TENANT, TENANT]
 

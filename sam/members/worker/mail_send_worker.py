@@ -486,7 +486,7 @@ class MailSendWorker(
                 triggered_by=APPLICATION_TRIGGERED_BY,
                 recipient_count=0,
             )
-        except Exception:  # noqa: BLE001 — status tracking must never break the send path
+        except Exception:
             logger.warning(
                 "mail-send worker: application run create failed for run %s (non-fatal)",
                 run_id,
@@ -524,7 +524,7 @@ class MailSendWorker(
             record = dict(record)
             if append_additional_info_keyword(record, NO_NOTIFY_KEYWORD):
                 self._members_store.save_member(tenant_id, record)
-        except Exception:  # noqa: BLE001 — annotating the inbox must never fail the worker
+        except Exception:
             logger.warning(
                 "mail-send worker: NO_NOTIFY note write failed for tenant %r member %r "
                 "(non-fatal) — the application is still in the status=application inbox",

@@ -42,7 +42,7 @@ from .error_codes import VALIDATION_MUST_BE_ONE_OF, FieldError
 from .fixed_fields import FieldType
 
 if TYPE_CHECKING:
-    from ._field_models import OverlayError, ResolvedField
+    from ._field_models import ResolvedField
 
 __all__ = [
     "application_subset_choices",
@@ -66,12 +66,12 @@ def _choice_value(choice: Any) -> str:
     return str(choice)
 
 
-def _resolved_choice_values(field: "ResolvedField") -> tuple[str, ...]:
+def _resolved_choice_values(field: ResolvedField) -> tuple[str, ...]:
     """The field's full resolved choices as a bare, shape-tolerant string tuple (order-preserving)."""
     return tuple(_choice_value(c) for c in (field.choices or ()))
 
 
-def application_subset_choices(field: "ResolvedField") -> tuple[str, ...]:
+def application_subset_choices(field: ResolvedField) -> tuple[str, ...]:
     """Return the enum choices EXPOSED on the public application form for ``field`` (R4a.2).
 
     When the field declares a subset (``application_choices`` is not ``None``), ONLY the subset is
@@ -113,7 +113,7 @@ def application_subset_choices(field: "ResolvedField") -> tuple[str, ...]:
     return tuple(subset)
 
 
-def validate_application_choice(field: "ResolvedField", value: Any) -> FieldError | None:
+def validate_application_choice(field: ResolvedField, value: Any) -> FieldError | None:
     """Validate a SUBMITTED value against the field's application subset (R4a.3).
 
     Returns ``None`` when the value is acceptable, or a :class:`FieldError`

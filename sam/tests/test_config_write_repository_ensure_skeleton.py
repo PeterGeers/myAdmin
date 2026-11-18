@@ -44,7 +44,9 @@ import sys
 import pytest
 
 # repo root + backend/src on sys.path (mirrors the sibling write-repo tests).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -52,13 +54,12 @@ if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
 from botocore.exceptions import ClientError
-
 from services import projection_schema as schema
 
 from sam.members.repository.projection_config_write_repository import (
     FIELDS_SKELETON_PARENTS,
-    SET,
     LEGACY_NO_VERSION,
+    SET,
     MembersConfigWriteRepository,
 )
 
@@ -115,7 +116,9 @@ class ConditionalSkeletonTable:
         item = self.store.get(self._key_tuple(Key))
         return {"Item": dict(item)} if item else {}
 
-    def put_item(self, Item=None, ConditionExpression=None, ExpressionAttributeNames=None):
+    def put_item(
+        self, Item=None, ConditionExpression=None, ExpressionAttributeNames=None
+    ):
         self.put_items.append(dict(Item))
         key = (Item[schema.PARTITION_KEY_ATTR], Item[schema.SORT_KEY_ATTR])
         if ConditionExpression is not None:

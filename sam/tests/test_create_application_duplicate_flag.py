@@ -27,16 +27,18 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     StaticOverlayProvider,
     TenantOverlay,
 )
+from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.membership_service import MembershipService
 from sam.members.repository import table_design as td
 from sam.tests.test_create_application import _ApplicationRepo
@@ -86,7 +88,12 @@ def _overlay_public_form() -> TenantOverlay:
                 application_visible=True,
                 # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE options.
                 options=(
-                    EnumOption(value='gewoon', label={"nl": 'Gewoon', "en": 'Gewoon'}, allowed=True, order=10),
+                    EnumOption(
+                        value="gewoon",
+                        label={"nl": "Gewoon", "en": "Gewoon"},
+                        allowed=True,
+                        order=10,
+                    ),
                 ),
             ),
         },
@@ -126,12 +133,19 @@ def _create(service, body, **kw):
     return service.create_application(TENANT, body, **kw)
 
 
-def _seed_existing_member(repo, *, first="Sam", last="Berg", dob="1990-05-01", email="old@e.com"):
+def _seed_existing_member(
+    repo, *, first="Sam", last="Berg", dob="1990-05-01", email="old@e.com"
+):
     """Put an EXISTING member in the store so a later application can match it on name+DOB."""
     record = {
         "member_id": "existing-1",
         "tenant_id": TENANT,
-        "personal": {"first_name": first, "last_name": last, "birth_date": dob, "email": email},
+        "personal": {
+            "first_name": first,
+            "last_name": last,
+            "birth_date": dob,
+            "email": email,
+        },
         "membership": {"status": "active", "membership_type": "gewoon"},
     }
     repo.save_member(TENANT, record)
@@ -221,7 +235,11 @@ class TestDupNeverBlocks:
         matched = _create(
             service, _submission(**{"personal.email": "new@e.com"}), session_key="s2"
         )
-        assert unmatched["membership"]["status"] == matched["membership"]["status"] == "application"
+        assert (
+            unmatched["membership"]["status"]
+            == matched["membership"]["status"]
+            == "application"
+        )
 
     def test_a_lookup_error_never_fails_the_submission(self, service, monkeypatch):
         # Flag-only: if the GSI read raises, the applicant's submission must STILL succeed
@@ -249,7 +267,9 @@ class TestSelfExcluded:
         # The applicant resends in the SAME session — the record is now in the store, but the
         # resubmit resolves to the SAME member_id, so it must NOT flag itself as a duplicate.
         second = _create(
-            service, _submission(**{"personal.email": "corrected@e.com"}), session_key="s1"
+            service,
+            _submission(**{"personal.email": "corrected@e.com"}),
+            session_key="s1",
         )
         assert second["member_id"] == first["member_id"]
         assert "DUP" not in _additional_info(second).split()

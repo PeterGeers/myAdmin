@@ -22,19 +22,17 @@ behaviour change.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
 from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 from sam.members.domain.config_write_service import ConfigWriteValidationError
 from sam.members.domain.look_and_feel_settings_service import (
     DEFAULT_PAGE_ID,
     LookAndFeelValidationError,
 )
-
 from sam.members.handler._dispatch_services import (
-    UNHANDLED,
     _WRITABLE_CONFIG_IDS,
+    UNHANDLED,
     _dispatch_config_fields_ops,
     _require_path_param,
     _write_body,
@@ -75,10 +73,10 @@ def _with_resolved_settings(
 
 
 def dispatch_config(
-    service: "MembershipService",
+    service: MembershipService,
     spec: RouteSpec,
     request: ParsedRequest,
-    ctx: "RequestContext",
+    ctx: RequestContext,
 ) -> Any:
     """Delegate a CONFIG-WRITE / config#fields / PUBLISH route, or :data:`UNHANDLED`.
 
@@ -252,7 +250,9 @@ def dispatch_config(
                 source_tenant_id=body.get("source_tenant_id"),
                 client_op_id=body.get("client_op_id"),
             )
-            return _with_resolved_settings(laf_service, tenant_id, target_page, write_result)
+            return _with_resolved_settings(
+                laf_service, tenant_id, target_page, write_result
+            )
 
         # Default action: author ONE attribute value. An ABSENT `attribute` key is a malformed
         # request (the one thing this action carries) — surface a caller-safe 422 via the service's

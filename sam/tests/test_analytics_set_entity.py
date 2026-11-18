@@ -204,7 +204,9 @@ class TestAnalyticsSetEntryDelivery:
 
     def test_to_fixed_without_recipients_is_invalid(self):
         with pytest.raises(AnalyticsSetValidationError) as exc:
-            _entry(delivery={"mode": DELIVERY_MODE_TO_FIXED, "recipients": []}).validate()
+            _entry(
+                delivery={"mode": DELIVERY_MODE_TO_FIXED, "recipients": []}
+            ).validate()
         assert "delivery" in exc.value.errors
 
     def test_to_fixed_missing_recipients_key_is_invalid(self):
@@ -317,7 +319,9 @@ class TestAnalyticsSetEntryDeliveryRoundTrip:
     def test_to_item_validates_delivery_first(self):
         # A malformed delivery block must block the write.
         with pytest.raises(AnalyticsSetValidationError):
-            _entry(delivery={"mode": DELIVERY_MODE_TO_FIXED, "recipients": []}).to_item()
+            _entry(
+                delivery={"mode": DELIVERY_MODE_TO_FIXED, "recipients": []}
+            ).to_item()
 
     def test_from_item_round_trips_to_fixed_delivery(self):
         original = _entry(
@@ -408,8 +412,14 @@ class TestAnalyticsSetEntryOpaqueFilterRoundTrip:
         assert rebuilt == original
         assert rebuilt.definition["filters"] == filters
         # Each clause is preserved as the opaque object form (not flattened to a scalar).
-        assert rebuilt.definition["filters"]["clubblad"] == {"op": "eq", "value": "Papier"}
-        assert rebuilt.definition["filters"]["years_member"] == {"op": "gte", "value": "25"}
+        assert rebuilt.definition["filters"]["clubblad"] == {
+            "op": "eq",
+            "value": "Papier",
+        }
+        assert rebuilt.definition["filters"]["years_member"] == {
+            "op": "gte",
+            "value": "25",
+        }
         assert rebuilt.definition["filters"]["email"] == {"op": "notEmpty"}
 
     def test_mixed_legacy_scalar_and_object_filters_round_trip_unchanged(self):
@@ -427,4 +437,7 @@ class TestAnalyticsSetEntryOpaqueFilterRoundTrip:
 
         assert rebuilt.definition["filters"] == filters
         assert rebuilt.definition["filters"]["clubblad"] == "Papier"
-        assert rebuilt.definition["filters"]["years_member"] == {"op": "gte", "value": "25"}
+        assert rebuilt.definition["filters"]["years_member"] == {
+            "op": "gte",
+            "value": "25",
+        }

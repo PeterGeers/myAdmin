@@ -134,7 +134,9 @@ def test_empty_tenant_id_rejected():
 
 def test_blank_dimension_key_rejected():
     with pytest.raises(ScopeConfigError):
-        ScopeConfig(tenant_id="club", dimensions=(ScopeDimension(key="  ", values=("A",)),))
+        ScopeConfig(
+            tenant_id="club", dimensions=(ScopeDimension(key="  ", values=("A",)),)
+        )
 
 
 def test_duplicate_dimension_keys_rejected():
@@ -151,7 +153,9 @@ def test_duplicate_dimension_keys_rejected():
 
 def test_enabled_dimension_without_values_rejected():
     with pytest.raises(ScopeConfigError) as exc:
-        ScopeConfig(tenant_id="club", dimensions=(ScopeDimension(key="region", values=()),))
+        ScopeConfig(
+            tenant_id="club", dimensions=(ScopeDimension(key="region", values=()),)
+        )
     assert "region" in exc.value.reasons
 
 
@@ -187,7 +191,7 @@ def test_all_config_errors_collected_at_once():
         ScopeConfig(
             tenant_id="club",
             dimensions=(
-                ScopeDimension(key="region", values=()),          # no values
+                ScopeDimension(key="region", values=()),  # no values
                 ScopeDimension(key="season", values=("A", "A")),  # duplicate values
             ),
         )

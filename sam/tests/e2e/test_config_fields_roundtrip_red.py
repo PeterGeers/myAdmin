@@ -69,15 +69,19 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
-from sam.members.domain.config_fields_crud_service import ConfigFieldsCrudService  # noqa: E402
-from sam.members.domain.field_resolver import FieldResolver  # noqa: E402
-from sam.members.repository.projection_config_reader import MembersProjectionReader  # noqa: E402
-from sam.members.repository.projection_config_write_repository import (  # noqa: E402
+from sam.members.domain.config_fields_crud_service import (
+    ConfigFieldsCrudService,
+)
+from sam.members.domain.field_resolver import FieldResolver
+from sam.members.repository.projection_config_reader import (
+    MembersProjectionReader,
+)
+from sam.members.repository.projection_config_write_repository import (
     MembersConfigWriteRepository,
 )
-from sam.tests.e2e.invariant import ChangeOp, assert_change_op_isolated  # noqa: E402
+from sam.tests.e2e.invariant import ChangeOp, assert_change_op_isolated
 
 
 # ── The C7 choices->options backfill, loaded from scripts/ (not an importable package) ──────
@@ -85,7 +89,9 @@ from sam.tests.e2e.invariant import ChangeOp, assert_change_op_isolated  # noqa:
 # the committed migration does — see `sam/tests/test_migrate_config_fields_choices_to_options.py`
 # and the 03a enum-vocab symmetry gate (`test_enum_vocab_roundtrip_e2e.py`).
 def _load_migration_module():
-    path = os.path.join(_REPO_ROOT, "scripts", "migrate_config_fields_choices_to_options.py")
+    path = os.path.join(
+        _REPO_ROOT, "scripts", "migrate_config_fields_choices_to_options.py"
+    )
     spec = importlib.util.spec_from_file_location(
         "migrate_config_fields_choices_to_options", path
     )
@@ -126,7 +132,9 @@ class _ResolvedReader:
         self._scope_vocab = scope_vocab
 
     def read_resolved(self, record_id: str) -> dict:
-        reader = MembersProjectionReader(table=self._table)  # fresh per read — no stale cache
+        reader = MembersProjectionReader(
+            table=self._table
+        )  # fresh per read — no stale cache
         config = FieldResolver(reader).resolve(record_id, scope_vocab=self._scope_vocab)
         return _serialize_resolved(config)
 
@@ -175,7 +183,9 @@ def _serialize_resolved(config) -> dict:
             "application_visible": f.application_visible,
             "application_required": f.application_required,
             "application_choices": (
-                list(f.application_choices) if f.application_choices is not None else None
+                list(f.application_choices)
+                if f.application_choices is not None
+                else None
             ),
         }
     groups = {
@@ -319,10 +329,12 @@ class _ChangeOpWriter:
         # another (scope-carrying) field's `scope` sub-object (the "scope preserved verbatim"
         # isolation guarantee, R5.2 / design C4).
         self._service().set_field(
-            self._tenant_id, op.target, {"label": {"nl": "Ongewijzigd", "en": "Unrelated"}}
+            self._tenant_id,
+            op.target,
+            {"label": {"nl": "Ongewijzigd", "en": "Unrelated"}},
         )
 
-    _OP_HANDLERS = {
+    _OP_HANDLERS = {  # noqa: RUF012
         "set_field_attr": _set_field_attr,
         "add_field": _add_field,
         "edit_field": _edit_field,
@@ -416,7 +428,8 @@ def _seed_bare_choices_variable_field(roundtrip, field_key: str, vocab):
     table = roundtrip["reader"]._table
     tenant_id = roundtrip["record_id"]
     key = schema.build_key(
-        tenant_id, schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS)
+        tenant_id,
+        schema.build_sort_key(schema.RECORD_TYPE_CONFIG, schema.CONFIG_ID_FIELDS),
     )
     item = dict(table.get_item(Key=key)["Item"])
     fields = dict(item.get("fields") or {})
@@ -425,7 +438,9 @@ def _seed_bare_choices_variable_field(roundtrip, field_key: str, vocab):
         "label": {"nl": "Bron", "en": "Source"},
         "functional_group": "membership",
         "order": 71,
-        "choices": list(vocab),  # bare `choices`, no `options` — the un-migrated legacy shape
+        "choices": list(
+            vocab
+        ),  # bare `choices`, no `options` — the un-migrated legacy shape
     }
     item["fields"] = fields
     table.put_item(Item=item)
@@ -564,7 +579,9 @@ def test_set_enum_choices_on_field_is_isolated(roundtrip):
             "label": {"nl": "Bron", "en": "Source"},
             "functional_group": "membership",
             "order": 70,
-            "options": [{"value": v, "label": {"nl": v, "en": v}} for v in options_vocab],
+            "options": [
+                {"value": v, "label": {"nl": v, "en": v}} for v in options_vocab
+            ],
         },
     )
     assert _editor_read_options(roundtrip, "referral_source") == options_vocab, (
@@ -681,7 +698,9 @@ def test_set_field_scope_is_written_verbatim(scope_roundtrip):
     result = _run(scope_roundtrip, op)
     before_scope = result["before"]["fields"]["region"]["scope"]
     after_scope = result["after"]["fields"]["region"]["scope"]
-    assert before_scope is None, "fixture sanity: region carries no scope before the write"
+    assert before_scope is None, (
+        "fixture sanity: region carries no scope before the write"
+    )
     # The scope sub-object was stored and rebuilt verbatim (not mangled, not dropped).
     assert after_scope == {
         "enabled": True,
@@ -706,16 +725,22 @@ def test_field_op_preserves_an_untouched_fields_scope(scope_roundtrip):
     # Seed the scope axis first (its own isolated write, asserted by case (a)).
     writer.apply(
         record_id,
-        ChangeOp(kind="set_scope", target="region",
-                 allowed_paths=frozenset({"fields.region.scope"})),
+        ChangeOp(
+            kind="set_scope",
+            target="region",
+            allowed_paths=frozenset({"fields.region.scope"}),
+        ),
     )
     seeded = reader.read_resolved(record_id)
     region_scope = seeded["fields"]["region"]["scope"]
-    assert region_scope is not None, "precondition: region now carries a scope sub-object"
+    assert region_scope is not None, (
+        "precondition: region now carries a scope sub-object"
+    )
 
     # Now an UNRELATED field op on gender — it must not touch region.scope.
     op = ChangeOp(
-        kind="set_unrelated_attr", target="gender",
+        kind="set_unrelated_attr",
+        target="gender",
         allowed_paths=frozenset({"fields.gender.label"}),
     )
     before = reader.read_resolved(record_id)
@@ -727,7 +752,9 @@ def test_field_op_preserves_an_untouched_fields_scope(scope_roundtrip):
     )
 
 
-def test_scope_dimension_backed_choiceless_enum_still_sources_after_field_write(scope_roundtrip):
+def test_scope_dimension_backed_choiceless_enum_still_sources_after_field_write(
+    scope_roundtrip,
+):
     # (c) A scope-dimension-backed CHOICELESS enum (`region`) STILL sources its choices from the
     #     scope vocabulary (single source) after a `config#fields` write — the field CRUD path
     #     never touches the separate `config#scope` row. We prove the single-source sourcing

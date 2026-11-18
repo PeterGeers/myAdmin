@@ -3,6 +3,7 @@ exception types, and the ``_as_field_error`` coercion helper. Extracted verbatim
 ``membership_service.py`` so every mixin sub-module and the facade import ONE canonical copy
 (no behaviour change).
 """
+
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -31,7 +32,6 @@ def _as_field_error(value: Any) -> FieldError:
     return FieldError(code=VALIDATION_UNSUPPORTED_FIELD_TYPE, detail=str(value))
 
 
-
 MEMBERSHIP_STATUS_FIELD_KEY = f"{FieldGroup.MEMBERSHIP.value}.status"
 
 #: The canonical dotted key of the ``membership_type`` fixed field (design C8). The resolved
@@ -48,6 +48,7 @@ MEMBERSHIP_TYPE_FIELD_KEY = f"{FieldGroup.MEMBERSHIP.value}.membership_type"
 #: constant is only consumed at the edge to name the single collapse entry, never hardcoded
 #: into the domain scope check.
 DEFAULT_SCOPE_DIMENSION_KEY = "region"
+
 
 class MemberNotFound(Exception):
     """Raised when a member does not exist for the tenant, OR is out of the caller's scope.
@@ -115,9 +116,7 @@ class AnalyticsSetNotFound(Exception):
     def __init__(self, tenant_id: str, set_id: str):
         self.tenant_id = tenant_id
         self.set_id = set_id
-        super().__init__(
-            f"analytics set {set_id!r} not found for tenant {tenant_id!r}"
-        )
+        super().__init__(f"analytics set {set_id!r} not found for tenant {tenant_id!r}")
 
 
 class AnalyticsSetConflict(Exception):
@@ -151,9 +150,7 @@ class ScheduleNotFound(Exception):
     def __init__(self, tenant_id: str, schedule_id: str):
         self.tenant_id = tenant_id
         self.schedule_id = schedule_id
-        super().__init__(
-            f"schedule {schedule_id!r} not found for tenant {tenant_id!r}"
-        )
+        super().__init__(f"schedule {schedule_id!r} not found for tenant {tenant_id!r}")
 
 
 class MemberValidationError(Exception):
@@ -190,4 +187,3 @@ class ScopeDenied(Exception):
     def __init__(self, tenant_id: str, message: str = "write outside allowed scope"):
         self.tenant_id = tenant_id
         super().__init__(f"{message} (tenant {tenant_id!r}, Property 4)")
-

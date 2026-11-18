@@ -154,9 +154,7 @@ def spy():
 @pytest.fixture(autouse=True)
 def inject_look_and_feel_service(monkeypatch, spy):
     """Wire the edge's look-and-feel service seam to the spy (documented monkeypatch point)."""
-    monkeypatch.setattr(
-        dispatch_mod, "get_look_and_feel_settings_service", lambda: spy
-    )
+    monkeypatch.setattr(dispatch_mod, "get_look_and_feel_settings_service", lambda: spy)
     return spy
 
 
@@ -215,9 +213,7 @@ def test_handler_get_resolves_with_verified_tenant(spy):
 
 
 def test_handler_set_dispatches_with_verified_tenant_and_body_attribute(spy):
-    resp = app.handler(
-        _event(body={"attribute": "color_primary", "value": "#2D5F8A"})
-    )
+    resp = app.handler(_event(body={"attribute": "color_primary", "value": "#2D5F8A"}))
     assert resp["statusCode"] == 200
     assert spy.set_calls == [
         {
@@ -236,9 +232,7 @@ def test_handler_put_returns_resolved_settings_plus_write_result(spy):
     # reload (defect 1.8). GET and PUT share ONE response contract.
     spy._get_result = {"color_primary": "#2D5F8A"}
     spy._write_result = {"version": "v-next", "idempotent_replay": False}
-    resp = app.handler(
-        _event(body={"attribute": "color_primary", "value": "#2D5F8A"})
-    )
+    resp = app.handler(_event(body={"attribute": "color_primary", "value": "#2D5F8A"}))
     assert resp["statusCode"] == 200
     data = _envelope(resp)["data"]
     # The resolved current values, keyed exactly as the GET contract returns them.
@@ -326,9 +320,7 @@ def test_handler_unsupported_attribute_is_422_identifying_the_setting(monkeypatc
             "unsupported look-and-feel attribute 'not_real'"
         )
     )
-    monkeypatch.setattr(
-        dispatch_mod, "get_look_and_feel_settings_service", lambda: spy
-    )
+    monkeypatch.setattr(dispatch_mod, "get_look_and_feel_settings_service", lambda: spy)
     resp = app.handler(_event(body={"attribute": "not_real", "value": "x"}))
     assert resp["statusCode"] == 422
     env = _envelope(resp)
@@ -345,9 +337,7 @@ def test_handler_invalid_value_is_422(monkeypatch):
             "['compact', 'normal', 'relaxed']"
         )
     )
-    monkeypatch.setattr(
-        dispatch_mod, "get_look_and_feel_settings_service", lambda: spy
-    )
+    monkeypatch.setattr(dispatch_mod, "get_look_and_feel_settings_service", lambda: spy)
     resp = app.handler(_event(body={"attribute": "base_spacing", "value": "huge"}))
     assert resp["statusCode"] == 422
     assert _envelope(resp)["code"] == "errors.validation.failed"
@@ -357,12 +347,8 @@ def test_handler_cross_tenant_copy_is_403_generic(monkeypatch):
     spy = _SpyLookAndFeelService(
         raises=CrossTenantCopyError("copy is permitted only within a single tenant")
     )
-    monkeypatch.setattr(
-        dispatch_mod, "get_look_and_feel_settings_service", lambda: spy
-    )
-    resp = app.handler(
-        _event(body={"op": "copy", "source_tenant_id": "other-tenant"})
-    )
+    monkeypatch.setattr(dispatch_mod, "get_look_and_feel_settings_service", lambda: spy)
+    resp = app.handler(_event(body={"op": "copy", "source_tenant_id": "other-tenant"}))
     assert resp["statusCode"] == 403
     env = _envelope(resp)
     assert env["success"] is False
@@ -373,11 +359,7 @@ def test_handler_cross_tenant_copy_is_403_generic(monkeypatch):
 
 def test_handler_stale_version_is_409_reload(monkeypatch):
     spy = _SpyLookAndFeelService(raises=StaleVersionError("version conflict"))
-    monkeypatch.setattr(
-        dispatch_mod, "get_look_and_feel_settings_service", lambda: spy
-    )
-    resp = app.handler(
-        _event(body={"attribute": "color_primary", "value": "#2D5F8A"})
-    )
+    monkeypatch.setattr(dispatch_mod, "get_look_and_feel_settings_service", lambda: spy)
+    resp = app.handler(_event(body={"attribute": "color_primary", "value": "#2D5F8A"}))
     assert resp["statusCode"] == 409
     assert _envelope(resp)["code"] == "errors.api.conflict"

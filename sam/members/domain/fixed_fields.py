@@ -125,8 +125,8 @@ class FieldType(str, Enum):
     """Canonical value types the base registry validates. Storage-agnostic (no DB types)."""
 
     STRING = "string"
-    DATE = "date"          # ISO-8601 calendar date, YYYY-MM-DD
-    ENUM = "enum"          # value must be one of ``FixedField.choices`` (None → open, tenant config)
+    DATE = "date"  # ISO-8601 calendar date, YYYY-MM-DD
+    ENUM = "enum"  # value must be one of ``FixedField.choices`` (None → open, tenant config)
     REFERENCE = "reference"  # a code that references another entity (e.g. catalog); shape-checked only
 
 
@@ -287,22 +287,36 @@ class FixedField:
     group: FieldGroup
     type: FieldType
     required: bool = False
-    label: Mapping[str, str] = field(default_factory=dict)   # i18n, e.g. {"nl": ..., "en": ...}
-    choices: Sequence[str] | None = None                  # for FieldType.ENUM (None → open/tenant-config)
-    options: Sequence[EnumOption] | None = None           # rich enum options {value,label,roles?} (R4.11/R4.12)
-    functional_group: str | None = None                   # base default display group (R4.9); None → storage group
-    member_number_format: MemberNumberFormat | None = None  # only meaningful for member_number (task 1.4b)
-    show_when: Mapping[str, Any] | None = None            # per-field conditional-visibility condition (R4.12)
+    label: Mapping[str, str] = field(
+        default_factory=dict
+    )  # i18n, e.g. {"nl": ..., "en": ...}
+    choices: Sequence[str] | None = (
+        None  # for FieldType.ENUM (None → open/tenant-config)
+    )
+    options: Sequence[EnumOption] | None = (
+        None  # rich enum options {value,label,roles?} (R4.11/R4.12)
+    )
+    functional_group: str | None = (
+        None  # base default display group (R4.9); None → storage group
+    )
+    member_number_format: MemberNumberFormat | None = (
+        None  # only meaningful for member_number (task 1.4b)
+    )
+    show_when: Mapping[str, Any] | None = (
+        None  # per-field conditional-visibility condition (R4.12)
+    )
     order: int = 0
     # ── Public member-application attributes (D20; R4.2/R4a/R4b/R7.1) ──────────────────
     # The four sibling attributes the public application form reads, carried the same way as
     # `member_number_format` (pure data, authored in Flask → projected onto `config#fields`,
     # read-only on the SAM plane). Defaults keep every existing field OFF the public form and
     # back-compatible: a tenant that authors none of these is unaffected.
-    application_visible: bool = False                      # on the public application form? (R4.2/R4.3)
-    application_required: bool = False                     # required ON THE FORM (overlay-only, R4b)
-    application_choices: tuple[str, ...] | None = None     # enum application SUBSET (R4a); None → full set
-    format: FieldFormat | None = None                     # declarative field validator (R7.1); None → none
+    application_visible: bool = False  # on the public application form? (R4.2/R4.3)
+    application_required: bool = False  # required ON THE FORM (overlay-only, R4b)
+    application_choices: tuple[str, ...] | None = (
+        None  # enum application SUBSET (R4a); None → full set
+    )
+    format: FieldFormat | None = None  # declarative field validator (R7.1); None → none
 
     def dotted_key(self) -> str:
         """Fully-qualified path of the field in the record, e.g. ``membership.status``."""
@@ -481,8 +495,12 @@ MEMBERSHIP_FIELDS: tuple[FixedField, ...] = (
         # values a new tenant may relabel/extend. No `roles` restriction in the base; the
         # resolved tenant field (its overlay choices) enforces membership downstream.
         options=(
-            EnumOption(value="application", label={"nl": "Aanmelding", "en": "Application"}),
-            EnumOption(value="pending", label={"nl": "In behandeling", "en": "Pending"}),
+            EnumOption(
+                value="application", label={"nl": "Aanmelding", "en": "Application"}
+            ),
+            EnumOption(
+                value="pending", label={"nl": "In behandeling", "en": "Pending"}
+            ),
             EnumOption(value="active", label={"nl": "Actief", "en": "Active"}),
             EnumOption(value="suspended", label={"nl": "Geschorst", "en": "Suspended"}),
             EnumOption(value="lapsed", label={"nl": "Verlopen", "en": "Lapsed"}),
@@ -610,7 +628,9 @@ def validate_member_number_format(
     the English message so a client that cannot resolve the code still shows it.
     """
     if not isinstance(value, str) or not value.strip():
-        return FieldError(code=MEMBER_NUMBER_FORMAT, detail="must be a non-blank string")
+        return FieldError(
+            code=MEMBER_NUMBER_FORMAT, detail="must be a non-blank string"
+        )
     if fmt is None or fmt.is_empty():
         return None
     if not fmt.matches(value):
@@ -648,7 +668,9 @@ def _validate_date(value: Any) -> FieldError | None:
     try:
         _dt.date.fromisoformat(value)
     except ValueError:
-        return FieldError(code=VALIDATION_INVALID_DATE, detail="is not a valid calendar date")
+        return FieldError(
+            code=VALIDATION_INVALID_DATE, detail="is not a valid calendar date"
+        )
     return None
 
 
@@ -664,7 +686,9 @@ def _validate_value(fld: FixedField, value: Any) -> FieldError | None:
     """
     if fld.type is FieldType.STRING or fld.type is FieldType.REFERENCE:
         if not isinstance(value, str):
-            return FieldError(code=VALIDATION_MUST_BE_A_STRING, detail="must be a string")
+            return FieldError(
+                code=VALIDATION_MUST_BE_A_STRING, detail="must be a string"
+            )
         if not value.strip():
             if fld.required:
                 return FieldError(
@@ -683,7 +707,8 @@ def _validate_value(fld: FixedField, value: Any) -> FieldError | None:
         if fld.choices is None:
             if not isinstance(value, str) or not value.strip():
                 return FieldError(
-                    code=VALIDATION_MUST_BE_A_STRING, detail="must be a non-blank string"
+                    code=VALIDATION_MUST_BE_A_STRING,
+                    detail="must be a non-blank string",
                 )
             return None
         if value not in fld.choices:
@@ -697,7 +722,8 @@ def _validate_value(fld: FixedField, value: Any) -> FieldError | None:
 
     # Defensive: an unknown type in the registry is a programming error, not user input.
     return FieldError(
-        code=VALIDATION_UNSUPPORTED_FIELD_TYPE, detail=f"unsupported field type: {fld.type}"
+        code=VALIDATION_UNSUPPORTED_FIELD_TYPE,
+        detail=f"unsupported field type: {fld.type}",
     )
 
 

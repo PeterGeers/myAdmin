@@ -120,12 +120,12 @@ class FileSourceAdapter:
         if isinstance(data, Mapping) and "rows" in data:
             data = data["rows"]
         if not isinstance(data, list):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY004
                 'JSON source must be a list of row objects (or {"rows": [...]})'
             )
         for row in data:
             if not isinstance(row, Mapping):
-                raise ValueError("each JSON source row must be an object")
+                raise ValueError("each JSON source row must be an object")  # noqa: TRY004
             yield dict(row)
 
     def describe(self) -> str:

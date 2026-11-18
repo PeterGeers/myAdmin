@@ -123,7 +123,7 @@ def _parse_record(record: Any) -> dict[str, Any]:
         raise TypeError("SNS record must be an object")
     sns = record.get("Sns")
     if not isinstance(sns, dict):
-        raise ValueError("SNS record is missing the 'Sns' envelope")
+        raise ValueError("SNS record is missing the 'Sns' envelope")  # noqa: TRY004
     message = sns.get("Message")
     if not isinstance(message, str) or not message.strip():
         raise ValueError("SNS record is missing a JSON 'Message'")

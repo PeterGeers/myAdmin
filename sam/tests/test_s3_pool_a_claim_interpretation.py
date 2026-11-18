@@ -96,8 +96,15 @@ def _private_pem(private_key) -> bytes:
     )
 
 
-def _make_token(private_key, *, iss=TEST_POOL_ISS, client_id=TEST_POOL_CLIENT,
-                groups=None, kid=TEST_KID, exp_delta=3600) -> str:
+def _make_token(
+    private_key,
+    *,
+    iss=TEST_POOL_ISS,
+    client_id=TEST_POOL_CLIENT,
+    groups=None,
+    kid=TEST_KID,
+    exp_delta=3600,
+) -> str:
     now = int(time.time())
     claims = {
         "sub": "user-123",
@@ -109,8 +116,9 @@ def _make_token(private_key, *, iss=TEST_POOL_ISS, client_id=TEST_POOL_CLIENT,
         "iat": now,
         "exp": now + exp_delta,
     }
-    return jwt.encode(claims, _private_pem(private_key), algorithm="RS256",
-                      headers={"kid": kid})
+    return jwt.encode(
+        claims, _private_pem(private_key), algorithm="RS256", headers={"kid": kid}
+    )
 
 
 # --- Fixtures --------------------------------------------------------------- #
@@ -131,10 +139,16 @@ def signing_key():
 @pytest.fixture
 def registry():
     """A registry with ONLY the test pool (never production Pool A)."""
-    return PoolRegistry([
-        PoolConfig(iss=TEST_POOL_ISS, jwks_uri=TEST_POOL_JWKS,
-                   audience=TEST_POOL_CLIENT, pool_label="myAdmin-test"),
-    ])
+    return PoolRegistry(
+        [
+            PoolConfig(
+                iss=TEST_POOL_ISS,
+                jwks_uri=TEST_POOL_JWKS,
+                audience=TEST_POOL_CLIENT,
+                pool_label="myAdmin-test",
+            ),
+        ]
+    )
 
 
 @pytest.fixture

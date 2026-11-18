@@ -24,7 +24,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -34,7 +36,6 @@ from sam.members.domain.error_codes import (
     VALIDATION_INVALID_IBAN,
     VALIDATION_REQUIRED,
 )
-from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.field_resolver import (
     FieldFormat,
     FixedFieldOverride,
@@ -42,7 +43,7 @@ from sam.members.domain.field_resolver import (
     StaticOverlayProvider,
     TenantOverlay,
 )
-from sam.members.domain.fixed_fields import FieldType
+from sam.members.domain.fixed_fields import EnumOption, FieldType
 from sam.members.domain.membership_service import MembershipService
 
 # Reuse the task-2.2 fake repo (member store + first-wins session claim + catalog surface) and
@@ -88,8 +89,18 @@ def _overlay() -> TenantOverlay:
                 application_visible=True,
                 # 03b CONTRACT (Task 10.5): membership_type owns its vocabulary as INLINE options.
                 options=(
-                    EnumOption(value='gewoon', label={"nl": 'Gewoon', "en": 'Gewoon'}, allowed=True, order=10),
-                    EnumOption(value='erelid', label={"nl": 'Erelid', "en": 'Erelid'}, allowed=True, order=20),
+                    EnumOption(
+                        value="gewoon",
+                        label={"nl": "Gewoon", "en": "Gewoon"},
+                        allowed=True,
+                        order=10,
+                    ),
+                    EnumOption(
+                        value="erelid",
+                        label={"nl": "Erelid", "en": "Erelid"},
+                        allowed=True,
+                        order=20,
+                    ),
                 ),
             ),
         },
@@ -146,9 +157,7 @@ def _submission(**over):
 
 
 def _create(service, body, **kw):
-    return service.create_application(
-        TENANT, body, consent=_AFFIRMATIVE_CONSENT, **kw
-    )
+    return service.create_application(TENANT, body, consent=_AFFIRMATIVE_CONSENT, **kw)
 
 
 def _errors(excinfo) -> dict:
@@ -223,11 +232,19 @@ class TestEmailRequiredAndValid:
     def test_malformed_email_is_rejected_invalid_format(self, service):
         # Present but not a well-formed address → the EMAIL FieldFormat checker fires (R7 wired).
         with pytest.raises(MemberValidationError) as exc:
-            _create(service, _submission(**{"personal.email": "not-an-email"}), session_key="s1")
+            _create(
+                service,
+                _submission(**{"personal.email": "not-an-email"}),
+                session_key="s1",
+            )
         assert _errors(exc)["personal.email"].code == VALIDATION_INVALID_EMAIL
 
     def test_valid_email_passes(self, service):
-        rec = _create(service, _submission(**{"personal.email": "ok@domain.org"}), session_key="s1")
+        rec = _create(
+            service,
+            _submission(**{"personal.email": "ok@domain.org"}),
+            session_key="s1",
+        )
         assert rec["personal"]["email"] == "ok@domain.org"
 
 
@@ -267,7 +284,9 @@ class TestTussenvoegselOptional:
     def test_blank_name_infix_is_accepted(self, service):
         # A shown-but-not-application-required field accepts a blank value (R4b.2) — the whole
         # point of the per-field flag (a Dutch surname infix is legitimately empty).
-        rec = _create(service, _submission(**{"personal.name_infix": ""}), session_key="s1")
+        rec = _create(
+            service, _submission(**{"personal.name_infix": ""}), session_key="s1"
+        )
         assert rec["membership"]["status"] == "application"
 
     def test_omitted_name_infix_is_accepted(self, service):

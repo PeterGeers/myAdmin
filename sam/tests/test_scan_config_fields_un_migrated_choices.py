@@ -32,7 +32,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -42,7 +44,9 @@ if _BACKEND_SRC not in sys.path:
 
 # ── Load the scan module from scripts/ (not an importable package) ──────────────────────────
 def _load_scan_module():
-    path = os.path.join(_REPO_ROOT, "scripts", "scan_config_fields_un_migrated_choices.py")
+    path = os.path.join(
+        _REPO_ROOT, "scripts", "scan_config_fields_un_migrated_choices.py"
+    )
     spec = importlib.util.spec_from_file_location(
         "scan_config_fields_un_migrated_choices", path
     )
@@ -54,9 +58,11 @@ def _load_scan_module():
 
 scan = _load_scan_module()
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
-from sam.members.repository.projection_config_reader import MembersProjectionReader  # noqa: E402
+from sam.members.repository.projection_config_reader import (
+    MembersProjectionReader,
+)
 
 _FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures")
 
@@ -103,7 +109,9 @@ def test_scan_overlay_clean_when_only_options_no_choices():
 @pytest.mark.unit
 def test_scan_overlay_flags_variable_field_choices_under_fields_map():
     overlay = {
-        "fields": {"referral_source": {"type": "enum", "choices": ["internet", "facebook"]}},
+        "fields": {
+            "referral_source": {"type": "enum", "choices": ["internet", "facebook"]}
+        },
         "overrides": {},
     }
     result = scan.scan_overlay("v-tenant", overlay)
@@ -171,7 +179,9 @@ def test_scan_tenant_clean_tenant_has_no_offenders():
 
 @pytest.mark.unit
 def test_scan_tenant_flags_a_bare_choices_row():
-    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"]["personal.gender"]
+    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"][
+        "personal.gender"
+    ]
     table = FakeTable()
     _seed_fields_row(table, "h-dcn", overrides={"personal.gender": dict(real_gender)})
     reader = MembersProjectionReader(table=table)
@@ -194,7 +204,9 @@ def test_scan_passes_exit_zero_on_clean_tenant_set(capsys):
     _seed_fields_row(
         table,
         "clean-b",
-        fields={"referral_source": {"type": "enum", "options": [{"value": "internet"}]}},
+        fields={
+            "referral_source": {"type": "enum", "options": [{"value": "internet"}]}
+        },
     )
     reader = MembersProjectionReader(table=table)
     results = scan.scan_tenants(["clean-a", "clean-b"], reader=reader)
@@ -206,14 +218,22 @@ def test_scan_passes_exit_zero_on_clean_tenant_set(capsys):
 
 @pytest.mark.unit
 def test_scan_fails_non_zero_and_names_offender_when_bare_choices_present(capsys):
-    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"]["personal.gender"]
+    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"][
+        "personal.gender"
+    ]
     table = FakeTable()
-    _seed_fields_row(table, "clean-a", overrides={"x.y": {"options": [{"value": "ok"}]}})
-    _seed_fields_row(table, "dirty-h-dcn", overrides={"personal.gender": dict(real_gender)})
+    _seed_fields_row(
+        table, "clean-a", overrides={"x.y": {"options": [{"value": "ok"}]}}
+    )
+    _seed_fields_row(
+        table, "dirty-h-dcn", overrides={"personal.gender": dict(real_gender)}
+    )
     reader = MembersProjectionReader(table=table)
 
     results = scan.scan_tenants(["clean-a", "dirty-h-dcn"], reader=reader)
-    assert scan._print_summary(results) == 1, "a remaining bare-`choices` row must FAIL the gate"
+    assert scan._print_summary(results) == 1, (
+        "a remaining bare-`choices` row must FAIL the gate"
+    )
 
     out = capsys.readouterr().out
     assert "FAIL" in out
@@ -224,10 +244,14 @@ def test_scan_fails_non_zero_and_names_offender_when_bare_choices_present(capsys
 @pytest.mark.unit
 def test_discover_tenants_finds_every_tenant_with_a_config_fields_row():
     table = FakeTable()
-    _seed_fields_row(table, "tenant-a", overrides={"x.y": {"options": [{"value": "ok"}]}})
+    _seed_fields_row(
+        table, "tenant-a", overrides={"x.y": {"options": [{"value": "ok"}]}}
+    )
     _seed_fields_row(table, "tenant-b", fields={"f": {"options": [{"value": "v"}]}})
     # A non-config#fields row for tenant-c must NOT make it a scanned tenant.
-    table.store[("tenant-c", schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope"))] = {
+    table.store[
+        ("tenant-c", schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope"))
+    ] = {
         schema.PARTITION_KEY_ATTR: "tenant-c",
         schema.SORT_KEY_ATTR: schema.build_sort_key(schema.RECORD_TYPE_CONFIG, "scope"),
     }
@@ -237,12 +261,20 @@ def test_discover_tenants_finds_every_tenant_with_a_config_fields_row():
 
 
 @pytest.mark.unit
-def test_main_all_tenants_discovery_fails_when_any_tenant_un_migrated(monkeypatch, capsys):
+def test_main_all_tenants_discovery_fails_when_any_tenant_un_migrated(
+    monkeypatch, capsys
+):
     # End-to-end-ish: main() discovers all tenants (no --tenant list) and FAILs on an offender.
-    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"]["personal.gender"]
+    real_gender = _load_fixture("hdcn_config_fields_overlay.json")["overrides"][
+        "personal.gender"
+    ]
     table = FakeTable()
-    _seed_fields_row(table, "clean-a", overrides={"x.y": {"options": [{"value": "ok"}]}})
-    _seed_fields_row(table, "dirty-h-dcn", overrides={"personal.gender": dict(real_gender)})
+    _seed_fields_row(
+        table, "clean-a", overrides={"x.y": {"options": [{"value": "ok"}]}}
+    )
+    _seed_fields_row(
+        table, "dirty-h-dcn", overrides={"personal.gender": dict(real_gender)}
+    )
 
     # main() uses reader.table for discovery; the fake reader exposes the FakeTable there.
     reader = MembersProjectionReader(table=table)

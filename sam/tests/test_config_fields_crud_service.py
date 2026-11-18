@@ -31,7 +31,9 @@ import sys
 import pytest
 
 # repo root + backend/src on sys.path (mirrors the sibling config-write tests).
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -160,7 +162,12 @@ def _existing_service(repo, *entries):
     ``("fields", "shirt_size")`` for a variable field that exists. A ``version`` is included so
     the base-version is an optimistic lock (an existing authored row).
     """
-    row = {"fields": {}, "fixed_overrides": {}, "functional_groups": {}, "version": "v-1"}
+    row = {
+        "fields": {},
+        "fixed_overrides": {},
+        "functional_groups": {},
+        "version": "v-1",
+    }
     for container_key, entry_key in entries:
         row.setdefault(container_key, {})[entry_key] = {}
     return ConfigFieldsCrudService(repo, reader=FakeReader(row))
@@ -191,7 +198,9 @@ def test_set_field_application_rejects_definition_keys(service):
     assert "label" in str(exc.value)
 
 
-def test_set_field_application_rejects_definition_required_not_application_required(service):
+def test_set_field_application_rejects_definition_required_not_application_required(
+    service,
+):
     """The bare `required` (definition) is rejected even though `application_required` is allowed."""
     with pytest.raises(ConfigFieldsCrudError):
         service.set_field_application(_TENANT, "gender", {"required": True})
@@ -215,7 +224,11 @@ def test_set_field_update_existing_entry_emits_per_aspect_set(repo):
     svc.set_field(_TENANT, "status", {"order": 20})
     ops = repo.last["ops"]
     assert ops == [
-        {"action": SET, "path": ["overrides", "membership.status", "order"], "value": 20}
+        {
+            "action": SET,
+            "path": ["overrides", "membership.status", "order"],
+            "value": 20,
+        }
     ]
 
 
@@ -224,7 +237,9 @@ def test_set_field_update_existing_entry_explicit_null_emits_scoped_remove(repo)
     svc = _existing_service(repo, ("fixed_overrides", "membership.status"))
     svc.set_field(_TENANT, "status", {"label": None})
     ops = repo.last["ops"]
-    assert ops == [{"action": REMOVE, "path": ["overrides", "membership.status", "label"]}]
+    assert ops == [
+        {"action": REMOVE, "path": ["overrides", "membership.status", "label"]}
+    ]
 
 
 def test_set_field_update_existing_entry_mixed_set_and_null(repo):
@@ -233,8 +248,15 @@ def test_set_field_update_existing_entry_mixed_set_and_null(repo):
     svc = _existing_service(repo, ("fixed_overrides", "membership.status"))
     svc.set_field(_TENANT, "status", {"order": 30, "visible": None})
     ops = repo.last["ops"]
-    assert {"action": SET, "path": ["overrides", "membership.status", "order"], "value": 30} in ops
-    assert {"action": REMOVE, "path": ["overrides", "membership.status", "visible"]} in ops
+    assert {
+        "action": SET,
+        "path": ["overrides", "membership.status", "order"],
+        "value": 30,
+    } in ops
+    assert {
+        "action": REMOVE,
+        "path": ["overrides", "membership.status", "visible"],
+    } in ops
     assert len(ops) == 2
 
 
@@ -247,7 +269,9 @@ def test_set_field_create_new_entry_emits_single_whole_entry_set(repo):
     """When the entry does NOT exist (CREATE verb) the service seeds the WHOLE entry with a SINGLE
     ``SET <map>.<key> = :whole`` — NEVER ``SET <map>.<key>.<attr>`` on an absent parent (which
     DynamoDB rejects) and NEVER ``if_not_exists`` parent-seed + child-set in one expression."""
-    svc = _existing_service(repo)  # row present + versioned, but the override entry is absent
+    svc = _existing_service(
+        repo
+    )  # row present + versioned, but the override entry is absent
     svc.set_field(_TENANT, "status", {"order": 20, "visible": True})
     ops = repo.last["ops"]
     assert ops == [
@@ -266,7 +290,11 @@ def test_set_field_create_drops_null_from_seeded_entry(repo):
     svc.set_field(_TENANT, "status", {"order": 5, "label": None})
     ops = repo.last["ops"]
     assert ops == [
-        {"action": SET, "path": ["overrides", "membership.status"], "value": {"order": 5}}
+        {
+            "action": SET,
+            "path": ["overrides", "membership.status"],
+            "value": {"order": 5},
+        }
     ]
 
 
@@ -276,7 +304,11 @@ def test_no_reader_defaults_to_create_verb(service, repo):
     service.set_field(_TENANT, "status", {"order": 1})
     ops = repo.last["ops"]
     assert ops == [
-        {"action": SET, "path": ["overrides", "membership.status"], "value": {"order": 1}}
+        {
+            "action": SET,
+            "path": ["overrides", "membership.status"],
+            "value": {"order": 1},
+        }
     ]
     assert repo.last["base_version"] is None
 
@@ -312,9 +344,13 @@ def test_set_field_application_update_existing_emits_app_attr_ops(repo):
     paths = {tuple(op["path"]): op for op in ops}
     assert ("overrides", "personal.gender", "application_visible") in paths
     assert ("overrides", "personal.gender", "application_required") in paths
-    assert paths[("overrides", "personal.gender", "application_visible")]["value"] is True
+    assert (
+        paths[("overrides", "personal.gender", "application_visible")]["value"] is True
+    )
     # application_required=False is a real value (not null) → a SET, not a REMOVE.
-    assert paths[("overrides", "personal.gender", "application_required")]["action"] == SET
+    assert (
+        paths[("overrides", "personal.gender", "application_required")]["action"] == SET
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -401,7 +437,12 @@ def test_delete_field_refuses_base_field(service):
 def _reader_row_with(container_key, entry_key, spec):
     """A FakeReader row whose stored entry carries the given spec (so a test can observe a
     `choices` attribute on the snapshot the service reads for placement)."""
-    row = {"fields": {}, "fixed_overrides": {}, "functional_groups": {}, "version": "v-1"}
+    row = {
+        "fields": {},
+        "fixed_overrides": {},
+        "functional_groups": {},
+        "version": "v-1",
+    }
     row[container_key][entry_key] = dict(spec)
     return FakeReader(row)
 
@@ -410,14 +451,18 @@ def test_remove_legacy_choices_emits_scoped_remove_on_choices_path(repo):
     """remove_legacy_choices emits a SINGLE scoped REMOVE on the field's `choices` path — modelled
     on reset_field, bypassing the attr-surface guard (which now forbids `choices`)."""
     reader = _reader_row_with(
-        "fixed_overrides", "personal.gender", {"type": "enum", "choices": ["man", "vrouw"]}
+        "fixed_overrides",
+        "personal.gender",
+        {"type": "enum", "choices": ["man", "vrouw"]},
     )
     svc = ConfigFieldsCrudService(repo, reader=reader)
 
     svc.remove_legacy_choices(_TENANT, "gender")
 
     ops = repo.last["ops"]
-    assert ops == [{"action": REMOVE, "path": ["overrides", "personal.gender", "choices"]}]
+    assert ops == [
+        {"action": REMOVE, "path": ["overrides", "personal.gender", "choices"]}
+    ]
     # It targets config#fields via the Change-Op path (not a whole-row replace).
     assert repo.last["config_id"] == "fields"
 
@@ -425,7 +470,9 @@ def test_remove_legacy_choices_emits_scoped_remove_on_choices_path(repo):
 def test_remove_legacy_choices_on_variable_field_targets_fields_map(repo):
     """For a tenant VARIABLE field the scoped REMOVE addresses fields.<key>.choices."""
     reader = _reader_row_with(
-        "fields", "referral_source", {"type": "enum", "choices": ["internet", "facebook"]}
+        "fields",
+        "referral_source",
+        {"type": "enum", "choices": ["internet", "facebook"]},
     )
     svc = ConfigFieldsCrudService(repo, reader=reader)
 
@@ -449,7 +496,9 @@ def test_remove_legacy_choices_is_noop_when_no_choices_attribute(repo):
     result = svc.remove_legacy_choices(_TENANT, "gender")
 
     assert result.get("no_op") is True
-    assert repo.calls == [], "a no-op must not reach apply_ops (never a whole-row replace either)"
+    assert repo.calls == [], (
+        "a no-op must not reach apply_ops (never a whole-row replace either)"
+    )
 
 
 def test_remove_legacy_choices_is_noop_when_field_entry_absent(repo):
@@ -521,7 +570,9 @@ def test_remove_inline_options_is_noop_when_no_options_attribute(repo):
     result = svc.remove_inline_options(_TENANT, "region")
 
     assert result.get("no_op") is True
-    assert repo.calls == [], "a no-op must not reach apply_ops (never a whole-row replace either)"
+    assert repo.calls == [], (
+        "a no-op must not reach apply_ops (never a whole-row replace either)"
+    )
 
 
 def test_remove_inline_options_is_noop_when_field_entry_absent(repo):
@@ -556,7 +607,9 @@ def test_base_version_from_existing_versioned_row(repo):
 
 def test_base_version_legacy_row_without_version(repo):
     """An existing row with NO version resolves to the LEGACY sentinel."""
-    from sam.members.repository.projection_config_write_repository import LEGACY_NO_VERSION
+    from sam.members.repository.projection_config_write_repository import (
+        LEGACY_NO_VERSION,
+    )
 
     reader = FakeReader({"fields": {"shirt_size": {}}})
     svc = ConfigFieldsCrudService(repo, reader=reader)
@@ -595,7 +648,9 @@ def test_base_version_existing_versionless_skeleton_row_is_legacy(repo):
     ``attribute_not_exists(version)`` branch — not ``attribute_not_exists(sk)`` (which would fail
     against a row that already exists). The old all-empty-overlay heuristic could not distinguish
     this from a missing row; the dedicated version read can."""
-    from sam.members.repository.projection_config_write_repository import LEGACY_NO_VERSION
+    from sam.members.repository.projection_config_write_repository import (
+        LEGACY_NO_VERSION,
+    )
 
     reader = FakeReader({"fields": {}, "fixed_overrides": {}, "functional_groups": {}})
     svc = ConfigFieldsCrudService(repo, reader=reader)
@@ -635,7 +690,12 @@ def test_dotted_override_key_is_a_single_literal_segment(repo):
     (``personal.gender``), not split into nested path segments — the repository binds it through
     ExpressionAttributeNames so the '.' is a key name, not a document path (design-review Q2)."""
     reader = FakeReader(
-        {"fields": {}, "fixed_overrides": {"personal.gender": {}}, "functional_groups": {}, "version": "v-2"}
+        {
+            "fields": {},
+            "fixed_overrides": {"personal.gender": {}},
+            "functional_groups": {},
+            "version": "v-2",
+        }
     )
     svc = ConfigFieldsCrudService(repo, reader=reader)
     svc.set_field(_TENANT, "gender", {"order": 5})
@@ -648,7 +708,9 @@ def test_dotted_override_key_is_a_single_literal_segment(repo):
 def test_create_override_uses_dotted_key_as_whole_entry_path(repo):
     """On a CREATE of a base-field override the whole-entry SET addresses ``overrides.<dotted>`` —
     still ONE literal dotted segment, seeded as a whole map."""
-    reader = FakeReader({"fields": {}, "fixed_overrides": {}, "functional_groups": {}, "version": "v-2"})
+    reader = FakeReader(
+        {"fields": {}, "fixed_overrides": {}, "functional_groups": {}, "version": "v-2"}
+    )
     svc = ConfigFieldsCrudService(repo, reader=reader)
     svc.set_field(_TENANT, "gender", {"order": 5})
     op = repo.last["ops"][0]
@@ -664,7 +726,12 @@ def test_legacy_reader_without_consistent_read_kwarg_degrades(repo):
     op — the service falls back to the default read (the flag is a strengthening, not a hard
     precondition)."""
     reader = LegacyFakeReader(
-        {"fields": {}, "fixed_overrides": {"membership.status": {}}, "functional_groups": {}, "version": "v-9"}
+        {
+            "fields": {},
+            "fixed_overrides": {"membership.status": {}},
+            "functional_groups": {},
+            "version": "v-9",
+        }
     )
     svc = ConfigFieldsCrudService(repo, reader=reader)
     svc.set_field(_TENANT, "status", {"order": 3})
@@ -679,7 +746,9 @@ def test_legacy_reader_without_consistent_read_kwarg_degrades(repo):
 def test_set_group_materialize_absent_base_group_creates_whole_entry(repo):
     """set_group on a group ABSENT from the overlay materializes it: a single whole-entry
     ``SET functional_groups.<gkey> = :g`` (R4.1) — the base-group materialize, catalog untouched."""
-    reader = FakeReader({"fields": {}, "fixed_overrides": {}, "functional_groups": {}, "version": "v-3"})
+    reader = FakeReader(
+        {"fields": {}, "fixed_overrides": {}, "functional_groups": {}, "version": "v-3"}
+    )
     svc = ConfigFieldsCrudService(repo, reader=reader)
     svc.set_group(_TENANT, "personal", {"order": 1, "label": {"en": "Personal"}})
     ops = repo.last["ops"]
@@ -695,7 +764,12 @@ def test_set_group_materialize_absent_base_group_creates_whole_entry(repo):
 def test_set_group_update_existing_group_emits_per_aspect(repo):
     """set_group on an EXISTING group updates the named aspect only (UPDATE verb)."""
     reader = FakeReader(
-        {"fields": {}, "fixed_overrides": {}, "functional_groups": {"personal": {}}, "version": "v-3"}
+        {
+            "fields": {},
+            "fixed_overrides": {},
+            "functional_groups": {"personal": {}},
+            "version": "v-3",
+        }
     )
     svc = ConfigFieldsCrudService(repo, reader=reader)
     svc.set_group(_TENANT, "personal", {"order": 2})
@@ -764,7 +838,9 @@ class BooleanUsageProbe:
         return field_key in self._in_use
 
 
-def _service_with_snapshot(repo, *, fields=None, overrides=None, groups=None, usage_probe=None):
+def _service_with_snapshot(
+    repo, *, fields=None, overrides=None, groups=None, usage_probe=None
+):
     """A service whose reader serves a snapshot with the given authored overlay containers.
 
     ``fields`` / ``overrides`` / ``groups`` are maps of entry-key -> spec (the spec may carry a
@@ -778,7 +854,9 @@ def _service_with_snapshot(repo, *, fields=None, overrides=None, groups=None, us
         "functional_groups": dict(groups or {}),
         "version": "v-1",
     }
-    return ConfigFieldsCrudService(repo, reader=FakeReader(row), usage_probe=usage_probe)
+    return ConfigFieldsCrudService(
+        repo, reader=FakeReader(row), usage_probe=usage_probe
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -790,9 +868,17 @@ def test_client_cannot_supply_storage_placement_via_attrs(service):
     """A client-supplied placement hint smuggled into the attrs payload (a storage map name / a
     dotted key / a raw-shape key) is REJECTED — it is outside the definition surface, so the
     service never honours a caller-chosen storage path (R2.2 / steering 39)."""
-    for smuggled in ("overrides", "fields", "functional_groups", "fixed_overrides", "field_overlay"):
+    for smuggled in (
+        "overrides",
+        "fields",
+        "functional_groups",
+        "fixed_overrides",
+        "field_overlay",
+    ):
         with pytest.raises(ConfigFieldsCrudError):
-            service.set_field(_TENANT, "shirt_size", {"label": {"en": "X"}, smuggled: {"a": 1}})
+            service.set_field(
+                _TENANT, "shirt_size", {"label": {"en": "X"}, smuggled: {"a": 1}}
+            )
 
 
 def test_placement_is_decided_by_registry_not_by_caller(repo):
@@ -835,7 +921,10 @@ def test_omitting_a_field_from_a_set_op_never_removes_it(repo):
     field; other authored fields are never addressed, so nothing else is removed (R2.5)."""
     svc = _service_with_snapshot(
         repo,
-        fields={"shirt_size": {"functional_group": "merch"}, "dietary": {"functional_group": "merch"}},
+        fields={
+            "shirt_size": {"functional_group": "merch"},
+            "dietary": {"functional_group": "merch"},
+        },
     )
     svc.set_field(_TENANT, "shirt_size", {"order": 2})
     for op in repo.last["ops"]:
@@ -888,7 +977,9 @@ def test_delete_group_allowed_when_empty(repo):
         groups={"merch": {}, "other_group": {}},
     )
     svc.delete_group(_TENANT, "merch")
-    assert repo.last["ops"] == [{"action": REMOVE, "path": ["functional_groups", "merch"]}]
+    assert repo.last["ops"] == [
+        {"action": REMOVE, "path": ["functional_groups", "merch"]}
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -1009,7 +1100,6 @@ import copy
 import re
 
 from botocore.exceptions import ClientError
-
 from services import projection_schema as schema
 
 from sam.members.repository.projection_config_write_repository import (
@@ -1023,7 +1113,12 @@ _FIELDS_SK = "config#fields"
 def _conditional_check_failed() -> ClientError:
     """A genuine botocore ``ClientError`` with the ConditionalCheckFailedException code."""
     return ClientError(
-        {"Error": {"Code": "ConditionalCheckFailedException", "Message": "conditional request failed"}},
+        {
+            "Error": {
+                "Code": "ConditionalCheckFailedException",
+                "Message": "conditional request failed",
+            }
+        },
         "UpdateItem",
     )
 
@@ -1221,7 +1316,9 @@ def test_materialize_absent_base_group_leaves_other_groups_byte_identical():
     assert after["medical"] == {"order": 45, "label": {"en": "Medical info"}}
     # EVERY other group is byte-identical to before — nothing else moved.
     for gkey, spec in before.items():
-        assert after[gkey] == spec, f"group {gkey!r} must be untouched by the materialize"
+        assert after[gkey] == spec, (
+            f"group {gkey!r} must be untouched by the materialize"
+        )
     assert set(after) == set(before) | {"medical"}
 
 
@@ -1259,13 +1356,29 @@ def test_no_group_op_ever_addresses_the_whole_functional_groups_map():
 
     # Materialize (absent group → CREATE verb), via a reader with no authored groups.
     svc_create = ConfigFieldsCrudService(
-        repo, reader=FakeReader({"fields": {}, "fixed_overrides": {}, "functional_groups": {}, "version": "v1"})
+        repo,
+        reader=FakeReader(
+            {
+                "fields": {},
+                "fixed_overrides": {},
+                "functional_groups": {},
+                "version": "v1",
+            }
+        ),
     )
     svc_create.set_group(_TENANT, "medical", {"order": 45})
 
     # Update an EXISTING group → UPDATE (per-aspect) verb.
     svc_update = ConfigFieldsCrudService(
-        repo, reader=FakeReader({"fields": {}, "fixed_overrides": {}, "functional_groups": {"personal": {}}, "version": "v1"})
+        repo,
+        reader=FakeReader(
+            {
+                "fields": {},
+                "fixed_overrides": {},
+                "functional_groups": {"personal": {}},
+                "version": "v1",
+            }
+        ),
     )
     svc_update.set_group(_TENANT, "personal", {"order": 1})
 
@@ -1280,7 +1393,9 @@ def test_no_group_op_ever_addresses_the_whole_functional_groups_map():
         for op in call["ops"]
         if op["path"] and op["path"][0] == "functional_groups"
     ]
-    assert group_ops, "expected at least one functional_groups op across the three calls"
+    assert group_ops, (
+        "expected at least one functional_groups op across the three calls"
+    )
     for op in group_ops:
         assert op["path"] != ["functional_groups"], (
             "NO op may address the whole functional_groups map — that is the occurrence-3 "
@@ -1302,7 +1417,9 @@ def test_partial_group_payload_cannot_shrink_the_catalog_end_to_end():
     svc.set_group(_TENANT, "personal", {"order": 11})
 
     after = _stored_groups(table)
-    assert len(after) == 6, "a partial group edit must NEVER reduce the catalog count (occurrence 3)"
+    assert len(after) == 6, (
+        "a partial group edit must NEVER reduce the catalog count (occurrence 3)"
+    )
     assert set(after) == set(_SIX_GROUPS)
     assert after["personal"]["order"] == 11
 
@@ -1311,7 +1428,9 @@ def test_materialize_then_edit_sequence_keeps_catalog_whole():
     """A sequence — materialise an absent base group, then edit an existing one — grows the catalog
     by exactly the materialised group and never drops a sibling (R4.1 + R4.2 together)."""
     table = _CatalogFakeTable()
-    authored = {k: v for k, v in _SIX_GROUPS.items() if k != "consent"}  # 5 authored, consent absent
+    authored = {
+        k: v for k, v in _SIX_GROUPS.items() if k != "consent"
+    }  # 5 authored, consent absent
     _seed_catalog_row(table, groups=authored, version="v1")
 
     versions = iter(["v2", "v3"])
@@ -1325,7 +1444,9 @@ def test_materialize_then_edit_sequence_keeps_catalog_whole():
     )
 
     after = _stored_groups(table)
-    assert set(after) == set(_SIX_GROUPS), "catalog must end whole (all six groups present)"
+    assert set(after) == set(_SIX_GROUPS), (
+        "catalog must end whole (all six groups present)"
+    )
     assert after["consent"] == {"order": 60, "label": {"en": "Consent"}}
     assert after["personal"]["order"] == 12
     # the four untouched groups are byte-identical to their seed
@@ -1342,17 +1463,23 @@ def test_delete_empty_group_removes_only_that_group_end_to_end():
     """END-TO-END: deleting an EMPTY group removes only its `functional_groups.<gkey>` entry; the
     other five groups survive byte-identical (no whole-catalog rewrite)."""
     table = _CatalogFakeTable()
-    _seed_catalog_row(table, groups=_SIX_GROUPS, version="v1")  # no fields reference any group
+    _seed_catalog_row(
+        table, groups=_SIX_GROUPS, version="v1"
+    )  # no fields reference any group
     before = copy.deepcopy(_stored_groups(table))
 
     svc = _e2e_service(table, version_fn=lambda: "v2")
-    svc.delete_group(_TENANT, "emergency")  # empty (no authored field references it) → allowed
+    svc.delete_group(
+        _TENANT, "emergency"
+    )  # empty (no authored field references it) → allowed
 
     after = _stored_groups(table)
     assert "emergency" not in after
     assert set(after) == set(before) - {"emergency"}
     for gkey in after:
-        assert after[gkey] == before[gkey], f"group {gkey!r} must be untouched by the delete"
+        assert after[gkey] == before[gkey], (
+            f"group {gkey!r} must be untouched by the delete"
+        )
 
 
 # ===========================================================================
@@ -1392,10 +1519,9 @@ def test_delete_empty_group_removes_only_that_group_end_to_end():
 # **Validates: Requirements 5.2**
 
 from sam.members.domain.config_fields_crud_service import (
-    FIELD_DEFINITION_ATTRS,
     _CONFIG_ID_FIELDS,
+    FIELD_DEFINITION_ATTRS,
 )
-from sam.members.domain.fixed_fields import EnumOption, FieldType
 from sam.members.domain.field_resolver import (
     FieldResolver,
     FixedFieldOverride,
@@ -1404,6 +1530,7 @@ from sam.members.domain.field_resolver import (
     StaticOverlayProvider,
     TenantOverlay,
 )
+from sam.members.domain.fixed_fields import EnumOption, FieldType
 
 # A representative stored `scope` sub-object as it rides on an override entry (the SAM read shape
 # of FieldScope: enabled + value vocabulary + i18n label + the grant-requiring capabilities).
@@ -1431,7 +1558,13 @@ def test_set_field_other_attr_preserves_stored_scope_verbatim_end_to_end():
         table,
         groups={"personal": {"label": {"en": "Personal"}, "order": 10}},
         version="v1",
-        fields={"region": {"type": "enum", "order": 40, "scope": copy.deepcopy(_SCOPE_SUBOBJECT)}},
+        fields={
+            "region": {
+                "type": "enum",
+                "order": 40,
+                "scope": copy.deepcopy(_SCOPE_SUBOBJECT),
+            }
+        },
     )
     before_scope = copy.deepcopy(
         table.store[(_TENANT, _FIELDS_SK)]["fields"]["region"]["scope"]
@@ -1562,7 +1695,11 @@ def test_choiceless_scope_enum_sources_values_from_config_scope_single_source():
     row (passed as `scope_vocab`), the SINGLE source — NOT from duplicated inline choices."""
     # A choiceless enum overlay field — the exact h-dcn `region` shape (no inline choices/options).
     overlay = TenantOverlay(
-        fields={"region": OverlayField(key="region", type=FieldType.ENUM, label={"en": "Region"})}
+        fields={
+            "region": OverlayField(
+                key="region", type=FieldType.ENUM, label={"en": "Region"}
+            )
+        }
     )
     # The scope vocabulary comes from the SEPARATE config#scope row (the single source).
     scope_vocab = {"region": ("North", "South", "East", "West")}
@@ -1586,7 +1723,11 @@ def test_choiceless_scope_enum_still_resolves_from_config_scope_after_a_fields_w
 
     # BEFORE: the overlay authors the choiceless region enum; it sources from config#scope.
     overlay_before = TenantOverlay(
-        fields={"region": OverlayField(key="region", type=FieldType.ENUM, label={"en": "Region"})}
+        fields={
+            "region": OverlayField(
+                key="region", type=FieldType.ENUM, label={"en": "Region"}
+            )
+        }
     )
     before = _resolve_region_choices(overlay_before, scope_vocab=scope_vocab)
 
@@ -1599,12 +1740,18 @@ def test_choiceless_scope_enum_still_resolves_from_config_scope_after_a_fields_w
         version="v1",
         fields={"region": {"type": "enum", "label": {"en": "Region"}}},
     )
-    _e2e_service(table, version_fn=lambda: "v2").set_field(_TENANT, "shirt_size", {"order": 7})
+    _e2e_service(table, version_fn=lambda: "v2").set_field(
+        _TENANT, "shirt_size", {"order": 7}
+    )
 
     # AFTER: the SAME config#scope vocabulary still drives the choiceless enum's values — the
     # fields write did not disturb the single source.
     overlay_after = TenantOverlay(
-        fields={"region": OverlayField(key="region", type=FieldType.ENUM, label={"en": "Region"})}
+        fields={
+            "region": OverlayField(
+                key="region", type=FieldType.ENUM, label={"en": "Region"}
+            )
+        }
     )
     after = _resolve_region_choices(overlay_after, scope_vocab=scope_vocab)
 
@@ -1619,7 +1766,11 @@ def test_choiceless_scope_enum_without_vocab_is_still_a_config_bug():
     (absent from scope_vocab) is STILL rejected — scope sourcing is the ONLY sanctioned way a
     choiceless enum is valid, so the single-source rule does not become a loophole."""
     overlay = TenantOverlay(
-        fields={"region": OverlayField(key="region", type=FieldType.ENUM, label={"en": "Region"})}
+        fields={
+            "region": OverlayField(
+                key="region", type=FieldType.ENUM, label={"en": "Region"}
+            )
+        }
     )
     with pytest.raises(OverlayError):
         # No scope_vocab entry for `region` → a genuinely choiceless enum → config bug.
@@ -1680,7 +1831,9 @@ def test_override_enum_value_from_rich_options_reaches_resolved_choices():
             "membership.status": FixedFieldOverride(
                 options=(
                     EnumOption(value="active", label={"en": "Active"}),
-                    EnumOption(value="died", label={"nl": "Overleden", "en": "Passed Away"}),
+                    EnumOption(
+                        value="died", label={"nl": "Overleden", "en": "Passed Away"}
+                    ),
                 )
             )
         }
@@ -1700,11 +1853,15 @@ def test_override_enum_value_from_options_reaches_resolved_choices_value_only():
     NOT fall back to the base choices. The retired `options or choices` coalesce is gone — there is
     ONE vocabulary (`options`); C7 migrates legacy bare-`choices` rows into it."""
     overlay = TenantOverlay(
-        overrides={"personal.gender": FixedFieldOverride(options=(
-            EnumOption(value="man"),
-            EnumOption(value="vrouw"),
-            EnumOption(value="anders"),
-        ))}
+        overrides={
+            "personal.gender": FixedFieldOverride(
+                options=(
+                    EnumOption(value="man"),
+                    EnumOption(value="vrouw"),
+                    EnumOption(value="anders"),
+                )
+            )
+        }
     )
     gender = _resolve_field(overlay, "gender")
     assert tuple(gender.choices or ()) == ("man", "vrouw", "anders")
@@ -1802,7 +1959,9 @@ def test_set_field_options_change_emits_only_the_options_path(repo):
             "path": ["overrides", "membership.status", "options"],
             "value": [{"value": "died"}],
         }
-    ], "an options-only edit must emit exactly one SET on the options aspect, nothing else"
+    ], (
+        "an options-only edit must emit exactly one SET on the options aspect, nothing else"
+    )
 
 
 def test_set_field_options_change_is_isolated_on_the_resolved_record():
@@ -1929,7 +2088,9 @@ def _service_over_table_with_base_version(table, *, base_version, version_fn):
     return ConfigFieldsCrudService(repo, reader=reader)
 
 
-def _seed_variable_field_row(table, *, version, last_client_op_id=None, field_value=None):
+def _seed_variable_field_row(
+    table, *, version, last_client_op_id=None, field_value=None
+):
     """Seed a row carrying a `shirt_size` variable field at `version`, optionally with a stamped
     `last_client_op_id` (modelling a row already produced by an idempotency-carrying write)."""
     row = {
@@ -1955,13 +2116,18 @@ def test_lost_response_retry_same_op_id_returns_success_through_the_service():
     # The row reflects the FIRST write that the client never saw the response for: the version was
     # bumped to v-2 and the op id `op-abc` was stamped, and the field value it set is present.
     _seed_variable_field_row(
-        table, version="v-2", last_client_op_id="op-abc", field_value={"key": "shirt_size", "order": 1}
+        table,
+        version="v-2",
+        last_client_op_id="op-abc",
+        field_value={"key": "shirt_size", "order": 1},
     )
     before = copy.deepcopy(table.store[(_TENANT, _FIELDS_SK)])
 
     # The client retries with the STALE base (v-1, what it read before the first write) + the SAME
     # op id. version_fn would mint v-3 IF a write happened — it must NOT.
-    svc = _service_over_table_with_base_version(table, base_version="v-1", version_fn=lambda: "v-3")
+    svc = _service_over_table_with_base_version(
+        table, base_version="v-1", version_fn=lambda: "v-3"
+    )
     result = svc.set_field(_TENANT, "shirt_size", {"order": 1}, client_op_id="op-abc")
 
     # The service passes the repository's idempotent-replay result through verbatim.
@@ -1981,11 +2147,16 @@ def test_same_op_id_but_a_different_concurrent_edit_still_409s_through_the_servi
     table = _CatalogFakeTable()
     # A DIFFERENT writer's op (`op-OTHER`) got there first and advanced the version to v-2.
     _seed_variable_field_row(
-        table, version="v-2", last_client_op_id="op-OTHER", field_value={"key": "shirt_size", "order": 9}
+        table,
+        version="v-2",
+        last_client_op_id="op-OTHER",
+        field_value={"key": "shirt_size", "order": 9},
     )
     before = copy.deepcopy(table.store[(_TENANT, _FIELDS_SK)])
 
-    svc = _service_over_table_with_base_version(table, base_version="v-1", version_fn=lambda: "v-3")
+    svc = _service_over_table_with_base_version(
+        table, base_version="v-1", version_fn=lambda: "v-3"
+    )
     with pytest.raises(StaleVersionError):
         svc.set_field(_TENANT, "shirt_size", {"order": 1}, client_op_id="op-abc")
 
@@ -2002,11 +2173,16 @@ def test_absent_op_id_on_a_stale_base_is_a_plain_409_through_the_service():
     table = _CatalogFakeTable()
     # The row carries a stamped op id, but the retry supplies NONE — the stored id must not rescue it.
     _seed_variable_field_row(
-        table, version="v-2", last_client_op_id="op-abc", field_value={"key": "shirt_size", "order": 9}
+        table,
+        version="v-2",
+        last_client_op_id="op-abc",
+        field_value={"key": "shirt_size", "order": 9},
     )
     before = copy.deepcopy(table.store[(_TENANT, _FIELDS_SK)])
 
-    svc = _service_over_table_with_base_version(table, base_version="v-1", version_fn=lambda: "v-3")
+    svc = _service_over_table_with_base_version(
+        table, base_version="v-1", version_fn=lambda: "v-3"
+    )
     with pytest.raises(StaleVersionError):
         svc.set_field(_TENANT, "shirt_size", {"order": 1})  # no client_op_id
 
@@ -2141,12 +2317,15 @@ def test_one_shot_retry_succeeds_after_an_unrelated_concurrent_edit_end_to_end()
 
     Validates: Requirement 6.2
     """
+
     # The concurrent writer edits a DIFFERENT group ("contact") while our op edits "personal".
     def concurrent_edit(row):
         row.setdefault("functional_groups", {}).setdefault("contact", {})["order"] = 99
 
     table = _RacingCatalogTable(
-        fail_times=1, concurrent_edit=concurrent_edit, concurrent_versions=["v-concurrent"]
+        fail_times=1,
+        concurrent_edit=concurrent_edit,
+        concurrent_versions=["v-concurrent"],
     )
     _seed_catalog_row(table, groups=copy.deepcopy(_SIX_GROUPS), version="v1")
 
@@ -2175,6 +2354,7 @@ def test_one_shot_retry_re_derives_create_to_update_when_entry_now_exists_end_to
 
     Validates: Requirement 6.2
     """
+
     # The concurrent writer MATERIALISES the very group we are creating ("medical"), with a label.
     def concurrent_edit(row):
         row.setdefault("functional_groups", {})["medical"] = {
@@ -2183,7 +2363,9 @@ def test_one_shot_retry_re_derives_create_to_update_when_entry_now_exists_end_to
         }
 
     table = _RacingCatalogTable(
-        fail_times=1, concurrent_edit=concurrent_edit, concurrent_versions=["v-concurrent"]
+        fail_times=1,
+        concurrent_edit=concurrent_edit,
+        concurrent_versions=["v-concurrent"],
     )
     # Seed WITHOUT "medical" so our first-pass placement picks the CREATE verb.
     authored = {k: v for k, v in _SIX_GROUPS.items() if k != "medical"}
@@ -2210,6 +2392,7 @@ def test_retry_also_conflicts_surfaces_stale_version_and_makes_no_change_end_to_
 
     Validates: Requirement 6.2
     """
+
     # The concurrent writer bumps the row on EVERY write attempt (an unrelated, sustained edit).
     def concurrent_edit(row):
         row.setdefault("functional_groups", {}).setdefault("contact", {})["order"] = (
@@ -2252,7 +2435,9 @@ def test_validation_error_in_derive_is_not_retried():
         # An application attr on set_field is rejected while deriving — before any update_item.
         svc.set_field(_TENANT, "gender", {"application_visible": True})
 
-    assert table.update_calls == 0, "a validation error must never reach (or retry) a write"
+    assert table.update_calls == 0, (
+        "a validation error must never reach (or retry) a write"
+    )
 
 
 # ===========================================================================
@@ -2295,7 +2480,9 @@ def test_set_field_rejects_choices_definition_attribute(service):
     assert "choices" in str(exc.value)
 
 
-def test_set_field_options_write_preserves_change_op_and_one_key_contract(service, repo):
+def test_set_field_options_write_preserves_change_op_and_one_key_contract(
+    service, repo
+):
     """C2 (R3.3): an `options` write to a base field places under the STORAGE map `overrides`
     (served under the wire key `fixed_overrides` — the one-key contract) and remains a Change-Op on
     a SINGLE path — a whole-entry SET on CREATE, never a whole-row replace.
@@ -2311,7 +2498,9 @@ def test_set_field_options_write_preserves_change_op_and_one_key_contract(servic
             "path": ["overrides", "personal.gender"],
             "value": {"options": [{"value": "man"}, {"value": "vrouw"}]},
         }
-    ], "the write is ONE whole-entry SET addressing the single `overrides.<dotted>` storage path"
+    ], (
+        "the write is ONE whole-entry SET addressing the single `overrides.<dotted>` storage path"
+    )
     # The storage map name is `overrides` (NOT the wire key `fixed_overrides`) — the service writes
     # to storage; the reader serves that same map under `fixed_overrides` (the one-key contract).
     assert ops[0]["path"][0] == "overrides"
@@ -2322,7 +2511,9 @@ def test_set_field_update_options_emits_single_options_path(repo):
     """C2 (R3.3): on an EXISTING entry an `options` edit emits exactly ONE per-aspect SET on the
     `options` path — a single-path Change-Op, no sibling attr and no whole-row replace."""
     svc = _existing_service(repo, ("fixed_overrides", "membership.status"))
-    svc.set_field(_TENANT, "status", {"options": [{"value": "active"}, {"value": "died"}]})
+    svc.set_field(
+        _TENANT, "status", {"options": [{"value": "active"}, {"value": "died"}]}
+    )
     assert repo.last["ops"] == [
         {
             "action": SET,
@@ -2366,7 +2557,9 @@ def test_set_field_accepts_unique_option_values_duplicate_guard_passes(service, 
     """C3: a well-formed `options` list with all-unique values passes the duplicate guard and is
     written (the guard rejects ONLY genuine duplicates, never a valid vocabulary)."""
     service.set_field(
-        _TENANT, "gender", {"options": [{"value": "man"}, {"value": "vrouw"}, {"value": "anders"}]}
+        _TENANT,
+        "gender",
+        {"options": [{"value": "man"}, {"value": "vrouw"}, {"value": "anders"}]},
     )
     assert repo.calls, "a unique-valued options list must still be written"
 
@@ -2405,7 +2598,6 @@ def test_set_field_accepts_unique_option_values_duplicate_guard_passes(service, 
 
 
 from sam.members.domain._membership_errors import MEMBERSHIP_TYPE_FIELD_KEY
-
 
 # ---------------------------------------------------------------------------
 # W1 — reference field rejects an inline `options` payload (→ caller-safe 400)
@@ -2459,9 +2651,15 @@ def test_w1_reference_field_without_options_is_accepted(repo):
     reference field is still allowed — the guard only rejects re-freezing inline options."""
     svc = _existing_service(repo, ("fixed_overrides", MEMBERSHIP_TYPE_FIELD_KEY))
     svc.set_field(_TENANT, "membership_type", {"order": 31})
-    assert repo.calls, "a reference field edit that carries no `options` must still be written"
+    assert repo.calls, (
+        "a reference field edit that carries no `options` must still be written"
+    )
     assert repo.last["ops"] == [
-        {"action": SET, "path": ["overrides", MEMBERSHIP_TYPE_FIELD_KEY, "order"], "value": 31}
+        {
+            "action": SET,
+            "path": ["overrides", MEMBERSHIP_TYPE_FIELD_KEY, "order"],
+            "value": 31,
+        }
     ]
 
 
@@ -2486,7 +2684,9 @@ def test_w2_scope_backed_field_with_inline_options_is_accepted(repo):
         "region",
         {"scope": scope_value, "options": [{"value": "North"}]},
     )
-    assert repo.calls, "a scope-backed field saved with inline `options` must be written (no W2)"
+    assert repo.calls, (
+        "a scope-backed field saved with inline `options` must be written (no W2)"
+    )
     assert repo.last["ops"] == [
         {
             "action": SET,
@@ -2496,14 +2696,18 @@ def test_w2_scope_backed_field_with_inline_options_is_accepted(repo):
     ]
 
 
-def test_w2_scope_backed_field_with_inline_options_accepted_when_payload_silent_on_scope(repo):
+def test_w2_scope_backed_field_with_inline_options_accepted_when_payload_silent_on_scope(
+    repo,
+):
     """Option A: on an UPDATE whose payload carries ONLY `options` (no `scope`), a stored
     scope-backed field ACCEPTS the inline `options` — W2 removed, no rejection by stored kind."""
     svc = _service_with_snapshot(
         repo, fields={"region": {"scope": copy.deepcopy(_SCOPE_SUBOBJECT)}}
     )
     svc.set_field(_TENANT, "region", {"options": [{"value": "North"}]})
-    assert repo.calls, "a scope-backed field updated with inline `options` must be written (no W2)"
+    assert repo.calls, (
+        "a scope-backed field updated with inline `options` must be written (no W2)"
+    )
     assert repo.last["ops"] == [
         {
             "action": SET,
@@ -2519,7 +2723,9 @@ def test_w2_scope_backed_field_without_options_is_accepted(repo):
     svc = ConfigFieldsCrudService(repo)
     scope_value = copy.deepcopy(_SCOPE_SUBOBJECT)
     svc.set_field(_TENANT, "region", {"scope": scope_value})
-    assert repo.calls, "authoring a scope axis without inline `options` must be accepted"
+    assert repo.calls, (
+        "authoring a scope axis without inline `options` must be accepted"
+    )
     assert repo.last["ops"] == [
         {"action": SET, "path": ["fields", "region"], "value": {"scope": scope_value}}
     ]
@@ -2535,7 +2741,9 @@ def test_w2_disabled_scope_is_not_scope_backed(repo):
         "maybe_scope",
         {"type": "enum", "scope": {"enabled": False}, "options": [{"value": "a"}]},
     )
-    assert repo.calls, "a disabled-scope inline enum with non-empty options is a clean write"
+    assert repo.calls, (
+        "a disabled-scope inline enum with non-empty options is a clean write"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -2569,8 +2777,12 @@ def test_w3_legitimate_staging_without_options_key_does_not_reject(repo):
     (authoring its label/order first, adding the vocabulary later) is legitimate and NOT rejected —
     an ABSENT `options` key never trips W3."""
     svc = ConfigFieldsCrudService(repo)
-    svc.set_field(_TENANT, "shirt_size", {"type": "enum", "label": {"en": "Shirt size"}})
-    assert repo.calls, "staging an enum without an `options` key must be accepted (W3 scope)"
+    svc.set_field(
+        _TENANT, "shirt_size", {"type": "enum", "label": {"en": "Shirt size"}}
+    )
+    assert repo.calls, (
+        "staging an enum without an `options` key must be accepted (W3 scope)"
+    )
 
 
 def test_w3_inline_enum_with_non_empty_options_is_accepted(repo):
@@ -2593,4 +2805,6 @@ def test_w3_unknown_kind_explicit_empty_options_not_rejected(repo):
     a known enum type.)"""
     svc = ConfigFieldsCrudService(repo)
     svc.set_field(_TENANT, "mystery", {"options": []})
-    assert repo.calls, "an explicit empty options on an unknown-kind field is not a W3 violation"
+    assert repo.calls, (
+        "an explicit empty options on an unknown-kind field is not a W3 violation"
+    )

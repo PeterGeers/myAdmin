@@ -19,15 +19,17 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-import services.projection_schema as schema  # noqa: E402
-from services._projection_source import SourceProvider  # noqa: E402
+import services.projection_schema as schema
+from services._projection_source import SourceProvider
 
 
 def _load_script_module():
@@ -51,7 +53,9 @@ class FakeTable:
         self.delete_calls: list[tuple[str, str]] = []
 
     def get_item(self, Key):
-        item = self.store.get((Key[schema.PARTITION_KEY_ATTR], Key[schema.SORT_KEY_ATTR]))
+        item = self.store.get(
+            (Key[schema.PARTITION_KEY_ATTR], Key[schema.SORT_KEY_ATTR])
+        )
         return {"Item": item} if item is not None else {}
 
     def delete_item(self, Key):
@@ -123,8 +127,11 @@ def test_apply_deletes_only_the_views_row_for_the_named_tenants():
     assert summary == {"scanned": 1, "deleted": 1}
     assert table.delete_calls == [("h-dcn", _views_sk())]
     assert ("h-dcn", _views_sk()) not in table.store
-    assert ("h-dcn", _fields_sk()) in table.store       # only the views key is touched
-    assert ("other-tenant", _views_sk()) in table.store  # tenant-scoped: never cross-partition
+    assert ("h-dcn", _fields_sk()) in table.store  # only the views key is touched
+    assert (
+        "other-tenant",
+        _views_sk(),
+    ) in table.store  # tenant-scoped: never cross-partition
 
 
 def test_apply_is_idempotent_on_a_rerun():
@@ -143,7 +150,9 @@ def test_a_tenant_without_residue_contributes_zero():
     table = FakeTable()
     _seed_views_residue(table, "h-dcn")
 
-    summary = script.cleanup_config_views_residue(["clean-tenant"], apply=True, table=table)
+    summary = script.cleanup_config_views_residue(
+        ["clean-tenant"], apply=True, table=table
+    )
 
     assert summary == {"scanned": 0, "deleted": 0}
     assert table.delete_calls == []

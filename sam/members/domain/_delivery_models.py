@@ -33,8 +33,8 @@ __all__ = [
     "DeliveryNotConfigured",
     "DeliveryOutcome",
     "MailJob",
-    "MailQueue",
     "MailNotCertified",
+    "MailQueue",
     "PivotRunner",
 ]
 
@@ -140,7 +140,7 @@ class MailQueue(Protocol):
     (the worker, task 4.3) — the queue itself only needs to deliver at-least-once.
     """
 
-    def enqueue(self, job: "MailJob") -> None:
+    def enqueue(self, job: MailJob) -> None:
         """Place one send job on the queue (at-least-once delivery is sufficient)."""
         ...
 

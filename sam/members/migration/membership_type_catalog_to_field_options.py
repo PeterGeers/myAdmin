@@ -87,10 +87,10 @@ __all__ = [
     "CatalogEntry",
     "RowFoldPlan",
     "fold_catalog_into_options",
-    "strip_forbidden_choices",
     "merge_folded_options",
-    "row_needs_fold",
     "plan_row_fold",
+    "row_needs_fold",
+    "strip_forbidden_choices",
 ]
 
 #: The dotted override key under which ``membership_type`` lives in the stored ``config#fields``
@@ -118,7 +118,7 @@ class CatalogEntry:
     order: int = 0
 
     @classmethod
-    def from_entry(cls, entry: Any) -> "CatalogEntry":
+    def from_entry(cls, entry: Any) -> CatalogEntry:
         """Build from a :class:`MembershipTypeEntry` (the repository's resolved catalog row)."""
         return cls(
             type_code=str(getattr(entry, "type_code", "")),
@@ -128,7 +128,7 @@ class CatalogEntry:
         )
 
     @classmethod
-    def from_raw(cls, raw: Mapping) -> "CatalogEntry":
+    def from_raw(cls, raw: Mapping) -> CatalogEntry:
         """Build from a plain fixture/stored dict (the unit-test path over the real fixture)."""
         label = raw.get("label") or {}
         try:
@@ -181,9 +181,7 @@ def fold_catalog_into_options(catalog: Sequence[CatalogEntry]) -> list[dict]:
     return options
 
 
-def merge_folded_options(
-    existing: Any, folded: Sequence[Mapping]
-) -> list[dict]:
+def merge_folded_options(existing: Any, folded: Sequence[Mapping]) -> list[dict]:
     """Merge freshly-folded options onto whatever the field override already carries.
 
     The fold is the SOURCE OF TRUTH for every catalog ``value`` (its label/order/allowed), but an
@@ -228,11 +226,7 @@ def strip_forbidden_choices(overrides: Mapping[str, Any]) -> tuple[dict, list[st
     new_overrides: dict[str, Any] = {}
     cleaned: list[str] = []
     for dotted, entry in overrides.items():
-        if (
-            isinstance(entry, Mapping)
-            and "choices" in entry
-            and "options" in entry
-        ):
+        if isinstance(entry, Mapping) and "choices" in entry and "options" in entry:
             new_entry = {k: v for k, v in entry.items() if k != "choices"}
             new_overrides[dotted] = new_entry
             cleaned.append(str(dotted))
@@ -242,7 +236,11 @@ def strip_forbidden_choices(overrides: Mapping[str, Any]) -> tuple[dict, list[st
 
 
 def _active_codes(catalog: Sequence[CatalogEntry]) -> set[str]:
-    return {(e.type_code or "").strip() for e in catalog if e.active and (e.type_code or "").strip()}
+    return {
+        (e.type_code or "").strip()
+        for e in catalog
+        if e.active and (e.type_code or "").strip()
+    }
 
 
 def _retired_codes(catalog: Sequence[CatalogEntry]) -> set[str]:
@@ -253,7 +251,9 @@ def _retired_codes(catalog: Sequence[CatalogEntry]) -> set[str]:
     }
 
 
-def row_needs_fold(overrides: Mapping[str, Any], catalog: Sequence[CatalogEntry]) -> bool:
+def row_needs_fold(
+    overrides: Mapping[str, Any], catalog: Sequence[CatalogEntry]
+) -> bool:
     """Return ``True`` when the row still needs the EXPAND fold and/or a ``choices`` strip.
 
     A row needs work when ANY of these holds:
@@ -281,9 +281,7 @@ def row_needs_fold(overrides: Mapping[str, Any], catalog: Sequence[CatalogEntry]
         entry.get("options") if isinstance(entry, Mapping) else None
     ) or []
     by_value = {
-        str(o.get("value")): o
-        for o in existing_options
-        if isinstance(o, Mapping)
+        str(o.get("value")): o for o in existing_options if isinstance(o, Mapping)
     }
 
     active = _active_codes(catalog)
@@ -533,7 +531,9 @@ def run(
     version_value = _utc_stamp()
 
     mode = "APPLY (writing)" if args.apply else "DRY-RUN (read-only preview)"
-    print(f"membership_type catalog -> field options EXPAND migration — {mode}", file=out)
+    print(
+        f"membership_type catalog -> field options EXPAND migration — {mode}", file=out
+    )
     print(
         f"  table={getattr(table, 'name', '<resolved>')} version_stamp={version_value}",
         file=out,
@@ -549,7 +549,8 @@ def run(
 
         overrides = item.get("overrides") or {}
         catalog = [
-            CatalogEntry.from_entry(e) for e in repository.list_membership_types(tenant_id)
+            CatalogEntry.from_entry(e)
+            for e in repository.list_membership_types(tenant_id)
         ]
         plan = plan_row_fold(overrides, catalog, tenant_id)
 

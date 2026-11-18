@@ -37,7 +37,9 @@ import sys
 
 import pytest
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
@@ -48,7 +50,9 @@ if _BACKEND_SRC not in sys.path:
 # ── Load the scan module from scripts/ (not an importable package) ──────────────────────────
 def _load_scan_module():
     path = os.path.join(_REPO_ROOT, "scripts", "scan_membership_type_integrity.py")
-    spec = importlib.util.spec_from_file_location("scan_membership_type_integrity", path)
+    spec = importlib.util.spec_from_file_location(
+        "scan_membership_type_integrity", path
+    )
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -57,9 +61,11 @@ def _load_scan_module():
 
 scan = _load_scan_module()
 
-from services import projection_schema as schema  # noqa: E402
+from services import projection_schema as schema
 
-from sam.members.repository.projection_config_reader import MembersProjectionReader  # noqa: E402
+from sam.members.repository.projection_config_reader import (
+    MembersProjectionReader,
+)
 
 _FIXTURES = os.path.join(_REPO_ROOT, "backend", "tests", "fixtures")
 
@@ -162,7 +168,9 @@ def test_an_active_catalog_type_with_zero_members_must_still_be_folded():
         member_tally=member_tally,
     )
     assert {o.type_code for o in result.unfolded_catalog_rows} == {"sponsor"}
-    assert result.orphaned_member_references == ()  # no member holds sponsor -> no orphan
+    assert (
+        result.orphaned_member_references == ()
+    )  # no member holds sponsor -> no orphan
 
 
 @pytest.mark.unit
@@ -181,7 +189,9 @@ def test_a_retired_catalog_row_absent_from_options_is_not_un_folded():
         catalog_rows=catalog_rows,
         member_tally=member_tally,
     )
-    assert result.clean, "a retired catalog row absent from the options is neither un-folded nor an orphan"
+    assert result.clean, (
+        "a retired catalog row absent from the options is neither un-folded nor an orphan"
+    )
 
 
 @pytest.mark.unit
@@ -211,7 +221,10 @@ def test_extract_field_options_reads_the_dotted_override_options():
     wire = {
         "fields": {},
         "fixed_overrides": {
-            scan.DOTTED_MEMBERSHIP_TYPE_KEY: {"type": "enum", "options": fx["field_options"]}
+            scan.DOTTED_MEMBERSHIP_TYPE_KEY: {
+                "type": "enum",
+                "options": fx["field_options"],
+            }
         },
     }
     options = scan.extract_field_options(wire)
@@ -272,7 +285,8 @@ def _seed_fields_row(table, tenant_id, *, overrides=None):
         schema.PARTITION_KEY_ATTR: tenant_id,
         schema.SORT_KEY_ATTR: sk,
         "fields": {},
-        "overrides": overrides or {},  # storage key is `overrides`; reader serves it as fixed_overrides
+        "overrides": overrides
+        or {},  # storage key is `overrides`; reader serves it as fixed_overrides
         "functional_groups": {},
         schema.VERSION_ATTR: "v-seed",
     }
@@ -355,7 +369,9 @@ def test_scan_tenant_flags_un_folded_active_catalog_row():
 @pytest.mark.unit
 def test_scan_passes_exit_zero_on_clean_tenant_set(capsys):
     table = FakeTable()
-    _seed_fields_row(table, "clean-a", overrides=_mt_override([{"value": "x", "allowed": True}]))
+    _seed_fields_row(
+        table, "clean-a", overrides=_mt_override([{"value": "x", "allowed": True}])
+    )
     reader = MembersProjectionReader(table=table)
     repo = FakeMembersRepository()
     repo.add_catalog("clean-a", "x", active=True)
@@ -372,7 +388,9 @@ def test_scan_fails_non_zero_and_names_offender_on_orphan(capsys):
     table = FakeTable()
     # `died` members exist but `died` is not a field option -> orphan.
     _seed_fields_row(
-        table, "dirty-h-dcn", overrides=_mt_override([{"value": "active", "allowed": True}])
+        table,
+        "dirty-h-dcn",
+        overrides=_mt_override([{"value": "active", "allowed": True}]),
     )
     reader = MembersProjectionReader(table=table)
     repo = FakeMembersRepository()
@@ -390,18 +408,26 @@ def test_scan_fails_non_zero_and_names_offender_on_orphan(capsys):
 
 
 @pytest.mark.unit
-def test_main_all_tenants_discovery_fails_when_any_tenant_has_an_offender(monkeypatch, capsys):
+def test_main_all_tenants_discovery_fails_when_any_tenant_has_an_offender(
+    monkeypatch, capsys
+):
     table = FakeTable()
-    _seed_fields_row(table, "clean-a", overrides=_mt_override([{"value": "ok", "allowed": True}]))
     _seed_fields_row(
-        table, "dirty-h-dcn", overrides=_mt_override([{"value": "active", "allowed": True}])
+        table, "clean-a", overrides=_mt_override([{"value": "ok", "allowed": True}])
+    )
+    _seed_fields_row(
+        table,
+        "dirty-h-dcn",
+        overrides=_mt_override([{"value": "active", "allowed": True}]),
     )
     reader = MembersProjectionReader(table=table)
     repo = FakeMembersRepository()
     repo.add_catalog("clean-a", "ok", active=True)
     repo.add_members("clean-a", "ok", 1)
     repo.add_catalog("dirty-h-dcn", "active", active=True)
-    repo.add_catalog("dirty-h-dcn", "sponsor", active=True)  # active but not a field option
+    repo.add_catalog(
+        "dirty-h-dcn", "sponsor", active=True
+    )  # active but not a field option
 
     monkeypatch.setattr(
         scan, "_build_reader_and_repository", lambda table=None: (reader, repo)
@@ -417,7 +443,9 @@ def test_main_all_tenants_discovery_fails_when_any_tenant_has_an_offender(monkey
 @pytest.mark.unit
 def test_main_explicit_tenant_list_passes_on_clean(monkeypatch, capsys):
     table = FakeTable()
-    _seed_fields_row(table, "clean-a", overrides=_mt_override([{"value": "ok", "allowed": True}]))
+    _seed_fields_row(
+        table, "clean-a", overrides=_mt_override([{"value": "ok", "allowed": True}])
+    )
     reader = MembersProjectionReader(table=table)
     repo = FakeMembersRepository()
     repo.add_catalog("clean-a", "ok", active=True)

@@ -43,14 +43,13 @@ _REPO_ROOT = os.path.dirname(
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from sam.members.domain.fixed_fields import EnumOption
 from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     OverlayField,
     StaticOverlayProvider,
     TenantOverlay,
 )
-from sam.members.domain.fixed_fields import FieldType
+from sam.members.domain.fixed_fields import EnumOption, FieldType
 from sam.members.domain.membership_service import MembershipService
 
 # Reuse the field-config test's in-memory fake catalog repo (read-only catalog surface) + its
@@ -414,7 +413,7 @@ class TestLocaleAndConsentSeams:
     """
 
     #: The affirmative consent block every create on the public path now needs (task 2.6).
-    _CONSENT = {"accepted": True}
+    _CONSENT = {"accepted": True}  # noqa: RUF012
 
     @pytest.mark.parametrize("locale", ["en", "nl"])
     def test_supported_locale_is_persisted_top_level(self, service, locale):

@@ -93,7 +93,9 @@ def test_registry_covers_personal_and_membership_fields():
 
 
 def test_all_fixed_fields_are_personal_or_membership():
-    assert all(f.group in (FieldGroup.PERSONAL, FieldGroup.MEMBERSHIP) for f in FIXED_FIELDS)
+    assert all(
+        f.group in (FieldGroup.PERSONAL, FieldGroup.MEMBERSHIP) for f in FIXED_FIELDS
+    )
     assert FIXED_FIELD_GROUPS[FieldGroup.PERSONAL] == PERSONAL_FIELDS
     assert FIXED_FIELD_GROUPS[FieldGroup.MEMBERSHIP] == MEMBERSHIP_FIELDS
 
@@ -124,7 +126,9 @@ def test_status_field_is_an_open_enum_like_gender():
     gender = field_by_key("personal.gender")
     assert status is not None and status.type is FieldType.ENUM
     assert status.choices is None
-    assert gender is not None and gender.choices is None  # the precedent status now follows
+    assert (
+        gender is not None and gender.choices is None
+    )  # the precedent status now follows
     # The seed options exist as DATA (a fresh tenant's starting values) but are NOT a gate.
     assert status.options is not None
     assert "application" in {o.value for o in status.options}
@@ -239,7 +243,9 @@ def test_partial_update_skips_absent_required_fields_but_still_checks_present_on
     # But a present, TYPE-invalid value is still rejected even in partial mode — exercised on
     # joined_date (a DATE field), whose per-type rule is untouched by the status change.
     with pytest.raises(FieldValidationError) as exc:
-        validate_fixed_fields({"membership": {"joined_date": "not-a-date"}}, partial=True)
+        validate_fixed_fields(
+            {"membership": {"joined_date": "not-a-date"}}, partial=True
+        )
     assert "membership.joined_date" in exc.value.errors
 
 
@@ -268,7 +274,9 @@ def test_blank_status_still_fails_open_enum_requires_non_blank(blank):
     assert "membership.status" in exc.value.errors
 
 
-@pytest.mark.parametrize("bad_date", ["2020-13-01", "01-01-2020", "2020/01/01", "not-a-date", ""])
+@pytest.mark.parametrize(
+    "bad_date", ["2020-13-01", "01-01-2020", "2020/01/01", "not-a-date", ""]
+)
 def test_invalid_date_fails(bad_date):
     m = _valid_member()
     m["membership"]["joined_date"] = bad_date

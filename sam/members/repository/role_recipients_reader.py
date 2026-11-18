@@ -74,10 +74,10 @@ from sam.members.domain.scope_dimensions import (
 )
 
 __all__ = [
-    "RoleRecipientsReader",
-    "RecipientResolution",
     "MEMBERS_CRUD_ROLE",
     "TENANT_ADMIN_ROLE",
+    "RecipientResolution",
+    "RoleRecipientsReader",
 ]
 
 #: The projected role segment whose per-tenant holders review applications (R8.2). Matched

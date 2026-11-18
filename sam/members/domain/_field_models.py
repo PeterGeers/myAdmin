@@ -57,8 +57,8 @@ OVERLAY_GROUP = "overlay"
 class FieldOrigin(str, Enum):
     """Where a resolved field came from: the platform base, a tenant overlay, or a derivation."""
 
-    FIXED = "fixed"            # from the platform base registry (fixed_fields.py)
-    VARIABLE = "variable"      # from the per-tenant overlay ("club details")
+    FIXED = "fixed"  # from the platform base registry (fixed_fields.py)
+    VARIABLE = "variable"  # from the per-tenant overlay ("club details")
     CALCULATED = "calculated"  # derived read-only field, NEVER stored (calculated_fields.py, R4.4)
 
 
@@ -83,9 +83,11 @@ class FieldProvenance(str, Enum):
     - :attr:`TENANT_ADDED` — a tenant-defined variable (overlay) field ("club detail").
     """
 
-    BASE = "base"                        # platform base field, no tenant override
-    TENANT_ADDED = "tenant_added"        # tenant-defined variable (overlay) field
-    BASE_OVERRIDDEN = "base_overridden"  # platform base field re-presented by a tenant override
+    BASE = "base"  # platform base field, no tenant override
+    TENANT_ADDED = "tenant_added"  # tenant-defined variable (overlay) field
+    BASE_OVERRIDDEN = (
+        "base_overridden"  # platform base field re-presented by a tenant override
+    )
 
 
 @dataclass(frozen=True)
@@ -98,8 +100,10 @@ class ResolvedField:
     the variable :data:`OVERLAY_GROUP` (``overlay``).
     """
 
-    key: str                       # canonical key within the group (e.g. "first_name", "motor_type")
-    group: str                     # STORAGE bucket: "personal" / "membership" / "overlay" (fixed by origin)
+    key: str  # canonical key within the group (e.g. "first_name", "motor_type")
+    group: (
+        str  # STORAGE bucket: "personal" / "membership" / "overlay" (fixed by origin)
+    )
     type: FieldType
     required: bool
     origin: FieldOrigin
@@ -108,13 +112,25 @@ class ResolvedField:
     # layer); defaults to BASE so adding it changes neither the resolved field SET nor the
     # `(group, order, key)` ordering (Property 1, R1.6).
     provenance: FieldProvenance = FieldProvenance.BASE
-    label: Mapping[str, str] = field(default_factory=dict)   # i18n {"nl": ..., "en": ...}
-    choices: Sequence[str] | None = None                  # for FieldType.ENUM (bare value list)
-    options: Sequence[EnumOption] | None = None           # rich enum options {value,label,roles?} (R4.11/R4.12)
-    functional_group: str = ""                               # PARAMETER-DRIVEN display group (R4.9), orthogonal to `group`
-    member_number_format: MemberNumberFormat | None = None  # only on member_number (task 1.4b)
-    show_when: Mapping[str, Any] | None = None            # per-field conditional visibility (R4.12)
-    calculated_from: Sequence[str] | None = None          # inputs of a CALCULATED field (R4.4), else None
+    label: Mapping[str, str] = field(
+        default_factory=dict
+    )  # i18n {"nl": ..., "en": ...}
+    choices: Sequence[str] | None = None  # for FieldType.ENUM (bare value list)
+    options: Sequence[EnumOption] | None = (
+        None  # rich enum options {value,label,roles?} (R4.11/R4.12)
+    )
+    functional_group: str = (
+        ""  # PARAMETER-DRIVEN display group (R4.9), orthogonal to `group`
+    )
+    member_number_format: MemberNumberFormat | None = (
+        None  # only on member_number (task 1.4b)
+    )
+    show_when: Mapping[str, Any] | None = (
+        None  # per-field conditional visibility (R4.12)
+    )
+    calculated_from: Sequence[str] | None = (
+        None  # inputs of a CALCULATED field (R4.4), else None
+    )
     #: The field's SCOPE attribute (remediation R3.5), carried from the overlay/override onto the
     #: resolved field so the serializer can emit it and the authoring UI can READ the current scope
     #: state back. ``None`` when the field is not a scope axis. This is read re-presentation ONLY —
@@ -122,16 +138,18 @@ class ResolvedField:
     #: row via ``ScopeConfig`` UNCHANGED (R3.8); the authoritative projection is unaffected.
     scope: FieldScope | None = None
     visible: bool = True
-    read_only: bool = False                                  # True for CALCULATED fields (derived, never stored)
+    read_only: bool = False  # True for CALCULATED fields (derived, never stored)
     order: int = 0
     # ── Public member-application attributes (D20; R4.2/R4a/R4b/R7.1) ──────────────────
     # Carried onto the resolved field (from the overlay field / fixed-field override) the same
     # way `member_number_format` is, so the public field-config read + create validator can emit
     # and enforce them. Defaults keep a resolved field OFF the public form and back-compatible.
-    application_visible: bool = False                        # on the public application form? (R4.2/R4.3)
-    application_required: bool = False                       # required ON THE FORM (overlay-only, R4b)
-    application_choices: tuple[str, ...] | None = None       # enum application SUBSET (R4a); None → full set
-    format: FieldFormat | None = None                        # declarative field validator (R7.1); None → none
+    application_visible: bool = False  # on the public application form? (R4.2/R4.3)
+    application_required: bool = False  # required ON THE FORM (overlay-only, R4b)
+    application_choices: tuple[str, ...] | None = (
+        None  # enum application SUBSET (R4a); None → full set
+    )
+    format: FieldFormat | None = None  # declarative field validator (R7.1); None → none
 
     def dotted_key(self) -> str:
         """Fully-qualified path of the field, e.g. ``personal.first_name`` / ``overlay.motor_type``."""
@@ -214,10 +232,12 @@ class OverlayField:
     #: `options`/`choices`/`show_when` carries). Defaults keep a variable field OFF the public
     #: form and back-compatible (no authoring → field absent from the form, full choices, not
     #: application-required, no extra validator).
-    application_visible: bool = False                        # on the public application form? (R4.2/R4.3)
-    application_required: bool = False                       # required ON THE FORM (overlay-only, R4b)
-    application_choices: tuple[str, ...] | None = None       # enum application SUBSET (R4a); None → full set
-    format: FieldFormat | None = None                        # declarative field validator (R7.1); None → none
+    application_visible: bool = False  # on the public application form? (R4.2/R4.3)
+    application_required: bool = False  # required ON THE FORM (overlay-only, R4b)
+    application_choices: tuple[str, ...] | None = (
+        None  # enum application SUBSET (R4a); None → full set
+    )
+    format: FieldFormat | None = None  # declarative field validator (R7.1); None → none
     #: Phase 3 step 9 (R2.1) — the SAM READ representation of scope-binding as a field
     #: attribute: when this field is authored as a scope axis, its scope config
     #: (:class:`FieldScope`); ``None`` otherwise. This is the authoring/read re-presentation
@@ -283,11 +303,19 @@ class FixedFieldOverride:
 
     label: Mapping[str, str] | None = None
     visible: bool | None = None
-    required: bool | None = None   # may only tighten (optional→required), never loosen
-    functional_group: str | None = None   # reassign the field's display group (R4.9); storage bucket unchanged
-    options: Sequence[EnumOption] | None = None  # tenant enum values/labels/roles for a Fixed enum (R4.11/R4.12)
-    show_when: Mapping[str, Any] | None = None   # per-field conditional visibility (R4.12)
-    member_number_format: MemberNumberFormat | None = None  # only meaningful for member_number (task 1.4b)
+    required: bool | None = None  # may only tighten (optional→required), never loosen
+    functional_group: str | None = (
+        None  # reassign the field's display group (R4.9); storage bucket unchanged
+    )
+    options: Sequence[EnumOption] | None = (
+        None  # tenant enum values/labels/roles for a Fixed enum (R4.11/R4.12)
+    )
+    show_when: Mapping[str, Any] | None = (
+        None  # per-field conditional visibility (R4.12)
+    )
+    member_number_format: MemberNumberFormat | None = (
+        None  # only meaningful for member_number (task 1.4b)
+    )
     order: int | None = None
     #: ── Public member-application attributes (D20; R4.2/R4a/R4b/R7.1) ─────────────────
     #: The four sibling keys a tenant authors as a fixed-field OVERRIDE to put a platform fixed
@@ -295,10 +323,14 @@ class FixedFieldOverride:
     #: ride on BOTH overlay fields and fixed-field overrides). ``None`` means "leave the base
     #: value as-is" — consistent with every other override attribute — so an override that
     #: touches none of these does not change a field's application behaviour.
-    application_visible: bool | None = None                  # put the fixed field on the form? (R4.2/R4.3)
-    application_required: bool | None = None                 # required ON THE FORM (overlay-only, R4b)
-    application_choices: tuple[str, ...] | None = None       # enum application SUBSET (R4a); None → full set
-    format: FieldFormat | None = None                        # declarative field validator (R7.1); None → none
+    application_visible: bool | None = (
+        None  # put the fixed field on the form? (R4.2/R4.3)
+    )
+    application_required: bool | None = None  # required ON THE FORM (overlay-only, R4b)
+    application_choices: tuple[str, ...] | None = (
+        None  # enum application SUBSET (R4a); None → full set
+    )
+    format: FieldFormat | None = None  # declarative field validator (R7.1); None → none
     #: Phase 3 step 9 (R2.1) — the SAM READ representation of scope-binding as a field attribute
     #: on a FIXED field (e.g. ``region``). ``None`` when the fixed field is not re-presented as a
     #: scope axis. Read re-presentation only; scope RESOLUTION stays on ``config#scope`` /
@@ -378,8 +410,7 @@ class TenantOverlayProvider(Protocol):
     **empty** overlay (→ resolves to the fixed base), never an error.
     """
 
-    def get_overlay(self, tenant_id: str) -> TenantOverlay:
-        ...
+    def get_overlay(self, tenant_id: str) -> TenantOverlay: ...
 
 
 class StaticOverlayProvider:

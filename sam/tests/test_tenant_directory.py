@@ -37,7 +37,9 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_REPO_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
@@ -136,7 +138,9 @@ def test_resolve_against_empty_allow_list_is_not_found(directory):
 # ── non-probeable: unknown / malformed / blank / oversized all collapse identically (R1a.4) ─
 
 
-def test_unknown_and_malformed_slugs_yield_an_identical_not_found_outcome(reader, directory):
+def test_unknown_and_malformed_slugs_yield_an_identical_not_found_outcome(
+    reader, directory
+):
     reader.put(SLUG, TENANT)
 
     outcomes = [
@@ -208,7 +212,7 @@ def test_max_length_slug_is_consulted_not_rejected(reader, directory):
 @pytest.mark.parametrize("bad_answer", [None, "", 0, False, 123])
 def test_resolve_treats_non_string_or_empty_reader_answer_as_not_found(bad_answer):
     class BadReader:
-        def resolve_slug(self, slug):  # noqa: ARG002
+        def resolve_slug(self, slug):
             return bad_answer
 
     result = TenantDirectory(BadReader()).resolve(SLUG)
@@ -272,7 +276,9 @@ def test_resolves_iff_normalized_slug_is_on_the_allow_list(probe):
 
     normalized = probe.strip().lower()
     expected_tenant = (
-        _SEEDED.get(normalized) if normalized and len(normalized) <= MAX_SLUG_LENGTH else None
+        _SEEDED.get(normalized)
+        if normalized and len(normalized) <= MAX_SLUG_LENGTH
+        else None
     )
 
     if expected_tenant is not None:

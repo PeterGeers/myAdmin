@@ -44,17 +44,24 @@ from sam.members.domain.field_resolver import (
 )
 from sam.members.domain.fixed_fields import (
     EnumOption,
-    FieldFormat as FieldFormatFromFixed,
     FieldGroup,
     FieldType,
     FixedField,
+)
+from sam.members.domain.fixed_fields import (
+    FieldFormat as FieldFormatFromFixed,
 )
 
 #: The attribute names task 3.1 adds, and their "off the public form / back-compatible" default
 #: on the three value-carrying shapes (the fixed base + the two overlay-authoring shapes +
 #: the resolved output). `FixedFieldOverride` uses a tri-state `None` ("leave base as-is") for
 #: the two booleans, matching every other override attribute.
-_APPLICATION_ATTRS = ("application_visible", "application_required", "application_choices", "format")
+_APPLICATION_ATTRS = (
+    "application_visible",
+    "application_required",
+    "application_choices",
+    "format",
+)
 
 
 class TestFieldFormatValueObject:
@@ -85,7 +92,9 @@ class TestApplicationAttributeDefaults:
     """Every shape carries the four attrs with back-compatible, form-off defaults."""
 
     def test_fixed_field_defaults(self):
-        f = FixedField(key="first_name", group=FieldGroup.PERSONAL, type=FieldType.STRING)
+        f = FixedField(
+            key="first_name", group=FieldGroup.PERSONAL, type=FieldType.STRING
+        )
         assert f.application_visible is False
         assert f.application_required is False
         assert f.application_choices is None
@@ -189,7 +198,7 @@ class TestPlatformRequiredAndApplicationRequiredAreIndependentAxes:
             key="last_name",
             group="personal",
             type=FieldType.STRING,
-            required=True,              # platform-required (identity anchor)
+            required=True,  # platform-required (identity anchor)
             origin=FieldOrigin.FIXED,
             application_visible=True,
             application_required=False,  # but NOT required on the public form
@@ -204,10 +213,10 @@ class TestPlatformRequiredAndApplicationRequiredAreIndependentAxes:
             key="phone",
             group="personal",
             type=FieldType.STRING,
-            required=False,              # platform-optional
+            required=False,  # platform-optional
             origin=FieldOrigin.FIXED,
             application_visible=True,
-            application_required=True,   # required on the public form
+            application_required=True,  # required on the public form
         )
         assert rf.required is False
         assert rf.application_required is True
@@ -220,7 +229,7 @@ class TestPlatformRequiredAndApplicationRequiredAreIndependentAxes:
             key="email",
             group="personal",
             type=FieldType.STRING,
-            required=True,               # platform-required
+            required=True,  # platform-required
             origin=FieldOrigin.FIXED,
         )
         assert rf.required is True
@@ -236,11 +245,15 @@ class TestPlatformRequiredAndApplicationRequiredAreIndependentAxes:
 class TestAllShapesExposeTheAttributes:
     """Lock-step: all four modelled shapes expose the four attributes (introspected, not hand-copied)."""
 
-    @pytest.mark.parametrize("klass", [FixedField, OverlayField, FixedFieldOverride, ResolvedField])
+    @pytest.mark.parametrize(
+        "klass", [FixedField, OverlayField, FixedFieldOverride, ResolvedField]
+    )
     def test_shape_exposes_the_four_application_attributes(self, klass):
         names = {f.name for f in dataclasses.fields(klass)}
         missing = set(_APPLICATION_ATTRS) - names
-        assert not missing, f"{klass.__name__} is missing application attrs: {sorted(missing)}"
+        assert not missing, (
+            f"{klass.__name__} is missing application attrs: {sorted(missing)}"
+        )
 
 
 class TestFieldScopeValuesAreDerivedFromOptions:

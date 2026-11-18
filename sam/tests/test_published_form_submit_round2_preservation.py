@@ -74,22 +74,22 @@ _BACKEND_SRC = os.path.join(_REPO_ROOT, "backend", "src")
 if _BACKEND_SRC not in sys.path:
     sys.path.insert(0, _BACKEND_SRC)
 
-from sam.members.domain._membership_errors import MemberValidationError  # noqa: E402
-from sam.members.domain.consent_notice import StaticConsentNoticeProvider  # noqa: E402
-from sam.members.domain.error_codes import CONSENT_REQUIRED  # noqa: E402
-from sam.members.domain.field_resolver import (  # noqa: E402
+from sam.members.domain._membership_errors import MemberValidationError
+from sam.members.domain.consent_notice import StaticConsentNoticeProvider
+from sam.members.domain.error_codes import CONSENT_REQUIRED
+from sam.members.domain.field_resolver import (
     FixedFieldOverride,
     StaticOverlayProvider,
     TenantOverlay,
 )
-from sam.members.domain.fixed_fields import EnumOption  # noqa: E402
-from sam.members.domain.membership_service import MembershipService  # noqa: E402
+from sam.members.domain.fixed_fields import EnumOption
+from sam.members.domain.membership_service import MembershipService
 
 # Reuse the task-2.2 fake repo (member store + first-wins session claim + catalog surface) and
 # the shared catalog-entry factory — the SAME fakes the Round-1 consent tests used, so the
 # preservation baseline is observed on the identical shipped path.
-from sam.tests.test_create_application import _ApplicationRepo  # noqa: E402
-from sam.tests.test_field_config_endpoint import _entry  # noqa: E402
+from sam.tests.test_create_application import _ApplicationRepo
+from sam.tests.test_field_config_endpoint import _entry
 
 _TENANT = "h-dcn"
 _APEX = "jabaki.nl"
@@ -310,8 +310,9 @@ def _reader_over_config_mail(consent_notice):
     schema keys and seeds the reader's per-invocation partition cache, so `get_consent_notice`
     reads it exactly as it would a genuine projected row — no boto3, the `table` is never queried.
     """
-    from sam.members.repository.projection_config_reader import MembersProjectionReader
     from services import projection_schema as schema
+
+    from sam.members.repository.projection_config_reader import MembersProjectionReader
 
     row = {
         schema.PARTITION_KEY_ATTR: _TENANT,
@@ -494,8 +495,7 @@ def _apply_cors(origin, *, allowed_env, tenant_id=None, embed_origins=()):
     the tenant's projected `application_embed_origins` so the decision is deterministic without
     boto3 (the reader resolve is monkeypatched on the module). Returns the response headers dict.
     """
-    import sam.members.handler.public_app as public_app
-    import sam.members.handler.public_guards as public_guards
+    from sam.members.handler import public_app, public_guards
 
     prior_env = os.environ.get(public_app.ALLOWED_ORIGINS_ENV)
     prior_embed = public_guards._tenant_embed_origins
