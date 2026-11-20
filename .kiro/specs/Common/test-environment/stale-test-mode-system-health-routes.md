@@ -1,4 +1,14 @@
 # Stale TEST_MODE / testfinance in system_health_routes.py (contradicts the APP_ENV model)
+
+> **Resolved 2026-11-20.** `GET /api/status` and `GET /api/db-config` now derive the
+> environment + DB target from the Environment_Resolver via the shared
+> `environment.bootstrap.resolve_active_config` helper (schema always `finance`; TEST
+> vs PRODUCTION from `APP_ENV`). The legacy `TEST_MODE` / `TEST_DB_NAME` /
+> `testfinance` reads are gone, and the API tests pin the resolved target and assert
+> the retired fields never appear. The separate Google-Drive folder-toggle note below
+> was left out of scope, as originally recorded. Filed here as the record for finding
+> #1 of `first-draft/env-var-audit.md`.
+
 **Problem (found during test-environment Phase 6 Task 44 env-var audit, 2026-10-03):**
 `backend/src/routes/system_health_routes.py` still reads the legacy `TEST_MODE` env var and
 `TEST_DB_NAME` (default `testfinance`) to report the active database name in its health/environment
