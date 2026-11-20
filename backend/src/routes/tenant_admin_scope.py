@@ -233,10 +233,9 @@ def set_user_scope(
             created_by=user_email,
         )
     except ScopeValidationError as e:
-        # Deliberate, caller-safe validation message from the service (e.g.
-        # "Unknown value 'X' for scope dimension 'region'") — not a stack trace.
-        validation_message = str(e)
-        return jsonify({"success": False, "error": validation_message}), 400
+        # Deliberate validation error — return generic message;
+        # full exception logged server-side under error_id.
+        return error_response(e, "Invalid scope configuration", status=400)
 
     print(
         f"AUDIT: Scope for {module} set on {username} by {user_email} "

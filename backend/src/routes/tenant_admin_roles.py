@@ -140,7 +140,7 @@ def assign_user_group(username, user_email, user_roles, tenant) -> ResponseRetur
                 commit=True,
             )
         except Exception as e:
-            if "Duplicate entry" in str(e):
+            if "Duplicate entry" in str(e):  # nosec B110 – string containment check; not in response body
                 return jsonify(
                     {
                         "success": False,
