@@ -3095,6 +3095,94 @@ def test_sync_cleared_grant_deletes_stale_scopegrant_row(sam_module):
     assert result.deleted == 1
 
 
+def test_sync_cleared_role_deletes_stale_role_row(sam_module):
+    """A CLEARED role (user_tenant_roles row gone) -> its projected role row is DELETED.
+
+    Without diff-and-delete the row would stay present and could inflate an entitlement
+    via PreTokenGen reading governance_projection and has_capability -- the user would
+    keep seeing a role they were unscoped from (SECURITY-relevant staleness).
+    """
+    table = FakeTable()
+    params = FakeParameterService(
+        {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension()]}
+    )
+    role_sk = schema.build_sort_key(
+        schema.RECORD_TYPE_ROLE, "bob@h-dcn.example", "SamTest_Read"
+    )
+
+    sources = {
+        "h-dcn": _sam_source_multi_dim_scope(
+            "h-dcn",
+            sam_module,
+            [],
+            roles=[{"email": "bob@h-dcn.example", "role": "SamTest_Read"}],
+        ),
+    }
+    source = FakeSource(sources)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
+    sync.sync_administration("h-dcn")
+    assert role_sk in _items_in(table, "h-dcn")
+
+    sources["h-dcn"] = _sam_source_multi_dim_scope("h-dcn", sam_module, [], roles=[])
+    result = sync.sync_administration("h-dcn")
+
+    assert role_sk not in _items_in(table, "h-dcn")
+    assert result.deleted == 1
+
+
+def test_sync_dropped_role_dimension_deletes_only_that_row(sam_module):
+    """A user who lost ONE role -> only that role row is deleted (Deliverable #2).
+
+    Retained roles' rows remain -- the reconcile diffs to the desired SET, it does not
+    wipe the user.
+    """
+    table = FakeTable()
+    season = {
+        "key": "season",
+        "field": "season",
+        "enabled": True,
+        "values": ["S1", "S2"],
+    }
+    params = FakeParameterService(
+        {("members", "scope_dimensions", "h-dcn"): [_hdcn_region_dimension(), season]}
+    )
+    role_s1_sk = schema.build_sort_key(
+        schema.RECORD_TYPE_ROLE, "bob@h-dcn.example", "SamTest_Read"
+    )
+    role_s2_sk = schema.build_sort_key(
+        schema.RECORD_TYPE_ROLE, "alice@h-dcn.example", "SamTest_Read"
+    )
+
+    sources = {
+        "h-dcn": _sam_source_multi_dim_scope(
+            "h-dcn",
+            sam_module,
+            [],
+            roles=[
+                {"email": "bob@h-dcn.example", "role": "SamTest_Read"},
+                {"email": "alice@h-dcn.example", "role": "SamTest_Read"},
+            ],
+        ),
+    }
+    source = FakeSource(sources)
+    sync = ProjectionSync(source, table=table, parameter_service=params, reader=params)
+    sync.sync_administration("h-dcn")
+    assert role_s1_sk in _items_in(table, "h-dcn")
+    assert role_s2_sk in _items_in(table, "h-dcn")
+
+    sources["h-dcn"] = _sam_source_multi_dim_scope(
+        "h-dcn",
+        sam_module,
+        [],
+        roles=[{"email": "alice@h-dcn.example", "role": "SamTest_Read"}],
+    )
+    result = sync.sync_administration("h-dcn")
+
+    assert role_s1_sk not in _items_in(table, "h-dcn")
+    assert role_s2_sk in _items_in(table, "h-dcn")
+    assert result.deleted == 1
+
+
 def test_sync_dropped_dimension_deletes_only_that_rows(sam_module):
     """A user who lost ONE dimension → only the dropped dimension's row is deleted (ODx4b).
 

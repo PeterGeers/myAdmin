@@ -828,8 +828,12 @@ def cognito_required(
                 )
                 return jsonify(json.loads(auth_error["body"])), auth_error["statusCode"]
 
-            # Split: global roles from JWT, per-tenant roles from DB
-            from auth.role_cache import get_tenant_roles
+            # Split: global roles from JWT, per-tenant roles from DB.
+            # MySQL-merged roles are authoritative (Single source of truth
+            # for roles - deliverable 4). On DB failure we fail loud via
+            # RoleDivergenceError instead of silently degrading to JWT-only
+            # (which would mask missing tenant entitlements).
+            from auth.role_cache import get_tenant_roles, RoleDivergenceError
             from auth.tenant_context import get_current_tenant
             from database import DatabaseManager
 
@@ -841,7 +845,17 @@ def cognito_required(
             tenant = get_current_tenant(request)
             if tenant:
                 db = DatabaseManager()
-                tenant_roles = get_tenant_roles(user_email, tenant, db)
+                try:
+                    tenant_roles = get_tenant_roles(user_email, tenant, db)
+                except Exception as db_error:
+                    logger.error(
+                        f"Database error resolving roles for user {user_email} "
+                        f"in tenant {tenant}: {db_error}"
+                    )
+                    raise RoleDivergenceError(
+                        f"Role divergence: unable to resolve roles for "
+                        f"user {user_email} in tenant {tenant}: {db_error}"
+                    ) from db_error
             else:
                 tenant_roles = []
             user_roles = list(set(global_roles + tenant_roles))

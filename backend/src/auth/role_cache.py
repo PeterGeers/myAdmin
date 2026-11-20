@@ -5,6 +5,17 @@ Avoids a DB lookup on every request by caching roles with a 5-minute TTL.
 The cache is keyed by email:tenant and invalidated when roles change.
 """
 
+
+class RoleDivergenceError(Exception):
+    """
+    Exception raised when there is a divergence between role sources.
+    This occurs when the authoritative MySQL-merged roles differ from
+    the JWT cognito:groups claim, indicating a configuration drift.
+    """
+
+    pass
+
+
 import time
 
 CACHE_TTL_SECONDS = 300  # 5 minutes
