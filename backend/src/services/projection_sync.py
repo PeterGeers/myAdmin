@@ -136,9 +136,10 @@ class SyncResult:
         written: Count of items actually written (put) this run.
         skipped: Count of items skipped because the stored version was already
             >= the incoming version (the idempotent/no-op path, R5.6).
-        deleted: Count of obsolete ``scopegrant#…`` rows deleted by the ODx4b
-            diff-and-delete reconcile (task 3.5) — cleared/downgraded grants whose
-            row is no longer in the desired set. Zero on an unchanged re-sync.
+        deleted: Count of obsolete ``scopegrant#…`` and ``role#…`` rows deleted
+            by the diff-and-delete reconcile — cleared/downgraded grants and
+            stale role rows whose row is no longer in the desired set. Zero on an
+            unchanged re-sync.
         administrations: The ``administration`` values processed.
     """
 
@@ -490,10 +491,26 @@ class ProjectionSync:
         # first and never transiently absent.
         deleted = self._reconcile_scopegrants(administration, scopegrant_items)
 
+        # FRESHNESS FIX (Deliverable #2). The version-guarded conditional put
+        # above makes ADDS and UPDATES propagate, but it can never DELETE a row.
+        # A user whose ROLE was CLEARED (removed from MySQL ``user_tenant_roles``)
+        # leaves the old ``role#<email>#<role>`` row PRESENT in the projection;
+        # once the SAM edge PreTokenGen reads these rows for entitlements, a
+        # stale row can INFLATE a resolved entitlement (SECURITY-relevant). So
+        # after writing the DESIRED items, reconcile the tenant's stored
+        # ``role#…`` rows to that desired set, deleting the obsolete ones. The
+        # desired role set is derived from the same source the writes came from
+        # (``items`` — base items + scopegrant items; filtered to ``role#…``
+        # here). Delete happens AFTER the puts so a still-desired row is written
+        # first and never transiently absent.
+
+        role_items = [item for item in items if item.sort_key.startswith("role#")]
+        role_deleted = self._reconcile_role_grants(administration, role_items)
+
         return SyncResult(
             written=written,
             skipped=skipped,
-            deleted=deleted,
+            deleted=deleted + role_deleted,
             administrations=(administration,),
         )
 
@@ -591,6 +608,88 @@ class ProjectionSync:
                     continue
                 sort_key = row.get(schema.SORT_KEY_ATTR)
                 if isinstance(sort_key, str) and sort_key.startswith(scopegrant_prefix):
+                    sort_keys.append(sort_key)
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+            query_kwargs["ExclusiveStartKey"] = last_key
+        return sort_keys
+
+    def _reconcile_role_grants(
+        self, administration: str, desired_items: Sequence[ProjectionItem]
+    ) -> int:
+        """Delete obsolete ``role#<email>#<role>`` rows for one tenant (Deliverable #2).
+
+        Computes the DESIRED set of ``role#<email>#<role>`` sort keys (from the
+        projection items built over the tenant's ``user_tenant_roles``) and deletes
+        every STORED ``role#…`` row whose sort key is NOT in that set. This is what
+        makes ROLE REMOVALS propagate — a version bump alone can only supersede a
+        present row, never delete an orphaned one.
+
+        Tenant-scoped (Property 1/2): the stored rows are read with a ``query`` on
+        this tenant's partition (``tenant_id = administration``) filtered to
+        ``begins_with(sk, 'role#')``, so the reconcile never addresses — let
+        alone deletes — another tenant's partition. Confined to the ``role#…`` SK
+        space: non-role rows (``tenant``/``module#*``/``config#*``/``scopegrant#…``)
+        are never listed and never deleted (they have their own lifecycle).
+
+        Idempotent: on an unchanged re-sync the stored set equals the desired set,
+        so nothing is deleted; deleting an already-absent row would be a harmless
+        no-op regardless.
+
+        Args:
+            administration: The tenant scope (partition key) to reconcile.
+            desired_items: The DESIRED role items just built for this tenant.
+
+        Returns:
+            The count of obsolete ``role#…`` rows deleted.
+        """
+        desired_sks = {item.sort_key for item in desired_items}
+        deleted = 0
+        for stored_sk in self._list_role_sort_keys(administration):
+            if stored_sk in desired_sks:
+                continue
+            self.table.delete_item(Key=schema.build_key(administration, stored_sk))
+            deleted += 1
+        return deleted
+
+    def _list_role_sort_keys(self, administration: str) -> list[str]:
+        """Return the stored ``role#…`` sort keys for one tenant.
+
+        Queries only THIS tenant's partition (``tenant_id = administration``) with
+        a ``begins_with(sk, 'role#')`` key condition, so the read is tenant-scoped
+        (Property 1/2) and confined to the ``role#…`` SK space (no other record type
+        is listed). Paginates via ``LastEvaluatedKey`` so a tenant with many roles is
+        fully reconciled.
+
+        Args:
+            administration: The tenant scope (partition key) to list.
+
+        Returns:
+            The stored ``role#…`` sort-key values (possibly empty).
+        """
+        role_prefix = schema.RECORD_TYPE_ROLE + schema.SORT_KEY_SEPARATOR
+        query_kwargs: dict[str, Any] = {
+            "KeyConditionExpression": ("#pk = :pk AND begins_with(#sk, :sk_prefix)"),
+            "ExpressionAttributeNames": {
+                "#pk": schema.PARTITION_KEY_ATTR,
+                "#sk": schema.SORT_KEY_ATTR,
+            },
+            "ExpressionAttributeValues": {
+                ":pk": administration,
+                ":sk_prefix": role_prefix,
+            },
+        }
+        sort_keys: list[str] = []
+        while True:
+            response = self.table.query(**query_kwargs)
+            if not isinstance(response, Mapping):
+                break
+            for row in response.get("Items", ()) or ():
+                if not isinstance(row, Mapping):
+                    continue
+                sort_key = row.get(schema.SORT_KEY_ATTR)
+                if isinstance(sort_key, str) and sort_key.startswith(role_prefix):
                     sort_keys.append(sort_key)
             last_key = response.get("LastEvaluatedKey")
             if not last_key:

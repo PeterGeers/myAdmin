@@ -17,7 +17,8 @@ import {
   hasAnyRole as checkHasAnyRole,
   hasAllRoles as checkHasAllRoles,
   validateRoleCombinations,
-  type RoleValidation
+  type RoleValidation,
+  RoleDivergenceError
 } from '../services/authService';
 
 /**
@@ -118,8 +119,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         sub: currentUser.userId
       });
     } catch (error) {
-      console.error('Failed to check auth state:', error);
-      setUser(null);
+      if (error instanceof RoleDivergenceError) {
+        // Fail loud: roles could not be resolved from the authoritative API.
+        // Do not silently default to JWT groups; surface the error and keep
+        // the user in a fail-closed state (no roles => no access).
+        console.error('Role resolution failed (fail-loud):', error);
+        setUser(null);
+      } else {
+        console.error('Failed to check auth state:', error);
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -175,14 +184,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const seq = ++roleRequestSeq.current;
     latestRequestedTenant.current = tenantAtStart;
 
-    const roles = await getCurrentUserRoles(tenantAtStart);
+    try {
+      const roles = await getCurrentUserRoles(tenantAtStart);
 
-    // Ignore results for a tenant we've since switched away from.
-    if (seq !== roleRequestSeq.current || latestRequestedTenant.current !== tenantAtStart) {
+      // Ignore results for a tenant we've since switched away from.
+      if (seq !== roleRequestSeq.current || latestRequestedTenant.current !== tenantAtStart) {
+        return;
+      }
+
+      setUser(prev => (prev ? { ...prev, roles } : prev));
+    } catch (error) {
+      if (error instanceof RoleDivergenceError) {
+        // Fail loud: do not silently use JWT groups as fallback. Log and
+        // leave the previous roles untouched (fail-closed).
+        console.error('Role refresh failed (fail-loud):', error);
+        return;
+      }
+      console.error('Failed to refresh roles for tenant:', error);
       return;
     }
-
-    setUser(prev => (prev ? { ...prev, roles } : prev));
   }, []);
 
   /**
