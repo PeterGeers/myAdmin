@@ -139,13 +139,21 @@ def get_current_tenant(request_obj) -> str | None:
 
     Priority:
     1. X-Tenant header (user selected)
-    2. First tenant from JWT custom:tenants
+    2. Only the user's single tenant from JWT custom:tenants (safe degenerate case)
+
+    FAIL-LOUD (Deliverable #3 / design D3): a user whose verified token lists
+    MULTIPLE tenants and who did not explicitly select one does NOT get an
+    implicit "first tenant" default — this would be a MASKING fallback that
+    could expose wrong-tenant data. Instead we return None, so the caller
+    (via validate_tenant_access) produces an explicit "No tenant specified"
+    error.
 
     Args:
         request_obj: Flask request object
 
     Returns:
-        str: Tenant name or None
+        str: Tenant name, or None if no explicit selection and not a single-
+        tenant user
     """
     # Option 1: From X-Tenant header (user selected)
     tenant = request_obj.headers.get("X-Tenant")
@@ -153,13 +161,17 @@ def get_current_tenant(request_obj) -> str | None:
     if tenant:
         return tenant
 
-    # Option 2: From JWT token - get first tenant
+    # Option 2: From JWT token - ONLY for single-tenant users (safe degenerate)
     auth_header = request_obj.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         jwt_token = auth_header.replace("Bearer ", "").strip()
         tenants = get_user_tenants(jwt_token)
-        if tenants:
+        if len(tenants) == 1:
+            # Single-tenant user: safe to auto-select their only tenant
             return tenants[0]
+        # Multi-tenant user without explicit X-Tenant header: return None
+        # so caller fails loud with explicit "No tenant specified" error
+        # (deny-don't-default, s5f template)
 
     return None
 

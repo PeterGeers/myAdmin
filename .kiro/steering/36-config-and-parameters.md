@@ -142,6 +142,33 @@ must be a WHOLE-SLICE set/copy** (`SET look_and_feel = :snapshot`, i.e. the copy
 creates the parent map; subsequent single-attribute SETs then work normally. Treat "first write on a
 legacy row" as whole-slice, not single-attribute.
 
+## The convergence rule — where tenant-specific behavior lives (C default / B un-configurable / never A)
+
+When new tenant-specific behavior is needed, converge on this placement (recorded from the
+fallback-patterns analysis, Part C). This decides *where* that behavior lives:
+
+- **(C) DEFAULT — config-selected generic handler.** Express the behavior as *data*; keep
+  the code generic and let a config value with an `options` list select which handler runs,
+  through a small resolver (rule 2 above, "config chooses; code runs"). Preferred shape.
+- **(B) ONLY FOR UN-CONFIGURABLE LOGIC — tenant-keyed registered hook.** When the behavior
+  genuinely cannot be config (it *is* code), register a hook keyed by `tenant_id` with a
+  safe default (`TenantHookRegistry` on the SAM plane, e.g. `sam/members/domain/tenant_hooks.py`).
+  Use only when (C) cannot carry it.
+- **(A) NEVER — tenant-name branch.** Never write `if tenant == "<name>"` (or any per-tenant
+  code branch) on any plane. This anti-pattern is currently ABSENT on the Flask plane —
+  keep it that way.
+
+**Data stays (D):** generic services parameterized by `administration` / `tenant_id`, never a
+per-tenant fork.
+
+**Proven template:** `services/storage_resolver.py::resolve_storage_provider` —
+`storage.invoice_provider` selects a storage handler with a safe default. Mirror that resolver
+shape for any (C) case.
+
+**Enforcement:** the guard-rail lint `scripts/fallback_lint.py` (fallback-patterns
+Deliverable #6) and the per-plane test suites guard the catalogued fallbacks. When adding
+tenant-specific behavior: default to (C), justify (B), never (A).
+
 ## Related
 - Connection details, the `railway-db.sh` wrapper, migrations → the **`#database` skill** (this
   file carries rules, not connection how-to; facts live in one place).

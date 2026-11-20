@@ -13,6 +13,7 @@ from .cognito_utils import (
     log_successful_access,
     validate_permissions,
 )
+from .role_cache import RoleDivergenceError
 from .rate_limiter import RateLimiter, RateLimitResult
 from .tenant_context import (
     add_tenant_filter,
@@ -28,6 +29,7 @@ from .tenant_context import (
 __all__ = [
     "RateLimitResult",
     "RateLimiter",
+    "RoleDivergenceError",
     "add_tenant_filter",
     "cognito_required",
     "cors_headers",

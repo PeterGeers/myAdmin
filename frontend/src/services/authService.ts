@@ -1,4 +1,16 @@
 /**
+ * Custom error indicating a divergence between role sources.
+ * Used when the authoritative API is unavailable and we must not silently
+ * fall back to JWT cognito:groups.
+ */
+export class RoleDivergenceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RoleDivergenceError';
+  }
+}
+
+/**
  * Authentication Service for AWS Cognito
  * 
  * This service provides utilities for:
@@ -191,7 +203,8 @@ export async function getCurrentUserRoles(tenant?: string): Promise<string[]> {
       return [];
     }
 
-    // Try to get merged roles (global + per-tenant) from API
+    // Try to get merged roles (global + per-tenant) from API only.
+    // No cognito:groups fallback - the API is the single source of truth.
     try {
       const idToken = tokens.idToken;
       if (idToken) {
@@ -208,19 +221,25 @@ export async function getCurrentUserRoles(tenant?: string): Promise<string[]> {
           const data = await resp.json();
           return data.roles || [];
         }
+        // API responded but not ok - do NOT fall back to JWT cognito:groups.
+        throw new RoleDivergenceError('API error during role resolution');
       }
-    } catch {
-      // API not available — fall back to JWT
+    } catch (apiError) {
+      // API not available - do NOT fall back to JWT cognito:groups.
+      // Surface the error explicitly so callers cannot silently proceed.
+      throw new RoleDivergenceError(
+        'API unavailable for role resolution; cannot silently fall back to JWT groups'
+      );
     }
 
-    // Fallback: read from JWT (only has global roles like SysAdmin)
-    const payload = decodeJWTPayload(tokens.accessToken);
-    if (!payload) {
-      return [];
-    }
+    // No idToken available - do NOT fall back to JWT cognito:groups.
+    // Surface the error explicitly.
+    throw new RoleDivergenceError('No idToken available for role resolution');
 
-    return payload['cognito:groups'] || [];
   } catch (error) {
+    if (error instanceof RoleDivergenceError) {
+      throw error;
+    }
     console.error('Failed to extract user roles:', error);
     return [];
   }

@@ -1,0 +1,30 @@
+name: Fallback Guard-rail Lint
+
+# Deliverable #6 (guard-rail lint): broadens the s5f R4.3 grep guard into a
+# reusable lint over all three planes. Scans frontend/src, backend/src and sam
+# for the 8 catalogued MASKING fallback anti-patterns. Green on the remediated
+# codebase; fails only when an anti-pattern is RE-INTRODUCED.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  fallback-lint:
+    name: MASKING fallback guard-rail
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Stdlib only - no dependency install needed.
+      - name: Run fallback guard-rail lint
+        run: python3 scripts/fallback_lint.py

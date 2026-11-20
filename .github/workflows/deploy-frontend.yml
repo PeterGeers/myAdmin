@@ -109,3 +109,18 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # Post-deploy pre-check (Deliverable #5): assert required config / projection freshness
+      - name: Post-deploy pre-check
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
+          VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
+          VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
+          VITE_REDIRECT_SIGN_IN: ${{ secrets.VITE_REDIRECT_SIGN_IN }}
+          VITE_REDIRECT_SIGN_OUT: ${{ secrets.VITE_REDIRECT_SIGN_OUT }}
+          VITE_MEMBERS_API_BASE_URL: ${{ secrets.VITE_MEMBERS_API_BASE_URL }}
+        run: |
+          echo "Running post-deploy pre-check for production"
+          python3 scripts/post_deploy_pre_check.py --env prod || exit 1
