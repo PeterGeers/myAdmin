@@ -212,7 +212,8 @@ class TestSetUserScope:
         assert resp.status_code == 400
         body = resp.get_json()
         assert body["success"] is False
-        assert "Mars" in body["error"]
+        # Generic, caller-safe message (no exception text leaked to client).
+        assert body["error"] == "Invalid scope configuration"
 
     def test_put_clearing_all_deletes_row_returns_empty(
         self, app, mock_cognito, mock_scope_service
