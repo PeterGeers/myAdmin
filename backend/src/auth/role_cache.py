@@ -13,8 +13,6 @@ class RoleDivergenceError(Exception):
     the JWT cognito:groups claim, indicating a configuration drift.
     """
 
-    pass
-
 
 import time
 

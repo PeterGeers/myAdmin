@@ -833,7 +833,7 @@ def cognito_required(
             # for roles - deliverable 4). On DB failure we fail loud via
             # RoleDivergenceError instead of silently degrading to JWT-only
             # (which would mask missing tenant entitlements).
-            from auth.role_cache import get_tenant_roles, RoleDivergenceError
+            from auth.role_cache import RoleDivergenceError, get_tenant_roles
             from auth.tenant_context import get_current_tenant
             from database import DatabaseManager
 
