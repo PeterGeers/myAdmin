@@ -24,21 +24,23 @@ Legend: `[ ]` todo · `(dt)` test-first · `[H]` human-gated (deploy).
   → Mitigated in code (L32 full-test-suite.yml has top-level permissions block); CodeQL scan of PR #236 (run #333) confirmed success.
   → Dismiss as stale.
 
-## Phase 3 — CI/CD and verification
+## Phase 3 — CI/CD and verification (DONE)
 
-- [ ] **3.1 [H]** Quality gates per `43-cicd-deploys.md`:
-  - CodeQL `py/stack-trace-exposure` count == 0.
-  - CodeQL + GitGuardian per-PR checks green.
-  - Backend suite green (`python -m pytest` exit 0).
-- [ ] **3.2 [H]** Branch→env deploy path confirmed:
-  - Changes land on `test` → TEST stacks (`test-sam-members`, `test-pretokengen`).
-  - `main` → PRODUCTION stacks (`sam-members`, `pretokengen-prod`; `VITE_APP_ENV=production`).
-- [ ] **3.3** No new workflow / OIDC wiring needed (no new SAM module; this is Flask-plane only — scoped to steering 30).
+- [x] **3.1 [H]** Quality gates per `43-cicd-deploys.md`:
+  - CodeQL `py/stack-trace-exposure` count == 0. OK CodeQL Advanced PR #238 scan: success (all 3 language analyses pass).
+  - CodeQL + GitGuardian per-PR checks green. OK GitGuardian Security Checks: pass.
+  - Backend suite green (`python -m pytest` exit 0). OK 60/60 tests pass locally.
+- [x] **3.2 [H]** Branch→env deploy path confirmed:
+  - Changes land on `test` → TEST stacks (`test-sam-members`, `test-pretokengen`). OK PR #237 merged to `test`.
+  - `main` → PRODUCTION stacks (`sam-members`, `pretokengen-prod`; `VITE_APP_ENV=production`). OK PR #238 merged to `main`.
+- [x] **3.3** No new workflow / OIDC wiring needed (no new SAM module; this is Flask-plane only — scoped to steering 30).
 
-## Phase 4 — Archive the two backlog items
+## Phase 4 — Archive the two backlog items (DONE)
 
-- [ ] **4.1** Move `error-exposure.md` to `myBacklog/_archive/error-exposure.md` (status → `done`).
-- [ ] **4.2** Move `stack-trace-exposure-sweep-remaining.md` to `myBacklog/_archive/stack-trace-exposure-sweep-remaining.md` (status → `done`).
+- [x] **4.1** Move `error-exposure.md` to `myBacklog/_archive/error-exposure.md` (status → `done`).
+  → Archived: `.kiro/specs/myBacklog/_archive/error-exposure.md`.
+- [x] **4.2** Move `stack-trace-exposure-sweep-remaining.md` to `myBacklog/_archive/stack-trace-exposure-sweep-remaining.md` (status → `done`).
+  → Archived: `.kiro/specs/myBacklog/_archive/stack-trace-exposure-sweep-remaining.md`.
 
 ## Dependencies
 

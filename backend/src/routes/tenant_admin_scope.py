@@ -233,8 +233,9 @@ def set_user_scope(
             created_by=user_email,
         )
     except ScopeValidationError as e:
-        # Deliberate validation error — return generic message;
-        # full exception logged server-side under error_id.
+        # Deliberate validation error — return a generic caller-safe
+        # message (not str(e), which CodeQL flags as stack-trace exposure).
+        # Full exception logged server-side under error_id.
         return error_response(e, "Invalid scope configuration", status=400)
 
     print(
