@@ -12,6 +12,33 @@ name: Deploy Frontend to GitHub Pages
 #     environment from the `test`/`main` branches (deploy-sam-members.yml / -pretokengen.yml).
 #   This mapping is CI configuration, separate from the application source (Req 23.5).
 
+# SINGLE SOURCE OF TRUTH for the PRODUCTION SPA build config. Both the `build`
+# job's "Build frontend" step and the `deploy` job's "Post-deploy pre-check" step
+# inherit these values from here — do NOT redeclare VITE_* in a step-level `env`,
+# or the two lists drift (that drift turned the PROD deploy red once, AFTER the
+# Pages publish had succeeded). Guard: scripts/check_frontend_env_parity.py.
+env:
+  # Environment selector (appEnv.ts / Environment_Resolver). The Pages build IS
+  # the production SPA. PUBLIC, non-secret selector; without it appEnv.ts fails
+  # fast at module load and the entire SPA is dead.
+  VITE_APP_ENV: production
+  VITE_API_URL: ${{ secrets.VITE_API_URL }}
+  VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
+  VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
+  VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
+  VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
+  # Redirect targets are the public Pages URL — committed, non-secret constants.
+  VITE_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
+  VITE_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
+  VITE_DOCS_URL: ${{ secrets.VITE_DOCS_URL }}
+  VITE_CLOUDFRONT_DOMAIN: d3le4vf2nffsil.cloudfront.net
+  VITE_CLOUDFRONT_PUBLIC_PAGES_URL: https://d3le4vf2nffsil.cloudfront.net
+  # Members module SAM API (sam-members stack output MembersApiBaseUrl):
+  # non-secret, stable stack URL (like the CloudFront URLs above). Without this
+  # the build falls back to the committed dev default 127.0.0.1:3000, so the
+  # deployed SPA silently hits localhost → "Geen leden gevonden".
+  VITE_MEMBERS_API_BASE_URL: https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod
+
 on:
   push:
     branches:
@@ -61,27 +88,8 @@ jobs:
         working-directory: frontend
         run: npm run build:ci
         env:
+          # VITE_* come from the workflow-level `env` block (single source of truth).
           CI: false
-          # Single authoritative environment selector (Environment_Resolver). The
-          # GitHub Pages build IS the production SPA, so VITE_APP_ENV=production.
-          # PUBLIC, non-secret selector; without it appEnv.ts fails fast at module
-          # load ("VITE_APP_ENV must be one of ...") and the entire SPA is dead.
-          VITE_APP_ENV: production
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
-          VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
-          VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
-          VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
-          VITE_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
-          VITE_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
-          VITE_DOCS_URL: ${{ secrets.VITE_DOCS_URL }}
-          VITE_CLOUDFRONT_DOMAIN: d3le4vf2nffsil.cloudfront.net
-          VITE_CLOUDFRONT_PUBLIC_PAGES_URL: https://d3le4vf2nffsil.cloudfront.net
-          # Members module SAM API (sam-members stack output MembersApiBaseUrl).
-          # Non-secret, stable stack URL (like the CloudFront URLs above). Without
-          # this the build falls back to the committed dev default 127.0.0.1:3000,
-          # so the deployed SPA silently hits localhost → "Geen leden gevonden".
-          VITE_MEMBERS_API_BASE_URL: https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod
 
       - name: Build documentation (MkDocs)
         working-directory: docs
@@ -115,19 +123,10 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      # Post-deploy pre-check (Deliverable #5): assert required config / projection freshness
+      # Post-deploy pre-check (Deliverable #5): assert the PRODUCTION SPA build had
+      # its required config. VITE_* are inherited from the workflow-level `env`
+      # block — the SAME source the build used, so the two cannot drift.
       - name: Post-deploy pre-check
-        env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL }}
-          VITE_COGNITO_USER_POOL_ID: ${{ secrets.VITE_COGNITO_USER_POOL_ID }}
-          VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
-          VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
-          VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
-          # These three are committed, NON-secret constants in the `build` job —
-          # using secrets.* here yielded empty values. Mirror the build values.
-          VITE_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
-          VITE_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
-          VITE_MEMBERS_API_BASE_URL: https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod
         run: |
           echo "Running post-deploy pre-check for production"
           python3 scripts/post_deploy_pre_check.py --env prod --plane frontend || exit 1
