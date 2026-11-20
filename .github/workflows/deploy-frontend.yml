@@ -106,6 +106,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      # The deploy job must check out the repo so scripts/post_deploy_pre_check.py
+      # exists on disk (a job does not inherit another job's checkout).
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
@@ -118,9 +123,11 @@ jobs:
           VITE_COGNITO_CLIENT_ID: ${{ secrets.VITE_COGNITO_CLIENT_ID }}
           VITE_COGNITO_DOMAIN: ${{ secrets.VITE_COGNITO_DOMAIN }}
           VITE_AWS_REGION: ${{ secrets.VITE_AWS_REGION }}
-          VITE_REDIRECT_SIGN_IN: ${{ secrets.VITE_REDIRECT_SIGN_IN }}
-          VITE_REDIRECT_SIGN_OUT: ${{ secrets.VITE_REDIRECT_SIGN_OUT }}
-          VITE_MEMBERS_API_BASE_URL: ${{ secrets.VITE_MEMBERS_API_BASE_URL }}
+          # These three are committed, NON-secret constants in the `build` job —
+          # using secrets.* here yielded empty values. Mirror the build values.
+          VITE_REDIRECT_SIGN_IN: https://petergeers.github.io/myAdmin/
+          VITE_REDIRECT_SIGN_OUT: https://petergeers.github.io/myAdmin/
+          VITE_MEMBERS_API_BASE_URL: https://22x6z55301.execute-api.eu-west-1.amazonaws.com/prod
         run: |
           echo "Running post-deploy pre-check for production"
           python3 scripts/post_deploy_pre_check.py --env prod --plane frontend || exit 1
