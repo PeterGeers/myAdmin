@@ -1,7 +1,7 @@
 # Tasks — Fail-loud fallback remediation
 
 **Location**: `.kiro/specs/Common/Frameworks/fallback-patterns/`
-**Status**: Draft
+**Status**: Complete
 **Related**: `requirements.md`, `design.md`, `deliverable-1-audit-table.md`
 
 ## Progress tracking convention
@@ -72,6 +72,28 @@ Depends on: Phase 5
 
 - [x] Task 6.1 — Record CONVERGENCE RULE as steering alongside `36-config-and-parameters.md` (C default / B un-configurable / never A) (added §The convergence rule to `.kiro/steering/36-config-and-parameters.md`)
 - [x] Task 6.2 — Cite `services/storage_resolver.py::resolve_storage_provider` as proven template (cited as the (C) exemplar in that steering section)
+
+## Phase 7 — Pre-check env single-source guard (post-delivery hardening)
+
+Depends on: Phase 4 (guards Deliverable #5's pre-check config)
+
+Context: the PROD frontend deploy briefly carried TWO copies of the `VITE_*` build
+config — the `build` step's list and the `deploy` job's post-deploy pre-check list.
+They drifted (three values are committed constants in `build` but were referenced via
+`secrets.*` in `deploy`), so the pre-check failed AFTER the Pages publish had already
+succeeded and turned the PROD deploy red. Repaired immediately in #244, then hardened
+in #245 so a second list cannot reappear.
+
+Planes touched: CI/tooling only (one workflow `env` block, one guard script, one unit
+test) — no runtime frontend/backend/SAM behaviour change and no UI impact.
+
+- [x] Task 7.1 — Repair the immediate break: the `deploy` job checks out the repo (the pre-check script must exist on disk) and mirrors the `build` job's constant values (PR #244, merge `22d1e1d6`)
+- [x] Task 7.2 — Move every `VITE_*` into ONE workflow-level `env:` block in `.github/workflows/deploy-frontend.yml`; `build` and `deploy` inherit it and no step-level `VITE_*` remains (PR #245, merge `78bbdc4c`)
+- [x] Task 7.3 — Guard script `scripts/check_frontend_env_parity.py`: imports `FRONTEND_ENV_VARS` from `post_deploy_pre_check.py` (no duplicated list) and fails on a missing/empty required var, a step-level `VITE_*` redeclaration, or a local `env` on the pre-check step; CLI exits 1 with per-problem output
+- [x] Task 7.4 — Enforce per PR: job `frontend-env-parity` ("Frontend env single-source guard") in the active `.github/workflows/fallback-lint.yml` (PR → `main` and push → `main`), so drift fails the PR before merge
+- [x] Task 7.5 — Unit guard `backend/tests/unit/test_deploy_frontend_env_parity.py` (7 tests): pins the repo state as single-source AND that the checker flags each drift mode (runs via the Full Test Suite's `tests/unit/` job)
+- [x] Task 7.6 — CI/CD evidence: PR #245 green on CodeQL (actions + javascript-typescript + python + aggregate), GitGuardian, MASKING guard-rail and the new parity guard; after merge the `deploy-frontend` (`main` → PRODUCTION) run `44819727981` succeeded including `Post-deploy pre-check`, `fallback-lint` (`44819727952`) ran both jobs green, and CodeQL on `main` (`44819727719`) passed — the `test` → `main` promote step stays the production-release gate
+- [x] Task 7.7 — Verify the deployed artefact, not just the logs: `https://petergeers.github.io/myAdmin/` returns 200 and the built `assets/index-*.js` contains the Members API base URL and the Pages redirect URL (the workflow-level `env` reached the production bundle)
 
 ## CI/CD checklist (per steering 40 — required on every spec)
 

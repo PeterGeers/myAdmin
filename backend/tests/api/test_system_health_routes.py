@@ -8,10 +8,14 @@ Requirements: 6.1, 6.2, 8.3
 Reference: .kiro/specs/missing-py-tests/design.md
 """
 
-import pytest
 import json
-from unittest.mock import patch, MagicMock
+import os
+from unittest.mock import MagicMock, patch
 
+from environment.app_env import AppEnv
+from environment.bootstrap import RESOLVED_ENV_CONFIG_KEY
+from environment.environment_definition import ENVIRONMENT_DEFINITION
+from environment.resolver import resolve
 
 # ============================================================================
 # Public Endpoint Tests
@@ -22,23 +26,19 @@ class TestPublicEndpoints:
     """Verify public endpoints respond without authentication."""
 
     def test_status_responds_without_auth(self, client):
-        """GET /api/status is public and returns status info."""
-        with patch.dict(
-            "os.environ",
-            {
-                "TEST_MODE": "false",
-                "DB_NAME": "finance",
-                "FACTUREN_FOLDER_NAME": "Facturen",
-            },
-            clear=False,
-        ):
+        """GET /api/status is public and returns resolver-derived status info."""
+        with patch.dict("os.environ", {"APP_ENV": "production"}, clear=False):
             response = client.get("/api/status")
 
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data["status"] == "ok"
-        assert "mode" in data
-        assert "database" in data
+        assert data["mode"] == "PRODUCTION"
+        assert data["environment"] == "production"
+        assert data["database"] == "finance"
+        # The retired legacy switch must never resurface in the payload.
+        assert "TEST_MODE" not in data
+        assert "testfinance" not in json.dumps(data)
 
     def test_health_responds_without_auth(self, client):
         """GET /api/health is public and returns health info."""
@@ -63,11 +63,11 @@ class TestPublicEndpoints:
         with patch.dict(
             "os.environ",
             {
+                "APP_ENV": "test",
                 "DB_HOST": "localhost",
                 "DB_PORT": "3306",
                 "DB_USER": "testuser",
                 "DB_NAME": "testdb",
-                "TEST_MODE": "false",
             },
             clear=False,
         ):
@@ -75,8 +75,33 @@ class TestPublicEndpoints:
 
         assert response.status_code == 200
         data = json.loads(response.data)
+        assert data["app_env"] == "test"
+        assert data["mysql_target_label"] == "TEST"
+        assert data["mysql_schema"] == "finance"
+        assert data["computed_database"] == "finance"
         assert "DB_HOST" in data
         assert "computed_host" in data
+        # The retired legacy switch must never resurface in the payload.
+        assert "TEST_MODE" not in data
+        assert "testfinance" not in json.dumps(data)
+
+    def test_db_config_uses_bootstrapped_resolved_target(
+        self, client, app, mock_auth_sysadmin
+    ):
+        """db-config reports the stored resolved target (Req 6.5 non-drift)."""
+        resolved = resolve(AppEnv.PRODUCTION, ENVIRONMENT_DEFINITION)
+        app.config[RESOLVED_ENV_CONFIG_KEY] = resolved
+        try:
+            with patch.dict("os.environ", {"APP_ENV": "test"}, clear=False):
+                response = client.get("/api/db-config", headers=mock_auth_sysadmin)
+        finally:
+            app.config.pop(RESOLVED_ENV_CONFIG_KEY, None)
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["app_env"] == "production"
+        assert data["mysql_target_label"] == "PRODUCTION"
+        assert data["computed_database"] == "finance"
 
 
 # ============================================================================
@@ -85,43 +110,62 @@ class TestPublicEndpoints:
 
 
 class TestStatusEndpoint:
-    """Tests for GET /api/status."""
+    """Tests for GET /api/status (resolver-derived target)."""
 
-    def test_status_production_mode(self, client):
-        """Status returns Production mode when TEST_MODE is false."""
-        with patch.dict(
-            "os.environ",
-            {
-                "TEST_MODE": "false",
-                "DB_NAME": "finance",
-                "FACTUREN_FOLDER_NAME": "Facturen",
-            },
-            clear=False,
-        ):
+    def test_status_production_env_reports_production_target(self, client):
+        """APP_ENV=production reports the PRODUCTION target with schema finance."""
+        with patch.dict("os.environ", {"APP_ENV": "production"}, clear=False):
             response = client.get("/api/status")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["mode"] == "Production"
+        assert data["mode"] == "PRODUCTION"
+        assert data["environment"] == "production"
         assert data["database"] == "finance"
 
-    def test_status_test_mode(self, client):
-        """Status returns Test mode when TEST_MODE is true."""
-        with patch.dict(
-            "os.environ",
-            {
-                "TEST_MODE": "true",
-                "TEST_DB_NAME": "testfinance",
-                "TEST_FACTUREN_FOLDER_NAME": "testFacturen",
-            },
-            clear=False,
-        ):
+    def test_status_test_env_reports_test_target_and_never_testfinance(self, client):
+        """APP_ENV=test reports the TEST target, schema finance (no testfinance)."""
+        with patch.dict("os.environ", {"APP_ENV": "test"}, clear=False):
             response = client.get("/api/status")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["mode"] == "Test"
-        assert data["database"] == "testfinance"
+        assert data["mode"] == "TEST"
+        assert data["environment"] == "test"
+        # The schema is always `finance`; the retired `testfinance` name and the
+        # legacy TEST_MODE field must never be emitted.
+        assert data["database"] == "finance"
+        assert "TEST_MODE" not in data
+        assert "testfinance" not in json.dumps(data)
+
+    def test_status_bootstrapped_resolved_config_wins(self, client, app):
+        """A bootstrapped RESOLVED_ENV wins over APP_ENV (Req 6.5 non-drift)."""
+        resolved = resolve(AppEnv.PRODUCTION, ENVIRONMENT_DEFINITION)
+        app.config[RESOLVED_ENV_CONFIG_KEY] = resolved
+        try:
+            with patch.dict("os.environ", {"APP_ENV": "test"}, clear=False):
+                response = client.get("/api/status")
+        finally:
+            app.config.pop(RESOLVED_ENV_CONFIG_KEY, None)
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["mode"] == "PRODUCTION"
+        assert data["environment"] == "production"
+
+    def test_status_unresolved_app_env_returns_503(self, client, app):
+        """No stored config and no APP_ENV returns a stable 503 label (Req 1.3)."""
+        app.config.pop(RESOLVED_ENV_CONFIG_KEY, None)
+        with patch.dict("os.environ", {}, clear=False):
+            os.environ.pop("APP_ENV", None)
+            response = client.get("/api/status")
+
+        assert response.status_code == 503
+        data = json.loads(response.data)
+        assert data["status"] == "error"
+        assert data["error"] == "environment_unresolved"
+        # No exception text is exposed to the public endpoint.
+        assert "detail" not in data
 
 
 # ============================================================================

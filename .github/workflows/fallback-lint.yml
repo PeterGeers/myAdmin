@@ -28,3 +28,24 @@ jobs:
       # Stdlib only - no dependency install needed.
       - name: Run fallback guard-rail lint
         run: python3 scripts/fallback_lint.py
+
+  # Guard-rail: the PRODUCTION frontend build config (VITE_*) has ONE source of
+  # truth - the workflow-level `env` of deploy-frontend.yml, shared by the build
+  # job and the deploy job's post-deploy pre-check. PyYAML-only script; the unit
+  # twin is backend/tests/unit/test_deploy_frontend_env_parity.py.
+  frontend-env-parity:
+    name: Frontend env single-source guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run frontend env parity guard
+        run: |
+          pip install --quiet pyyaml==6.0.1
+          python3 scripts/check_frontend_env_parity.py

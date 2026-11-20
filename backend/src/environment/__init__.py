@@ -8,7 +8,8 @@ Exports:
 - PlaneCheck, ConsistencyReport, build_consistency_report, run_consistency_guard,
   consistency_guard_startup_hook from consistency_guard
 - ResolvedCognito, ResolvedDbTarget, ResolvedSam, ResolvedConfig, resolve from resolver
-- bootstrap_environment, RESOLVED_ENV_CONFIG_KEY, APP_ENV_CONFIG_KEY from bootstrap
+- bootstrap_environment, resolve_active_config, RESOLVED_ENV_CONFIG_KEY,
+  APP_ENV_CONFIG_KEY from bootstrap
 - build_environment_report from health_report
 """
 
@@ -17,6 +18,7 @@ from .bootstrap import (
     APP_ENV_CONFIG_KEY,
     RESOLVED_ENV_CONFIG_KEY,
     bootstrap_environment,
+    resolve_active_config,
 )
 from .consistency_guard import (
     ConsistencyReport,
@@ -65,5 +67,6 @@ __all__ = [
     "consistency_guard_startup_hook",
     "parse_app_env",
     "resolve",
+    "resolve_active_config",
     "run_consistency_guard",
 ]

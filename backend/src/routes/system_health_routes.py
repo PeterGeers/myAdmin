@@ -3,19 +3,30 @@ System Health Routes Blueprint
 
 Handles health check, status, and monitoring endpoints.
 Extracted from app.py during refactoring (Phase 1.2)
+
+Environment/database diagnostics report the RESOLVED target from the
+Environment_Resolver (``APP_ENV`` -> schema always ``finance``; TEST vs PRODUCTION
+from the resolved MySQL target label), never the retired ``TEST_MODE`` /
+``TEST_DB_NAME`` / ``testfinance`` switch. See the test-environment spec Phase 6
+env-var audit finding #1.
 """
 
+import logging
 import os
 
 import psutil
-from flask import Blueprint, jsonify
+from flask import Blueprint, current_app, jsonify
 from flask.typing import ResponseReturnValue
 
 from auth.cognito_utils import cognito_required
 from database import DatabaseManager
+from environment.app_env import AppEnv, EnvironmentConfigError
+from environment.bootstrap import resolve_active_config
 from routes.error_responses import error_payload, error_response
 
 system_health_bp = Blueprint("system_health", __name__)
+
+logger = logging.getLogger(__name__)
 
 # Access to scalability_manager from app.py
 # This will be set by app.py after blueprint registration
@@ -38,25 +49,37 @@ def test(user_email, user_roles) -> ResponseReturnValue:
 
 @system_health_bp.route("/api/status", methods=["GET"])
 def get_status() -> ResponseReturnValue:
-    """Get environment status - Public endpoint (no authentication required)"""
+    """Get environment status - Public endpoint (no authentication required).
+
+    Reports the RESOLVED target (schema is always ``finance``; TEST vs PRODUCTION
+    comes from ``APP_ENV`` via the Environment_Resolver) rather than the retired
+    legacy ``TEST_MODE`` / ``TEST_DB_NAME`` / ``testfinance`` switch, so this
+    diagnostic cannot contradict the environment the app actually uses.
+    """
     try:
-        use_test = os.getenv("TEST_MODE", "false").lower() == "true"
-        db_name = (
-            os.getenv("TEST_DB_NAME", "testfinance")
-            if use_test
-            else os.getenv("DB_NAME", os.getenv("MYSQL_DATABASE", "finance"))
-        )
+        resolved = resolve_active_config(current_app.config)
+    except EnvironmentConfigError as exc:
+        # Fail-fast selector: log server-side only and return a stable,
+        # non-sensitive label to this public endpoint (no exception text exposed).
+        logger.warning("Status requested but APP_ENV is unresolved: %s", exc)
+        return jsonify({"status": "error", "error": "environment_unresolved"}), 503
+
+    try:
+        # The Google-Drive folder toggle (TEST_FACTUREN_FOLDER_ID + TEST_MODE) remains
+        # orthogonal to APP_ENV (per the audit note), so this display name follows the
+        # resolved environment instead of re-reading the retired legacy flag.
         folder_name = (
             os.getenv("TEST_FACTUREN_FOLDER_NAME", "testFacturen")
-            if use_test
+            if resolved.app_env is AppEnv.TEST
             else os.getenv("FACTUREN_FOLDER_NAME", "Facturen")
         )
 
         return jsonify(
             {
                 "status": "ok",
-                "mode": "Test" if use_test else "Production",
-                "database": db_name,
+                "mode": resolved.mysql.target_label,
+                "environment": resolved.app_env.value,
+                "database": resolved.mysql.schema,
                 "folder": folder_name,
             }
         )
@@ -77,12 +100,20 @@ def get_db_config(user_email, user_roles) -> ResponseReturnValue:
     S2 T6 (R1.1): SysAdmin-only. Exposes DB host/user/database and env-var
     presence, which is infrastructure information disclosure if left open —
     the JWT is now verified (via cognito_required) before any response.
+
+    The environment/database values are reported from the RESOLVED target
+    (``ResolvedConfig``), not the retired ``TEST_MODE`` / ``TEST_DB_NAME``
+    (``testfinance``) switch, so this diagnostic matches how the app actually
+    resolves its DB target.
     """
     try:
-        use_test = os.getenv("TEST_MODE", "false").lower() == "true"
+        resolved = resolve_active_config(current_app.config)
 
         # Get all possible database environment variables
         config = {
+            "app_env": resolved.app_env.value,
+            "mysql_target_label": resolved.mysql.target_label,
+            "mysql_schema": resolved.mysql.schema,
             "DB_HOST": os.getenv("DB_HOST", "NOT_SET"),
             "RAILWAY_PRIVATE_DOMAIN": os.getenv("RAILWAY_PRIVATE_DOMAIN", "NOT_SET"),
             "DB_PORT": os.getenv("DB_PORT", "NOT_SET"),
@@ -90,14 +121,11 @@ def get_db_config(user_email, user_roles) -> ResponseReturnValue:
             "MYSQL_USER": os.getenv("MYSQL_USER", "NOT_SET"),
             "DB_NAME": os.getenv("DB_NAME", "NOT_SET"),
             "MYSQL_DATABASE": os.getenv("MYSQL_DATABASE", "NOT_SET"),
-            "TEST_MODE": os.getenv("TEST_MODE", "NOT_SET"),
             "computed_host": os.getenv(
                 "DB_HOST", os.getenv("RAILWAY_PRIVATE_DOMAIN", "localhost")
             ),
             "computed_user": os.getenv("DB_USER", os.getenv("MYSQL_USER", "root")),
-            "computed_database": os.getenv("TEST_DB_NAME", "testfinance")
-            if use_test
-            else os.getenv("DB_NAME", os.getenv("MYSQL_DATABASE", "finance")),
+            "computed_database": resolved.mysql.schema,
             "computed_port": int(os.getenv("DB_PORT", "3306")),
         }
 
@@ -106,6 +134,10 @@ def get_db_config(user_email, user_roles) -> ResponseReturnValue:
         config["MYSQL_PASSWORD"] = "SET" if os.getenv("MYSQL_PASSWORD") else "NOT_SET"
 
         return jsonify(config)
+    except EnvironmentConfigError as e:
+        return error_response(
+            e, "Environment unresolved", status=503, include_success=False
+        )
     except Exception as e:
         return error_response(
             e, "System health request failed", status=500, include_success=False

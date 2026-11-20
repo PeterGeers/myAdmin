@@ -121,3 +121,38 @@ def bootstrap_environment(
         consistency_guard_startup_hook(app_env, environ=env)
 
     return resolved
+
+
+def resolve_active_config(
+    app_config: Mapping[str, object],
+    *,
+    environ: Mapping[str, str] | None = None,
+) -> ResolvedConfig:
+    """Return the active :class:`ResolvedConfig` for the running unit.
+
+    The single lookup both status/health routes use, so they name exactly the
+    environment every plane consumes (Req 6.5 non-drift):
+
+    1. Prefer the resolved config the app bootstrap stored on
+       ``app.config[RESOLVED_ENV_CONFIG_KEY]`` (see :func:`bootstrap_environment`).
+    2. Fall back to resolving directly from ``APP_ENV`` via the central resolver —
+       never by reading a raw per-plane env var — so the value still cannot drift
+       even when the bootstrap hook has not run (e.g. some test contexts).
+
+    Args:
+        app_config: The Flask ``app.config`` mapping (or any dict-like mapping).
+        environ: Environment mapping to read ``APP_ENV`` from. Defaults to
+            :data:`os.environ`. Injectable for tests.
+
+    Returns:
+        The active :class:`ResolvedConfig`.
+
+    Raises:
+        EnvironmentConfigError: If no resolved config is stored and ``APP_ENV`` is
+            unset/unrecognized (fail-fast, no default — Req 1.3).
+    """
+    resolved = app_config.get(RESOLVED_ENV_CONFIG_KEY)
+    if isinstance(resolved, ResolvedConfig):
+        return resolved
+    env = os.environ if environ is None else environ
+    return resolve(parse_app_env(env.get("APP_ENV")), ENVIRONMENT_DEFINITION)

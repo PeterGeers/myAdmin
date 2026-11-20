@@ -27,16 +27,14 @@ secret value (Req 6.6).
 """
 
 import logging
-import os
 
 from flask import Blueprint, current_app, jsonify
 from flask.typing import ResponseReturnValue
 
-from environment.app_env import EnvironmentConfigError, parse_app_env
-from environment.bootstrap import RESOLVED_ENV_CONFIG_KEY
-from environment.environment_definition import ENVIRONMENT_DEFINITION
+from environment.app_env import EnvironmentConfigError
+from environment.bootstrap import resolve_active_config
 from environment.health_report import build_environment_report
-from environment.resolver import ResolvedConfig, resolve
+from environment.resolver import ResolvedConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,22 +44,15 @@ environment_bp = Blueprint("environment", __name__, url_prefix="/api/environment
 def _resolved_config() -> ResolvedConfig:
     """Return the active resolved config, deriving from APP_ENV if not bootstrapped.
 
-    Prefers ``app.config["RESOLVED_ENV"]`` (stored once at startup) so the report names
-    the same environment every plane consumes. Falls back to resolving directly from
-    ``APP_ENV`` via the central resolver so the value cannot drift (Req 6.5) even when
-    the bootstrap hook has not run.
+    Delegates to :func:`environment.bootstrap.resolve_active_config`, the single
+    lookup every resolver-derived report shares, so this report and the
+    ``/api/status`` / ``/api/db-config`` diagnostics name the same environment.
 
     Raises:
         EnvironmentConfigError: If no resolved config is stored and ``APP_ENV`` is
             unset/unrecognized (fail-fast, no default — Req 1.3).
     """
-    resolved = current_app.config.get(RESOLVED_ENV_CONFIG_KEY)
-    if isinstance(resolved, ResolvedConfig):
-        return resolved
-    # No bootstrapped config — derive from APP_ENV via the single resolver so the
-    # report still cannot drift (never read raw per-plane env vars here).
-    app_env = parse_app_env(os.environ.get("APP_ENV"))
-    return resolve(app_env, ENVIRONMENT_DEFINITION)
+    return resolve_active_config(current_app.config)
 
 
 @environment_bp.route("", methods=["GET"])
