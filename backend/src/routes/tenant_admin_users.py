@@ -364,7 +364,8 @@ def create_tenant_user(user_email, user_roles, tenant) -> ResponseReturnValue:
                 )
 
             except ClientError as e:
-                # Mark invitation as failed
+                # Mark invitation as failed (error_message is server-side log only; not returned to client).
+                # nosec B117 – exception details logged server-side under error_id via mark_invitation_failed + error_response.
                 invitation_service.mark_invitation_failed(
                     administration=tenant, email=email, error_message=str(e)
                 )
@@ -591,9 +592,8 @@ def delete_tenant_user(username, user_email, user_roles, tenant) -> ResponseRetu
 
     except ValueError as e:
         # Safety guard triggered (malformed tenants) or user not found —
-        # deliberate, caller-safe validation message (not a stack trace).
-        validation_message = str(e)
-        return jsonify({"success": False, "error": validation_message}), 400
+        # Return generic message; full exception logged server-side under error_id.
+        return error_response(e, "Invalid tenant user request", status=400)
     except ClientError as e:
         return error_response(
             e,
