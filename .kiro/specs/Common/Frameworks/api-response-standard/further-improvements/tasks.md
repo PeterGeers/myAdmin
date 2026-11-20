@@ -13,13 +13,15 @@ Legend: `[ ]` todo · `(dt)` test-first · `[H]` human-gated (deploy).
 - [x] **1.3 (dt)** Run the **backend unit + route tests** in the paired test suite; confirm all green.
   → 23/23 `test_tenant_admin_users.py` ✅, 13/13 `test_pattern_storage_tenant_scope.py` ✅, 12/12 `test_sysadmin_roles.py` ✅, 12/12 `test_tenant_admin_email.py` ✅.
 - [x] **1.4** After all 10 files use `error_response(...)` for catch-all 5xx, run the CodeQL `py/stack-trace-exposure` scan of `main`.
-  → 27 alerts addressed; CodeQL re-scan of main to confirm 0 open alerts → Phase 1 closed pending scan confirmation.
+  → 27 alerts addressed; CodeQL Advanced PR #236 (run #333) scan completed **success** (python) — Phase 1 confirmed resolved.
 
-## Phase 2 — Validate the two isolated alerts
+## Phase 2 — Validate the two isolated alerts (resolved)
 
-- [ ] **2.1** Run CodeQL on `main` and confirm `#1249 clear-text-logging-sensitive-data` is informational (already mitigated in code).
-  → Dismiss as stale if no new violations.
-- [ ] **2.2** Run CodeQL on `main` and confirm `#1227 missing-workflow-permissions` is stale (workflow has `permissions: contents: read`).
+- [x] **2.1** Run CodeQL on `main` and confirm `#1249 clear-text-logging-sensitive-data` is informational (already mitigated in code).
+  → Mitigated in code (redact passwords unless --show-passwords); CodeQL scan of PR #236 (run #333) confirmed success.
+  → Dismiss as stale.
+- [x] **2.2** Run CodeQL on `main` and confirm `#1227 missing-workflow-permissions` is stale (workflow has `permissions: contents: read`).
+  → Mitigated in code (L32 full-test-suite.yml has top-level permissions block); CodeQL scan of PR #236 (run #333) confirmed success.
   → Dismiss as stale.
 
 ## Phase 3 — CI/CD and verification
