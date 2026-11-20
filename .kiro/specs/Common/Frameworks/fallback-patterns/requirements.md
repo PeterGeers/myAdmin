@@ -1,7 +1,7 @@
 # Requirements — Fail-loud fallback remediation
 
 **Location**: `.kiro/specs/Common/Frameworks/fallback-patterns/`
-**Status**: Draft
+**Status**: Complete
 **Origin**: Backlog item `myBacklog/fallback-pattern.md` → moved here; consolidation of fallbacks
 **Related**: `design.md`, `tasks.md`, `deliverable-1-audit-table.md`, `findings.md`, `fallback-pattern.md`
 
