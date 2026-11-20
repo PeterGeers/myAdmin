@@ -10,7 +10,7 @@ class RoleDivergenceError(Exception):
     """
     Exception raised when there is a divergence between role sources.
     This occurs when the authoritative MySQL-merged roles differ from
-    the JWT cognito:groups claim, indicating a configuration drift.
+    the JWT groups claim, indicating a configuration drift.
     """
 
 

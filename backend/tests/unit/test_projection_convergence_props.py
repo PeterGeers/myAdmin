@@ -137,6 +137,7 @@ class FakeTable:
     def __init__(self):
         self.store: dict[tuple, dict] = {}
         self.put_calls: list[dict] = []
+        self.delete_calls: list[dict] = []
 
     def _key_tuple(self, key_or_item):
         return (
@@ -164,6 +165,11 @@ class FakeTable:
                 if stored_version is not None and not (stored_version < incoming):
                     raise _conditional_check_failed()
         self.store[self._key_tuple(Item)] = dict(Item)
+        return {}
+
+    def delete_item(self, Key, **_kwargs):
+        self.delete_calls.append(dict(Key))
+        self.store.pop(self._key_tuple(Key), None)
         return {}
 
     def query(
