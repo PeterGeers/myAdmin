@@ -123,4 +123,4 @@ jobs:
           VITE_MEMBERS_API_BASE_URL: ${{ secrets.VITE_MEMBERS_API_BASE_URL }}
         run: |
           echo "Running post-deploy pre-check for production"
-          python3 scripts/post_deploy_pre_check.py --env prod || exit 1
+          python3 scripts/post_deploy_pre_check.py --env prod --plane frontend || exit 1

@@ -96,14 +96,6 @@ jobs:
         working-directory: sam/members
         run: sam build
 
-      # Post-deploy pre-check (Deliverable #5): assert required config / projection freshness
-      - name: Post-deploy pre-check
-        working-directory: sam/members
-        run: |
-          CONFIG_ENV="${{ steps.env.outputs.config_env }}"
-          echo "Running post-deploy pre-check for config env: $CONFIG_ENV"
-          python3 ../../scripts/post_deploy_pre_check.py --env $CONFIG_ENV || exit 1
-
       # All deploy parameters come from samconfig.toml [<config-env>]: stack_name
       # (test_sam-members / sam-members), region, capabilities, and the parameter_overrides
       # (Stage, MembersTableName, GovernanceProjectionTableName, the Cognito pool ARN/
@@ -145,3 +137,14 @@ jobs:
           else
             sam deploy --config-env "$CONFIG_ENV" --no-confirm-changeset --no-fail-on-empty-changeset
           fi
+
+      # Post-deploy pre-check (Deliverable #5): runs AFTER the deploy. Plane=sam checks
+      # SAM-plane config (AWS region) + projection freshness (best-effort, warning-level);
+      # it does NOT check VITE_* (frontend-only) and NEVER imports the Flask MySQL layer.
+      - name: Post-deploy pre-check
+        working-directory: sam/members
+        run: |
+          CONFIG_ENV="${{ steps.env.outputs.config_env }}"
+          echo "Running post-deploy pre-check for config env: $CONFIG_ENV"
+          python3 ../../scripts/post_deploy_pre_check.py --env "$CONFIG_ENV" --plane sam
+

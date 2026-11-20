@@ -1,187 +1,223 @@
 #!/usr/bin/env python3
 """
-Post-deploy pre-check script (Deliverable #5).
+Post-deploy pre-check (Deliverable #5).
 
-Runs after SAM deploy to verify:
-1. Required environment variables / API URLs are available
-2. Projection freshness is sane (no stale data)
-3. Cognito configuration is valid
+Runs AFTER a deploy and verifies the deployed environment is sane:
+  1. Required env vars for the PLANE (frontend: VITE_*; sam: AWS region)
+  2. Cognito configuration (frontend plane only)
+  3. Projection freshness (best-effort DynamoDB governance_projection updated_at;
+     WARNING-level, never a hard failure; SKIPPED when boto3 or the table name
+     is unavailable)
 
-This script is called from deploy-sam-members.yml and deploy-frontend.yml workflows.
+Plane-aware (--plane frontend|sam|auto). The SAM deploy job has NO VITE_* vars
+and NO MySQL, so this script NEVER imports the Flask DB layer. A projection
+freshness problem is surfaced as a WARNING, not a deploy blocker.
+
+Exit codes: 0 = passed (possibly with warnings); 1 = hard error (missing
+required config for the plane).
 """
 
 import argparse
-import json
 import os
 import sys
-import time
 from datetime import datetime, timezone
 
-# Add backend to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend', 'src'))
+FRONTEND_ENV_VARS = [
+    "VITE_API_URL",
+    "VITE_COGNITO_USER_POOL_ID",
+    "VITE_COGNITO_CLIENT_ID",
+    "VITE_COGNITO_DOMAIN",
+    "VITE_AWS_REGION",
+    "VITE_REDIRECT_SIGN_IN",
+    "VITE_REDIRECT_SIGN_OUT",
+    "VITE_MEMBERS_API_BASE_URL",
+]
 
-from database import DatabaseManager
+COGNITO_VARS = [
+    "VITE_COGNITO_USER_POOL_ID",
+    "VITE_COGNITO_CLIENT_ID",
+    "VITE_COGNITO_DOMAIN",
+]
 
 
-def check_env_vars(env: str) -> tuple[bool, list[str]]:
-    """Check that required environment variables are set for the given environment."""
+def resolve_plane(requested):
+    """--plane auto: frontend if any VITE_* is set, else sam."""
+    if requested in ("frontend", "sam"):
+        return requested
+    if any(os.environ.get(v) for v in FRONTEND_ENV_VARS):
+        return "frontend"
+    return "sam"
+
+
+def check_env_vars(plane):
     errors = []
-
-    # Required variables per environment
-    required_vars = {
-        'test': [
-            'VITE_API_URL',
-            'VITE_COGNITO_USER_POOL_ID',
-            'VITE_COGNITO_CLIENT_ID',
-            'VITE_COGNITO_DOMAIN',
-            'VITE_AWS_REGION',
-            'VITE_REDIRECT_SIGN_IN',
-            'VITE_REDIRECT_SIGN_OUT',
-            'VITE_MEMBERS_API_BASE_URL',
-        ],
-        'prod': [
-            'VITE_API_URL',
-            'VITE_COGNITO_USER_POOL_ID',
-            'VITE_COGNITO_CLIENT_ID',
-            'VITE_COGNITO_DOMAIN',
-            'VITE_AWS_REGION',
-            'VITE_REDIRECT_SIGN_IN',
-            'VITE_REDIRECT_SIGN_OUT',
-            'VITE_MEMBERS_API_BASE_URL',
-        ],
-    }
-
-    for var in required_vars.get(env, []):
-        if not os.environ.get(var):
-            errors.append(f"Missing required env var: {var}")
-
-    return len(errors) == 0, errors
+    if plane == "frontend":
+        for var in FRONTEND_ENV_VARS:
+            if not os.environ.get(var):
+                errors.append(f"Missing required env var: {var}")
+    else:
+        region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+        if not region:
+            errors.append(
+                "Missing required env var: AWS_REGION (or AWS_DEFAULT_REGION)"
+            )
+    return (not errors), errors
 
 
-def check_projection_freshness() -> tuple[bool, list[str]]:
-    """
-    Check projection freshness by querying the GovernanceProjectionTable.
-    Returns (healthy, errors).
-    """
-    errors = []
-
-    try:
-        db = DatabaseManager()
-
-        # Check if projection table has recent data (within last 24 hours)
-        # Use the projection_timestamp or similar column
-        rows = db.execute_query(
-            """
-            SELECT MAX(projection_timestamp) as latest_ts
-            FROM governance_projection
-            WHERE projection_timestamp IS NOT NULL
-            """,
-            fetch=True,
-        )
-
-        if rows and rows[0].get('latest_ts'):
-            latest_ts = rows[0]['latest_ts']
-            # Convert to datetime if it's a string
-            if isinstance(latest_ts, str):
-                latest_ts = datetime.fromisoformat(latest_ts.replace('Z', '+00:00'))
-
-            if latest_ts.tzinfo is None:
-                latest_ts = latest_ts.replace(tzinfo=timezone.utc)
-
-            now = datetime.now(timezone.utc)
-            age_hours = (now - latest_ts).total_seconds() / 3600
-
-            if age_hours > 24:
-                errors.append(
-                    f"Projection data is stale: latest update was {age_hours:.1f} hours ago "
-                    f"(threshold: 24 hours)"
-                )
-        else:
-            errors.append("No projection data found in GovernanceProjectionTable")
-
-    except Exception as e:
-        errors.append(f"Failed to check projection freshness: {e}")
-
-    return len(errors) == 0, errors
-
-
-def check_cognito_config() -> tuple[bool, list[str]]:
-    """Check that Cognito configuration is valid."""
-    errors = []
-
-    # These would be populated from SAM stack outputs in a real deployment
-    # For now, check that the required secrets exist
-    required_secrets = [
-        'VITE_COGNITO_USER_POOL_ID',
-        'VITE_COGNITO_CLIENT_ID',
-        'VITE_COGNITO_DOMAIN',
+def check_cognito_config(plane):
+    if plane != "frontend":
+        return True, []
+    errors = [
+        f"Missing Cognito config: {v}" for v in COGNITO_VARS if not os.environ.get(v)
     ]
+    return (not errors), errors
 
-    for secret in required_secrets:
-        if not os.environ.get(secret):
-            errors.append(f"Missing Cognito config: {secret}")
 
-    return len(errors) == 0, errors
+CANDIDATE_TS_ATTRS = ("updated_at", "projection_timestamp", "version_ts", "updatedAt")
+PROJECTION_TABLE_ENV = ("GOVERNANCE_PROJECTION_TABLE", "PROJECTION_TABLE_NAME")
+
+
+def _projection_table_name(env):
+    for key in PROJECTION_TABLE_ENV:
+        if os.environ.get(key):
+            return os.environ[key]
+    try:
+        import tomllib
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parent.parent
+        cfg_path = root / "sam" / "members" / "samconfig.toml"
+        cfg = tomllib.loads(cfg_path.read_text("utf-8"))
+        overrides = (
+            cfg.get(env, {})
+            .get("deploy", {})
+            .get("parameters", {})
+            .get("parameter_overrides", [])
+        )
+        for kv in overrides:
+            if isinstance(kv, str) and kv.startswith("GovernanceProjectionTableName="):
+                return kv.split("=", 1)[1]
+    except Exception:
+        return None
+    return None
+
+
+def _to_dt(value):
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, tz=timezone.utc)
+    if isinstance(value, str):
+        try:
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def check_projection_freshness(env):
+    """Best-effort; ALWAYS returns healthy=True with warning messages."""
+    table_name = _projection_table_name(env)
+    if not table_name:
+        return True, [
+            "SKIPPED projection freshness: no table configured "
+            "(set GOVERNANCE_PROJECTION_TABLE)"
+        ]
+    try:
+        import boto3
+    except ImportError:
+        return True, [
+            "SKIPPED projection freshness: boto3 not installed on this runner"
+        ]
+    try:
+        table = boto3.resource("dynamodb").Table(table_name)
+        resp = table.scan(Limit=200)
+        items = resp.get("Items", [])
+        latest = None
+        for item in items:
+            for attr in CANDIDATE_TS_ATTRS:
+                if attr in item:
+                    dt = _to_dt(item[attr])
+                    if dt and (latest is None or dt > latest):
+                        latest = dt
+        if latest is None:
+            return True, [
+                f"SKIPPED projection freshness: no timestamp attr on {len(items)} sampled items"
+            ]
+        age_hours = (datetime.now(timezone.utc) - latest).total_seconds() / 3600
+        if age_hours > 24:
+            return True, [
+                f"Projection may be stale: latest updated_at {age_hours:.1f}h ago "
+                "(threshold 24h)"
+            ]
+        return True, []
+    except Exception as exc:
+        return True, [f"SKIPPED projection freshness: {type(exc).__name__}: {exc}"]
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Post-deploy pre-checks')
-    parser.add_argument('--env', required=True, choices=['test', 'prod'],
-                        help='Environment to check (test or prod)')
+    parser = argparse.ArgumentParser(description="Post-deploy pre-checks")
+    parser.add_argument("--env", required=True, choices=["test", "prod"])
+    parser.add_argument("--plane", choices=["frontend", "sam", "auto"], default="auto")
     args = parser.parse_args()
+    plane = resolve_plane(args.plane)
 
-    all_errors = []
-    all_warnings = []
+    hard_errors = []
+    warnings = []
 
-    print(f"\n=== Post-deploy pre-check for {args.env} environment ===\n")
+    print()
+    print(f"=== Post-deploy pre-check - env={args.env} plane={plane} ===")
+    print()
 
-    # Check 1: Required env vars
-    print("1. Checking required environment variables...")
-    ok, errors = check_env_vars(args.env)
+    print("1. Required environment variables...")
+    ok, errs = check_env_vars(plane)
     if ok:
-        print("   ✅ All required env vars present")
+        print("   OK")
     else:
-        for e in errors:
-            print(f"   ❌ {e}")
-        all_errors.extend(errors)
+        for e in errs:
+            print(f"   ERROR: {e}")
+        hard_errors.extend(errs)
+        if plane == "frontend":
+            print(
+                "   (VITE_* are frontend build vars: only meaningful on the frontend deploy)"
+            )
 
-    # Check 2: Cognito configuration
-    print("\n2. Checking Cognito configuration...")
-    ok, errors = check_cognito_config()
-    if ok:
-        print("   ✅ Cognito configuration valid")
+    print()
+    print("2. Cognito configuration...")
+    ok, errs = check_cognito_config(plane)
+    if plane != "frontend":
+        print("   SKIPPED (sam plane has no VITE_COGNITO_* build vars)")
+    elif ok:
+        print("   OK")
     else:
-        for e in errors:
-            print(f"   ❌ {e}")
-        all_errors.extend(errors)
+        for e in errs:
+            print(f"   ERROR: {e}")
+        hard_errors.extend(errs)
 
-    # Check 3: Projection freshness
-    print("\n3. Checking projection freshness...")
-    ok, errors = check_projection_freshness()
-    if ok:
-        print("   ✅ Projection data is fresh")
+    print()
+    print("3. Projection freshness (warning-level)...")
+    _ok, msgs = check_projection_freshness(args.env)
+    if not msgs:
+        print("   OK (fresh)")
     else:
-        for e in errors:
-            print(f"   ⚠️  {e}")
-        # Projection freshness is a warning, not a hard failure
-        all_warnings.extend(errors)
+        for m in msgs:
+            print(f"   WARN: {m}")
+        warnings.extend(msgs)
 
-    # Summary
-    print("\n=== Summary ===")
-    if all_errors:
-        print(f"❌ FAILED: {len(all_errors)} error(s)")
-        for e in all_errors:
-            print(f"   - {e}")
-        sys.exit(1)
-    elif all_warnings:
-        print(f"⚠️  PASSED WITH WARNINGS: {len(all_warnings)} warning(s)")
-        for w in all_warnings:
-            print(f"   - {w}")
-        sys.exit(0)
+    print()
+    print("=== Summary ===")
+    if hard_errors:
+        print(f"FAILED: {len(hard_errors)} error(s)")
+        for e in hard_errors:
+            print(f"  - {e}")
+        return 1
+    if warnings:
+        print(f"PASSED WITH WARNINGS: {len(warnings)} warning(s)")
     else:
-        print("✅ All checks passed")
-        sys.exit(0)
+        print("All checks passed")
+    return 0
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(main())
