@@ -1,7 +1,7 @@
 # fallback-patterns — Fail-loud fallback remediation spec
 
 **Location**: `.kiro/specs/Common/Frameworks/fallback-patterns/`
-**Status**: Draft
+**Status**: Complete
 **Owner**: Cross-cutting code-quality (steering 41, s5f / ADR 0007)
 **Planes touched**: Frontend SPA (`frontend/src/`), Flask backend (`backend/src/`), SAM edge (`sam/members/`)
 

@@ -1,7 +1,7 @@
 # Tasks — Fail-loud fallback remediation
 
 **Location**: `.kiro/specs/Common/Frameworks/fallback-patterns/`
-**Status**: Draft
+**Status**: Complete
 **Related**: `requirements.md`, `design.md`, `deliverable-1-audit-table.md`
 
 ## Progress tracking convention
