@@ -29,6 +29,12 @@
 | 6 | Guard-rail lint (broaden s5f guard) | `scripts/fallback_lint.py` | ✅ Complete (rules MASK-01…MASK-08; CI gate) |
 | 7 | Convergence steering rule | `.kiro/steering/36-config-and-parameters.md` | ✅ Complete |
 
+**Post-delivery hardening (Phase 7 in `tasks.md`):** Deliverable #5's pre-check env is
+single-sourced (one workflow-level `env` block in `deploy-frontend.yml`) and guarded by
+`scripts/check_frontend_env_parity.py` — run per PR in `fallback-lint.yml` and pinned by
+`backend/tests/unit/test_deploy_frontend_env_parity.py`. A duplicated list had turned the
+PROD deploy red *after* the Pages publish had succeeded.
+
 ## Related steering
 - `40-spec-workflow.md` — this spec structure
 - `36-config-and-parameters.md` — config model (Deliverable #7 companion)
