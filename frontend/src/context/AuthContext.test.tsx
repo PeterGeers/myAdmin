@@ -23,6 +23,7 @@ vi.mock('../services/authService', () => ({
   hasRole: vi.fn(),
   hasAnyRole: vi.fn(),
   hasAllRoles: vi.fn(),
+  RoleDivergenceError: class RoleDivergenceError extends Error {},
 }));
 
 const mockGetCurrentUser = vi.mocked(getCurrentUser);

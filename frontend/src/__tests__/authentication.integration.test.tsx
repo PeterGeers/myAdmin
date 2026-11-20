@@ -52,6 +52,7 @@ vi.mock('../services/authService', () => ({
   signInWithPassword: vi.fn(),
   signInWithPasskey: vi.fn(),
   isPasskeySupported: vi.fn().mockReturnValue(true),
+  RoleDivergenceError: class RoleDivergenceError extends Error {},
 }));
 
 // Mock react-i18next — t() returns the key as-is
