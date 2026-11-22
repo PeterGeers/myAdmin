@@ -41,6 +41,55 @@ The platform (myAdmin, evolved in place) spans two AWS accounts plus Railway.
   see `migration_plan.md`).
 
 ## Cognito pool inventory (current)
+## Quick access & credential management
+
+**Connect to the non-profit account:**
+
+```bash
+# Verify identity - MUST print account 506221081911 (not personal 344561557829):
+env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+  aws sts get-caller-identity --profile nonprofit-deploy --region eu-west-1 --output json
+
+# One-off command against the non-profit account:
+AWS_PROFILE=nonprofit-deploy python your_script.py
+
+# If you previously sourced old env vars and get the wrong account, strip them:
+env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+  AWS_REGION=eu-west-1 aws <command> --profile nonprofit-deploy
+```
+
+**Credential resolution model** (the committed `.env` files are **not** a credential source):
+
+- As of the bugfix `20261012 load_dotenv clobbers AWS_PROFILE` (2026-10-12), the static
+  `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` lines were **removed** from the committed env
+  files (`.env`, `backend/.env`, `backend/.env.example`). Credentials now resolve from your AWS
+  profiles locally (`~/.aws`) and from Railway service variables in production.
+
+- **The override-ranking trap**: boto3's credential chain ranks **static env keys ABOVE**
+  `AWS_PROFILE`. So IF you have an old shell that previously `source`d the keys (they may linger
+  in the environment), or you re-add static keys locally, a plain
+  `AWS_PROFILE=nonprofit-deploy python ...` can silently run against the **wrong account** (`personal`
+  344561557829) - surfacing as `ResourceNotFoundException` on tables that only exist in
+  `nonprofit-deploy` (e.g. `sam-members`, `governance_projection`); a stray
+  `AWS_ENDPOINT_URL_DYNAMODB` likewise redirects DynamoDB to the local emulator.
+
+- **Belt-and-suspenders cleanup** (valid but no longer required):
+
+```bash
+env -u AWS_ENDPOINT_URL_DYNAMODB -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+  AWS_REGION=eu-west-1 aws sts get-caller-identity --profile nonprofit-deploy --output json
+```
+
+- **Always sanity-check identity when it matters** - this MUST print `506221081911`
+  (NonprofitDeployRole), not `344561557829`:
+
+```bash
+env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+  aws sts get-caller-identity --profile nonprofit-deploy --region eu-west-1 --output json
+```
+
+**Cross-reference**: full credential model lives in `.kiro/steering/41-shell-environment.md` (search for "AWS credentials").
+
 
 - **Active — keep:**
   - `eu-west-1_Hdp40eWmu` (`myAdmin`) — production Pool A.

@@ -1,6 +1,15 @@
 ---
 inclusion: always
 ---
+**Quick start -- AWS non-profit account (506221081911) access:**
+
+```bash
+# Verify identity (MUST print 506221081911, not personal 344561557829):
+env -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY -u AWS_SESSION_TOKEN \
+  aws sts get-caller-identity --profile nonprofit-deploy --region eu-west-1 --output json
+```
+
+See `.kiro/steering/23-aws-accounts.md` Quick access & credential management for full commands.
 
 # Shell Environment
 
