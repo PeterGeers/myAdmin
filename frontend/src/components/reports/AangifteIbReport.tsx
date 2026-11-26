@@ -218,8 +218,13 @@ const AangifteIbReport: React.FC = () => {
       setXlsxExportProgress(null);
       
       // Reset tenant switching state after a brief delay
-      setTimeout(() => setTenantSwitching(false), 100);
+      // Clear the timer on cleanup/unmount so the callback cannot fire after
+      // the component (or test environment) is torn down, which previously
+      // surfaced as "ReferenceError: window is not defined" in vitest teardown.
+      const resetTimer = setTimeout(() => setTenantSwitching(false), 100);
+      return () => clearTimeout(resetTimer);
     }
+    return undefined;
   }, [currentTenant]);
 
   const renderTableRows = () => {

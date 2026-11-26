@@ -96,6 +96,7 @@ describe('AangifteIbReport', () => {
 
     mockRequireTenant.mockReturnValue('GoodwinSolutions');
   });
+  afterAll(() => vi.clearAllTimers());
 
   describe('Tenant Context Integration', () => {
     it('uses useTenant hook for tenant context', async () => {
