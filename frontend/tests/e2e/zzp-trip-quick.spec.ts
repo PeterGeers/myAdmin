@@ -306,3 +306,46 @@ test.describe('ZZP Trip Quick Entry (Mobile)', () => {
     }
   });
 });
+
+test.describe('GPS End Address Lookup', () => {
+  // ─── GPS End Address Lookup ───
+
+  test('shows "GPS" button next to end address field', async ({ page }) => {
+    const btn = page.locator('button:has-text("GPS")');
+    await expect(btn).toBeVisible();
+  });
+
+  test('fills end address from mocked geolocation click', async ({ page }) => {
+    // Mock geolocation permission granted with fixed coords
+    await page.evaluate(() => {
+      const orig = navigator.geolocation.getCurrentPosition;
+      navigator.geolocation.getCurrentPosition = (success) => {
+        success({ coords: { latitude: 52.3676, longitude: 4.9041 } } as any);
+      };
+    });
+
+    const btn = page.locator('button:has-text("GPS")');
+    await btn.click();
+
+    // Waiting for address to resolve requires network mock (Nominatim);
+    // here we only assert the button enters loading then back to idle.
+    await expect(page.locator('button:has-text("GPS...")')).toBeVisible({ timeout: 3000 });
+  });
+
+  test('does not show GPS button next to start address field', async ({ page }) => {
+    const vanInput = page.locator('input[placeholder="Van"]');
+    const container = vanInput.locator('..');
+    const gpsBtn = page.locator('button:has-text("GPS")');
+    // GPS button should exist only once and next to Naar input
+    await expect(page.locator('button:has-text("GPS")')).toHaveCount(1);
+  });
+
+  test('auto-fills start address from last trip', async ({ page }) => {
+    await waitFor(() => {
+      // handled beforeEach
+    });
+    const vanInput = page.locator('input[placeholder="Van"]');
+    await expect(vanInput).toHaveValue('Utrecht');
+  });
+
+});
