@@ -215,6 +215,7 @@ const ZZPTripQuick: React.FC = () => {
       setEndOdometer('');
       setStartAddress('');
       setEndAddress('');
+      setStartAddress('');
       setTripPurpose('');
       setClientName('');
       setKlantError(null);
