@@ -1,0 +1,41 @@
+{
+  "specId": "f8b7d3e4-9a2c-4f1d-8b5e-2a7c4e9f0d12",
+  "spec": "full-test-suite-fixes-2026-11-26",
+  "ciRun": 45797012593,
+  "ciRunNumber": null,
+  "ciConclusion": "failure",
+  "ciHeadSha": null,
+  "ciHeadBranch": "main",
+  "ciEvent": "schedule",
+  "generatedFrom": "GitHub Actions Full Test Suite artifacts (run #45797012593, 2026-11-26 10:16 UTC @ main, schedule, failure)",
+  "priorities": {
+    "critical": [],
+    "high": [],
+    "medium": ["M1"],
+    "low": ["L1", "L2", "L3"]
+  },
+  "nodes": [
+    {
+      "id": "M1",
+      "title": "Fix frontend vitest unhandled window is not defined error in AangifteIbReport test",
+      "priority": "medium",
+      "effort": "M",
+      "plane": "frontend",
+      "type": "flaky-mitigation",
+      "rootCause": "Frontend job red with 0 assertion failures: 365 test files passed, 4534 tests passed | 12 skipped (4546), 1 error. Vitest raised ReferenceError: window is not defined during teardown of src/components/reports/AangifteIbReport.test.tsx. Originates from setTimeout(() => setTenantSwitching(false), 100) in src/components/reports/AangifteIbReport.tsx:221 - timer callback fires after test environment teardown, so react-dom window reference is unavailable. Non-deterministic (timing-dependent), not an assertion failure. No product regression.",
+      "fixSuggestion": "Add vi.clearAllTimers() in afterAll or ensure timer callbacks are cleared before environment teardown. Alternatively rewrite the setTimeout to avoid window reference, or use vi.runWithTimers() context around the delayed setTenantSwitching call. After fix, re-run frontend suite to confirm Test Files 365 passed with 0 errors and the job concludes success."
+    }
+  ],
+  "edges": [],
+  "recommendedOrder": ["M1", "L1", "L2", "L3"],
+  "notes": [
+    "CI run #45797012593 (2026-11-26 @ 10:16 UTC @ main, schedule) is RED purely due to frontend vitest unhandled error; all assertion counts are 0 - every test that ran passed.",
+    "Backend Full Test Suite: green (7736 passed, 14 skipped, 0 failed). Backend Lint & Static Analysis: pass (ruff lint, format, vulture all clean).",
+    "SAM Module-Plane: green (tests pass, ruff clean).",
+    "Frontend: 365 test files passed, all 4534 running tests passed, 12 skipped, 1 unhandled error (window teardown flake). ESLint report-only: 0 errors, 1148 warnings. tsc report-only: many TS errors non-blocking.",
+    "Comparison to 11-18 fix sprint: Option B migration fixes (backend F1 test assertion failures, SAM FakeParameterService.get_item, RUF059) all held green - no recurring failures from that sprint. The only new red is this frontend teardown error.",
+    "Ruff version: CI 0.16.5 == local. No lint errors this cycle (0 RUFxx). Frontend ESLint: 1148 warnings, 0 errors (report-only). tsc: many errors report-only non-blocking.",
+    "No Critical tasks (backend and SAM collect and pass; frontend collected and ran). No High test tasks (no assertion failures, no CI-blocking lint). The sole test-plane item is the Medium flaky-worker teardown error M1.",
+    "Standing Low guards carried forward: L1=ruff pin, L2=pre-push broadening, L3=ruff reproducibility guard."
+  ]
+}

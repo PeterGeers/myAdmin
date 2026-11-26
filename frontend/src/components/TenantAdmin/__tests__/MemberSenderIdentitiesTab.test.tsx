@@ -90,7 +90,9 @@ describe('MemberSenderIdentitiesTab', () => {
 
       const input = screen.getByPlaceholderText('sender@example.com');
       fireEvent.change(input, { target: { value: 'new@club.nl' } });
-      fireEvent.click(screen.getByRole('button', { name: /Add Address/i }));
+        // Wait for the "Add Address" button to render (component loads identities asynchronously) before clicking.
+        const button = await screen.findByRole('button', { name: /Add Address/i });
+        fireEvent.click(button);
 
       await waitFor(() =>
         expect(addSenderIdentity).toHaveBeenCalledWith('new@club.nl')
@@ -109,7 +111,9 @@ describe('MemberSenderIdentitiesTab', () => {
 
       const input = screen.getByPlaceholderText('sender@example.com');
       fireEvent.change(input, { target: { value: 'not-an-email' } });
-      fireEvent.click(screen.getByRole('button', { name: /Add Address/i }));
+      // Wait for the "Add Address" button to render (component loads identities asynchronously) before clicking.
+      const button = await screen.findByRole('button', { name: /Add Address/i });
+      fireEvent.click(button);
 
       await waitFor(() =>
         expect(screen.getByText(/valid email address/i)).toBeInTheDocument()
