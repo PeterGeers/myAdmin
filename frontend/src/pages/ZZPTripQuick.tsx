@@ -27,6 +27,16 @@ import { RoutePresetCards } from '../components/zzp/RoutePresetCards';
  */
 const ZZPTripQuick: React.FC = () => {
   const toast = useToast();
+
+  // i18n keys under trips.* namespace (NL default)
+  const trips = {
+    getLocation: 'GPS',
+    gettingLocation: 'GPS ophalen...',
+    locationError: 'Kon locatie niet bepalen',
+    locationPermissionDenied: 'Locatie toegang afgewezen',
+    noAddressFound: 'Geen adres gevonden voor deze locatie',
+    startAddressFromLastTrip: 'Vertrekadres automatisch ingevuld uit vorige rit',
+  }
   const endOdometerRef = useRef<HTMLInputElement>(null);
 
   // Data state
@@ -51,6 +61,8 @@ const ZZPTripQuick: React.FC = () => {
   // UI state
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [fetchingLoc, setFetchingLoc] = useState(false);
+  const lastLocCallRef = useRef<number | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -95,6 +107,10 @@ const ZZPTripQuick: React.FC = () => {
         if (trips.length > 0) {
           const last = trips[0];
           setLastTrip(last);
+          // Wave 2: Auto-fill start address from previous trip end address (NOT GPS)
+          if (last && last.end_address) {
+            setStartAddress(last.end_address);
+          }
           setStartOdometer(String(last.end_odometer));
         } else {
           // No previous trips — use vehicle start_odometer
@@ -213,7 +229,28 @@ const ZZPTripQuick: React.FC = () => {
       // Reset form for next trip
       setStartOdometer(String(endKm));
       setEndOdometer('');
-      setStartAddress('');
+
+      // Wave 2: Attempt to auto-fill start address from last trip
+      const fetchLastAndPrefill = async () => {
+        if (!selectedVehicleId) return;
+        try {
+          const resp = await getTrips({ vehicle_id: selectedVehicleId, limit: 1 });
+          const trips = resp.data || [];
+          if (trips.length > 0) {
+            const last = trips[0];
+            if (last && last.end_address) {
+              setStartAddress(last.end_address);
+            }
+          }
+        } catch {
+          // Silently fail — user can manually enter
+        }
+      };
+
+      await fetchLastAndPrefill();
+
+      // Clear remaining fields after saving
+      setEndOdometer('');
       setEndAddress('');
       setTripPurpose('');
       setClientName('');
@@ -230,6 +267,59 @@ const ZZPTripQuick: React.FC = () => {
       setSubmitting(false);
     }
   };
+  const haalLocatieOp = useCallback(async () => {
+    const now = Date.now();
+    if (lastLocCallRef.current && now - lastLocCallRef.current < 1500) {
+      // Debounce: respect Nominatim 1 request/second limit
+      return;
+    }
+    lastLocCallRef.current = now;
+    if (!navigator.geolocation) {
+      toast({ title: trips.locationPermissionDenied, description: trips.getLocation, status: 'error' });
+      return;
+    }
+    setFetchingLoc(true);
+    navigator.geolocation.getCurrentPosition(
+      async (positie) => {
+        const { latitude, longitude } = positie.coords;
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=nl`,
+            { headers: { 'User-Agent': 'myAdmin/1.0' } }
+          );
+          const data = await res.json();
+          if (data && data.display_name) {
+            const parts = data.display_name.split(/,\s*/);
+            // Selected fields: 2=street, 1=housenumber, 8=postalcode, 4=city (0-indexed: 1,0,7,3)
+            const street = parts[1] || '';
+            const housenumber = parts[0] || '';
+            const postalcode = parts[7] || '';
+            const city = parts[3] || '';
+            setEndAddress(`${street} ${housenumber}, ${postalcode} ${city}`.trim());
+          } else {
+            toast({ title: trips.locationError, description: trips.noAddressFound, status: 'error' });
+          }
+        } catch {
+          toast({ title: trips.noAddressFound, description: trips.getLocation, status: 'error' });
+        } finally {
+          setFetchingLoc(false);
+        }
+      },
+      (err) => {
+        if (err.code === 1) {
+          toast({ title: trips.locationPermissionDenied, description: trips.getLocation, status: 'error' });
+        } else if (err.code === 3) {
+          toast({ title: trips.locationError, description: trips.getLocation, status: 'error' });
+        } else {
+          toast({ title: trips.locationError, description: trips.getLocation, status: 'error' });
+        }
+        setFetchingLoc(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, [toast]);
+
+
 
   const goBack = () => {
     // Navigate back — in this SPA, we rely on window.history
@@ -321,6 +411,18 @@ const ZZPTripQuick: React.FC = () => {
               size="md"
               minH="44px"
             />
+            <Button
+              onClick={haalLocatieOp}
+              isLoading={fetchingLoc}
+              loadingText="GPS..."
+              colorScheme="orange"
+              variant="outline"
+              size="sm"
+              minH="44px"
+              aria-label="GPS-locatie ophalen voor bestemming"
+            >
+              GPS
+            </Button>
           </HStack>
         </FormControl>
 
