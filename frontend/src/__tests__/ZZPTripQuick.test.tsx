@@ -333,7 +333,7 @@ describe('ZZPTripQuick — successful create resets the form (preservation)', ()
     await waitFor(() => {
       expect((screen.getByLabelText('Eind km-stand') as HTMLInputElement).value).toBe('');
     });
-    expect((screen.getByPlaceholderText('Van') as HTMLInputElement).value).toBe('');
+    expect((screen.getByPlaceholderText('Van') as HTMLInputElement).value).toBe('Utrecht');
     expect((screen.getByPlaceholderText('Naar') as HTMLInputElement).value).toBe('');
     expect((screen.getByLabelText('Start km-stand') as HTMLInputElement).value).toBe('10100');
   });

@@ -252,8 +252,6 @@ const ZZPTripQuick: React.FC = () => {
       // Clear remaining fields after saving
       setEndOdometer('');
       setEndAddress('');
-      setStartAddress('');
-      setTripPurpose('');
       setClientName('');
       setKlantError(null);
       setSelectedPresetId(null);
