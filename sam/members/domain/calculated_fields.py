@@ -131,16 +131,54 @@ def _derive_birth_quarter(record: Mapping[str, Any]) -> str | None:
     return str((born.month - 1) // 3 + 1) if born is not None else None
 
 
+def _coerce_nonneg_int(value: Any, *, default: int = 0) -> int:
+    """Coerce a stored value to a non-negative int, else ``default``.
+
+    Used for optional year counts (``previous_years`` etc.) that come from
+    admin-entered judgement rather than system accumulation.
+    Negative numbers and non-integer strings are treated as invalid → ``default``.
+    """
+    if value is None:
+        return default
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    return n if n >= 0 else default
+
+
+def _reference_date(m: Mapping[str, Any], today: _dt.date | None = None) -> _dt.date:
+    """Reference date for tenure math.
+
+    If the membership is closed (``left``/``lapsed``) use ``leaving_date`` so the
+    closed-period length is frozen; otherwise use ``today`` (or the supplied
+    reference date).
+    """
+    if (m.get("status") or "").strip().lower() in {"left", "lapsed"}:
+        left = _parse_iso_date(m.get("leaving_date"))
+        if left is not None:
+            return left
+    return today or _dt.date.today()
+
+
 def _derive_years_member(
     record: Mapping[str, Any], *, today: _dt.date | None = None
 ) -> int | None:
-    """Years since ``joined_date`` (membership tenure) = current year - joined year."""
-    joined = _parse_iso_date(_membership(record).get("joined_date"))
+    """Years member (tenure): admin-entered prior years + elapsed years since join.
+
+    ``previous_years`` (admin-entered, on the membership bucket) holds tenure from
+    closed prior periods — no history is retained, only one necessary integer.
+    For a closed membership (``left``/``lapsed``) the reference date is
+    ``leaving_date`` so the closed-period length is frozen.
+    """
+    m = _membership(record)
+    joined = _parse_iso_date(m.get("joined_date"))
     if joined is None:
         return None
-    ref = today or _dt.date.today()
-    years = ref.year - joined.year
-    return years if years >= 0 else None
+    prev = _coerce_nonneg_int(m.get("previous_years"), default=0)
+    ref = _reference_date(m, today)
+    current = ref.year - joined.year
+    return prev + current if current >= 0 else None
 
 
 def _derive_application_year(record: Mapping[str, Any]) -> int | None:
