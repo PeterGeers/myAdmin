@@ -152,7 +152,8 @@ def dispatch_analytics(
         reply_to = _verified_email(ctx)
         deliver_service = _dispatch_mod.get_execute_and_deliver_service()
         outcome = deliver_service.execute_and_deliver(
-            tenant_id, set_id, run_id, reply_to=reply_to
+            tenant_id, set_id, run_id, reply_to=reply_to,
+            requester_sub=ctx.sub
         )
         # The service returns a frozen `DeliveryOutcome` dataclass; the edge's JSON encoder only
         # knows Decimals, so shape it into a plain dict here (the enqueued-send receipt the SPA
@@ -180,7 +181,10 @@ def dispatch_analytics(
         run_id = _new_run_id(tenant_id, body.set_id, ctx.sub)
         reply_to = _verified_email(ctx)
         send_service = _dispatch_mod.get_execute_and_deliver_service()
-        outcome = send_service.send_ad_hoc(tenant_id, body, run_id, reply_to=reply_to)
+        outcome = send_service.send_ad_hoc(
+            tenant_id, body, run_id, reply_to=reply_to,
+            requester_sub=ctx.sub
+        )
         return AcceptedResult(_delivery_outcome_to_dict(outcome))
 
     # ── Group ANALYTICS (send-run STATUS reads — R9, mail-spec task 3.2) ─────────────
