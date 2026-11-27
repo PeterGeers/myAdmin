@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from sam.members.domain.execute_and_deliver import AdHocMailBody
 from sam.members.handler._http import ParsedRequest
+from urllib.parse import unquote
 from sam.members.handler.routes import CAP_MEMBERS_ADMIN
 from sam.shared.auth_utils import has_capability
 
@@ -273,7 +274,7 @@ def _require_path_param(ctx: RequestContext, name: str) -> str:
     value = ctx.path_params.get(name)
     if not value:
         raise KeyError(name)
-    return value
+    return unquote(value)
 
 
 def _query_flag(query: Mapping[str, Any], name: str) -> bool:

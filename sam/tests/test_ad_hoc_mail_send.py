@@ -99,7 +99,14 @@ class ExplodingRepo:
         raise AssertionError("ad-hoc send must not re-fetch members")
 
     def create_mail_run(
-        self, tenant_id, run_id, *, mode, triggered_by, recipient_count
+        self,
+        tenant_id,
+        run_id,
+        *,
+        mode,
+        triggered_by,
+        recipient_count,
+        requester_sub=None,
     ):
         key = (tenant_id, run_id)
         if key in self.mail_runs:
@@ -109,6 +116,7 @@ class ExplodingRepo:
             "run_id": run_id,
             "mode": mode,
             "triggered_by": triggered_by,
+            "requester_sub": requester_sub or triggered_by,
             "recipient_count": recipient_count,
             "status": "queued",
             "sent": 0,
