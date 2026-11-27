@@ -338,11 +338,13 @@ class MembersRepository(Protocol):
         mode: str,
         triggered_by: str | None,
         recipient_count: int,
+        requester_sub: str | None = None,
     ) -> Mapping[str, Any]:
         """Write a ``mailrun#<run_id>`` tally at ENQUEUE with ``status=queued`` (R9.1).
 
         Idempotent on the ``run_id`` (re-enqueuing the same logical run must not reset a run the
         worker has already advanced). Sets the TTL (default 90 days). Tenant-pinned (Property 3).
+        The ``requester_sub`` records the authenticated caller's Cognito sub for ownership checks.
         """
         ...
 
@@ -511,7 +513,7 @@ class _StubMembersRepository:
         raise NotImplementedError(self._PENDING)
 
     def create_mail_run(
-        self, tenant_id, run_id, *, mode, triggered_by, recipient_count
+        self, tenant_id, run_id, *, mode, triggered_by, recipient_count, requester_sub=None
     ):
         raise NotImplementedError(self._PENDING)
 

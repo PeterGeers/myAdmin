@@ -439,6 +439,7 @@ class ExecuteAndDeliverService:
             run_id,
             mode=DELIVERY_MODE_PER_RECIPIENT,
             triggered_by=requester_sub or "",
+            requester_sub=requester_sub,
             recipient_count=len(job_ids),
         )
 
@@ -528,6 +529,7 @@ class ExecuteAndDeliverService:
             run_id,
             mode=DELIVERY_MODE_TO_FIXED,
             triggered_by=requester_sub or "",
+            requester_sub=requester_sub,
             recipient_count=len(recipients),
         )
 
