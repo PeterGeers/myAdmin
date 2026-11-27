@@ -60,6 +60,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
+import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "MailRunStatusService",
@@ -171,7 +175,36 @@ class MailRunStatusService:
         if not admin and not self._owns(run, requester_sub):
             # Exists in the tenant but not the caller's own run → report as absent (no probe).
             return None
-        failures = tuple(self._store.list_mail_run_failures(tenant_id, run_id))
+        try:
+            failures = tuple(self._store.list_mail_run_failures(tenant_id, run_id))
+        except Exception as exc:
+            # A transient failure listing the failure sub-records (e.g. a DynamoDB
+            # query error while the worker is still draining the run) must NOT turn
+            # a visible run into a 404/500 that strands the status screen on "load
+            # failed" — the tally is the primary signal, and an empty failure list is
+            # the honest "none recorded (yet)" state. Log and degrade to no-failures
+            # rather than hiding the run the caller can already see in the list.
+            #
+            # Emit a structured CloudWatch log line so a Logs metric filter can count
+            # transient ``list_mail_run_failures`` errors per day — observable without
+            # requiring a live failure (RCA recommendation: actionable feedback).
+            failures = ()
+            logger.warning(
+                "ACCESS_LOG: %s",
+                json.dumps(
+                    {
+                        "operation": "members_mail_run_failures_list",
+                        "event": "list_mail_run_failures_failed",
+                        "tenant_id": tenant_id,
+                        "run_id": run_id,
+                        "error_class": type(exc).__name__,
+                        "error_message": str(exc),
+                        "detail": "transient",
+                    },
+                    default=str,
+                    sort_keys=True,
+                ),
+            )
         return MailRunView(run=run, failures=failures)
 
     def delete_run(
