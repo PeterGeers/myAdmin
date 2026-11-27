@@ -215,6 +215,7 @@ class MembersCreateMixin:
         mode: str,
         triggered_by: str | None,
         recipient_count: int,
+        requester_sub: str | None = None,
     ) -> Mapping[str, Any]:
         """Write the ``mailrun#<run_id>`` tally at ENQUEUE with ``status=queued`` (R9.1).
 
@@ -234,6 +235,7 @@ class MembersCreateMixin:
         entry = {
             "mode": mode,
             "triggered_by": triggered_by,
+            "requester_sub": requester_sub or triggered_by,
             "recipient_count": int(recipient_count),
             "status": MAIL_RUN_STATUS_QUEUED,
             "sent": 0,

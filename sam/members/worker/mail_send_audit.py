@@ -18,16 +18,25 @@ class MailAuditMixin:
     def _advance_run(
         self, tenant_id: str, run_id: str, *, sent: int = 0, failed: int = 0
     ) -> None:
-        """Advance the run tally (best-effort): mark sending + add sent/failed counts. Never let a
+        """Advance the run tally (best-effort): mark sending + add sent/failed counts, then close the run
+        when every recipient it was sized for has been accounted for. Never let a
         status-tracking error fail the actual send/delete (the mail already went or will retry)."""
         if self._run_store is None or not run_id:
             return
         try:
             self._run_store.update_mail_run_status(tenant_id, run_id, "sending")
+            updated = None
             if sent or failed:
-                self._run_store.increment_mail_run_counts(
+                updated = self._run_store.increment_mail_run_counts(
                     tenant_id, run_id, sent=sent, failed=failed
                 )
+            # Determine the current tally + recipient count to decide completion.
+            run = updated if updated is not None else self._run_store.get_mail_run(tenant_id, run_id)
+            if run is not None:
+                total = int(run.get("recipient_count") or 0)
+                done = int(run.get("sent") or 0) + int(run.get("failed") or 0)
+                if total > 0 and done >= total and run.get("status") != "completed":
+                    self._run_store.update_mail_run_status(tenant_id, run_id, "completed")
         except Exception:
             logger.warning(
                 "mail-send worker: run-status update failed for run %s (non-fatal)",

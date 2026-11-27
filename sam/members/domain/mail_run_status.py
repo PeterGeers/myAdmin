@@ -140,7 +140,7 @@ class MailRunStatusService:
         """
         if not sub:
             return False
-        return run.get("triggered_by") == sub
+        return run.get("triggered_by") == sub or run.get("requester_sub") == sub
 
     def list_runs(
         self, tenant_id: str, *, requester_sub: str | None, admin: bool
