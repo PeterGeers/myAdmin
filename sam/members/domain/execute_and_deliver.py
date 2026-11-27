@@ -152,6 +152,7 @@ class ExecuteAndDeliverService:
         set_id: str,
         run_id: str,
         reply_to: str | None = None,
+        requester_sub: str | None = None,
     ) -> DeliveryOutcome:
         """Resolve the set, gate on certification, re-fetch rows, run the pivot, and enqueue job(s).
 
@@ -236,6 +237,7 @@ class ExecuteAndDeliverService:
                 result_rows,
                 from_address,
                 reply_to,
+                requester_sub=requester_sub,
                 tenant_name=tenant_id,
                 pivot_name=pivot_name,
             )
@@ -248,6 +250,7 @@ class ExecuteAndDeliverService:
                 result_rows,
                 from_address,
                 reply_to,
+                requester_sub=requester_sub,
                 tenant_name=tenant_id,
                 pivot_name=pivot_name,
             )
@@ -263,6 +266,7 @@ class ExecuteAndDeliverService:
         body: AdHocMailBody,
         run_id: str,
         reply_to: str | None = None,
+        requester_sub: str | None = None,
     ) -> DeliveryOutcome:
         """Send an AD-HOC compose (recipients/template/attachment + current rows) — no saved set.
 
@@ -360,10 +364,12 @@ class ExecuteAndDeliverService:
         # helpers.)
         if body.mode == DELIVERY_MODE_PER_RECIPIENT:
             return self._deliver_per_recipient(
-                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to
+                tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to,
+                requester_sub=requester_sub,
             )
         return self._deliver_to_fixed(
-            tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to
+            tenant_id, set_id, run_id, delivery, result_rows, from_address, reply_to,
+            requester_sub=requester_sub,
         )
 
     # ── per_recipient: one job PER member (merge values + template ref) ─────────────────
@@ -377,6 +383,7 @@ class ExecuteAndDeliverService:
         result_rows: Sequence[Mapping[str, Any]],
         from_address: str,
         reply_to: str | None,
+        requester_sub: str | None = None,
         *,
         tenant_name: str = "",
         pivot_name: str = "",
@@ -431,7 +438,7 @@ class ExecuteAndDeliverService:
             tenant_id,
             run_id,
             mode=DELIVERY_MODE_PER_RECIPIENT,
-            triggered_by=reply_to or "",
+            triggered_by=requester_sub or "",
             recipient_count=len(job_ids),
         )
 
@@ -454,6 +461,7 @@ class ExecuteAndDeliverService:
         result_rows: Sequence[Mapping[str, Any]],
         from_address: str,
         reply_to: str | None,
+        requester_sub: str | None = None,
         *,
         tenant_name: str = "",
         pivot_name: str = "",
@@ -519,7 +527,7 @@ class ExecuteAndDeliverService:
             tenant_id,
             run_id,
             mode=DELIVERY_MODE_TO_FIXED,
-            triggered_by=reply_to or "",
+            triggered_by=requester_sub or "",
             recipient_count=len(recipients),
         )
 
