@@ -171,13 +171,7 @@ class MailRunStatusService:
         if not admin and not self._owns(run, requester_sub):
             # Exists in the tenant but not the caller's own run → report as absent (no probe).
             return None
-        try:
-            failures = tuple(self._store.list_mail_run_failures(tenant_id, run_id))
-        except Exception:
-            # Transient failure listing the failure sub-records must not turn a
-            # visible run into a 404/500 that strands the status screen on "load failed".
-            # Degrade to no-failures for this read rather than hiding the run.
-            failures = ()
+        failures = tuple(self._store.list_mail_run_failures(tenant_id, run_id))
         return MailRunView(run=run, failures=failures)
 
     def delete_run(
