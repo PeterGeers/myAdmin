@@ -182,7 +182,22 @@ export const MemberMailStatus: React.FC<MemberMailStatusProps> = ({
       }
       setDrill((prev) => ({ ...prev, [runId]: { loading: true, error: false } }));
       try {
-        const detail = await loadRun(runId);
+        let detail: MailRunDetail | undefined;
+        let lastError: Error | null = null;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            detail = await loadRun(runId);
+            break;
+          } catch (err) {
+            lastError = err instanceof Error ? err : new Error('mail run detail load failed');
+            if (attempt < 2) {
+              await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** attempt));
+            }
+          }
+        }
+        if (detail === undefined) {
+          throw lastError ?? new Error('mail run detail load failed');
+        }
         setDrill((prev) => ({
           ...prev,
           [runId]: { detail, loading: false, error: false },
