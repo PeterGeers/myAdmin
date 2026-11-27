@@ -147,6 +147,19 @@ def store() -> FakeMailRunStore:
         sent=5,
         failed=0,
     )
+    # A run whose id contains COLONS (the real ad-hoc run_id format: deliver:<set>:<sub>:<stamp>)
+    # — drives the URL-encoding regression test for the GET route.
+    s.add_run(
+        "h-dcn",
+        "deliver:adhoc:u1:20260101T000000Z",
+        triggered_by=_SUB_USER,
+        created_at="2026-01-05T10:00:00Z",
+        mode="per_recipient",
+        status="completed",
+        recipient_count=3,
+        sent=3,
+        failed=0,
+    )
     # The caller's own run has two FAILURE sub-records (the drill-down).
     s.add_failure(
         "h-dcn",
@@ -264,9 +277,10 @@ class TestMailRunListScoping:
         assert resp["statusCode"] == 200
         runs = _data(resp)
         ids = {r["run_id"] for r in runs}
-        assert ids == {"run-own-1", "run-own-2"}  # NOT run-other
-        # newest-first ordering is preserved from the repo.
-        assert [r["run_id"] for r in runs] == ["run-own-2", "run-own-1"]
+        colon_run = "deliver:adhoc:u1:20260101T000000Z"
+        assert ids == {"run-own-1", "run-own-2", colon_run}  # NOT run-other
+        # newest-first ordering is preserved from the repo (colon run is 2026-01-05).
+        assert [r["run_id"] for r in runs] == [colon_run, "run-own-2", "run-own-1"]
 
     def test_other_user_sees_only_their_own(self):
         resp = app.handler(_event("/members/mail-runs", sub=_SUB_OTHER))
@@ -284,7 +298,8 @@ class TestMailRunListScoping:
         )
         assert resp["statusCode"] == 200
         ids = {r["run_id"] for r in _data(resp)}
-        assert ids == {"run-own-1", "run-own-2", "run-other"}
+        colon_run = "deliver:adhoc:u1:20260101T000000Z"
+        assert ids == {"run-own-1", "run-own-2", "run-other", colon_run}
 
     def test_list_strips_storage_plumbing_keys(self):
         resp = app.handler(_event("/members/mail-runs"))
@@ -313,6 +328,17 @@ class TestMailRunDrilldown:
         for f in data["failures"]:
             assert "sk" not in f and "ttl" not in f and "tenant_id" not in f
             assert "reason" in f
+
+    def test_run_with_url_encoded_colon_id_returns_tally(self):
+        # Regression test: a real run_id is `deliver:<set>:<sub>:<stamp>` — it contains COLONS.
+        # The path segment arrives URL-encoded (`%3A`) from the edge. `_require_path_param` must
+        # `unquote` it, or the built DynamoDB key (`mailrun#deliver%3A...`) never matches the
+        # stored item (`mailrun#deliver:...`) and the read 404s. Without the fix this test fails.
+        run_id = "deliver:adhoc:u1:20260101T000000Z"
+        encoded = run_id.replace(":", "%3A")  # only the colons, NOT the path slashes
+        resp = app.handler(_event(f"/members/mail-runs/{encoded}", sub=_SUB_USER))
+        assert resp["statusCode"] == 200
+        assert _data(resp)["run"]["run_id"] == run_id
 
     def test_run_with_no_failures_returns_empty_failures(self):
         resp = app.handler(_event("/members/mail-runs/run-own-2", sub=_SUB_USER))
